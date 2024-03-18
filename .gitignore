@@ -42,6 +42,8 @@ Thumbs.db
 *.7z
 *.exe
 *.docx
+*.sql
+
 # Игнорирование файл с прокси серверами
 **/proxi.json
 **/proxi.py
