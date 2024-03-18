@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Звонилка</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+
+<body>
+    <button onclick="callAllNumbers()">Звонить всем</button>
+    <button onclick="loadData()">Загрузить данные</button>
+    <a href="/upload/">
+        <button>Загрузить файл</button>
+    </a>
+    <table id="data-table">
+        <tr>
+            <th>Номер</th>
+            <th>Действие</th>
+        </tr>
+    </table>
+
+    <script>
+        async function makeCall(number) {
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/make_call/${number}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Basic c29tZXVzZXI6MzBhZTkwMzljMzcxYTAwNzBkYzRjNjNkM2FkOGVkMzc='
+                    }
+                });
+                const data = await response.json();
+                console.log(data);
+            } catch (error) {
+                console.error('Ошибка при совершении звонка:', error);
+            }
+        }
+
+        async function loadData() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/get_data/', {
+                    method: 'GET'
+                });
+                const data = await response.json();
+                updateTable(data);
+            } catch (error) {
+                console.error('Ошибка при загрузке данных:', error);
+            }
+        }
+
+        function clearTable() {
+            const table = document.getElementById("data-table");
+            while(table.rows.length > 1) {
+                table.deleteRow(1);
+            }
+        }
+
+        async function callAllNumbers() {
+            const table = document.getElementById('data-table');
+            const rows = table.getElementsByTagName('tr');
+            for (let i = 1; i < rows.length; i++) {
+                const cells = rows[i].getElementsByTagName('td');
+                const number = cells[0].textContent;
+                await makeCall(number);
+                await new Promise(resolve => setTimeout(resolve, 5000)); // пауза в 5 секунд
+            }
+        }
+
+        function updateTable(data) {
+    clearTable();  // очищает таблицу от старых данных
+    const table = document.getElementById('data-table');  // получает элемент таблицы по ID
+    data.forEach(row => {  // для каждой строки данных
+        const tr = document.createElement('tr');  // создает новую строку
+
+        const tdNumber = document.createElement('td');  // создает ячейку для номера
+        tdNumber.textContent = row.nomer;  // устанавливает текст ячейки равным номеру
+        tr.appendChild(tdNumber);  // добавляет ячейку к строке
+
+        const callButton = document.createElement('button');  // создает кнопку "Позвонить"
+        callButton.textContent = 'Позвонить';
+        callButton.onclick = () => makeCall(row.nomer);  // добавляет действие на клик по кнопке
+
+        const tdAction = document.createElement('td');  // создает ячейку для кнопки
+        tdAction.appendChild(callButton);  // добавляет кнопку в ячейку
+        tr.appendChild(tdAction);  // добавляет ячейку с кнопкой к строке
+
+        table.appendChild(tr);  // добавляет строку к таблице
+    });
+}
+    </script>
+
+</body>
+
+</html>
