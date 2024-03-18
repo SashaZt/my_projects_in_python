@@ -44,6 +44,7 @@ Thumbs.db
 *.docx
 # Игнорирование файл с прокси серверами
 **/proxi.json
+**/proxi.py
 
 # Игнорирование файл с доступом к GoogleSheets
 **/access.json
