@@ -6,8 +6,11 @@ import pandas as pd
 import re
 from datetime import datetime
 from io import StringIO
-
+import sys
+import time
+import json
 import numpy as np
+import random
 import requests
 from bs4 import BeautifulSoup
 
@@ -49,7 +52,20 @@ def extract_data_from_csv():
                 item[column] = row[column]  # Извлекаем значения только для указанных столбцов
             data.append(item)  # Добавляем словарь в список
     return data
+def load_config():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
 
+    filename_config = os.path.join(application_path, "config.json")
+
+    with open(filename_config, "r") as config_file:
+        config = json.load(config_file)
+
+    return config
 
 def get_requests():
     import aiohttp
@@ -62,6 +78,10 @@ def get_requests():
     temp_path = os.path.join(current_directory, temp_directory)
     list_path = os.path.join(temp_path, 'list')
     product_path = os.path.join(temp_path, 'product')
+    config = load_config()
+    headers = config.get("headers", {})
+    time_a = config.get("time_a", "")
+    time_b = config.get("time_b", "")
 
     async def fetch(session, sku, brend,price_old, filename, headers):
         params = {
@@ -70,12 +90,41 @@ def get_requests():
             'id_currency': '1',
             'cross_advance': ['0', '1'],
         }
+        url = 'https://lal-auto.ru/'
         try:
-            async with session.get('https://lal-auto.ru/', params=params, headers=headers) as response:
+            async with session.get(url, params=params, headers=headers) as response:
                 src = await response.text()
-                with open(filename, "w", encoding='utf-8') as file:
-                    file.write(src)
+                soup = BeautifulSoup(src, 'lxml')
+                table_manufacturers = soup.find('div', {'class': 'hrey_hd'})
+                # Извлечение всего текста из элемента и его очистка
+                text = " ".join(table_manufacturers.stripped_strings).lower()
+                text = text.replace('\n', ' ').replace('\r', '')  # Удаление переносов строк, если они есть
+                text_find = 'aртикул найден в следующих вариантах:'
+                if text_find not in text:
+                    with open(filename, "w", encoding='utf-8') as file:
+                        file.write(src)
+                else:
+                    rows = soup.select('form#table_form tr')
+                    url_to_fetch = None
+                    for row in rows:
+                        tds = row.find_all('td')
+                        if len(tds) >= 2 and tds[1].text.strip() == sku:
+                            brand_text = tds[0].text.strip()
+                            
+                            if brand_text.upper() == brend.upper():
+                                href = tds[0].get('href') if 'href' in tds[0].attrs else None
+                                if href.startswith("./"):
+                                    href = href[2:]  # Удаляем первые два символа
+                                url_to_fetch = f'https://lal-auto.ru/{href}'
+                                break
+                    if url_to_fetch is not None:
+                        async with session.get(url_to_fetch, headers=headers) as response:
+                            src = await response.text()
+                            with open(filename, "w", encoding='utf-8') as file:
+                                file.write(src)
         except Exception as e:
+            print(f"Произошла ошибка: {e}")
+
             values = [price_old, sku, brend]
             with open('exist_data.csv', 'a', newline='', encoding='utf-16') as exist_file:
                 exist_writer = csv.writer(exist_file, delimiter='\t')
@@ -102,25 +151,6 @@ def get_requests():
 
         if os.path.exists(file_path):
             os.remove(file_path)
-        headers = {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-            'Accept-Language': 'ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6',
-            'Cache-Control': 'no-cache',
-            'Connection': 'keep-alive',
-            # 'Cookie': 'PHPSESSID=erp05a6c0d8a9kvdres8ilh1p0',
-            'DNT': '1',
-            'Pragma': 'no-cache',
-            # 'Referer': 'https://lal-auto.ru/?action=catalog_price_view&code=602+0008+00&id_currency=1&cross_advance=0&cross_advance=1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'same-origin',
-            'Sec-Fetch-User': '?1',
-            'Upgrade-Insecure-Requests': '1',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
-            'sec-ch-ua': '"Google Chrome";v="117", "Not;A=Brand";v="8", "Chromium";v="117"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"',
-        }
 
         data_csv = extract_data_from_csv()
         async with aiohttp.ClientSession() as session:
@@ -136,7 +166,12 @@ def get_requests():
                 if tasks:
                     await asyncio.gather(*tasks)
                     if i + 1000 < len(data_csv):
-                        await asyncio.sleep(10)
+                        sleep_time = random.randint(time_a, time_b)
+                        # print(f'Сторінка {p}')
+
+                        time.sleep(sleep_time)
+                               
+
 
     asyncio.run(main())
 
@@ -169,7 +204,7 @@ def parsing():
                     src = file.read()
             except:
                 continue
-            soup = BeautifulSoup(src, 'html.parser')
+            soup = BeautifulSoup(src, 'lxml')
             table = soup.find('table', class_='datatable')
             html_string_io = StringIO(str(table))
             df = pd.read_html(html_string_io)[0]
@@ -241,7 +276,7 @@ def sort_csv():
 
 
 if __name__ == '__main__':
-    delete_old_data()
-    get_requests()
+    # delete_old_data()
+    # get_requests()
     parsing()
-    sort_csv()
+    # sort_csv()
