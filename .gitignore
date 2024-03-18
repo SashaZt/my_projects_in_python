@@ -45,6 +45,7 @@ Thumbs.db
 *.sql
 *.jpeg
 *.txt
+*.session
 # Игнорирование файл с прокси серверами
 **/proxi.json
 **/proxi.py
