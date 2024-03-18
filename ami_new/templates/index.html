@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Звонилка</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+
+<body>
+    <button onclick="callAllNumbers()">Звонить всем</button>
+    <button onclick="loadData()">Загрузить данные</button>
+    <a href="/upload/">
+        <button>Загрузить файл</button>
+    </a>
+    <table id="data-table">
+        <tr>
+            <th>Номер</th>
+            <th>Действие</th>
+        </tr>
+    </table>
+
+    <script>
+        async function connectAMI() {
+        try {
+            const response = await fetch('http://127.0.0.1:8000/connect_ami/', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            console.log(data);
+        } catch (error) {
+            console.error('Ошибка при установке соединения с AMI:', error);
+        }
+    }
+            async function callAllNumbers() {
+        try {
+            const response = await fetch('http://127.0.0.1:8000/start_calls/', {
+                method: 'POST'
+            });
+            const data = await response.json();
+            console.log(data);
+        } catch (error) {
+            console.error('Ошибка при инициации процесса обзвона:', error);
+        }
+    }
+
+        async function loadData() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/get_data/', {
+                    method: 'GET'
+                });
+                const data = await response.json();
+                updateTable(data);
+            } catch (error) {
+                console.error('Ошибка при загрузке данных:', error);
+            }
+        }
+
+        function clearTable() {
+            const table = document.getElementById("data-table");
+            while(table.rows.length > 1) {
+                table.deleteRow(1);
+            }
+        }
+     async function makeCall(number) {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/call_number/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ number })
+                });
+                const data = await response.json();
+                console.log('Звонок на номер', number, ':', data.message);
+            } catch (error) {
+                console.error('Ошибка при попытке сделать звонок:', error);
+            }
+        }
+        function updateTable(data) {
+            clearTable();
+            const table = document.getElementById('data-table');
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+
+                const tdNumber = document.createElement('td');
+                tdNumber.textContent = row.nomer;
+                tr.appendChild(tdNumber);
+
+                const callButton = document.createElement('button');
+                callButton.textContent = 'Позвонить';
+                callButton.onclick = () => makeCall(row.nomer);
+
+                const tdAction = document.createElement('td');
+                tdAction.appendChild(callButton);
+                tr.appendChild(tdAction);
+
+                table.appendChild(tr);
+            });
+        }
+
+        window.onload = loadData;
+    </script>
+
+
+</body>
+
+</html>

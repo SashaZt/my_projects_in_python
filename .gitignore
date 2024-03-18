@@ -43,7 +43,7 @@ Thumbs.db
 *.exe
 *.docx
 *.sql
-
+*.jpeg
 # Игнорирование файл с прокси серверами
 **/proxi.json
 **/proxi.py
