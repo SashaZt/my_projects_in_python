@@ -3,7 +3,7 @@ import asyncio
 from telegram.error import BadRequest
 
 # указываем токен бота и создаем объект bot
-bot = telegram.Bot(token='6211681959:AAHobX_RZaxpm5ON_dER547hRU0tOFQrfrY')
+bot = telegram.Bot(token=token)
 
 async def get_chat_title(chat_id):
     chat = await bot.get_chat(chat_id=chat_id)
