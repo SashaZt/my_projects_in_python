@@ -7,8 +7,7 @@ from playwright.async_api import async_playwright
 
 
 current_directory = os.getcwd()
-temp_directory = "temp"
-temp_path = os.path.join(current_directory, temp_directory)
+temp_path = os.path.join(current_directory, "temp")
 all_hotels = os.path.join(temp_path, "all_hotels")
 
 # Создание директории, если она не существует
@@ -18,9 +17,10 @@ os.makedirs(all_hotels, exist_ok=True)
 async def save_response_json(json_response, i):
     """Асинхронно сохраняет JSON-данные в файл."""
     filename = os.path.join(all_hotels, f"response_page_{i}.json")
-    async with aiofiles.open(filename, mode="w", encoding="utf-8") as f:
-        await f.write(json.dumps(json_response, ensure_ascii=False, indent=4))
-    print(f"Сохранён файл: {filename}")
+    if not os.path.exists(filename):
+        async with aiofiles.open(filename, mode="w", encoding="utf-8") as f:
+            await f.write(json.dumps(json_response, ensure_ascii=False, indent=4))
+        print(f"Сохранён файл: {filename}")
 
 
 async def log_response(response, i):
@@ -50,9 +50,7 @@ async def main(url):
             async def log_response(response):
                 api_url = "https://r.pl/api/bloczki/pobierz-bloczki"
                 request = response.request
-                if (
-                    request.method == "POST" and api_url in request.url
-                ):  # Подставьте актуальное условие URL
+                if request.method == "POST" and api_url in request.url:
                     try:
                         json_response = await response.json()
                         await save_response_json(json_response, i)
@@ -82,14 +80,6 @@ async def main(url):
         pagination_container = await page.wait_for_selector(
             f"xpath={pagination_xpathr}", timeout=timeout
         )
-        # button_one = await pagination_container.query_selector(
-        #     "a.r-button--primary.r-pagination__page-btn:not(.r-pagination__btn--prev):not(.r-pagination__btn--next)"
-        # )
-        # if button_one:
-        #     await button_one.click()
-        # else:
-        #     print("Кнопка '1' не найдена.")
-
         await asyncio.sleep(1)
 
         # Найдите все элементы по селектору
@@ -109,18 +99,16 @@ async def main(url):
 
         # Итерация по страницам
         print(last_page)
-        for i in range(1, last_page):
+        for i in range(1, last_page + 1):
             print(i)
             # Создаем обработчик и сохраняем его в словарь
             handler = create_log_response_with_counter(i)
             response_handlers[i] = handler
             page.on("response", handler)
-            # Для каждой итерации устанавливаем свой обработчик с уникальным счетчиком
-
-            # next_button_selector = '//a[@class="r-button r-button--accent r-button--hover r-button--contained r-button--icon r-button--svg-margin-left r-button-circle r-button-circle--small r-pagination__btn r-pagination__btn--next"]'
-
             # Проверяем, доступна ли кнопка "Следующая"
-            next_button = await page.wait_for_selector('a[class*="btn--next"]', timeout=60000)
+            next_button = await page.wait_for_selector(
+                'a[class*="btn--next"]', timeout=60000
+            )
             if i == 1:
                 button_one = await pagination_container.query_selector(
                     "a.r-button--primary.r-pagination__page-btn:not(.r-pagination__btn--prev):not(.r-pagination__btn--next)"
@@ -131,28 +119,23 @@ async def main(url):
                     print("Кнопка '1' не найдена.")
 
             elif i > 1:
-                fifth_button_xpath = f"//a[@href[contains(.,'strona={i}')]]"
-                fifth_button = await page.wait_for_selector(
-                            f"xpath={fifth_button_xpath}", timeout=timeout
-                        )
+                number_button_xpath = f"//a[@href[contains(.,'strona={i}')]]"
+                number_button = await page.wait_for_selector(
+                    f"xpath={number_button_xpath}", timeout=timeout
+                )
                 try:
-                    button_close = await page.wait_for_selector('//div[@id="smPopupCloseButton"]', timeout=1000) # 5 секунд ожидания
+                    # Всплывающее окно закрываем
+                    button_close = await page.wait_for_selector(
+                        '//div[@id="smPopupCloseButton"]', timeout=1000
+                    )
                     if button_close:
                         await button_close.click()
                 except Exception as e:
                     print(f"{e}")
 
-                
-                # # XPath для поиска пятой кнопки пагинации (исключая кнопку "Предыдущая")
-                # fifth_button_xpath = 
-                # fifth_button = await page.query_selector(fifth_button_xpath)
-                if fifth_button:
-                    await fifth_button.click()
+                if number_button:
+                    await number_button.click()
 
-                # if next_button:
-                    # Кликаем по кнопке "Следующая", если она найдена
-                    # await next_button.click()
-                # Ожидаем загрузку следующей страницы или определенный элемент на следующей странице
                 await page.wait_for_load_state("networkidle")
                 page.remove_listener("response", response_handlers[i - 1])
             await asyncio.sleep(5)
@@ -163,6 +146,5 @@ async def main(url):
 
 
 print("Вставьте ссылку")
-# url = input()
-url = "https://r.pl/szukaj?cena=avg&cena.do=&cena.od=&data&dataWylotu&dlugoscPobytu=*-*&dlugoscPobytu.do=&dlugoscPobytu.od=&dorosli=1994-01-01&dorosli=1994-01-01&dowolnaLiczbaPokoi=nie&dzieci=nie&hotelUrl&liczbaPokoi=1&ocenaKlientow=*-*&odlegloscLotnisko=*-*&produktUrl&sortowanie=termin-asc&strona=1&typTransportu=AIR"
+url = input()
 asyncio.run(main(url))
