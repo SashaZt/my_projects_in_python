@@ -1,0 +1,30 @@
+{
+    "headers": {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "Windows"
+    },
+    "cookies": {
+        "_clck": "1q78xju%7C2%7Cfk4%7C0%7C1533",
+        "_clsk": "16q2i0j%7C1710594368041%7C2%7C1%7Cj.clarity.ms%2Fcollect",
+        "_ga": "GA1.2.1484268844.1710330290",
+        "_ga_YBF7Q20GFD": "GS1.1.1710594297.7.0.1710594297.0.0.0",
+        "_gat_UA-232962489-1": "1",
+        "_gid": "GA1.2.316790084.1710330290",
+        ".cdneshopsid": "nknLBB6A+zpD0Yc8O4fR6CeLlGx3XHoBQZx52k3ivSdrfCfT99S3HIYMp+ZYLHGdRUi2Pk0KdDpg2L+w3w|004",
+        "isMobileDevice": "0",
+        "lastCartId": "-1",
+        "LastSeenProducts": "133311,68394,25945,25927,25929,25932"
+    }
+}
