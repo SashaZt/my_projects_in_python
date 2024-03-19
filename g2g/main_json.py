@@ -45,11 +45,7 @@ def get_chromedriver():
     
     # Путь к chromedriver.exe
     chromedriver_path = os.path.join(application_path, "chromedriver.exe")
-    
-    # Создание драйвера с указанным путем к chromedriver
-    driver = webdriver.Chrome(executable_path=chromedriver_path, options=chrome_options)
-    service = webdriver.ChromeService(executable_path=folder)
-    # s = Service(executable_path=folder)
+    service = webdriver.ChromeService(executable_path=chromedriver_path)
     driver = webdriver.Chrome(service=service, options=chrome_options)
 
     return driver
@@ -657,7 +653,7 @@ if __name__ == "__main__":
                 time.sleep(5)
         elif user_input == 0:
             print("Программа завершена.")
-            break  # Выход из цикла, завершение программы
+            sys.exit(1)
         else:
             print("Неверный ввод, пожалуйста, введите корректный номер действия.")
         

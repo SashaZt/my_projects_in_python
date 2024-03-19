@@ -66,9 +66,12 @@ def load_config():
         application_path = os.path.dirname(os.path.abspath(__file__))
 
     filename_config = os.path.join(application_path, "config.json")
-
-    with open(filename_config, "r") as config_file:
-        config = json.load(config_file)
+    if not os.path.exists(filename_config):
+        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        sys.exit(1)
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
     headers = config["headers"]
 
     # Генерация строки кукисов из конфигурации
@@ -240,7 +243,6 @@ def main_download_url():
     current_directory = os.getcwd()
     # Создайте полный путь к папке temp
     temp_path = os.path.join(current_directory, "temp")
-    html_path = os.path.join(temp_path, "html")
     category_path = os.path.join(temp_path, "category")
 
     def get_with_proxies(url, headers):
@@ -262,9 +264,6 @@ def main_download_url():
             # Создаём пустой список для сохранения ссылок
             img_links = []
 
-            # Используем find_all для поиска всех тегов <img> на странице,
-            # у которых есть атрибут 'alt', содержащий '9'.
-            # Функция lambda x: x and '9' in x гарантирует, что 'alt' не только существует, но и содержит '9'.
             regex_cart = re.compile("product-item.*")
 
             product_blocks = soup.find_all("div", class_=regex_cart)
@@ -501,6 +500,7 @@ def parsing_product():
     data = []
     filename_to_csv_output = os.path.join(current_directory, "output.csv")
     with open(filename_to_csv_output, "w", newline="", encoding="utf-8") as file:
+        
         writer = csv.writer(file, delimiter=";")
         writer.writerow(
             [
@@ -514,38 +514,44 @@ def parsing_product():
             ]
         )
         for item in files_html:
-
             with open(item, encoding="utf-8") as file:
                 src = file.read()
             soup = BeautifulSoup(src, "lxml")
             script_tag = soup.find("script", {"id": "datablock1"})
             try:
-                json_content = (
-                    script_tag.contents[0].strip().replace("},\n}\n}", "}\n}\n}")
-                )
-            except:
-                print(f"Ошибка {item}")
-                continue
+                json_content = script_tag.contents[0].strip().replace("},\n}\n}", "}\n}\n}")
+            except Exception as e:
+                print(f"Ошибка при обработке содержимого тега script: {e}")
+
             try:
+                # Экранирование всех недопустимых последовательностей обратного слэша.
+                json_content = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_content)
                 data = json.loads(json_content)
-                id_product = soup.find(
-                    "div", {"class": "product-code-ui product-code-lq"}
-                ).text
-                name = data["itemOffered"]["productName"][0]["@value"]
-                brandName = data["itemOffered"]["brand"]["brandName"][0]["@value"]
-                gtin = data["itemOffered"]["gtin"]
-                brutto_price = (
-                    soup.find("div", {"class": "brutto-price-ui"})
-                    .text.strip()
-                    .replace(" PLN", "")
-                    .replace("\nbrutto", "")
-                )
-                netto_price = (
-                    soup.find("div", {"class": "netto-price-ui"})
-                    .text.strip()
-                    .replace(" PLN", "")
-                    .replace("\nnetto", "")
-                )
+            except json.JSONDecodeError as e:
+                print(f"Ошибка {item} обработке JSON: {e}")
+            
+            
+            
+            
+            id_product = soup.find(
+                "div", {"class": "product-code-ui product-code-lq"}
+            ).text
+            name = data["itemOffered"]["productName"][0]["@value"]
+            brandName = data["itemOffered"]["brand"]["brandName"][0]["@value"]
+            gtin = data["itemOffered"]["gtin"]
+            brutto_price = (
+                soup.find("div", {"class": "brutto-price-ui"})
+                .text.strip()
+                .replace(" PLN", "")
+                .replace("\nbrutto", "")
+            )
+            netto_price = (
+                soup.find("div", {"class": "netto-price-ui"})
+                .text.strip()
+                .replace(" PLN", "")
+                .replace("\nnetto", "")
+            )
+            try:
                 product_blocks = soup.find(
                     "div", class_=re.compile("stock-ui no-on-mobile.*")
                 )
@@ -554,21 +560,21 @@ def parsing_product():
                     main_storehouse = 9
                 else:
                     main_storehouse = 0
-
-                writer.writerow(
-                    [
-                        id_product,
-                        name,
-                        brandName,
-                        gtin,
-                        brutto_price,
-                        netto_price,
-                        main_storehouse,
-                    ]
-                )
             except:
-                print(item)
-                continue
+                main_storehouse = None
+
+
+            writer.writerow(
+                [
+                    id_product,
+                    name,
+                    brandName,
+                    gtin,
+                    brutto_price,
+                    netto_price,
+                    main_storehouse,
+                ]
+            )
             # div = soup.find_all("div", {"class": "lazyslider-container-lq"})[0]
             # imgs = div.find_all("img", {"class": "open-gallery-lq"})
             #

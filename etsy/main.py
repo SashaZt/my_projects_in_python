@@ -343,7 +343,13 @@ def get_tags():
                 time.sleep(sleep_time)
             offset += 40
 
-
+def safe_get(dct, keys, default=None):
+    for key in keys:
+        try:
+            dct = dct[key]
+        except (KeyError, TypeError, IndexError):
+            return default
+    return dct
 """
 Парсим файлы товаров
 """
@@ -365,76 +371,122 @@ def pars_product():
         else:
             print(f"Завантажуємо інформацію по магазину {shop} в Google таблицю")
             for filename in filenames:
+                # print(filename)
                 with open(filename, "r", encoding="utf-8") as f:
                     data_json = json.load(f)
-                json_data = data_json["pages"]
-                listing_id = json_data[0]["list"][0]["stacked_graphs_view"][0][
-                    "inventory_detail"
-                ]["datasets"][0]["entries"][0]["listing"]["listing_id"]
-                listing_title = json_data[0]["list"][0]["stacked_graphs_view"][0][
-                    "inventory_detail"
-                ]["datasets"][0]["entries"][0]["listing"]["title"]
+                    # Ваш код с использованием безопасного извлечения
+                    json_data = data_json.get("pages", [])
 
-                # Данные по таблицам
+                    # Безопасное извлечение данных по списку ключей
+                    listing_id = safe_get(json_data, [0, "list", 0, "stacked_graphs_view", 0, "inventory_detail", "datasets", 0, "entries", 0, "listing", "listing_id"], None)
+                    listing_title = safe_get(json_data, [0, "list", 0, "stacked_graphs_view", 0, "inventory_detail", "datasets", 0, "entries", 0, "listing", "title"], None)
+                    img_url = safe_get(json_data, [0, "list", 0, "stacked_graphs_view", 0, "inventory_detail", "datasets", 0, "entries", 0, "listing", "image", "url"], None)
+                    url_product = safe_get(json_data, [0, "list", 0, "stacked_graphs_view", 0, "inventory_detail", "datasets", 0, "entries", 0, "listing", "url"], None)
 
-                all_data_table_01_data = json_data[0]["list"][2]["filters"][0]["options"]
-                all_data_table_02_data = json_data[0]["list"][3]["stacked_graphs_view"][0][
-                    "donut_chart"
-                ]["datasets"][0]["entries"]
-                all_data_table_03_data = json_data[0]["list"][4]["paginated_view"][0]
-                # Итерация по списку entries для получения количества элементов и их обработки
+                    all_data_table_01_data = safe_get(json_data, [0, "list", 2, "filters", 0, "options"], [])
+                    all_data_table_02_data = safe_get(json_data, [0, "list", 3, "stacked_graphs_view", 0, "donut_chart", "datasets", 0, "entries"], [])
+                    paginated_view = safe_get(json_data, [0, "list", 4, "paginated_view"], [])
 
-                # Словари по таблицам
-                dict_table_01 = {
-                    entry["label"]: entry["total"] for entry in all_data_table_01_data
-                }
-                dict_table_01["Revenue"] = (
-                    dict_table_01["Revenue"].replace("USD ", "").replace(".", ",")
-                )
+                    # Использование безопасного извлечения данных для словарей таблиц
+                    dict_table_01 = {entry.get("label"): entry.get("total", "").replace("USD ", "").replace(".", ",") for entry in all_data_table_01_data}
+                    dict_table_02 = {entry.get("label"): entry.get("value") for entry in all_data_table_02_data}
+                    dict_table_03 = {}
 
-                dict_table_02 = {
-                    entry["label"]: entry["value"] for entry in all_data_table_02_data
-                }
-                dict_table_03 = {}
-
-                for item in json_data[0]["list"][4]["paginated_view"]:
-                    # Проверяем, есть ли нужные ключи и данные
-                    if (
-                        "horizontal_line_chart" in item
-                        and "datasets" in item["horizontal_line_chart"]
-                        and len(item["horizontal_line_chart"]["datasets"]) > 0
-                    ):
-
-                        # Получаем список 'entries'
-                        entries = item["horizontal_line_chart"]["datasets"][0]["entries"]
-
-                        # Итерация по каждому 'entry' для заполнения словаря
+                    for item in paginated_view:
+                        entries = safe_get(item, ["horizontal_line_chart", "datasets", 0, "entries"], [])
                         for entry in entries:
-                            # Проверяем, есть ли 'label' и 'value' в 'entry'
-                            if "label" in entry and "value" in entry:
-                                # Добавляем пару в словарь
-                                dict_table_03[entry["label"]] = entry["value"]
+                            label = entry.get("label")
+                            value = entry.get("value")
+                            if label is not None and value is not None:
+                                dict_table_03[label] = value
 
-                img_url = json_data[0]["list"][0]["stacked_graphs_view"][0][
-                    "inventory_detail"
-                ]["datasets"][0]["entries"][0]["listing"]["image"]["url"]
-                url_product = json_data[0]["list"][0]["stacked_graphs_view"][0][
-                    "inventory_detail"
-                ]["datasets"][0]["entries"][0]["listing"]["url"]
-                img_url_for_google = f'=IMAGE("{img_url}")'
-                current_object = {
-                    "object": {
-                        "listing_id": listing_id,
-                        "title": listing_title,
-                        "img_url_for_google": img_url_for_google,
-                        "url_product": url_product,
-                    },
-                    "dict_table_01": dict_table_01,
-                    "dict_table_02": dict_table_02,
-                    "dict_table_03": dict_table_03,
-                }
+                    # Формирование итогового объекта
+                    img_url_for_google = f'=IMAGE("{img_url}")' if img_url else None
+                    current_object = {
+                        "object": {
+                            "listing_id": listing_id,
+                            "title": listing_title,
+                            "img_url_for_google": img_url_for_google,
+                            "url_product": url_product,
+                        },
+                        "dict_table_01": dict_table_01,
+                        "dict_table_02": dict_table_02,
+                        "dict_table_03": dict_table_03,
+                    }
 
-                all_objects.append(current_object)
+                    all_objects.append(current_object)
+                
+                
+                
+
+                
+                # json_data = data_json["pages"]
+                # listing_id = json_data[0]["list"][0]["stacked_graphs_view"][0]["inventory_detail"
+                # ]["datasets"][0]["entries"][0]["listing"]["listing_id"]
+                # listing_title = json_data[0]["list"][0]["stacked_graphs_view"][0][
+                #     "inventory_detail"
+                # ]["datasets"][0]["entries"][0]["listing"]["title"]
+
+                # # Данные по таблицам
+
+                # all_data_table_01_data = json_data[0]["list"][2]["filters"][0]["options"]
+                # all_data_table_02_data = json_data[0]["list"][3]["stacked_graphs_view"][0][
+                #     "donut_chart"
+                # ]["datasets"][0]["entries"]
+                # all_data_table_03_data = json_data[0]["list"][4]["paginated_view"][0]
+                # # Итерация по списку entries для получения количества элементов и их обработки
+
+                # # Словари по таблицам
+                # dict_table_01 = {
+                #     entry["label"]: entry["total"] for entry in all_data_table_01_data
+                # }
+                # dict_table_01["Revenue"] = (
+                #     dict_table_01["Revenue"].replace("USD ", "").replace(".", ",")
+                # )
+
+                # dict_table_02 = {
+                #     entry["label"]: entry["value"] for entry in all_data_table_02_data
+                # }
+                # dict_table_03 = {}
+
+                # for item in json_data[0]["list"][4]["paginated_view"]:
+                #     # Проверяем, есть ли нужные ключи и данные
+                #     if (
+                #         "horizontal_line_chart" in item
+                #         and "datasets" in item["horizontal_line_chart"]
+                #         and len(item["horizontal_line_chart"]["datasets"]) > 0
+                #     ):
+
+                #         # Получаем список 'entries'
+                #         entries = item["horizontal_line_chart"]["datasets"][0]["entries"]
+
+                #         # Итерация по каждому 'entry' для заполнения словаря
+                #         for entry in entries:
+                #             # Проверяем, есть ли 'label' и 'value' в 'entry'
+                #             if "label" in entry and "value" in entry:
+                #                 # Добавляем пару в словарь
+                #                 dict_table_03[entry["label"]] = entry["value"]
+
+                # img_url = json_data[0]["list"][0]["stacked_graphs_view"][0][
+                #     "inventory_detail"
+                # ]["datasets"][0]["entries"][0]["listing"]["image"]["url"]
+                # url_product = json_data[0]["list"][0]["stacked_graphs_view"][0][
+                #     "inventory_detail"
+                # ]["datasets"][0]["entries"][0]["listing"]["url"]
+                # img_url_for_google = f'=IMAGE("{img_url}")'
+                # current_object = {
+                #     "object": {
+                #         "listing_id": listing_id,
+                #         "title": listing_title,
+                #         "img_url_for_google": img_url_for_google,
+                #         "url_product": url_product,
+                #     },
+                #     "dict_table_01": dict_table_01,
+                #     "dict_table_02": dict_table_02,
+                #     "dict_table_03": dict_table_03,
+                # }
+
+                # all_objects.append(current_object)
             values = []
 
             for index, item in enumerate(all_objects, start=2):
@@ -456,9 +508,13 @@ def pars_product():
                     else ""
                 )
                 # Извлекаем числовые значения, обрабатываем случай отсутствия данных
-                visits = item["dict_table_01"].get("Visits", 0)
-                visits = visits.replace(",", "")
-                visits = float(visits)  # Преобразуем в число с плавающей точкой
+                visits_str = item["dict_table_01"].get("Visits", "0").replace(",", "")
+                visits = int(visits_str)
+
+                # if visits > 0:
+                #     visits = visits.replace(",", "")
+                #     visits = float(visits)
+                
 
                 # Пример с удалением запятой перед преобразованием
                 total_views_str = item["dict_table_01"].get(
@@ -471,7 +527,8 @@ def pars_product():
                     total_views_str
                 )  # Преобразуем в число с плавающей точкой
 
-                orders = float(item["dict_table_01"].get("Orders", 0))
+                orders_str = item["dict_table_01"].get("Orders", 0).replace(",", ".")
+                orders = float(orders_str)
 
                 # Обработка деления с проверкой на ноль и округлением
                 orders_to_visits_ratio = (
@@ -625,6 +682,12 @@ def pars_product():
                     "Tagging ideas (Title)",
                 ]
             ]
+            # Преобразование списка списков в одну большую строку
+            # all_values_as_string = ''.join([''.join(map(str, row)) for row in new_values])
+
+            # # Подсчет количества символов в строке
+            # total_characters = len(all_values_as_string)
+            # print(total_characters)
             try:
                 worksheet = sheet.worksheet(shop)
             except gspread.WorksheetNotFound:
@@ -752,12 +815,10 @@ if __name__ == "__main__":
                 print("Невірний ввід, будь ласка, введіть коректний номер дії.")
                 continue  # Для возврата к началу цикла, если ввод некорректен
 
-            # Получение данных
             creative_temp_folders()
             get_page_statistic(date_range)
             get_product(date_range)
             get_tags()
-            # Парсим данные
             pars_product()
         else:
             print("Невірний ввід, будь ласка, введіть коректний номер дії.")

@@ -104,6 +104,7 @@ def get_requests():
                     with open(filename, "w", encoding='utf-8') as file:
                         file.write(src)
                 else:
+                    # sku = re.sub(r"[^\w\d]|_", "", sku)
                     rows = soup.select('form#table_form tr')
                     url_to_fetch = None
                     for row in rows:
@@ -160,6 +161,7 @@ def get_requests():
                     sku = item['Numer katalogowy części'].replace(" ", "").replace("/", "")
                     brend = item['Producent części'].capitalize()
                     price_old = item['price']
+                    sku = re.sub(r"[^\w\d]|_", "", sku)
                     filename = os.path.join(product_path, sku + '.html')
                     if not os.path.exists(filename):
                         tasks.append(fetch(session, sku, brend,price_old, filename, headers))
@@ -195,8 +197,10 @@ def parsing():
 
         for item in data_csv:
             price_old = item['price']
-            sku = item['Numer katalogowy części'].replace(" ", "")
-            sku = sku.replace("/", "")
+            sku = item['Numer katalogowy części']
+            # sku = item['Numer katalogowy części'].replace(" ", "")
+            sku = re.sub(r"[^\w\d]|_", "", sku)
+            # sku = sku.replace("/", "")
             brend = item['Producent części'].capitalize()
             folders_html = os.path.join(product_path, f"{sku}.html")
             try:
@@ -216,12 +220,16 @@ def parsing():
                 continue  # заменил continue на pass, потому что в вашем коде не было цикла
             # Удаляем первую строку
             selected_columns = selected_columns.iloc[1:, :]
-            # Удаляем символ "Р." и заменяем "---" на NaN
-            selected_columns['Цена'] = selected_columns['Цена'].str.replace(' Р.', '', regex=False).replace('---',
-                                                                                                            np.nan)
 
-            # Преобразуем столбец "Цена" в числовой формат
+            # Удаляем символ "Р." без изменения типа данных
+            selected_columns['Цена'] = selected_columns['Цена'].str.replace(' Р.', '', regex=False)
+
+            # Заменяем "---" на np.nan без предупреждения о изменении типа данных
+            selected_columns['Цена'] = selected_columns['Цена'].replace('---', np.nan)
+
+            # Явное преобразование столбца "Цена" в числовой формат
             selected_columns['Цена'] = pd.to_numeric(selected_columns['Цена'], errors='coerce')
+
 
             filtered_rows = selected_columns[selected_columns.iloc[:, 1] == sku]
 
