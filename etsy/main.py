@@ -38,11 +38,14 @@ def load_config():
         application_path = os.path.dirname(os.path.abspath(__file__))
 
     filename_config = os.path.join(application_path, "config.json")
+    if not os.path.exists(filename_config):
+        print("Нету файла с прокси-серверами!!!!!!!!!!!!!!!!!!!!!!!!!")
+        sys.exit(1)  # Завершаем выполнение скрипта с кодом ошибки 1
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
 
-    with open(filename_config, "r") as config_file:
-        config = json.load(config_file)
-
-    return config
+        return config
 
 
 """
@@ -60,21 +63,24 @@ def get_cookies():
         application_path = os.path.dirname(os.path.abspath(__file__))
 
     filename_cookies = os.path.join(application_path, "cookies.json")
+    if not os.path.exists(filename_cookies):
+            print("Нету файла с cookies!!!!!!!!!!!!!!!!!!!!!!!!!")
+            sys.exit(1)  # Завершаем выполнение скрипта с кодом ошибки 1
+    else:
+        with open(filename_cookies, "r", encoding="utf-8") as f:
+            data_json = json.load(f)
 
-    with open(filename_cookies, "r", encoding="utf-8") as f:
-        data_json = json.load(f)
+        shops_json = data_json["shops"]
+        shops_cookies = []
 
-    shops_json = data_json["shops"]
-    shops_cookies = []
+        for s in shops_json:
+            # Собираем информацию о каждом магазине
+            shop_info = {"id_shop": s["id_shop"], "cookies": s["cookies"]}
+            # Добавляем информацию о магазине в список
+            shops_cookies.append(shop_info)
 
-    for s in shops_json:
-        # Собираем информацию о каждом магазине
-        shop_info = {"id_shop": s["id_shop"], "cookies": s["cookies"]}
-        # Добавляем информацию о магазине в список
-        shops_cookies.append(shop_info)
-
-    # Возвращаем список с информацией о всех магазинах и их cookies
-    return shops_cookies
+        # Возвращаем список с информацией о всех магазинах и их cookies
+        return shops_cookies
 
 
 """
@@ -92,18 +98,23 @@ def get_google():
         application_path = os.path.dirname(os.path.abspath(__file__))
 
     creds_file = os.path.join(application_path, "access.json")
-    config = load_config()
-    spreadsheet_id = config.get("spreadsheet_id", "")
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive.file",
-        "https://www.googleapis.com/auth/drive",
-    ]
+    if not os.path.exists(creds_file):
+            print("Нету файла access.json!!!!!!!!!!!!!!!!!!!!!!!!!")
+            sys.exit(1)  # Завершаем выполнение скрипта с кодом ошибки 1
+    
+    else:
+        config = load_config()
+        spreadsheet_id = config.get("spreadsheet_id", "")
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive",
+        ]
 
-    creds = ServiceAccountCredentials.from_json_keyfile_name(creds_file, scope)
-    client = gspread.authorize(creds)
-    return client, spreadsheet_id
+        creds = ServiceAccountCredentials.from_json_keyfile_name(creds_file, scope)
+        client = gspread.authorize(creds)
+        return client, spreadsheet_id
 
 
 """
