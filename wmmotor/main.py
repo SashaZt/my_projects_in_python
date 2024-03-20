@@ -11,9 +11,8 @@ from bs4 import BeautifulSoup
 from headers_cookies import cookies, headers
 from proxi import proxies
 current_directory = os.getcwd()
-temp_directory = 'temp'
 # Создайте полный путь к папке temp
-temp_path = os.path.join(current_directory, temp_directory)
+temp_path = os.path.join(current_directory, 'temp')
 list_path = os.path.join(temp_path, 'list')
 product_path = os.path.join(temp_path, 'product')
 img_path = os.path.join(temp_path, 'img')

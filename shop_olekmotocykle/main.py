@@ -6,6 +6,7 @@ import csv
 import os
 import sys
 import asyncio
+import time
 import glob
 import json
 import html
@@ -38,6 +39,7 @@ def load_proxy():
     filename_proxy = os.path.join(application_path, "proxi.json")
     if not os.path.exists(filename_proxy):
         print("Нету файла с прокси-серверами!!!!!!!!!!!!!!!!!!!!!!!!!")
+        time.sleep(3)
         sys.exit(1)  # Завершаем выполнение скрипта с кодом ошибки 1
     else:
         with open(filename_proxy, "r") as file:
@@ -68,6 +70,7 @@ def load_config():
     filename_config = os.path.join(application_path, "config.json")
     if not os.path.exists(filename_config):
         print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        time.sleep(3)
         sys.exit(1)
     else:
         with open(filename_config, "r") as config_file:
@@ -76,7 +79,7 @@ def load_config():
 
     # Генерация строки кукисов из конфигурации
     if "cookies" in config:
-        cookies_str = '; '.join([f'{k}={v}' for k, v in config["cookies"].items()])
+        cookies_str = "; ".join([f"{k}={v}" for k, v in config["cookies"].items()])
         headers["Cookie"] = cookies_str
     return config
 
@@ -237,7 +240,6 @@ def main_download_url():
     import csv
     import re
     import os
-    from proxi import proxies
     from requests.exceptions import RequestException
 
     current_directory = os.getcwd()
@@ -271,9 +273,7 @@ def main_download_url():
                 # Ищем все изображения в блоке
                 a = block.find("a", class_="product-link-ui")
                 if a and a.has_attr("href"):
-                    img_links.append(
-                        f"{url_home}" + a["href"]
-                    )  # Добавляем найденный href в список
+                    img_links.append(f"{url_home}" + a["href"])
             # # for img in soup.find_all('img', alt=lambda x: x and '9' in x):
 
             #     # Для каждого найденного тега <img> ищем ближайший предшествующий тег <a>.
@@ -352,7 +352,6 @@ def download_html_files():
 
     async def fetch(session, url, coun):
 
-        
         config = load_config()
         headers = config["headers"]
         filename = os.path.join(html_path, f"data_{coun}.html")
@@ -387,6 +386,7 @@ def download_html_files():
                         await asyncio.gather(*tasks)
                         print(f"Completed {coun} requests")
                         await asyncio.sleep(1)
+
     # import aiohttp
     # import asyncio
     # from pathlib import Path
@@ -424,7 +424,7 @@ def download_html_files():
     #     if not os.path.exists(filename_html):
     #         try:
     #             proxies_requests, proxy_aiohttp = load_proxy()
-    #             async with session.get(url, headers=headers, proxy=proxy_aiohttp) as response:  
+    #             async with session.get(url, headers=headers, proxy=proxy_aiohttp) as response:
     #                 content = await response.text()
     #                 with open(filename_html, "w", encoding="utf-8") as file:
     #                     file.write(content)
@@ -500,7 +500,7 @@ def parsing_product():
     data = []
     filename_to_csv_output = os.path.join(current_directory, "output.csv")
     with open(filename_to_csv_output, "w", newline="", encoding="utf-8") as file:
-        
+
         writer = csv.writer(file, delimiter=";")
         writer.writerow(
             [
@@ -519,20 +519,19 @@ def parsing_product():
             soup = BeautifulSoup(src, "lxml")
             script_tag = soup.find("script", {"id": "datablock1"})
             try:
-                json_content = script_tag.contents[0].strip().replace("},\n}\n}", "}\n}\n}")
+                json_content = (
+                    script_tag.contents[0].strip().replace("},\n}\n}", "}\n}\n}")
+                )
             except Exception as e:
                 print(f"Ошибка при обработке содержимого тега script: {e}")
 
             try:
                 # Экранирование всех недопустимых последовательностей обратного слэша.
-                json_content = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', json_content)
+                json_content = re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", json_content)
                 data = json.loads(json_content)
             except json.JSONDecodeError as e:
                 print(f"Ошибка {item} обработке JSON: {e}")
-            
-            
-            
-            
+
             id_product = soup.find(
                 "div", {"class": "product-code-ui product-code-lq"}
             ).text
@@ -562,7 +561,6 @@ def parsing_product():
                     main_storehouse = 0
             except:
                 main_storehouse = None
-
 
             writer.writerow(
                 [
@@ -643,8 +641,8 @@ while True:
         "Введите 1 для загрузки категорий"
         "\nВведите 2 для загрузки всех товаров"
         "\nВведите 3 после скачивания всех товаров, получаем отчет"
-        "\nВведите 4 если у Вас есть файл с остатками, нужно удалить старые"
-        "\nВведите 0 для удаления старых данных и закрытия программы"
+        "\nВведите 4 если у Вас есть файл с остатками, нужно удалить старые данные!!!!"
+        "\nВведите 0 Закрытия программы"
     )
     try:
         user_input = input("Выберите действие: ")  # Сначала получаем ввод как строку
@@ -660,7 +658,6 @@ while True:
         main_download_url()
         delete_dublicate()
         print("Переходим к пункту 2")
-
     elif user_input == 2:
         download_html_files()
         print("Переходим к пункту 3")
@@ -670,11 +667,11 @@ while True:
         print("Переходим к пункту 0")
     elif user_input == 4:
         delete_old_data()
-        print("Файлы удалены")
-        break  # Выход из цикла, завершение программы
+        print("Старые файлы удалены, переходим к пункту 1")
     elif user_input == 0:
         print("Программа завершена.")
-        break  # Выход из цикла, завершение программы
+        time.sleep(2)
+        sys.exit(1)
 
     else:
         print("Неверный ввод, пожалуйста, введите корректный номер действия.")
