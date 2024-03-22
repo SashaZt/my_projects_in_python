@@ -98,7 +98,13 @@ def pars_pdf():
         # for page in pdf.pages:
             # index_page += 1
         for page_index, page in enumerate(pdf.pages):
-            page_index = page_index +1
+            
+            # first_page = pdf.pages
+            # image = first_page[page_index].to_image()
+            # page_index = page_index +1
+            # image.debug_tablefinder()
+            # image.save(f"analis_{page_index}.png")
+            
             values_list_search_key_bat = []
             values_list_search_key_element = []
             values_list_search_key_building = []
@@ -114,7 +120,35 @@ def pars_pdf():
                 key_number = match.group(1)
             else:
                 print("Ключ не найден.")
+            vertical_lines = [330, 430]  # Пример координат X для вертикальных линий
+            horizontal_lines = [190, 199, 205, 213, 221, 233]  # Пример координат Y для горизонтальных линий
 
+            table_settings = {
+                "vertical_strategy": "explicit",
+                "explicit_vertical_lines": vertical_lines,
+                "horizontal_strategy": "explicit",
+                "explicit_horizontal_lines": horizontal_lines,
+            }
+            table_land = page.extract_tables(table_settings)
+            result_dict = {}
+            for row in table_land[0]:  # Предполагаем, что интересующая нас таблица - первая в списке
+                content = row[0].split(' ', 1)  # Разделяем строку на название и значение
+                if len(content) == 2:
+                    # Если есть и название, и значение
+                    key, value = content
+                else:
+                    # Если значение отсутствует, ключу присваивается None или пустая строка
+                    key = content[0]
+                    value = None  # Или используйте None
+
+                # Удаляем запятые из числовых значений для унификации
+                # Добавляем в словарь
+                result_dict[key] = value
+            
+            values_list_search_key_info.append(result_dict)
+            
+            
+            
             tables = page.extract_tables()
             
             for table in tables:
@@ -129,6 +163,8 @@ def pars_pdf():
                 dict_search_key_info = {}
                 dict_search_key_info_02 = {}
                 dict_search_key_info_03 = {}
+                dict_search_key_info_04 = {}
+                
 
                 for header_first in search_headers_first:
                     if header_first in headers_first:
@@ -151,15 +187,6 @@ def pars_pdf():
                         # Удаление исходного ключа 'CURRENT OWNER'
                         del dict_item['CURRENT OWNER']
 
- 
-
-                # Выводим обновленный список словарей
-                
-                            
-                            # print(f"{header_first}: {value_first}")
-                
-                
-            
 
                 headers_second = table[2]  # Заголовки таблицы
                 
@@ -207,7 +234,12 @@ def pars_pdf():
                                     'SALE PRICE':'sale_price',
                                     'BK-PG (Cert)':'bk_pg_cert',
                                     'TOTAL':'acres',
-                                    'ONING':'zoming'
+                                    'ONING':'zoming',
+                                    'LAND': 'assesed_land',
+                                    'BUILDING': 'assesed_building',
+                                    'DETACHED': 'assesed_detached',
+                                    'OTHER': 'assesed_other'
+
 
                                 }
 
@@ -216,35 +248,67 @@ def pars_pdf():
                     for old_key, new_key in keys_mapping.items():
                         if old_key in item:
                             item[new_key] = item.pop(old_key)  # Удаление старого ключа и добавление нового с сохранением значения         
-
-                # print(values_list_search_key_info)              
-                
-
-
-                                # print(f"{search_header} {target_value}")
                 
                 
                 
                 
                 
                 
-   
-               
-                
-                headers_cell_8 = table[8][27]  # Заголовки в 27-й ячейке
-                values_cell_8 = table[8][31]  # Значения в 31-й ячейке
-                headers_8 = split_and_clean(headers_cell_8)
-                values_8 = split_and_clean(values_cell_8)
-
+                headers_cell_15 = table[15][0]  # Заголовки в 27-й ячейке
+                values_cell_15 = table[15][5]  # Значения в 31-й ячейке
+                headers_15 = split_and_clean(headers_cell_15)
+                values_15 = split_and_clean(values_cell_15)
                 # Обработка данных из таблицы 9
-                total_value_9 = table[9][31]  # Общая сумма в 32-й ячейке
 
-                # Сопоставляем заголовки и значения
-                for header, value in zip(headers_8, values_8):
-                    print(f"{header}: {value}")
+                for header, value in zip(headers_15[:-1], values_15[:-1]):
+                    dict_search_key_info_04[header] = value
+                values_list_search_key_info.append(dict_search_key_info_04)  
+                
+                
+                with open(f'search_key_info_{page_index}.json', 'w', encoding='utf-8') as f:
+                    json.dump(values_list_search_key_info, f, ensure_ascii=False, indent=4)
+                
 
-                # Выводим общую сумму
-                print(f"TOTAL: {total_value_9}")
+
+                
+                
+                                
+                # headers_cell_8 = table[8][27]  # Заголовки в 27-й ячейке
+                # values_cell_8 = table[8][31]  # Значения в 31-й ячейке
+                # headers_8 = split_and_clean(headers_cell_8)
+                # values_8 = split_and_clean(values_cell_8)
+                
+                
+                # # Инициализируем словарь с пустыми строками для каждого заголовка
+                # values_dict = {header: "" for header in ["LAND", "BUILDING", "DETACHED", "OTHER"]}
+
+                # # Заполняем словарь данными
+                # for header in values_dict.keys():
+                #     if header in headers_8:
+                #         # Получаем индекс заголовка в headers_8
+                #         index = headers_8.index(header)
+                #         # Если соответствующее значение существует, заполняем его
+                #         if index < len(values_8):
+                #             values_dict[header] = values_8[index]
+                #         else:
+                #             # Если значение отсутствует, оставляем пустую строку
+                #             values_dict[header] = ""
+                #     else:
+                #         # Если заголовок отсутствует, оставляем пустую строку
+                #         values_dict[header] = ""
+
+                # # Выводим значения по каждому заголовку
+                # for header, value in values_dict.items():
+                #     print(f"{header}: {value}")
+                
+               
+
+                
+                
+                # # Обработка данных из таблицы 9
+                # total_value_9 = table[9][31]  # Общая сумма в 32-й ячейке
+                # # Выводим общую сумму
+                # print(f"TOTAL: {total_value_9}")
 
                 
                 
@@ -277,18 +341,6 @@ def pars_pdf():
                 
 
 
-
-
-                
-                
-                # headers_cell_15 = table[15][0]  # Заголовки в 27-й ячейке
-                # values_cell_15 = table[15][5]  # Значения в 31-й ячейке
-                # headers_15 = split_and_clean(headers_cell_15)
-                # values_15 = split_and_clean(values_cell_15)
-
-                # # Обработка данных из таблицы 9
-
-                # for header, value in zip(headers_15, values_15):
                 #     print(f"{header}: {value}")
                 
                 
