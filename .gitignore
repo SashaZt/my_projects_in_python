@@ -38,14 +38,18 @@ Thumbs.db
 # Игнорирование разных файлов
 *.csv
 *.xlsx
+*.json
+*.pdf
 *.spec
 *.7z
 *.exe
 *.docx
 *.sql
 *.jpeg
+*.png
 *.txt
 *.session
+
 # Игнорирование файл с прокси серверами
 **/proxi.json
 **/proxi.py

@@ -140,30 +140,7 @@ def get_data():
         json.dump(formatted_data, f, ensure_ascii=False, indent=4)
 
 
-def run_at_specific_timee_ach_hour(target_minute, target_second):
-    while True:
-        now = datetime.now()
-        target_time = now.replace(
-            minute=target_minute, second=target_second, microsecond=0
-        )
 
-        # Если целевое время уже прошло, устанавливаем его на следующий час
-        if target_time < now:
-            target_time += timedelta(hours=1)
-
-        print(f"Скрипт запланирован на {target_time}")
-
-        # Ожидание до целевого времени
-        while datetime.now() < target_time:
-            time.sleep(
-                1
-            )  # Спим по 1 секунде, чтобы избежать чрезмерной загрузки процессора
-
-        # Вызов функции после достижения целевого времени
-        get_requests()
-
-        # Планирование следующего запуска на следующий час
-        time.sleep(10)  # Короткая пауза перед планированием следующего запуска
 
 def json_to_csv():
     now = datetime.now()
@@ -306,9 +283,37 @@ def run_at_specific_time(target_time_str):
     get_data()
     json_to_csv()
 
+def run_at_specific_timee_ach_hour(target_minute, target_second):
+    while True:
+        now = datetime.now()
+        target_time = now.replace(minute=target_minute, second=target_second, microsecond=0)
+        
+        # Если целевое время уже прошло, устанавливаем его на следующий час
+        if target_time < now:
+            target_time += timedelta(hours=1)
+
+        print(f"Скрипт запланирован на {target_time}")
+
+        # Ожидание до целевого времени
+        while datetime.now() < target_time:
+            time.sleep(1)  # Спим по 1 секунде, чтобы избежать чрезмерной загрузки процессора
+
+        # Вызов функции после достижения целевого времени
+        get_requests()
+        get_data()
+        json_to_csv()
+
+        # Планирование следующего запуска на следующий час
+        time.sleep(10) # Короткая пауза перед планированием следующего запуска
+
+
+
+
+
+
 if __name__ == "__main__":
     # run_at_specific_time("15:50:50")
-    run_at_specific_time("16:03:00")
+    run_at_specific_timee_ach_hour(59, 58)
 
 
 
