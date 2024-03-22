@@ -5,6 +5,7 @@ import random
 import time
 import json
 import sys
+import re
 import requests
 from bs4 import BeautifulSoup
 
@@ -348,16 +349,14 @@ def parsing_products():
                     url_photo = p.get("href").replace("../", "http://www.wmmotor.pl/")
                     urls_photo.append(url_photo)
                 '//span[@style="font-weight: bold; color: #CE0000;"]'
-                category = (
-                    soup.find(
-                        "span", attrs={"style": "font-weight: bold; color: #CE0000;"}
-                    )
-                    .text.replace("  ", "_")
-                    .replace(" - ", "_")
-                    .replace(".", "")
-                    .replace(",", "")
-                    .replace(" ", "_")
-                )
+                try:
+                    # Пытаемся найти элемент и извлечь его текст
+                    category_text = soup.find("span", attrs={"style": "font-weight: bold; color: #CE0000;"}).get_text(strip=True)
+                    # Применяем регулярные выражения для замены символов
+                    category = re.sub(r"[ .,]", "_", category_text).replace("__", "_").replace(" - ", "_")
+                except AttributeError:
+                    # Если элемент не найден, soup.find() вернёт None, что приведёт к AttributeError при попытке вызвать .get_text()
+                    category = None
                 # print(category)
                 try:
                     opis_tovaru = table_product.find_all("td", attrs={"valign": "top"})[
@@ -414,8 +413,8 @@ def parsing_products():
 
 
 if __name__ == "__main__":
-    delete_old_data()
-    get_categories_to_html_file()
-    get_urls_product()
-    get_asio()
+    # delete_old_data()
+    # get_categories_to_html_file()
+    # get_urls_product()
+    # get_asio()
     parsing_products()

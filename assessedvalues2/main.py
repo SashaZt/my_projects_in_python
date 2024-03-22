@@ -1,11 +1,63 @@
 import pdfplumber
 import re
-import csv
 import json
+import mysql.connector
+import os
+import sys
+import glob
+import time
+
+
+current_directory = os.getcwd()
+# Создайте полный путь к папке temp
+temp_path = os.path.join(current_directory, "temp")
+search_key_bat_path = os.path.join(temp_path, "search_key_bat")
+search_key_building_path = os.path.join(temp_path, "search_key_building")
+search_key_capacity_path = os.path.join(temp_path, "search_key_capacity")
+search_key_element_path = os.path.join(temp_path, "search_key_element")
+search_key_info_path = os.path.join(temp_path, "search_key_info")
+search_key_ty_path = os.path.join(temp_path, "search_key_ty")
+search_results_path = os.path.join(temp_path, "search_results")
+
+
+def create_folders():
+    # Убедитесь, что папки существуют или создайте их
+    for folder in [
+        temp_path,
+        search_key_bat_path,
+        search_key_building_path,
+        search_key_capacity_path,
+        search_key_element_path,
+        search_key_info_path,
+        search_key_ty_path,
+        search_results_path,
+    ]:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
 
 
 def get_pdf():
     pass
+
+
+def load_config():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    filename_config = os.path.join(application_path, "config.json")
+    if not os.path.exists(filename_config):
+        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        time.sleep(3)
+        sys.exit(1)
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
+
+    return config
 
 
 # Функция для разбиения строки на подстроки и удаления пустых элементов
@@ -17,94 +69,25 @@ def split_and_clean(cell_content):
         return []  # Возвращаем пустой список, если содержимое ячейки None
 
 
-# def write_csv_search_key_bat():
-#     values_list = search_key_bat()
-#         # Определяем заголовки столбцов из ключей первого словаря в списке
-#     headers = values_list[0].keys()
-
-#     # Открываем файл для записи
-#     with open(
-#         "search_key_bat.csv", mode="a", newline="", encoding="utf-8"
-#     ) as csv_file:
-#         writer = csv.DictWriter(csv_file, fieldnames=headers, delimiter=";")
-
-#         # Записываем заголовки столбцов
-#         writer.writeheader()
-
-#         # Записываем данные
-#         for row in values_list:
-#             writer.writerow(row)
-    
-
-
-def search_key_bat(key_number, table_index, table):
-    values_list = []
-    headers_cell_17 = table[16][33]  # Заголовки в 27-й ячейке
-    values_cell_17 = table[16][34]  # Значения в 31-й ячейке
-    values_02_cell_17 = table[16][35]  # Значения в 31-й ячейке
-    values_03_cell_17 = table[16][36]  # Значения в 31-й ячейке
-    values_04_cell_17 = table[16][39]  # Значения в 31-й ячейке
-
-    headers_17 = split_and_clean(headers_cell_17)
-    values_17 = split_and_clean(values_cell_17)
-    values_02_17 = split_and_clean(values_02_cell_17)
-    values_03_17 = split_and_clean(values_03_cell_17)
-    values_04_17 = split_and_clean(values_04_cell_17)
-
-    # Определяем максимальную длину среди всех списков
-    max_length = max(
-        len(headers_17),
-        len(values_17),
-        len(values_02_17),
-        len(values_03_17),
-        len(values_04_17),
-    )
-
-    # Дополняем каждый список до максимальной длины, если это необходимо
-    headers_17 += [None] * (max_length - len(headers_17))
-    values_17 += [None] * (max_length - len(values_17))
-    values_02_17 += [None] * (max_length - len(values_02_17))
-    values_03_17 += [None] * (max_length - len(values_03_17))
-    values_04_17 += [None] * (max_length - len(values_04_17))
-
-    
-    # Теперь вы можете безопасно итерировать по спискам, используя zip, без риска получить ошибку
-    for header, value, value_02, value_03, value_04 in zip(
-        headers_17, values_17, values_02_17, values_03_17, values_04_17
-    ):
-        header_str = '' if header is None else header.replace('None', '')
-
-        current_dict = {
-            "Keyno": key_number,
-            "card": table_index,
-            "bat": f"{header_str} {value}",
-            "bat_t": value_02,
-            "bat_desc": value_03,
-            "bat_units": value_04.replace(",", ""),  # Убираем запятые в 'bat_units'
-        }
-        values_list.append(current_dict)
-    with open(f'0_{table_index}.json', 'w', encoding='utf-8') as f:
-        json.dump(values_list, f, ensure_ascii=False, indent=4)  # Записываем в файл
-
 
 
 def pars_pdf():
     pdf_path = "K000100N40157510.pdf"
     # Открываем PDF-файл с помощью PDFPlumber
-    
+
     with pdfplumber.open(pdf_path) as pdf:
         # Получаем первую страницу документа
         # index_page = 0
         # for page in pdf.pages:
-            # index_page += 1
+        # index_page += 1
         for page_index, page in enumerate(pdf.pages):
-            
+
             # first_page = pdf.pages
             # image = first_page[page_index].to_image()
-            # page_index = page_index +1
+            page_index = page_index +1
             # image.debug_tablefinder()
             # image.save(f"analis_{page_index}.png")
-            
+
             values_list_search_key_bat = []
             values_list_search_key_element = []
             values_list_search_key_building = []
@@ -121,7 +104,14 @@ def pars_pdf():
             else:
                 print("Ключ не найден.")
             vertical_lines = [330, 430]  # Пример координат X для вертикальных линий
-            horizontal_lines = [190, 199, 205, 213, 221, 233]  # Пример координат Y для горизонтальных линий
+            horizontal_lines = [
+                190,
+                199,
+                205,
+                213,
+                221,
+                233,
+            ]  # Пример координат Y для горизонтальных линий
 
             table_settings = {
                 "vertical_strategy": "explicit",
@@ -131,8 +121,12 @@ def pars_pdf():
             }
             table_land = page.extract_tables(table_settings)
             result_dict = {}
-            for row in table_land[0]:  # Предполагаем, что интересующая нас таблица - первая в списке
-                content = row[0].split(' ', 1)  # Разделяем строку на название и значение
+            for row in table_land[
+                0
+            ]:  # Предполагаем, что интересующая нас таблица - первая в списке
+                content = row[0].split(
+                    " ", 1
+                )  # Разделяем строку на название и значение
                 if len(content) == 2:
                     # Если есть и название, и значение
                     key, value = content
@@ -144,116 +138,132 @@ def pars_pdf():
                 # Удаляем запятые из числовых значений для унификации
                 # Добавляем в словарь
                 result_dict[key] = value
-            
+
             values_list_search_key_info.append(result_dict)
-            
-            
-            
+
             tables = page.extract_tables()
-            
+
             for table in tables:
-                
+
                 # # search_key_bat(key_number, table_index + 1, table)
                 #     for row in table:
                 #         print(row)
-            #     search_key_bat(key_number, index, table)
+                #     search_key_bat(key_number, index, table)
 
                 headers_first = table[0]  # Заголовки таблицы
-                search_headers_first = ["CURRENT OWNER", "PARCEL ID", "LOCATION", "CLASS",  "DESCRIPTION", "BN", "CARD"]
+                search_headers_first = [
+                    "CURRENT OWNER",
+                    "PARCEL ID",
+                    "LOCATION",
+                    "CLASS",
+                    "DESCRIPTION",
+                    "BN",
+                    "CARD",
+                ]
                 dict_search_key_info = {}
                 dict_search_key_info_02 = {}
                 dict_search_key_info_03 = {}
                 dict_search_key_info_04 = {}
-                
 
                 for header_first in search_headers_first:
                     if header_first in headers_first:
-                        index = headers_first.index(header_first)  # Получаем индекс нужной колонки
+                        index = headers_first.index(
+                            header_first
+                        )  # Получаем индекс нужной колонки
                         # Проходим по всем строкам, начиная со второй
                         for row in table[1:2]:
                             value_first = row[index]  # Извлекаем значение ячейки
                             dict_search_key_info[header_first] = value_first
                 values_list_search_key_info.append(dict_search_key_info)
-                            
+
                 for dict_item in values_list_search_key_info:
                     # Проверяем наличие ключа 'CURRENT OWNER' и его разделение на части
-                    if 'CURRENT OWNER' in dict_item and dict_item['CURRENT OWNER'].count('\n') >= 3:
-                        owner_parts = dict_item['CURRENT OWNER'].split('\n', 3)
-                        dict_item['owner_data1'] = owner_parts[0]
-                        dict_item['owner_data2'] = owner_parts[1]
-                        dict_item['owner_data3'] = owner_parts[2]
-                        dict_item['owner_data5'] = owner_parts[3]
-                        
-                        # Удаление исходного ключа 'CURRENT OWNER'
-                        del dict_item['CURRENT OWNER']
+                    if (
+                        "CURRENT OWNER" in dict_item
+                        and dict_item["CURRENT OWNER"].count("\n") >= 3
+                    ):
+                        owner_parts = dict_item["CURRENT OWNER"].split("\n", 3)
+                        dict_item["owner_data1"] = owner_parts[0]
+                        dict_item["owner_data2"] = owner_parts[1]
+                        dict_item["owner_data3"] = owner_parts[2]
+                        dict_item["owner_data5"] = owner_parts[3]
 
+                        # Удаление исходного ключа 'CURRENT OWNER'
+                        del dict_item["CURRENT OWNER"]
 
                 headers_second = table[2]  # Заголовки таблицы
-                
-                search_headers_second = ["TRANSFER HISTORY", "DOS", "T", "SALE PRICE", "BK-PG (Cert)"]
+
+                search_headers_second = [
+                    "TRANSFER HISTORY",
+                    "DOS",
+                    "T",
+                    "SALE PRICE",
+                    "BK-PG (Cert)",
+                ]
                 for header_second in search_headers_second:
                     if header_second in headers_second:
-                        index = headers_second.index(header_second)  # Получаем индекс нужной колонки
+                        index = headers_second.index(
+                            header_second
+                        )  # Получаем индекс нужной колонки
                         # Проходим по всем строкам, начиная со второй
                         for row in table[3:4]:
-                            value_second = row[index].split('\n')[0]
+                            value_second = row[index].split("\n")[0]
                             dict_search_key_info_02[header_second] = value_second
                 values_list_search_key_info.append(dict_search_key_info_02)
-                            
-                
-                
 
                 headers_third = table[7]
                 search_headers = ["TOTAL", "ONING"]
 
                 for search_header in search_headers:
                     if search_header in headers_third:
-                        header_index = headers_third.index(search_header)  # Находим индекс заголовка
-                        target_index = header_index + 3  # Предполагается, что целевая ячейка через две клетки от заголовка
-                        
+                        header_index = headers_third.index(
+                            search_header
+                        )  # Находим индекс заголовка
+                        target_index = (
+                            header_index + 3
+                        )  # Предполагается, что целевая ячейка через две клетки от заголовка
+
                         for row in table[7:8]:  # Обрабатывается только одна строка
-                            if target_index < len(row):  # Убедимся, что индекс в пределах строки
-                                target_value = row[target_index].replace('Z', '').strip()
-                                dict_search_key_info_03[search_header] = target_value  # Используем search_header как ключ
-                        
+                            if target_index < len(
+                                row
+                            ):  # Убедимся, что индекс в пределах строки
+                                target_value = (
+                                    row[target_index].replace("Z", "").strip()
+                                )
+                                dict_search_key_info_03[search_header] = (
+                                    target_value  # Используем search_header как ключ
+                                )
+
                 values_list_search_key_info.append(dict_search_key_info_03)
 
-
-                
-                
                 """Переименовать"""
                 keys_mapping = {
-                                    'PARCEL ID': 'parcel_id',
-                                    'LOCATION': 'location',
-                                    'CLASS': 'class',
-                                    'DESCRIPTION': 'description',
-                                    'CARD': 'card_info',
-                                    'BN': 'card',
-                                    'TRANSFER HISTORY':'transfer_history',
-                                    'DOS':'dos',
-                                    'SALE PRICE':'sale_price',
-                                    'BK-PG (Cert)':'bk_pg_cert',
-                                    'TOTAL':'acres',
-                                    'ONING':'zoming',
-                                    'LAND': 'assesed_land',
-                                    'BUILDING': 'assesed_building',
-                                    'DETACHED': 'assesed_detached',
-                                    'OTHER': 'assesed_other'
-
-
-                                }
+                    "PARCEL ID": "parcel_id",
+                    "LOCATION": "location",
+                    "CLASS": "class",
+                    "DESCRIPTION": "description",
+                    "CARD": "card_info",
+                    "BN": "card",
+                    "TRANSFER HISTORY": "transfer_history",
+                    "DOS": "dos",
+                    "SALE PRICE": "sale_price",
+                    "BK-PG (Cert)": "bk_pg_cert",
+                    "TOTAL": "acres",
+                    "ONING": "zoming",
+                    "LAND": "assesed_land",
+                    "BUILDING": "assesed_building",
+                    "DETACHED": "assesed_detached",
+                    "OTHER": "assesed_other",
+                }
 
                 # Итерация по списку словарей
                 for item in values_list_search_key_info:
                     for old_key, new_key in keys_mapping.items():
                         if old_key in item:
-                            item[new_key] = item.pop(old_key)  # Удаление старого ключа и добавление нового с сохранением значения         
-                
-                
-                
-                
-                
-                
+                            item[new_key] = item.pop(
+                                old_key
+                            )  # Удаление старого ключа и добавление нового с сохранением значения
+
                 headers_cell_15 = table[15][0]  # Заголовки в 27-й ячейке
                 values_cell_15 = table[15][5]  # Значения в 31-й ячейке
                 headers_15 = split_and_clean(headers_cell_15)
@@ -262,23 +272,20 @@ def pars_pdf():
 
                 for header, value in zip(headers_15[:-1], values_15[:-1]):
                     dict_search_key_info_04[header] = value
-                values_list_search_key_info.append(dict_search_key_info_04)  
-                
-                
-                with open(f'search_key_info_{page_index}.json', 'w', encoding='utf-8') as f:
-                    json.dump(values_list_search_key_info, f, ensure_ascii=False, indent=4)
-                
+                values_list_search_key_info.append(dict_search_key_info_04)
+                filename_key_info = os.path.join(
+                    search_key_info_path, f"{key_number}_{page_index}.json"
+                )
+                with open(filename_key_info, "w", encoding="utf-8") as f:
+                    json.dump(
+                        values_list_search_key_info, f, ensure_ascii=False, indent=4
+                    )
 
-
-                
-                
-                                
                 # headers_cell_8 = table[8][27]  # Заголовки в 27-й ячейке
                 # values_cell_8 = table[8][31]  # Значения в 31-й ячейке
                 # headers_8 = split_and_clean(headers_cell_8)
                 # values_8 = split_and_clean(values_cell_8)
-                
-                
+
                 # # Инициализируем словарь с пустыми строками для каждого заголовка
                 # values_dict = {header: "" for header in ["LAND", "BUILDING", "DETACHED", "OTHER"]}
 
@@ -300,21 +307,12 @@ def pars_pdf():
                 # # Выводим значения по каждому заголовку
                 # for header, value in values_dict.items():
                 #     print(f"{header}: {value}")
-                
-               
 
-                
-                
                 # # Обработка данных из таблицы 9
                 # total_value_9 = table[9][31]  # Общая сумма в 32-й ячейке
                 # # Выводим общую сумму
                 # print(f"TOTAL: {total_value_9}")
 
-                
-                
-                
-                
-                
                 """search_key_building"""
                 headers_cell_14 = table[14][0]  # Заголовки в 27-й ячейке
                 values_cell_14 = table[14][4]  # Значения в 31-й ячейке
@@ -323,7 +321,6 @@ def pars_pdf():
                 values_14 = split_and_clean(values_cell_14)
                 values_02_14 = split_and_clean(values_cell_02_14)
 
-
                 # Сопоставляем заголовки и значения
                 for header, value, value_02 in zip(headers_14, values_14, values_02_14):
                     dict_search_key_building = {
@@ -331,23 +328,19 @@ def pars_pdf():
                         "card": page_index,
                         "el_type": header,
                         "el_code": value,
-                        "el_desc": value_02
+                        "el_desc": value_02,
                     }
                     values_list_search_key_building.append(dict_search_key_building)
-
-                with open(f'search_key_buildin_{page_index}.json', 'w', encoding='utf-8') as f:
-                    json.dump(values_list_search_key_building, f, ensure_ascii=False, indent=4)
-
-                
-
+                filename_key_buildin = os.path.join(
+                    search_key_building_path, f"{key_number}_{page_index}.json"
+                )
+                with open(filename_key_buildin, "w", encoding="utf-8") as f:
+                    json.dump(
+                        values_list_search_key_building, f, ensure_ascii=False, indent=4
+                    )
 
                 #     print(f"{header}: {value}")
-                
-                
-                
-                
-                
-                
+
                 """search_key_element"""
                 headers_cell_16 = table[16][16]  # Заголовки в 27-й ячейке
                 values_cell_16 = table[16][23]  # Значения в 31-й ячейке
@@ -361,7 +354,7 @@ def pars_pdf():
 
                 # Сопоставляем заголовки и значения
                 for header, value, value_02 in zip(headers_16, values_16, values_02_16):
-                    
+
                     current_dict_search_key_element = {
                         "Keyno": key_number,
                         "card": page_index,
@@ -369,15 +362,17 @@ def pars_pdf():
                         "el_code": value,
                         "el_desc": value_02,
                     }
-                    values_list_search_key_element.append(current_dict_search_key_element)
+                    values_list_search_key_element.append(
+                        current_dict_search_key_element
+                    )
+                filename_key_element = os.path.join(
+                    search_key_element_path, f"{key_number}_{page_index}.json"
+                )
+                with open(filename_key_element, "w", encoding="utf-8") as f:
+                    json.dump(
+                        values_list_search_key_element, f, ensure_ascii=False, indent=4
+                    )  # Записываем в файл
 
-                with open(f'search_key_element_{page_index}.json', 'w', encoding='utf-8') as f:
-                    json.dump(values_list_search_key_element, f, ensure_ascii=False, indent=4)  # Записываем в файл
-                
-                
-                
-                
-                
                 """search_key_bat"""
                 headers_cell_17 = table[16][33]  # Заголовки в 27-й ячейке
                 values_cell_17 = table[16][34]  # Значения в 31-й ячейке
@@ -407,26 +402,30 @@ def pars_pdf():
                 values_03_17 += [None] * (max_length - len(values_03_17))
                 values_04_17 += [None] * (max_length - len(values_04_17))
 
-                
                 # Теперь вы можете безопасно итерировать по спискам, используя zip, без риска получить ошибку
                 for header, value, value_02, value_03, value_04 in zip(
                     headers_17, values_17, values_02_17, values_03_17, values_04_17
                 ):
-                    header_str = '' if header is None else header.replace('None', '')
+                    header_str = "" if header is None else header.replace("None", "")
 
                     current_dict_search_key_bat = {
                         "Keyno": key_number,
                         "card": page_index,
                         "bat": f"{header_str} {value}",
-                        "bat_t": value_02,
-                        "bat_desc": value_03,
-                        "bat_units": value_04.replace(",", ""),  # Убираем запятые в 'bat_units'
+                        "t": value_02,
+                        "description": value_03,
+                        "units": value_04.replace(
+                            ",", ""
+                        ),  # Убираем запятые в 'bat_units'
                     }
                     values_list_search_key_bat.append(current_dict_search_key_bat)
-                
-                with open(f'search_key_bat_{page_index}.json', 'w', encoding='utf-8') as f:
-                    json.dump(values_list_search_key_bat, f, ensure_ascii=False, indent=4)  # Записываем в файл
-            
+                filename_key_bat = os.path.join(
+                    search_key_bat_path, f"{key_number}_{page_index}.json"
+                )
+                with open(filename_key_bat, "w", encoding="utf-8") as f:
+                    json.dump(
+                        values_list_search_key_bat, f, ensure_ascii=False, indent=4
+                    )  # Записываем в файл
 
                 """search_key_capacity"""
                 headers_cell_18 = table[19][0]  # Заголовки в 27-й ячейке
@@ -435,21 +434,97 @@ def pars_pdf():
                 values_18 = split_and_clean(values_cell_18)
                 # Сопоставляем заголовки и значения
                 for header, value in zip(headers_18, values_18):
-                    
+
                     current_dict_search_key_capacity = {
                         "Keyno": key_number,
                         "card": page_index,
                         "cap_type": header,
-                        "cap_units": value
+                        "cap_units": value,
                     }
-                    values_list_search_key_capacity.append(current_dict_search_key_capacity)
-                with open(f'search_key_capacity_{page_index}.json', 'w', encoding='utf-8') as f:
-                    json.dump(values_list_search_key_capacity, f, ensure_ascii=False, indent=4)  # Записываем в файл
+                    values_list_search_key_capacity.append(
+                        current_dict_search_key_capacity
+                    )
+                filename_key_capacity = os.path.join(
+                    search_key_capacity_path, f"{key_number}_{page_index}.json"
+                )
+                with open(filename_key_capacity, "w", encoding="utf-8") as f:
+                    json.dump(
+                        values_list_search_key_capacity, f, ensure_ascii=False, indent=4
+                    )  # Записываем в файл
 
 
+def get_json_to_sql():
+    config = load_config()
+    db_config = config["db_config"]
 
-                
+    """Получение списка имен таблиц из базы данных."""
+    table_names = []
+    try:
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+        cursor.execute("SHOW TABLES;")
+        table_names = [table_name[0] for table_name in cursor.fetchall()]
+    except mysql.connector.Error as err:
+        print(f"Ошибка: {err}")
+    finally:
+        if cnx.is_connected():
+            cursor.close()
+            cnx.close()
+    return table_names
+
+
+def read_json_files_from_folders():
+    table_names = get_json_to_sql()
+    """Чтение JSON файлов из папок, соответствующих именам таблиц и вставка в БД."""
+    for table_name in table_names:
+        folder_path = os.path.join(temp_path, table_name)
+        # Поиск всех JSON файлов в данной папке
+        for json_file_path in glob.glob(f"{folder_path}/*.json"):
+            with open(json_file_path, "r", encoding="utf-8") as json_file:
+                data = json.load(json_file)
+                # Вставляем данные из JSON в соответствующую таблицу
+                insert_data_into_table(table_name, data)
+
+
+def insert_data_into_table(table_name, data):
+    config = load_config()
+    db_config = config["db_config"]
+    """
+    Вставка данных из JSON файла в соответствующую таблицу базы данных.
+    """
+    try:
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+
+        # Получение списка колонок для таблицы
+        cursor.execute(f"SHOW COLUMNS FROM {table_name}")
+        columns_info = cursor.fetchall()
+        columns = [col[0] for col in columns_info]
+
+        for record in data:
+            # Формируем список значений для всех колонок таблицы
+            # Явно задаем значение 0 для колонки 'row_file', если оно отсутствует или None
+            values = [(record.get(col) if record.get(col) is not None else 0) if col == 'row_file' else record.get(col, None) for col in columns]
+
+            # Формируем и выполняем SQL запрос на вставку
+            columns_str = ", ".join(columns)
+            placeholders = ", ".join(["%s"] * len(columns))  # Создаем плейсхолдеры для значений
+            insert_query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
+            cursor.execute(insert_query, values)
+
+        cnx.commit()
+        print(f"Данные успешно вставлены в таблицу {table_name}.")
+
+    except mysql.connector.Error as err:
+        print(f"Ошибка при вставке данных в {table_name}: {err}")
+
+    finally:
+        if cnx.is_connected():
+            cursor.close()
+            cnx.close()
+
 
 if __name__ == "__main__":
-
+    # create_folders()
     pars_pdf()
+    # read_json_files_from_folders()
