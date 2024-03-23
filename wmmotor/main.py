@@ -456,11 +456,11 @@ def get_cookies():
         # print(f"Сохранены куки для {identifier}")
         return filename
 
-    async def load_cookies_and_update_session(session, filename):
-        async with aiofiles.open(filename, 'r') as f:
-            cookies_list = json.loads(await f.read())
-        for cookie in cookies_list:
-            session.cookie_jar.update_cookies({cookie['name']: cookie['value']})
+    # async def load_cookies_and_update_session(session, filename):
+    #     async with aiofiles.open(filename, 'r') as f:
+    #         cookies_list = json.loads(await f.read())
+    #     for cookie in cookies_list:
+    #         session.cookie_jar.update_cookies({cookie['name']: cookie['value']})
 
     
 
@@ -495,8 +495,8 @@ def get_cookies():
             # Вводим логин и пароль
             await page.fill(fldEmail_xpath, fldEmail)
             await page.fill(fldPassword_xpath, fldPassword)
-            print("Введите значение в Podaj wynik działania\nнажмите Ентер, у Вас 20сек")
-            await sleep(20)
+            print("Введите значение в Podaj wynik działania\nнажмите Ентер, у Вас 10сек")
+            await sleep(10)
         except TimeoutError:
             print("Страница не загрузилась")
 
@@ -555,9 +555,9 @@ while True:
     if user_input == 1:
         get_cookies()
         print("Собираем категории товаров")
-        get_categories_to_html_file()
+        # get_categories_to_html_file()
         print("Скачиваем все ссылки")
-        get_urls_product()
+        # get_urls_product()
         print("Переходим к пункту 2")
     elif user_input == 2:
         get_asio()

@@ -26,14 +26,16 @@ def delete_old_data():
     for folder in [temp_path, list_path, product_path]:
         if not os.path.exists(folder):
             os.makedirs(folder)
-
-    # Удалите файлы из папок list и product
-    for folder in [list_path, product_path]:
-        files = glob.glob(os.path.join(folder, "*"))
-        for f in files:
-            if os.path.isfile(f):
-                os.remove(f)
-        # print(f'Очистил папку {os.path.basename(folder)}')
+    config = load_config()
+    name_files = config.get("name_files", "")
+    if os.path.exists(name_files):
+        # Удалите файлы из папок list и product
+        for folder in [list_path, product_path]:
+            files = glob.glob(os.path.join(folder, "*"))
+            for f in files:
+                if os.path.isfile(f):
+                    os.remove(f)
+            # print(f'Очистил папку {os.path.basename(folder)}')
 
 
 def extract_data_from_csv():
@@ -65,7 +67,7 @@ def load_config():
         # Обычный режим выполнения (например, во время разработки)
         application_path = os.path.dirname(os.path.abspath(__file__))
 
-    filename_config = os.path.join(application_path, "config.json")
+    filename_config = os.path.join(application_path, "config_lal.json")
 
     with open(filename_config, "r") as config_file:
         config = json.load(config_file)
@@ -196,9 +198,7 @@ def get_requests():
     asyncio.run(main())
 
 
-def parsing():
-    config = load_config()
-    name_files = config.get("name_files", "")
+def parsing(name_files):
     now = datetime.now().date()
     data_csv = extract_data_from_csv()
     quantity = 50
@@ -318,9 +318,7 @@ def parsing():
                 continue
 
 
-def sort_csv():
-    config = load_config()
-    name_files = config.get("name_files", "")
+def sort_csv(name_files):
     # Читаем CSV файл
     df = pd.read_csv(f"{name_files}_lal.csv", sep="\t", encoding="utf-16")
     # Преобразовываем столбец 'price_update' в формат даты
@@ -330,8 +328,44 @@ def sort_csv():
     df.to_csv(f"{name_files}_lal.csv", sep="\t", encoding="utf-16", index=False)
 
 
-if __name__ == "__main__":
-    # delete_old_data()
-    # get_requests()
-    parsing()
-    # sort_csv()
+# if __name__ == "__main__":
+#     delete_old_data()
+#     get_requests()
+#     parsing()
+#     sort_csv()
+
+
+while True:
+    # Запрос ввода от пользователя
+    print(
+        "Введите 1 для загрузки товаров"
+        "\nВведите 2 парсинга товаров"
+        "\nВведите 9 если у Вас есть файл с остатками, нужно удалить старые данные!!!!"
+        "\nВведите 0 Закрытия программы"
+    )
+    try:
+        user_input = input("Выберите действие: ")  # Сначала получаем ввод как строку
+        user_input = int(user_input)  # Затем пытаемся преобразовать его в целое число
+    except ValueError:  # Если введенные данные нельзя преобразовать в число
+        print("Неверный ввод, пожалуйста, введите корректный номер действия.")
+        continue  # Пропускаем оставшуюся часть цикла и начинаем с новой итерации
+
+    if user_input == 1:
+        print("Собираем товары")
+        get_requests()
+        print("Переходим к пункту 2")
+    elif user_input == 2:
+        print("Введите пожалуйста имя файла")
+        name_files = str(input())
+        parsing(name_files)
+        sort_csv(name_files)
+    elif user_input == 9:
+        delete_old_data()
+        print("Старые файлы удалены, переходим к пункту 1")
+    elif user_input == 0:
+        print("Программа завершена.")
+        time.sleep(2)
+        sys.exit(1)
+
+    else:
+        print("Неверный ввод, пожалуйста, введите корректный номер действия.")
