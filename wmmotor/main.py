@@ -19,6 +19,7 @@ temp_path = os.path.join(current_directory, "temp")
 list_path = os.path.join(temp_path, "list")
 product_path = os.path.join(temp_path, "product")
 img_path = os.path.join(temp_path, "img")
+cookies_path = os.path.join(temp_path, "cookies")
 
 
 def load_proxy():
@@ -79,7 +80,7 @@ def load_config():
 
 def delete_old_data():
     # Убедитесь, что папки существуют или создайте их
-    for folder in [temp_path, list_path, product_path, img_path]:
+    for folder in [temp_path, list_path, product_path, img_path, cookies_path]:
         if not os.path.exists(folder):
             os.makedirs(folder)
 
@@ -95,26 +96,16 @@ def get_categories_to_html_file():
     config = load_config()
     headers = config["headers"]
     url_all = []
-
-    # name_files = "all_categories_url.html"
-    response = requests.get(
-        "http://www.wmmotor.pl/hurtownia/drzewo.php", headers=headers
-    ) 
+    url = "http://www.wmmotor.pl/hurtownia/drzewo.php"
+    response = requests.get(url, headers=headers)
     if response.status_code == 200:
         src = response.text
-
-        # with open(name_files, "w", encoding="utf-8") as file:
-            # file.write(src)
-        with open("categories.csv", "w", newline="") as csvfile:
+        filename_config = os.path.join(list_path, "categories.csv")
+        with open(filename_config, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
-
-            # with open(name_files, encoding="utf-8") as file:
-                # src = file.read()
-
             soup = BeautifulSoup(src, "lxml")
             table_treee = soup.find("td", attrs={"class": "boxContentsMainNoBorder"})
             treelevel1 = table_treee.find_all("a", attrs={"class": "treelevel1"})
-
             for item in treelevel1:
                 urls = "http://www.wmmotor.pl/hurtownia/" + item.get("href")
                 url_all.append(urls)
@@ -128,9 +119,9 @@ def get_categories_to_html_file():
 def get_urls_product():
     config = load_config()
     headers = config["headers"]
-    name_files = "categories.csv"
+    filename_config = os.path.join(list_path, "categories.csv")
 
-    with open(name_files, newline="", encoding="utf-8") as files:
+    with open(filename_config, newline="", encoding="utf-8") as files:
         urls = list(csv.reader(files, delimiter=" ", quotechar="|"))
         count = 0
         for url in urls:
@@ -238,10 +229,12 @@ def get_asio():
         headers = config["headers"]
         """Универсальное использование прокси-серверов"""
         proxies_requests, proxy_aiohttp = load_proxy()
-       
+
         filename = os.path.join(product_path, f"data_{coun}.html")
         if not os.path.exists(filename):
-            async with session.get(url, headers=headers, proxy=proxy_aiohttp) as response:
+            async with session.get(
+                url, headers=headers, proxy=proxy_aiohttp
+            ) as response:
                 with open(filename, "w", encoding="utf-8") as file:
                     file.write(await response.text())
 
@@ -259,9 +252,7 @@ def get_asio():
                         filename_to_check = os.path.join(
                             product_path, f"data_{coun}.html"
                         )
-                        if not os.path.exists(
-                            filename_to_check
-                        ):
+                        if not os.path.exists(filename_to_check):
                             tasks.append(fetch(session, url, coun))
                     if tasks:
                         await asyncio.gather(*tasks)
@@ -351,9 +342,15 @@ def parsing_products():
                 '//span[@style="font-weight: bold; color: #CE0000;"]'
                 try:
                     # Пытаемся найти элемент и извлечь его текст
-                    category_text = soup.find("span", attrs={"style": "font-weight: bold; color: #CE0000;"}).get_text(strip=True)
+                    category_text = soup.find(
+                        "span", attrs={"style": "font-weight: bold; color: #CE0000;"}
+                    ).get_text(strip=True)
                     # Применяем регулярные выражения для замены символов
-                    category = re.sub(r"[ .,]", "_", category_text).replace("__", "_").replace(" - ", "_")
+                    category = (
+                        re.sub(r"[ .,]", "_", category_text)
+                        .replace("__", "_")
+                        .replace(" - ", "_")
+                    )
                 except AttributeError:
                     # Если элемент не найден, soup.find() вернёт None, что приведёт к AttributeError при попытке вызвать .get_text()
                     category = None
@@ -380,25 +377,25 @@ def parsing_products():
                 #         "https": f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}",
                 #     }
 
-                    # if len(urls_photo) > 1 and coun > 0:
-                    #     file_path = f'c:\\data_wmmotor\\img\\{symbol}_{coun}.jpg'
-                    # else:
-                    #     file_path = f'c:\\data_wmmotor\\img\\{symbol}.jpg'
+                # if len(urls_photo) > 1 and coun > 0:
+                #     file_path = f'c:\\data_wmmotor\\img\\{symbol}_{coun}.jpg'
+                # else:
+                #     file_path = f'c:\\data_wmmotor\\img\\{symbol}.jpg'
 
-                    # if len(urls_photo) > 1 and coun > 0:
-                    #     file_name = f'{symbol}_{coun}.jpg'
-                    # else:
-                    #     file_name = f'{symbol}.jpg'
-                    #
-                    # file_path = os.path.join(img_path, file_name)
-                    # if not os.path.exists(file_path):
-                    #     try:
-                    #         img_data = requests.get(u, headers=headers, cookies=cookies, proxies=proxi)
-                    #         with open(file_path, 'wb') as file_img:
-                    #             file_img.write(img_data.content)
-                    #     except:
-                    #         print(f"Ошибка при выполнении запроса для URL: {u}")
-                    # coun += 1
+                # if len(urls_photo) > 1 and coun > 0:
+                #     file_name = f'{symbol}_{coun}.jpg'
+                # else:
+                #     file_name = f'{symbol}.jpg'
+                #
+                # file_path = os.path.join(img_path, file_name)
+                # if not os.path.exists(file_path):
+                #     try:
+                #         img_data = requests.get(u, headers=headers, cookies=cookies, proxies=proxi)
+                #         with open(file_path, 'wb') as file_img:
+                #             file_img.write(img_data.content)
+                #     except:
+                #         print(f"Ошибка при выполнении запроса для URL: {u}")
+                # coun += 1
 
                 values = [
                     product_name,
@@ -410,6 +407,8 @@ def parsing_products():
                     category,
                 ]
                 writer.writerow(values)  # Дописываем значения из values
+
+
 def csv_to_excell():
     filename_to_csv_output = os.path.join(current_directory, "output.csv")
     filename_csv_to_xlsx = os.path.join(current_directory, "output.xlsx")
@@ -417,6 +416,7 @@ def csv_to_excell():
 
     # Сохранение данных в файл XLSX
     data.to_excel(filename_csv_to_xlsx, index=False, engine="openpyxl")
+
 
 def get_cookies():
     import glob
@@ -433,36 +433,26 @@ def get_cookies():
     from playwright.async_api import async_playwright
 
     current_directory = os.getcwd()
-    temp_directory = 'temp'
+    temp_directory = "temp"
     # Создайте полный путь к папке temp
-    temp_path = os.path.join(current_directory, temp_directory)
-    cookies_path = os.path.join(temp_path, 'cookies')
-    daily_sales_path = os.path.join(temp_path, 'daily_sales')
-    payout_history_path = os.path.join(temp_path, 'payout_history')
-    pending_custom_path = os.path.join(temp_path, 'pending_custom')
-    chat_path = os.path.join(temp_path, 'chat')
 
+    daily_sales_path = os.path.join(temp_path, "daily_sales")
+    payout_history_path = os.path.join(temp_path, "payout_history")
+    pending_custom_path = os.path.join(temp_path, "pending_custom")
+    chat_path = os.path.join(temp_path, "chat")
 
     async def update_session_cookies(session, cookies):
         for cookie in cookies:
-            session.cookie_jar.update_cookies({cookie['name']: cookie['value']})
+            session.cookie_jar.update_cookies({cookie["name"]: cookie["value"]})
 
     async def save_cookies(page):
         cookies = await page.context.cookies()
         # Убедитесь, что mvtoken корректен и не является объектом корутины
         filename = os.path.join(cookies_path, "cookies.json")
-        async with aiofiles.open(filename, 'w') as f:
+        async with aiofiles.open(filename, "w") as f:
             await f.write(json.dumps(cookies))
         # print(f"Сохранены куки для {identifier}")
         return filename
-
-    # async def load_cookies_and_update_session(session, filename):
-    #     async with aiofiles.open(filename, 'r') as f:
-    #         cookies_list = json.loads(await f.read())
-    #     for cookie in cookies_list:
-    #         session.cookie_jar.update_cookies({cookie['name']: cookie['value']})
-
-    
 
     async def run(playwright):
         # async with aiohttp.ClientSession() as session:
@@ -471,60 +461,40 @@ def get_cookies():
         browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
-        url = 'http://www.wmmotor.pl/hurtownia/drzewo.php'
+        url = "http://www.wmmotor.pl/hurtownia/drzewo.php"
         """Вход на страницу с логин и пароль"""
         try:
-            await page.goto(url, wait_until='networkidle',
-                            timeout=60000)  # 60 секунд
+            await page.goto(url, wait_until="networkidle", timeout=60000)  # 60 секунд
         except TimeoutError:
             print(f"Страница не загрузилась 60 секунд.")
         try:
             # Ожидаем появления элемента h1 с текстом "Login to ManyVids"
             print("Вставьте логин, почту")
-            fldEmail = 'kupujwpl@gmail.com'
+            fldEmail = "kupujwpl@gmail.com"
             # fldEmail = str(input())
             print("Вставьте пароль")
-            fldPassword = '8T1cekQFO2'
+            fldPassword = "8T1cekQFO2"
             # fldPassword = str(input())
             fldEmail_xpath = '//input[@name="fldEmail"]'
             fldPassword_xpath = '//input[@name="fldPassword"]'
+            fldSaveEmail_xpath = '//input[@name="fldSaveEmail"]'
             # Ожидаем появления элементов формы на странице
             await page.wait_for_selector(fldEmail_xpath, state="visible")
             await page.wait_for_selector(fldPassword_xpath, state="visible")
-
+            await page.wait_for_selector(fldSaveEmail_xpath, state="visible")
+            # Кликаем по чекбоксу, чтобы изменить его состояние
+            await page.click(fldSaveEmail_xpath)
             # Вводим логин и пароль
             await page.fill(fldEmail_xpath, fldEmail)
             await page.fill(fldPassword_xpath, fldPassword)
-            print("Введите значение в Podaj wynik działania\nнажмите Ентер, у Вас 10сек")
-            await sleep(10)
+            print(
+                "Введите значение в Podaj wynik działania\nнажмите Ентер, у Вас 20сек"
+            )
+            await sleep(20)
         except TimeoutError:
             print("Страница не загрузилась")
 
         filename = await save_cookies(page)
-
-            # await load_cookies_and_update_session(session, filename)  # Загружаем куки в session
-            # """Дневные продажи"""
-            # data_json_day = await get_requests_day(session, proxy, headers, mvtoken, month, filterYear, filename)
-            # await save_day_json(data_json_day, mvtoken, month, filterYear)
-            # """История"""
-            # data_json_history = await get_requests_history(session, proxy, headers, mvtoken, filterYear, filename)
-            # await save_history_json(data_json_history, mvtoken, filterYear)
-            # """Pending"""
-            # await save_page_content(page, mvtoken, filterYear)
-            # #
-            # """Загрузка чатов"""
-            # data_json_first_chat = await get_requests_chat(session, proxy, headers, mvtoken, filename)
-            # #
-            # await save_chat_json(data_json_first_chat, mvtoken)
-
-            # total_msg = await get_total_msg()
-            # # data_json_all_chat, i = await get_requests_all_chat(session, proxy, headers, mvtoken, filename, total_msg)
-
-            # results = await get_requests_all_chat(session, proxy, headers, mvtoken, filename, total_msg)
-            # for data_json, i in results:cd
-            #     await save_all_chat_json(data_json, mvtoken, i)
-
-            # latest_date = await check_chat()
 
         """Закрываем"""
         await browser.close()
@@ -534,6 +504,29 @@ def get_cookies():
             await run(playwright)
 
     asyncio.run(main())
+
+
+def cookies_to_requests():
+    # Пути к файлам
+    filename_temp_cookies = os.path.join(cookies_path, "cookies.json")
+    filename_config = os.path.join(current_directory, "config.json")
+
+    # Чтение и обновление файла config.json
+    with open(filename_config, "r", encoding="utf-8") as file:
+        config_data = json.load(file)
+
+    with open(filename_temp_cookies, "r", encoding="utf-8") as file:
+        temp_cookies = json.load(file)
+
+        # Преобразуем список cookies в словарь cookies
+        cookies_dict = {cookie["name"]: cookie["value"] for cookie in temp_cookies}
+
+        # Обновляем только блок cookies
+        config_data["cookies"] = cookies_dict
+
+    # Запись обновленных данных обратно в файл
+    with open(filename_config, "w", encoding="utf-8") as file:
+        json.dump(config_data, file, ensure_ascii=False, indent=4)
 
 
 while True:
@@ -554,10 +547,11 @@ while True:
 
     if user_input == 1:
         get_cookies()
+        cookies_to_requests()
         print("Собираем категории товаров")
-        # get_categories_to_html_file()
+        get_categories_to_html_file()
         print("Скачиваем все ссылки")
-        # get_urls_product()
+        get_urls_product()
         print("Переходим к пункту 2")
     elif user_input == 2:
         get_asio()
