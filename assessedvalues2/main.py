@@ -18,6 +18,7 @@ search_key_element_path = os.path.join(temp_path, "search_key_element")
 search_key_info_path = os.path.join(temp_path, "search_key_info")
 search_key_ty_path = os.path.join(temp_path, "search_key_ty")
 search_results_path = os.path.join(temp_path, "search_results")
+pdf_path = os.path.join(temp_path, "pdf")
 
 
 def create_folders():
@@ -31,6 +32,7 @@ def create_folders():
         search_key_info_path,
         search_key_ty_path,
         search_results_path,
+        pdf_path,
     ]:
         if not os.path.exists(folder):
             os.makedirs(folder)

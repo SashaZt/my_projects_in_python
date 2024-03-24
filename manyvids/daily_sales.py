@@ -1811,8 +1811,8 @@ def get_asio():
         filterYear = str(now.year)
         proxy = await proxy_random()
         data_login_pass = await login_pass()
+        timeout_ancet = 60000
         for item in data_login_pass:
-            #"""Список логинов у которых не правильные пароли"""
             #skip_logins = [
             #    'MaryRo',
             #    'Real Sasha Grey',
@@ -1835,7 +1835,7 @@ def get_asio():
                     continue
                 try:
                     # Ожидаем появления элемента h1 с текстом "Login to ManyVids"
-                    await page.wait_for_selector('h1:text("Login to ManyVids")', timeout=60000)
+                    await page.wait_for_selector('h1:text("Login to ManyVids")', timeout=timeout_ancet)
                     await page.fill('input#triggerUsername', item['login'])
                     await page.fill('input#triggerPassword', item['password'])
                 except TimeoutError:
@@ -1852,7 +1852,7 @@ def get_asio():
                     try:
                         # Ожидаем исчезновение элемента reCAPTCHA в течение определенного времени
                         await page.wait_for_selector('//a[@data-recaptcha-action="login"]', state='hidden',
-                                                     timeout=10000)
+                                                     timeout=timeout_ancet)
                         print(f"Успешный вход {item['login']}")
                         break  # Если элемент исчез, выходим из цикла
                     except TimeoutError:
@@ -1864,39 +1864,45 @@ def get_asio():
 
                 if attempts >= max_attempts:
                     print(f"Проверьте логин и пароль {item['login']}")
+                    await browser.close()  # Закрыть браузер перед переходом к следующему пользователю
+                    continue  # Переход к следующей итерации цикла for для обработки следующего пользователя
 
                 """Переход на страницу с данными"""
                 try:
                     await page.goto('https://www.manyvids.com/View-my-earnings/', wait_until='networkidle',
-                                    timeout=60000)  # 60 секунд
-                    # await page.goto('https://www.manyvids.com/Login/', wait_until='load', timeout=60000) нужно тестировать
+                                    timeout=timeout_ancet)
                 except TimeoutError:
                     print(f"Страница не загрузилась для {item['login']} 60 секунд.")
+                    await browser.close()  # Закрыть браузер перед переходом к следующему пользователю
                     continue
                 try:
-                    # Ожидаем элемент в течение 30 секунд
-                    element = await page.wait_for_selector('//div[@class="text-left"]', timeout=60000)
+                    element = await page.wait_for_selector('//div[@class="text-left"]', timeout=timeout_ancet)
                     # Если элемент найден, останавливаем загрузку страницы
                     # if element:
                     #     await page.evaluate("window.stop()")
                 except TimeoutError:
                     print(f"Страница не загрузилась для {item['login']} 60 секунд.")
-                    continue
+                    await browser.close()  # Закрыть браузер перед переходом к следующему пользователю
+                    continue  # Переход к следующей итерации цикла for для обработки следующего пользователя
 
                 await page.wait_for_selector('[data-mvtoken]')
                 mvtoken = await page.get_attribute('[data-mvtoken]', 'data-mvtoken')  # Используйте await здесь
                 filename = await save_cookies(page, item['identifier'], mvtoken)
 
                 await load_cookies_and_update_session(session, filename)  # Загружаем куки в session
+                
                 """Дневные продажи"""
                 data_json_day = await get_requests_day(session, proxy, headers, mvtoken, month, filterYear, filename)
                 await save_day_json(data_json_day, mvtoken, month, filterYear)
+                
                 """История"""
                 data_json_history = await get_requests_history(session, proxy, headers, mvtoken, filterYear, filename)
                 await save_history_json(data_json_history, mvtoken, filterYear)
+               
                 """Pending"""
                 await save_page_content(page, mvtoken, filterYear)
                 #
+                
                 """Загрузка чатов"""
                 data_json_first_chat = await get_requests_chat(session, proxy, headers, mvtoken, filename)
                 #
