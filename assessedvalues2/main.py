@@ -69,10 +69,8 @@ def split_and_clean(cell_content):
         return []  # Возвращаем пустой список, если содержимое ячейки None
 
 
-
-
 def pars_pdf():
-    pdf_path = "K000100N40157510.pdf"
+    pdf_path = "K001880N40156410.pdf"
     # Открываем PDF-файл с помощью PDFPlumber
 
     with pdfplumber.open(pdf_path) as pdf:
@@ -84,7 +82,7 @@ def pars_pdf():
 
             # first_page = pdf.pages
             # image = first_page[page_index].to_image()
-            page_index = page_index +1
+            page_index = page_index + 1
             # image.debug_tablefinder()
             # image.save(f"analis_{page_index}.png")
 
@@ -170,24 +168,42 @@ def pars_pdf():
                         index = headers_first.index(
                             header_first
                         )  # Получаем индекс нужной колонки
-                        # Проходим по всем строкам, начиная со второй
+
                         for row in table[1:2]:
+                            # print(row)
                             value_first = row[index]  # Извлекаем значение ячейки
                             dict_search_key_info[header_first] = value_first
                 values_list_search_key_info.append(dict_search_key_info)
 
                 for dict_item in values_list_search_key_info:
                     # Проверяем наличие ключа 'CURRENT OWNER' и его разделение на части
-                    if (
-                        "CURRENT OWNER" in dict_item
-                        and dict_item["CURRENT OWNER"].count("\n") >= 3
-                    ):
+                    if ("CURRENT OWNER" in dict_item and dict_item["CURRENT OWNER"].count("\n") == 3):
                         owner_parts = dict_item["CURRENT OWNER"].split("\n", 3)
                         dict_item["owner_data1"] = owner_parts[0]
                         dict_item["owner_data2"] = owner_parts[1]
                         dict_item["owner_data3"] = owner_parts[2]
                         dict_item["owner_data5"] = owner_parts[3]
-
+                    elif ("CURRENT OWNER" in dict_item and dict_item["CURRENT OWNER"].count("\n") == 4):
+                        owner_parts = dict_item["CURRENT OWNER"].split("\n", 4)
+                        dict_item["owner_data1"] = owner_parts[0]
+                        dict_item["owner_data2"] = owner_parts[1]
+                        dict_item["owner_data3"] = owner_parts[2]
+                        dict_item["owner_data4"] = owner_parts[3]
+                        dict_item["owner_data5"] = owner_parts[4]
+                    elif ("CURRENT OWNER" in dict_item and dict_item["CURRENT OWNER"].count("\n") == 2):
+                        owner_parts = dict_item["CURRENT OWNER"].split("\n", 2)
+                        dict_item["owner_data1"] = owner_parts[0]
+                        
+                        if re.match(r'^\d', owner_parts[1]) or owner_parts[1].startswith("P O BOX"):
+                            # Если условие истинно, выполняем необходимые действия
+                            # Например, присваиваем значение переменной owner_data3
+                            dict_item["owner_data3"] = owner_parts[1]
+                        
+                        dict_item["owner_data5"] = owner_parts[2]
+                        # dict_item["owner_data3"] = owner_parts[2]
+                        # dict_item["owner_data4"] = owner_parts[3]
+                        # dict_item["owner_data5"] = owner_parts[4]
+                    
                         # Удаление исходного ключа 'CURRENT OWNER'
                         del dict_item["CURRENT OWNER"]
 
@@ -236,6 +252,18 @@ def pars_pdf():
 
                 values_list_search_key_info.append(dict_search_key_info_03)
 
+                headers_cell_15 = table[15][0]  # Заголовки в 27-й ячейке
+                values_cell_15 = table[15][5]  # Значения в 31-й ячейке
+                headers_15 = split_and_clean(headers_cell_15)
+                values_15 = split_and_clean(values_cell_15)
+                # Обработка данных из таблицы 9
+
+                for header, value in zip(headers_15[:-1], values_15[:-1]):
+                    dict_search_key_info_04[header] = value
+                values_list_search_key_info.append(dict_search_key_info_04)
+                filename_key_info = os.path.join(
+                    search_key_info_path, f"{key_number}_{page_index}.json"
+                )
                 """Переименовать"""
                 keys_mapping = {
                     "PARCEL ID": "parcel_id",
@@ -252,8 +280,10 @@ def pars_pdf():
                     "ONING": "zoming",
                     "LAND": "assesed_land",
                     "BUILDING": "assesed_building",
-                    "DETACHED": "assesed_detached",
+                    "DETACHED": "assesed__detached",
                     "OTHER": "assesed_other",
+                    "YEAR BLT": "year_blt",
+                    "NET AREA": "net_area",
                 }
 
                 # Итерация по списку словарей
@@ -264,22 +294,19 @@ def pars_pdf():
                                 old_key
                             )  # Удаление старого ключа и добавление нового с сохранением значения
 
-                headers_cell_15 = table[15][0]  # Заголовки в 27-й ячейке
-                values_cell_15 = table[15][5]  # Значения в 31-й ячейке
-                headers_15 = split_and_clean(headers_cell_15)
-                values_15 = split_and_clean(values_cell_15)
-                # Обработка данных из таблицы 9
+                for item in values_list_search_key_info:
+                    item["Keyno"] = key_number
+                for item in values_list_search_key_info:
+                    item["card"] = page_index
+                
 
-                for header, value in zip(headers_15[:-1], values_15[:-1]):
-                    dict_search_key_info_04[header] = value
-                values_list_search_key_info.append(dict_search_key_info_04)
-                filename_key_info = os.path.join(
-                    search_key_info_path, f"{key_number}_{page_index}.json"
-                )
+                # Создаем один словарь из списка словарей
+                combined_dict = {}
+                for single_dict in values_list_search_key_info:
+                    combined_dict.update(single_dict)
+                list_with_one_dict = [combined_dict]
                 with open(filename_key_info, "w", encoding="utf-8") as f:
-                    json.dump(
-                        values_list_search_key_info, f, ensure_ascii=False, indent=4
-                    )
+                    json.dump(list_with_one_dict, f, ensure_ascii=False, indent=4)
 
                 # headers_cell_8 = table[8][27]  # Заголовки в 27-й ячейке
                 # values_cell_8 = table[8][31]  # Значения в 31-й ячейке
@@ -326,9 +353,9 @@ def pars_pdf():
                     dict_search_key_building = {
                         "Keyno": key_number,
                         "card": page_index,
-                        "el_type": header,
-                        "el_code": value,
-                        "el_desc": value_02,
+                        "bld_type": header,
+                        "cd": value,
+                        "bld_desc": value_02,
                     }
                     values_list_search_key_building.append(dict_search_key_building)
                 filename_key_buildin = os.path.join(
@@ -412,9 +439,9 @@ def pars_pdf():
                         "Keyno": key_number,
                         "card": page_index,
                         "bat": f"{header_str} {value}",
-                        "t": value_02,
-                        "description": value_03,
-                        "units": value_04.replace(
+                        "bat_t": value_02,
+                        "bat_desc": value_03,
+                        "bat_units": value_04.replace(
                             ",", ""
                         ),  # Убираем запятые в 'bat_units'
                     }
@@ -453,10 +480,9 @@ def pars_pdf():
                     )  # Записываем в файл
 
 
-def get_json_to_sql():
+def get_table_names():
     config = load_config()
     db_config = config["db_config"]
-
     """Получение списка имен таблиц из базы данных."""
     table_names = []
     try:
@@ -464,8 +490,6 @@ def get_json_to_sql():
         cursor = cnx.cursor()
         cursor.execute("SHOW TABLES;")
         table_names = [table_name[0] for table_name in cursor.fetchall()]
-    except mysql.connector.Error as err:
-        print(f"Ошибка: {err}")
     finally:
         if cnx.is_connected():
             cursor.close()
@@ -473,25 +497,27 @@ def get_json_to_sql():
     return table_names
 
 
-def read_json_files_from_folders():
-    table_names = get_json_to_sql()
-    """Чтение JSON файлов из папок, соответствующих именам таблиц и вставка в БД."""
-    for table_name in table_names:
-        folder_path = os.path.join(temp_path, table_name)
-        # Поиск всех JSON файлов в данной папке
-        for json_file_path in glob.glob(f"{folder_path}/*.json"):
-            with open(json_file_path, "r", encoding="utf-8") as json_file:
-                data = json.load(json_file)
-                # Вставляем данные из JSON в соответствующую таблицу
-                insert_data_into_table(table_name, data)
+def check_data_exists(table_name, keyno, card):
+    config = load_config()
+    db_config = config["db_config"]
+    """Проверка наличия данных в таблице по Keyno и card."""
+    try:
+        cnx = mysql.connector.connect(**db_config)
+        cursor = cnx.cursor()
+        query = f"SELECT COUNT(*) FROM {table_name} WHERE Keyno = %s AND card = %s"
+        cursor.execute(query, (keyno, card))
+        (count,) = cursor.fetchone()
+        return count > 0
+    finally:
+        if cnx.is_connected():
+            cursor.close()
+            cnx.close()
 
 
 def insert_data_into_table(table_name, data):
     config = load_config()
     db_config = config["db_config"]
-    """
-    Вставка данных из JSON файла в соответствующую таблицу базы данных.
-    """
+
     try:
         cnx = mysql.connector.connect(**db_config)
         cursor = cnx.cursor()
@@ -499,17 +525,26 @@ def insert_data_into_table(table_name, data):
         # Получение списка колонок для таблицы
         cursor.execute(f"SHOW COLUMNS FROM {table_name}")
         columns_info = cursor.fetchall()
-        columns = [col[0] for col in columns_info]
+        # Создаем словарь для проверки, можно ли колонку оставить пустой (если может быть NULL)
+        column_can_be_null = {col[0]: (col[2] == "YES") for col in columns_info}
 
         for record in data:
-            # Формируем список значений для всех колонок таблицы
-            # Явно задаем значение 0 для колонки 'row_file', если оно отсутствует или None
-            values = [(record.get(col) if record.get(col) is not None else 0) if col == 'row_file' else record.get(col, None) for col in columns]
+            # Фильтруем запись JSON, оставляя только те поля, которые существуют в SQL таблице
+            filtered_record = {
+                k: v for k, v in record.items() if k in column_can_be_null
+            }
+            # Строим список колонок и соответствующих значений для вставки
+            columns_str = ", ".join(filtered_record.keys())
+            placeholders = ", ".join(["%s"] * len(filtered_record))
+            values = tuple(filtered_record.values())
+            # Если после фильтрации не осталось колонок для вставки, пропускаем эту запись
+            if not columns_str:
+                continue
 
-            # Формируем и выполняем SQL запрос на вставку
-            columns_str = ", ".join(columns)
-            placeholders = ", ".join(["%s"] * len(columns))  # Создаем плейсхолдеры для значений
-            insert_query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
+            # Составление и выполнение запроса на вставку
+            insert_query = (
+                f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
+            )
             cursor.execute(insert_query, values)
 
         cnx.commit()
@@ -524,7 +559,59 @@ def insert_data_into_table(table_name, data):
             cnx.close()
 
 
+# def insert_data_into_table(table_name, data):
+#     config = load_config()
+#     db_config = config["db_config"]
+#     """Вставка данных из JSON файла в соответствующую таблицу базы данных."""
+#     try:
+#         cnx = mysql.connector.connect(**db_config)
+#         cursor = cnx.cursor()
+#         cursor.execute(f"SHOW COLUMNS FROM {table_name}")
+#         columns_info = cursor.fetchall()
+#         sql_columns = [col[0] for col in columns_info]
+
+#         for record in data:
+#         # Дополнение record значениями None для отсутствующих полей
+#             for col in sql_columns:
+#                 if col not in record:
+#                     record[col] = None  # или другое значение по умолчанию, например 0 или ''
+
+#             common_columns = [col for col in sql_columns if col in record]
+#             values = [record[col] for col in common_columns]
+
+#             if not common_columns:
+#                 continue
+
+#             columns_str = ", ".join(common_columns)
+#             placeholders = ", ".join(["%s"] * len(common_columns))
+#             insert_query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
+#             cursor.execute(insert_query, values)
+
+#         cnx.commit()
+#     finally:
+#         if cnx.is_connected():
+#             cursor.close()
+#             cnx.close()
+
+
+def process_json_files():
+    """Чтение JSON файлов из папок, соответствующих именам таблиц и вставка в БД."""
+    table_names = get_table_names()
+    for table_name in table_names:
+        folder_path = os.path.join(temp_path, table_name)
+        for json_file_path in glob.glob(f"{folder_path}/*.json"):
+            filename = os.path.basename(json_file_path)
+            keyno, card = filename.rstrip(".json").split("_")
+
+            if check_data_exists(table_name, keyno, card):
+                continue
+
+            with open(json_file_path, "r", encoding="utf-8") as json_file:
+                data = json.load(json_file)
+                insert_data_into_table(table_name, data)
+
+
 if __name__ == "__main__":
     # create_folders()
     pars_pdf()
-    # read_json_files_from_folders()
+    process_json_files()
