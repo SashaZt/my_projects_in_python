@@ -614,6 +614,6 @@ def process_json_files():
 
 
 if __name__ == "__main__":
-    # create_folders()
+    create_folders()
     pars_pdf()
     process_json_files()

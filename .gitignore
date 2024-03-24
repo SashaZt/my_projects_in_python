@@ -17,7 +17,7 @@ build/
 
 # Файлы настроек IDE, например, для PyCharm
 .idea/
-%CD%/
+pw-browsers/
 # Игнорирование всех .pyc файлов
 *.pyc
 
