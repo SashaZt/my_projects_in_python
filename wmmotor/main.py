@@ -487,10 +487,43 @@ def get_cookies():
             # Вводим логин и пароль
             await page.fill(fldEmail_xpath, fldEmail)
             await page.fill(fldPassword_xpath, fldPassword)
-            print(
-                "Введите значение в Podaj wynik działania\nнажмите Ентер, у Вас 20сек"
-            )
-            await sleep(20)
+            # Находим input элемент по имени
+            input_element = await page.query_selector('input[name="fldResult"]')
+
+            """Решаем математическую задачу"""
+            
+            if input_element:
+                # Для получения родительского элемента используем XPath и функцию evaluate
+                text_content = await page.evaluate('''(input) => {
+                    const parentTd = input.closest('td'); // Находим ближайший родительский элемент td
+                    return parentTd ? parentTd.textContent : ''; // Возвращаем текстовое содержимое элемента td или пустую строку
+                }''', input_element)
+
+                # Применяем регулярное выражение к текстовому содержимому
+                match = re.search(r"Podaj wynik działania: (\d+) \+ (\d+) =", text_content)
+
+                if match:
+                    # Извлекаем числа из найденного совпадения
+                    num1, num2 = map(int, match.groups())
+                    
+                    # Вычисляем результат
+                    int_result = num1 + num2
+                    
+                    # Выводим и/или вводим результат обратно в форму
+                    print(f"Результат: {int_result}")
+                    await input_element.fill(str(int_result))  # Заполняем поле результатом
+                    
+
+            else:
+                print("Элемент не найден.")
+
+            """Нажимаем кнопку ZALOGUJ"""
+            flinkButton_xpath = '//a[@class="linkButton"]'
+            flinkButton = await page.wait_for_selector(flinkButton_xpath, state="visible")
+            await flinkButton.click()
+
+
+            await sleep(5)
         except TimeoutError:
             print("Страница не загрузилась")
 
