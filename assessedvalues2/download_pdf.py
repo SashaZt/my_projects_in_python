@@ -6,6 +6,7 @@ import aiofiles
 import re
 import os
 import glob
+from asyncio import sleep
 
 
 async def download_file(session, url, cookies_dict, filename_pdf):
@@ -136,7 +137,8 @@ async def run():
             )
             await download_file(session, url, cookies_dict, filename_pdf)
             current += 1
-
+        print("Все скачано")
+        await sleep(5)
         await browser.close()
 
 
