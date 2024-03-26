@@ -593,6 +593,7 @@ def insert_data_into_table(table_name, data):
 #             insert_query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
 #             cursor.execute(insert_query, values)
 
+
 #         cnx.commit()
 #     finally:
 #         if cnx.is_connected():

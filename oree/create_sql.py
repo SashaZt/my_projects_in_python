@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import time
+from datetime import datetime, timedelta
 
 
 def load_connection_to_sql():
@@ -50,6 +51,51 @@ def create_sql_oree():
 
     cnx.close()
 
+def add_column_oree():
+    config = load_connection_to_sql()
+    db_config = config["db_config"]
+    use_bd = db_config["database"]
+    use_table = config["other_config"]["use_table"]
+    cnx = mysql.connector.connect(**db_config)
+    cursor = cnx.cursor()
+
+    cursor.execute(f"USE {use_bd}")
+    add_column_command = f"ALTER TABLE {use_table} ADD COLUMN data_and_time_data_download VARCHAR(20) NOT NULL"
+
+    # Выполнение команды
+    cursor.execute(add_column_command)
+
+    # Не забудьте закрыть курсор и соединение, когда закончите
+    cursor.close()
+    cnx.close()
+
+def modify_column():
+    config = load_connection_to_sql()
+    db_config = config["db_config"]
+    use_bd = db_config["database"]
+    use_table = config["other_config"]["use_table"]
+    
+    # Установка соединения с базой данных
+    cnx = mysql.connector.connect(**db_config)
+    cursor = cnx.cursor()
+    
+    # Выбор базы данных (опционально, если уже указана в db_config)
+    cursor.execute(f"USE {use_bd}")
+    
+    # Команда для изменения типа колонки
+    # Замените 'column_name' на имя колонки, которую вы хотите изменить
+    modify_column_command = f"ALTER TABLE {use_table} MODIFY COLUMN column_name TIME"
+    
+    # Выполнение команды
+    cursor.execute(modify_column_command)
+    
+    # Закрытие соединения
+    cursor.close()
+    cnx.close()
+
+    print(f"Колонка 'column_name' в таблице '{use_table}' успешно изменена на тип TIME.")
 
 if __name__ == "__main__":
-    create_sql_oree()
+    # create_sql_oree()
+    add_column_oree()
+    # modify_column()

@@ -126,10 +126,10 @@ def get_data():
     current_hour = now.hour
     if current_hour == 22:
                 name_html = "0-1"
-            elif current_hour == 23:
-                name_html = "1-2"
-            else:
-                name_html = f"{current_hour + 2}-{current_hour + 3}"
+    elif current_hour == 23:
+        name_html = "1-2"
+    else:
+        name_html = f"{current_hour + 2}-{current_hour + 3}"
     filename_html = os.path.join(html_path, f"{name_html}.html")
     with open(filename_html, encoding="utf-8") as file:
         src = file.read()
@@ -170,8 +170,9 @@ def json_to_sql():
                 sales_date = dt_object.strftime("%Y-%m-%d")
                 sales_time = dt_object.strftime("%H:%M:%S")
                 sales_date_str = datetime.now()
-                delivery_date_str = sales_date_str + timedelta(days=1)
-                delivery_date = delivery_date_str.strftime("%Y-%m-%d")
+                # delivery_date_str = sales_date_str + timedelta(days=1)
+                # delivery_date = delivery_date_str.strftime("%Y-%m-%d")
+                delivery_date = sales_date_str.strftime("%Y-%m-%d")
                 price_time = item["Price"]
                 amount_time = item["Quantity"]
 
@@ -184,11 +185,11 @@ def json_to_sql():
                     check_query, (sales_date, sales_time, amount_time, price_time)
                 )
                 result = cursor.fetchone()
-
+                data_and_time_data_download = datetime.now().strftime('%d.%m.%Y_%H:%M:%S')
                 if result[0] == 0:  # Если записи не найдено, вставляем данные
                     insert_query = f"""
-                        INSERT INTO {use_table} (sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time)
-                        VALUES (%s, %s, %s, %s, %s, %s);
+                        INSERT INTO {use_table} (sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time,data_and_time_data_download)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s);
                     """
                     cursor.execute(
                         insert_query,
@@ -199,6 +200,7 @@ def json_to_sql():
                             price_time,
                             delivery_date,
                             delivery_time,
+                            data_and_time_data_download,
                         ),
                     )
 
@@ -233,16 +235,16 @@ def run_at_specific_timee_ach_hour(target_minute, target_second):
         get_requests()
         get_data()
         json_to_sql()
-        time.sleep(10)  # Короткая пауза перед планированием следующего запуска
-
-
-# if __name__ == "__main__":
-#     run_at_specific_timee_ach_hour(59, 58)
+        time.sleep(1)  # Короткая пауза перед планированием следующего запуска
 
 
 if __name__ == "__main__":
-    # creative_folders()
-    # get_requests()
-    get_data()
-    json_to_sql()
-    # run_at_specific_time("13:59:50")
+    run_at_specific_timee_ach_hour(59, 58)
+
+
+# if __name__ == "__main__":
+#     # creative_folders()
+#     # get_requests()
+#     get_data()
+#     json_to_sql()
+#     # run_at_specific_time("13:59:50")
