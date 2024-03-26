@@ -22,10 +22,7 @@ product_path = os.path.join(temp_path, "product")
 
 
 def delete_old_data():
-    # Убедитесь, что папки существуют или создайте их
-    for folder in [temp_path, list_path, product_path]:
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+    
     config = load_config()
     name_files = config.get("name_files", "")
     if os.path.exists(name_files):
@@ -37,10 +34,15 @@ def delete_old_data():
                     os.remove(f)
             # print(f'Очистил папку {os.path.basename(folder)}')
 
+def creative_folders():
+    # Убедитесь, что папки существуют или создайте их
+    for folder in [temp_path, list_path, product_path]:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
 
 def extract_data_from_csv():
     csv_filename = "data.csv"
-    columns_to_extract = ["price", "Numer katalogowy części", "Producent części"]
+    columns_to_extract = ["price_zl", "Numer_katalogowy_części", "Producent_części"]
 
     data = []  # Создаем пустой список для хранения данных
 
@@ -111,6 +113,7 @@ def get_requests():
                 if text_find not in text:
                     with open(filename, "w", encoding="utf-8") as file:
                         file.write(src)
+                    print(filename)
                 else:
                     rows = soup.select("form#table_form tr")
                     url_to_fetch = None
@@ -136,6 +139,7 @@ def get_requests():
                             src = await response.text()
                             with open(filename, "w", encoding="utf-8") as file:
                                 file.write(src)
+                            
         except Exception as e:
             print(f"Произошла ошибка: {e}")
 
@@ -148,7 +152,7 @@ def get_requests():
 
     def extract_data_from_csv():
         csv_filename = "data.csv"
-        columns_to_extract = ["price", "Numer katalogowy części", "Producent części"]
+        columns_to_extract = ["price_zl", "Numer_katalogowy_części", "Producent_części"]
         # Создаем пустой список для хранения данных
         data = []
 
@@ -176,11 +180,11 @@ def get_requests():
                 tasks = []
                 for item in data_csv[i : i + 1000]:
                     sku = (
-                        item["Numer katalogowy części"]
+                        item["Numer_katalogowy_części"]
                         .replace(" ", "")
                         .replace("/", "")
                     )
-                    brend = item["Producent części"].capitalize()
+                    brend = item["Producent_części"].capitalize()
                     price_old = item["price"]
                     sku = re.sub(r"[^\w\d]|_", "", sku)
                     filename = os.path.join(product_path, sku + ".html")
@@ -220,15 +224,15 @@ def parsing(name_files):
     ) as file, open("exist_data.csv", "a", newline="", encoding="utf-16") as exist_file:
         writer = csv.writer(file, delimiter="\t")
         exist_writer = csv.writer(exist_file, delimiter="\t")
-        exist_writer.writerow(["price", "Numer katalogowy części", "Producent części"])
+        exist_writer.writerow(["price_zl", "Numer_katalogowy_części", "Producent_części"])
 
         writer.writerow(heandler)  # Записываем заголовки только один раз для output.csv
 
         for item in data_csv:
-            price_old = item["price"]
-            sku = item["Numer katalogowy części"]
+            price_old = item["price_zl"]
+            sku = item["Numer_katalogowy_części"]
             sku = re.sub(r"[^\w\d]|_", "", sku)
-            brend = item["Producent części"].capitalize()
+            brend = item["Producent_części"].capitalize()
             folders_html = os.path.join(product_path, f"{sku}.html")
             try:
                 with open(folders_html, encoding="utf-8") as file:
@@ -351,6 +355,7 @@ while True:
         continue  # Пропускаем оставшуюся часть цикла и начинаем с новой итерации
 
     if user_input == 1:
+        creative_folders()
         print("Собираем товары")
         get_requests()
         print("Переходим к пункту 2")

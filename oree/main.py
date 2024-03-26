@@ -1,4 +1,5 @@
 import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import json
 import glob
 import html
@@ -88,55 +89,47 @@ def get_requests():
         "boid": "1d46cedfa548472098a17510ba2f023e",
         "_dc": "1710932831658",
     }
+    url = "https://scmo.oree.com.ua/portal/Plugins/PXS/Pages/Intraday/Lightboard/Default.aspx"
+    try:
+        response = requests.get(
+            url,
+            params=params,
+            headers=headers,
+            verify=False,
+        )
 
-    response = requests.get(
-        "https://scmo.oree.com.ua/portal/Plugins/PXS/Pages/Intraday/Lightboard/Default.aspx",
-        params=params,
-        headers=headers,
-        verify=False,
-    )
+        src = response.text
+         # Получение текущего времени
+        now = datetime.now()
 
-    src = response.text
-    # soup = BeautifulSoup(src, "lxml")
-    # json_str = soup.find("input", attrs={"id": "lastTradeChartPoints"}).get("value")
-    # # # Декодирование HTML-сущностей
-    # decoded_json = html.unescape(json_str)
+        # Извлечение текущего часа
+        current_hour = int(now.hour)
+        if current_hour == 22:
+            name_html = "0-1"
+        elif current_hour == 23:
+            name_html = "1-2"
+        else:
+            name_html = f"{current_hour + 2}-{current_hour + 3}"
+        filename_html = os.path.join(html_path, f"{name_html}.html")
+        with open(filename_html, "w", encoding="utf-8") as file:
+            file.write(src)
+    except RequestException as e:
+        # Обработка всех ошибок при запросе
+        print(f"Произошла ошибка:\n{e}")
+    
 
-    # # # Преобразование декодированной строки в объект Python с помощью json.loads()
-    # data_json = json.loads(decoded_json)
-
-    # # for item in data_json:
-    # #     print(f"Date: {item['Date']}, Price: {item['Price']}, Quantity: {item['Quantity']}")
-    # formatted_data = [
-    #     {"Date": item["Date"], "Price": item["Price"], "Quantity": item["Quantity"]}
-    #     for item in data_json
-    # ]
-    #  # Получение текущего времени
-    # now = datetime.now()
-
-    # # Извлечение текущего часа
-    # current_hour = now.hour
-    # name_csv = f"{current_hour + 2}-{current_hour + 3}"
-    # filename = os.path.join(json_path, f'{name_csv}.json')
-    # # Сохраняем в файл
-    # with open(filename, "w", encoding="utf-8") as f:
-    #     json.dump(formatted_data, f, ensure_ascii=False, indent=4)
-
-    # Получение текущего времени
-    now = datetime.now()
-
-    # Извлечение текущего часа
-    current_hour = now.hour
-    name_html = f"{current_hour + 2}-{current_hour + 3}"
-    filename_html = os.path.join(html_path, f"{name_html}.html")
-    with open(filename_html, "w", encoding="utf-8") as file:
-        file.write(src)
+   
 
 
 def get_data():
     now = datetime.now()
     current_hour = now.hour
-    name_html = f"{current_hour + 2}-{current_hour + 3}"
+    if current_hour == 22:
+                name_html = "0-1"
+            elif current_hour == 23:
+                name_html = "1-2"
+            else:
+                name_html = f"{current_hour + 2}-{current_hour + 3}"
     filename_html = os.path.join(html_path, f"{name_html}.html")
     with open(filename_html, encoding="utf-8") as file:
         src = file.read()
@@ -220,109 +213,6 @@ def json_to_sql():
             cnx.close()
 
 
-# def jsons_to_csv():
-#     folder = os.path.join(json_path, "*.json")
-
-#     files_json = glob.glob(folder)
-#     # Открываем файл CSV для записи
-#     with open("data.csv", "w", newline="", encoding="utf-8") as csvfile:
-#         # Задаём названия колонок для CSV файла
-#         fieldnames = ["Дата", "Година", "Обсяги", "Ціна"]
-
-#         # Создаём объект DictWriter, указываем файл, заголовки и разделитель (если нужен другой, кроме запятой)
-#         writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter=",")
-
-#         # Записываем заголовки в файл
-#         writer.writeheader()
-#         # Собираем все данные в один список
-#         all_data = []
-#         for item in files_json:
-#             with open(item, "r", encoding="utf-8") as file:
-#                 data = json.load(file)
-#                 all_data.extend(
-#                     data
-#                 )  # Добавляем данные из текущего файла в общий список
-
-#         # Сортируем список по дате
-#         all_data_sorted = sorted(
-#             all_data, key=lambda x: datetime.strptime(x["Date"], "%Y-%m-%dT%H:%M:%S")
-#         )
-
-#         # Теперь у вас есть отсортированный список all_data_sorted, и вы можете записать его в CSV
-#         with open("sorted_data.csv", "w", encoding="utf-8", newline="") as f:
-#             fieldnames = ["Дата", "Година", "Обсяги", "Ціна"]
-#             writer = csv.DictWriter(f, fieldnames=fieldnames)
-#             writer.writeheader()
-
-#             for item in all_data_sorted:
-#                 dt_object = datetime.strptime(item["Date"], "%Y-%m-%dT%H:%M:%S")
-#                 date = dt_object.strftime("%Y-%m-%d")
-#                 time = dt_object.strftime("%H:%M:%S")
-
-#                 writer.writerow(
-#                     {
-#                         "Дата": date,
-#                         "Година": time,
-#                         "Обсяги": item["Quantity"],
-#                         "Ціна": item["Price"],
-#                     }
-#                 )
-#         # for item in files_json:
-#         #     # Читаем данные из JSON файла
-#         #     with open(item, "r", encoding="utf-8") as file:
-#         #         data = json.load(file)
-
-#         #         # Проходим по каждому элементу в списке
-#         #         for item in data:
-#         #             # Разделяем дату и время
-#         #             dt_object = datetime.strptime(item["Date"], "%Y-%m-%dT%H:%M:%S")
-#         #             date = dt_object.strftime("%Y-%m-%d")
-#         #             time = dt_object.strftime("%H:%M:%S")
-
-#         #             # Записываем данные в строку файла
-#         #             writer.writerow(
-#         #                 {
-#         #                     "Дата": date,
-#         #                     "Година": time,
-#         #                     "Обсяги": item["Quantity"],
-#         #                     "Ціна": item["Price"],
-#         #                 }
-#         #             )
-#     # Загрузка данных из файла CSV
-#     data = pd.read_csv("sorted_data.csv", encoding="utf-8")
-
-#     # Сохранение данных в файл XLSX
-#     data.to_excel(f"sorted_data.xlsx", index=False, engine="openpyxl")
-
-
-# if __name__ == "__main__":
-#     run_at_specific_time(59, 30)
-
-
-def run_at_specific_time(target_time_str):
-    # Преобразование строки времени в объект datetime сегодняшнего дня
-    now = datetime.now()
-    target_time = datetime.strptime(target_time_str, "%H:%M:%S").replace(
-        year=now.year, month=now.month, day=now.day
-    )
-
-    # Если целевое время уже прошло сегодня, устанавливаем его на следующий день
-    if target_time < now:
-        target_time += timedelta(days=1)
-
-    print(f"Скрипт запланирован на {target_time}")
-
-    # Ожидание до целевого времени
-    while datetime.now() < target_time:
-        time.sleep(
-            1
-        )  # Спим по 1 секунде, чтобы избежать чрезмерной загрузки процессора
-
-    # Вызов функции после достижения целевого времени
-    get_requests()
-    get_data()
-
-
 def run_at_specific_timee_ach_hour(target_minute, target_second):
     while True:
         now = datetime.now()
@@ -346,14 +236,13 @@ def run_at_specific_timee_ach_hour(target_minute, target_second):
         time.sleep(10)  # Короткая пауза перед планированием следующего запуска
 
 
-if __name__ == "__main__":
-    # run_at_specific_time("15:50:50")
-    run_at_specific_timee_ach_hour(59, 58)
-
-
 # if __name__ == "__main__":
-#     # creative_folders()
-#     # get_requests()
-#     get_data()
-#     json_to_sql()
-#     # run_at_specific_time("13:59:50")
+#     run_at_specific_timee_ach_hour(59, 58)
+
+
+if __name__ == "__main__":
+    # creative_folders()
+    # get_requests()
+    get_data()
+    json_to_sql()
+    # run_at_specific_time("13:59:50")

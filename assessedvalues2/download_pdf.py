@@ -1,9 +1,12 @@
 import asyncio
+from math import e
 from time import sleep
 from playwright.async_api import async_playwright
 import aiohttp
 import aiofiles
 import re
+import string
+
 import os
 import glob
 from asyncio import sleep
@@ -43,103 +46,271 @@ async def download_file(session, url, cookies_dict, filename_pdf):
 
 
 async def run():
-    print("Вставьте ссылку ссылку на город")
-    url_start = str(input())
-    print("Введите диапозон поиска по кодам, от")
-    range_a = int(input())
-    print("Введите диапозон поиска по кодам, до")
-    range_b = int(input())
-    current_directory = os.getcwd()
-    # Создайте полный путь к папке temp
-    temp_path = os.path.join(current_directory, "temp")
-    pdf_path = os.path.join(temp_path, "pdf")
-    # Убедитесь, что папки существуют или создайте их
-    for folder in [
-        temp_path,
-        pdf_path,
-    ]:
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+    print("Вставьте код город")
+    code_sity = str(input())
+    url_start = f'https://www.assessedvalues2.com/SearchPage.aspx?jurcode={code_sity}'
+    print("Собираем по улицам - 1\nСобираем по кодам - 2")
+    collection_method = int(input())
+    if collection_method == 2:
+        print("Введите диапозон поиска по кодам, от")
+        range_a = int(input())
+        print("Введите диапозон поиска по кодам, до")
+        range_b = int(input())
+        current_directory = os.getcwd()
+        # Создайте полный путь к папке temp
+        temp_path = os.path.join(current_directory, "temp")
+        pdf_path = os.path.join(temp_path, "pdf")
+        # Убедитесь, что папки существуют или создайте их
+        for folder in [
+            temp_path,
+            pdf_path,
+        ]:
+            if not os.path.exists(folder):
+                os.makedirs(folder)
 
-    timeout = 60000
-    current_directory = os.getcwd()
-    browsers_path = os.path.join(current_directory, "pw-browsers")
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
-    async with async_playwright() as playwright, aiohttp.ClientSession() as session:
-        browser = await playwright.chromium.launch(
-            headless=False
-        )  # Для отладки можно использовать headless=False
-        context = await browser.new_context(accept_downloads=True)
-        page = await context.new_page()
+        timeout = 3000
+        current_directory = os.getcwd()
+        browsers_path = os.path.join(current_directory, "pw-browsers")
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+        async with async_playwright() as playwright, aiohttp.ClientSession() as session:
+            browser = await playwright.chromium.launch(
+                headless=False
+            )  # Для отладки можно использовать headless=False
+            context = await browser.new_context(accept_downloads=True)
+            page = await context.new_page()
 
-        await page.goto(url_start)
-        match = re.search(r"jurcode=(\d+)", url_start)
+            await page.goto(url_start)
+            match = re.search(r"jurcode=(\d+)", url_start)
 
-        jurcode = match.group(1)
-        # Ждем появление кнопки поиска и нажимаем на нее
-        xpath_begin_search = '//input[@id="ctl00_MainContent_BtnSearch"]'
-        # Дожидаемся появления кнопки с заданным текстом и кликаем по ней
-        await page.wait_for_selector(f"xpath={xpath_begin_search}", timeout=timeout)
-        await page.click(xpath_begin_search)
-        await asyncio.sleep(1)
-        # Ждем появление поля ввода, вводим значение из переменной current и нажимаем Enter
-        xpath_keyno = '//input[@id="ctl00_MainContent_TxtKey"]'
-        await page.wait_for_selector(f"xpath={xpath_keyno}", timeout=timeout)
-        folder_pdf = os.path.join(pdf_path, "*.pdf")
-        files_pdf = glob.glob(folder_pdf)
-        found_parts = []
+            jurcode = match.group(1)
+            # Ждем появление кнопки поиска и нажимаем на нее
+            xpath_begin_search = '//input[@id="ctl00_MainContent_BtnSearch"]'
+            # Дожидаемся появления кнопки с заданным текстом и кликаем по ней
+            await page.wait_for_selector(f"xpath={xpath_begin_search}", timeout=timeout)
+            await page.click(xpath_begin_search)
+            await asyncio.sleep(1)
+            # Ждем появление поля ввода, вводим значение из переменной current и нажимаем Enter
+            xpath_keyno = '//input[@id="ctl00_MainContent_TxtKey"]'
+            await page.wait_for_selector(f"xpath={xpath_keyno}", timeout=timeout)
+            folder_pdf = os.path.join(pdf_path, "*.pdf")
+            files_pdf = glob.glob(folder_pdf)
+            found_parts = []
 
-        # Обход всех файлов и сбор номеров в заданном диапазоне
-        for item in files_pdf:
-            filename = os.path.basename(item)
-            parts = filename.split("_")
-            if len(parts) >= 2:
-                try:
-                    part_number = int(parts[1])  # Извлекаем номер
-                    if range_a <= part_number <= range_b:
-                        found_parts.append(part_number)
-                except ValueError:
-                    # Если part2 не является числом, пропускаем этот файл
+            # Обход всех файлов и сбор номеров в заданном диапазоне
+            for item in files_pdf:
+                filename = os.path.basename(item)
+                parts = filename.split("_")
+                if len(parts) >= 2:
+                    try:
+                        part_number = int(parts[1])  # Извлекаем номер
+                        if range_a <= part_number <= range_b:
+                            found_parts.append(part_number)
+                    except ValueError:
+                        # Если part2 не является числом, пропускаем этот файл
+                        continue
+
+            # Определяем отсутствующие номера в диапазоне
+            missing_parts = [n for n in range(range_a, range_b + 1) if n not in found_parts]
+
+            # Определяем номер, с которого начать обработку
+            # Если в missing_parts есть элементы, берем первый как начальный номер для обработки
+            current = missing_parts[0] if missing_parts else range_b + 1
+
+            while current <= range_b:
+                if current in found_parts:
+                    current += 1
                     continue
 
-        # Определяем отсутствующие номера в диапазоне
-        missing_parts = [n for n in range(range_a, range_b + 1) if n not in found_parts]
+                await page.fill(xpath_keyno, str(current))
+                await page.press(xpath_keyno, "Enter")
+                # Получаем куки из контекста браузера
+                cookies = await context.cookies()
+                cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
+                # Ждем появление ссылки и получаем с нее href
+                try:
+                    xpath_href = '//a[@target="_blank"]'
+                    await page.wait_for_selector(f"xpath={xpath_href}", timeout=timeout)
+                    url_href = await page.get_attribute(xpath_href, "href")
 
-        # Определяем номер, с которого начать обработку
-        # Если в missing_parts есть элементы, берем первый как начальный номер для обработки
-        current = missing_parts[0] if missing_parts else range_b + 1
+                    pattern = r"pdf=([^&]+)"
+                    match = re.search(pattern, url_href)
 
-        while current <= range_b:
-            if current in found_parts:
-                current += 1
-                continue
+                    if match:
+                        extracted_part = match.group(1)
+                    else:
+                        print("Совпадение не найдено.")
+                    url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+                    filename_pdf = os.path.join(
+                        pdf_path, f"{jurcode}_{current}_{extracted_part}.pdf"
+                    )
+                    await download_file(session, url, cookies_dict, filename_pdf)
+                    current += 1
+                except:
+                    current += 1
+                    continue
+                    
+            print("Все скачано")
+            await sleep(5)
+            await browser.close()
+    elif collection_method == 1:
+        lowercase_letters_list = list(string.ascii_lowercase)
+        for letter_streed in lowercase_letters_list:
+            print(f'Поиск по букве {letter_streed}')
+            current_directory = os.getcwd()
+            # Создайте полный путь к папке temp
+            temp_path = os.path.join(current_directory, "temp")
+            pdf_path = os.path.join(temp_path, "pdf")
+            # Убедитесь, что папки существуют или создайте их
+            for folder in [
+                temp_path,
+                pdf_path,
+            ]:
+                if not os.path.exists(folder):
+                    os.makedirs(folder)
 
-            await page.fill(xpath_keyno, str(current))
-            await page.press(xpath_keyno, "Enter")
-            # Получаем куки из контекста браузера
-            cookies = await context.cookies()
-            cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
-            # Ждем появление ссылки и получаем с нее href
-            xpath_href = '//a[@target="_blank"]'
-            await page.wait_for_selector(f"xpath={xpath_href}", timeout=timeout)
-            url_href = await page.get_attribute(xpath_href, "href")
+            timeout = 5000
+            current_directory = os.getcwd()
+            browsers_path = os.path.join(current_directory, "pw-browsers")
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+            async with async_playwright() as playwright, aiohttp.ClientSession() as session:
+                browser = await playwright.chromium.launch(
+                    headless=False
+                )  # Для отладки можно использовать headless=False
+                context = await browser.new_context(accept_downloads=True)
+                page = await context.new_page()
 
-            pattern = r"pdf=([^&]+)"
-            match = re.search(pattern, url_href)
+                await page.goto(url_start)
+                match = re.search(r"jurcode=(\d+)", url_start)
 
-            if match:
-                extracted_part = match.group(1)
-            else:
-                print("Совпадение не найдено.")
-            url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
-            filename_pdf = os.path.join(
-                pdf_path, f"{jurcode}_{current}_{extracted_part}.pdf"
-            )
-            await download_file(session, url, cookies_dict, filename_pdf)
-            current += 1
-        print("Все скачано")
-        await sleep(5)
-        await browser.close()
+                jurcode = match.group(1)
+                # Ждем появление кнопки поиска и нажимаем на нее
+                xpath_begin_search = '//input[@id="ctl00_MainContent_BtnSearch"]'
+                # Дожидаемся появления кнопки с заданным текстом и кликаем по ней
+                await page.wait_for_selector(f"xpath={xpath_begin_search}", timeout=timeout)
+                await page.click(xpath_begin_search)
+                await asyncio.sleep(1)
+                # Получаем куки из контекста браузера
+                cookies = await context.cookies()
+                cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
+                
+                
+
+
+                
+                # Ждем появление поля ввода, вводим значение из переменной current и нажимаем Enter
+                xpath_txtstreet = '//input[@id="ctl00_MainContent_TxtStreet"]'
+                await page.wait_for_selector(f"xpath={xpath_txtstreet}", timeout=timeout)
+                await page.fill(xpath_txtstreet, str(letter_streed))
+                await page.press(xpath_txtstreet, "Enter")
+                
+                
+                
+                xpath_error_message = '//span[@id="ctl00_MainContent_lblMaxRec"]'
+                xpath_href = '//a[@target="_blank"]'
+
+                # Пытаемся найти элемент с сообщением об ошибке
+                error_message_element = await page.query_selector(xpath_error_message)
+                
+                if error_message_element:
+                    error_message_text = await error_message_element.text_content()
+                    if error_message_text == 'No records found using chosen criteria!':
+                        print("Нет записей, соответствующих критериям.")
+                    elif error_message_text == 'Search results are limited to the first 300 records!':
+
+                        lowercase_letters_list = list(string.ascii_lowercase)
+                        for letter in lowercase_letters_list:
+                            find_letter = f"{letter_streed}{letter}"
+                            await asyncio.sleep(1)
+                            await page.fill(xpath_txtstreet, find_letter)
+                            await page.press(xpath_txtstreet, "Enter")
+                            await asyncio.sleep(1)
+                            # Обновляем состояние элемента с сообщением об ошибке
+                            error_message_element = await page.query_selector(xpath_error_message)
+                            if error_message_element:
+                                error_message_text = await error_message_element.text_content()
+                                if error_message_text == 'No records found using chosen criteria!':
+                                    print(f"Нет записей, пропускаем {find_letter}")
+                                    continue  # Пропускаем текущую итерацию и переходим к следующей букве
+                                elif error_message_text == 'Search results are limited to the first 300 records!':
+                                    print(f'Ручная проверка запроса\n {find_letter}!!!!!!!!!!!!!!!!!!')
+                            else:
+                                print(f"качаем {find_letter}")
+
+                            xpath_href = '//a[@target="_blank"]'
+                            links_elements = await page.query_selector_all(f"xpath={xpath_href}")
+                            urls = [await link_element.get_attribute('href') for link_element in links_elements]
+                            # Создаем список словарей, где каждый словарь содержит jurcode, extracted_part и keyno для каждого URL
+                            jurcode_extracted_list = []
+                            pattern = re.compile(r'jurcode=(\d+)&pdf=([^&]+)')
+
+                            for url in urls:
+                                match = pattern.search(url)
+                                if match:
+                                    jurcode, extracted_part = match.groups()
+                                    keyno_match = re.search(r'K(\d+)N', extracted_part)
+                                    keyno = keyno_match.group(1) if keyno_match else None
+
+                                    # Создаем словарь для каждого найденного совпадения и добавляем его в список
+                                    jurcode_extracted_dict = {
+                                        "jurcode": jurcode,
+                                        "extracted_part": extracted_part,
+                                        "keyno": keyno
+                                    }
+                                    jurcode_extracted_list.append(jurcode_extracted_dict)
+
+                            # Выводим полученный список словарей
+                            for item in jurcode_extracted_list:
+                                jurcode = item['jurcode']
+                                extracted_part = item['extracted_part']
+                                keyno = item['keyno']
+                                url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+                                filename_pdf = os.path.join(
+                                    pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
+                                )
+                                if not os.path.exists(filename_pdf):
+                                    await download_file(session, url, cookies_dict, filename_pdf)
+                else:
+                    print(f"качаем {letter_streed}")
+                    # Если элемент с сообщением об ошибке не найден, собираем все ссылки
+                    links_elements = await page.query_selector_all(xpath_href)
+                    pattern = re.compile(r'jurcode=(\d+)&pdf=([^&]+)')
+
+                    urls = [await link_element.get_attribute('href') for link_element in links_elements]
+                    # Создаем список словарей, где каждый словарь содержит jurcode, extracted_part и keyno для каждого URL
+                    jurcode_extracted_list = []
+
+                    for url in urls:
+                        match = pattern.search(url)
+                        if match:
+                            jurcode, extracted_part = match.groups()
+                            keyno_match = re.search(r'K(\d+)N', extracted_part)
+                            keyno = keyno_match.group(1) if keyno_match else None
+
+                            # Создаем словарь для каждого найденного совпадения и добавляем его в список
+                            jurcode_extracted_dict = {
+                                "jurcode": jurcode,
+                                "extracted_part": extracted_part,
+                                "keyno": keyno
+                            }
+                            jurcode_extracted_list.append(jurcode_extracted_dict)
+
+                    # Выводим полученный список словарей
+                    for item in jurcode_extracted_list:
+                        jurcode = item['jurcode']
+                        extracted_part = item['extracted_part']
+                        keyno = item['keyno']
+                        url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+                        filename_pdf = os.path.join(
+                            pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
+                        )
+                        if not os.path.exists(filename_pdf):
+                            await download_file(session, url, cookies_dict, filename_pdf)
+
+
+                print("Все скачано")
+                await sleep(5)
+                await browser.close()
+
 
 
 asyncio.run(run())
