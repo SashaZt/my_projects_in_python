@@ -103,20 +103,31 @@ def get_requests():
         )
 
         src = response.text
-         # Получение текущего времени
-        now = datetime.now()
-
-        # Извлечение текущего часа
-        current_hour = int(now.hour)
+        current_hour = int(datetime.now().hour)
         if current_hour == 22:
-            name_html = "0-1"
+            name_files = "23-24"
         elif current_hour == 23:
-            name_html = "1-2"
+            name_files = "0-1"  # Предположим, что после 23 часа вы хотите видеть "0-1"
         else:
-            name_html = f"{current_hour + 2}-{current_hour + 3}"
-        filename_html = os.path.join(html_path, f"{name_html}.html")
-        with open(filename_html, "w", encoding="utf-8") as file:
-            file.write(src)
+            name_files = f"{current_hour + 2}-{current_hour + 3}"
+        soup = BeautifulSoup(src, "lxml")
+        json_str = soup.find("input", attrs={"id": "lastTradeChartPoints"}).get("value")
+        decoded_json = html.unescape(json_str)
+
+        data_json = json.loads(decoded_json)
+
+        formatted_data = [
+            {"Date": item["Date"], "Price": item["Price"], "Quantity": item["Quantity"]}
+            for item in data_json
+        ]
+        name_json = f"{name_files}.json"
+        filename = os.path.join(json_path, name_json)
+        # Сохраняем в файл
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(formatted_data, f, ensure_ascii=False, indent=4)
+        # filename_html = os.path.join(html_path, f"{name_files}.html")
+        # with open(filename_html, "w", encoding="utf-8") as file:
+        #     file.write(src)
     except RequestException as e:
         # Обработка всех ошибок при запросе
         print(f"Произошла ошибка:\n{e}")
@@ -125,34 +136,33 @@ def get_requests():
    
 
 
-def get_data():
-    now = datetime.now()
-    print(datetime.now())
-    current_hour = now.hour
-    if current_hour == 22:
-                name_html = "0-1"
-    elif current_hour == 23:
-        name_html = "1-2"
-    else:
-        name_html = f"{current_hour + 2}-{current_hour + 3}"
-    filename_html = os.path.join(html_path, f"{name_html}.html")
-    with open(filename_html, encoding="utf-8") as file:
-        src = file.read()
-    soup = BeautifulSoup(src, "lxml")
-    json_str = soup.find("input", attrs={"id": "lastTradeChartPoints"}).get("value")
-    decoded_json = html.unescape(json_str)
+# def get_data():
+#     now = datetime.now()
+#     current_hour = now.hour
+#     if current_hour == 22:
+#         name_html = "0-1"
+#     elif current_hour == 23:
+#         name_html = "1-2"
+#     else:
+#         name_html = f"{current_hour + 2}-{current_hour + 3}"
+#     filename_html = os.path.join(html_path, f"{name_html}.html")
+#     with open(filename_html, encoding="utf-8") as file:
+#         src = file.read()
+#     soup = BeautifulSoup(src, "lxml")
+#     json_str = soup.find("input", attrs={"id": "lastTradeChartPoints"}).get("value")
+#     decoded_json = html.unescape(json_str)
 
-    data_json = json.loads(decoded_json)
+#     data_json = json.loads(decoded_json)
 
-    formatted_data = [
-        {"Date": item["Date"], "Price": item["Price"], "Quantity": item["Quantity"]}
-        for item in data_json
-    ]
-    name_json = f"{current_hour + 2}-{current_hour + 3}.json"
-    filename = os.path.join(json_path, name_json)
-    # Сохраняем в файл
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(formatted_data, f, ensure_ascii=False, indent=4)
+#     formatted_data = [
+#         {"Date": item["Date"], "Price": item["Price"], "Quantity": item["Quantity"]}
+#         for item in data_json
+#     ]
+#     name_json = f"{current_hour + 2}-{current_hour + 3}.json"
+#     filename = os.path.join(json_path, name_json)
+#     # Сохраняем в файл
+#     with open(filename, "w", encoding="utf-8") as f:
+#         json.dump(formatted_data, f, ensure_ascii=False, indent=4)
 
 
 def json_to_sql():
@@ -238,7 +248,7 @@ def run_at_specific_timee_ach_hour(target_minute, target_second):
             time.sleep(1)
         # Вызов функции после достижения целевого времени
         get_requests()
-        get_data()
+        # get_data()
         json_to_sql()
         time.sleep(1)  # Короткая пауза перед планированием следующего запуска
 
