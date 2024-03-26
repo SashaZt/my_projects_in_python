@@ -76,8 +76,8 @@ def pars_pdf():
 
     files_pdf = glob.glob(folder_pdf)
     for item in files_pdf:
-    # pdf_path = "K001880N40156410.pdf"
-    # Открываем PDF-файл с помощью PDFPlumber
+        # pdf_path = "K001880N40156410.pdf"
+        # Открываем PDF-файл с помощью PDFPlumber
 
         with pdfplumber.open(item) as pdf:
             # Получаем первую страницу документа
@@ -183,33 +183,44 @@ def pars_pdf():
 
                     for dict_item in values_list_search_key_info:
                         # Проверяем наличие ключа 'CURRENT OWNER' и его разделение на части
-                        if ("CURRENT OWNER" in dict_item and dict_item["CURRENT OWNER"].count("\n") == 3):
+                        if (
+                            "CURRENT OWNER" in dict_item
+                            and dict_item["CURRENT OWNER"].count("\n") == 3
+                        ):
                             owner_parts = dict_item["CURRENT OWNER"].split("\n", 3)
                             dict_item["owner_data1"] = owner_parts[0]
                             dict_item["owner_data2"] = owner_parts[1]
                             dict_item["owner_data3"] = owner_parts[2]
                             dict_item["owner_data5"] = owner_parts[3]
-                        elif ("CURRENT OWNER" in dict_item and dict_item["CURRENT OWNER"].count("\n") == 4):
+                        elif (
+                            "CURRENT OWNER" in dict_item
+                            and dict_item["CURRENT OWNER"].count("\n") == 4
+                        ):
                             owner_parts = dict_item["CURRENT OWNER"].split("\n", 4)
                             dict_item["owner_data1"] = owner_parts[0]
                             dict_item["owner_data2"] = owner_parts[1]
                             dict_item["owner_data3"] = owner_parts[2]
                             dict_item["owner_data4"] = owner_parts[3]
                             dict_item["owner_data5"] = owner_parts[4]
-                        elif ("CURRENT OWNER" in dict_item and dict_item["CURRENT OWNER"].count("\n") == 2):
+                        elif (
+                            "CURRENT OWNER" in dict_item
+                            and dict_item["CURRENT OWNER"].count("\n") == 2
+                        ):
                             owner_parts = dict_item["CURRENT OWNER"].split("\n", 2)
                             dict_item["owner_data1"] = owner_parts[0]
-                            
-                            if re.match(r'^\d', owner_parts[1]) or owner_parts[1].startswith("P O BOX"):
+
+                            if re.match(r"^\d", owner_parts[1]) or owner_parts[
+                                1
+                            ].startswith("P O BOX"):
                                 # Если условие истинно, выполняем необходимые действия
                                 # Например, присваиваем значение переменной owner_data3
                                 dict_item["owner_data3"] = owner_parts[1]
-                            
+
                             dict_item["owner_data5"] = owner_parts[2]
                             # dict_item["owner_data3"] = owner_parts[2]
                             # dict_item["owner_data4"] = owner_parts[3]
                             # dict_item["owner_data5"] = owner_parts[4]
-                        
+
                             # Удаление исходного ключа 'CURRENT OWNER'
                             del dict_item["CURRENT OWNER"]
 
@@ -248,7 +259,7 @@ def pars_pdf():
                             for row in table[7:8]:  # Обрабатывается только одна строка
                                 if target_index < len(
                                     row
-                                ):  # Убедимся, что индекс в пределах строки
+                                ): 
                                     target_value = (
                                         row[target_index].replace("Z", "").strip()
                                     )
@@ -304,7 +315,6 @@ def pars_pdf():
                         item["Keyno"] = key_number
                     for item in values_list_search_key_info:
                         item["card"] = page_index
-                    
 
                     # Создаем один словарь из списка словарей
                     combined_dict = {}
@@ -355,7 +365,9 @@ def pars_pdf():
                     values_02_14 = split_and_clean(values_cell_02_14)
 
                     # Сопоставляем заголовки и значения
-                    for header, value, value_02 in zip(headers_14, values_14, values_02_14):
+                    for header, value, value_02 in zip(
+                        headers_14, values_14, values_02_14
+                    ):
                         dict_search_key_building = {
                             "Keyno": key_number,
                             "card": page_index,
@@ -369,7 +381,10 @@ def pars_pdf():
                     )
                     with open(filename_key_buildin, "w", encoding="utf-8") as f:
                         json.dump(
-                            values_list_search_key_building, f, ensure_ascii=False, indent=4
+                            values_list_search_key_building,
+                            f,
+                            ensure_ascii=False,
+                            indent=4,
                         )
 
                     #     print(f"{header}: {value}")
@@ -386,7 +401,9 @@ def pars_pdf():
                     # Обработка данных из таблицы 9
 
                     # Сопоставляем заголовки и значения
-                    for header, value, value_02 in zip(headers_16, values_16, values_02_16):
+                    for header, value, value_02 in zip(
+                        headers_16, values_16, values_02_16
+                    ):
 
                         current_dict_search_key_element = {
                             "Keyno": key_number,
@@ -403,7 +420,10 @@ def pars_pdf():
                     )
                     with open(filename_key_element, "w", encoding="utf-8") as f:
                         json.dump(
-                            values_list_search_key_element, f, ensure_ascii=False, indent=4
+                            values_list_search_key_element,
+                            f,
+                            ensure_ascii=False,
+                            indent=4,
                         )  # Записываем в файл
 
                     """search_key_bat"""
@@ -439,17 +459,17 @@ def pars_pdf():
                     for header, value, value_02, value_03, value_04 in zip(
                         headers_17, values_17, values_02_17, values_03_17, values_04_17
                     ):
-                        header_str = "" if header is None else header.replace("None", "")
-
+                        header_str = (
+                            "" if header is None else header.replace("None", "")
+                        )
+                        
                         current_dict_search_key_bat = {
                             "Keyno": key_number,
                             "card": page_index,
                             "bat": f"{header_str} {value}",
                             "bat_t": value_02,
                             "bat_desc": value_03,
-                            "bat_units": value_04.replace(
-                                ",", ""
-                            ),  # Убираем запятые в 'bat_units'
+                            "bat_units": value_04.replace(",", "") if value_04 is not None else None,
                         }
                         values_list_search_key_bat.append(current_dict_search_key_bat)
                     filename_key_bat = os.path.join(
@@ -482,7 +502,10 @@ def pars_pdf():
                     )
                     with open(filename_key_capacity, "w", encoding="utf-8") as f:
                         json.dump(
-                            values_list_search_key_capacity, f, ensure_ascii=False, indent=4
+                            values_list_search_key_capacity,
+                            f,
+                            ensure_ascii=False,
+                            indent=4,
                         )  # Записываем в файл
 
 

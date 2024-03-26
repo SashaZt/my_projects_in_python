@@ -25,9 +25,13 @@ html_path = os.path.join(temp_path, "html")
 def creative_folders():
     # Убедитесь, что папки существуют или создайте их
     for folder in [temp_path, json_path, html_path]:
-        if not os.path.exists(folder):
-            os.makedirs(folder)
+        try:
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+        except Exception as e:
+            print(f"Ошибка при создании {folder}: {e}")
 
+creative_folders()
     # # Удалите файлы из папок list и product
     # for folder in [list_path, product_path, img_path]:
     #     files = glob.glob(os.path.join(folder, '*'))
@@ -123,6 +127,7 @@ def get_requests():
 
 def get_data():
     now = datetime.now()
+    print(datetime.now())
     current_hour = now.hour
     if current_hour == 22:
                 name_html = "0-1"
@@ -243,7 +248,7 @@ if __name__ == "__main__":
 
 
 # if __name__ == "__main__":
-#     # creative_folders()
+    creative_folders()
 #     # get_requests()
 #     get_data()
 #     json_to_sql()

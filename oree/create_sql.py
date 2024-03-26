@@ -44,7 +44,8 @@ def create_sql_oree():
                     amount_time DECIMAL(10,2),
                     price_time DECIMAL(10,2),
                     delivery_date DATE,
-                    delivery_time VARCHAR(5)
+                    delivery_time VARCHAR(5),
+                    data_and_time_data_download VARCHAR(20)
                        )
         """
     )
@@ -96,6 +97,6 @@ def modify_column():
     print(f"Колонка 'column_name' в таблице '{use_table}' успешно изменена на тип TIME.")
 
 if __name__ == "__main__":
-    # create_sql_oree()
-    add_column_oree()
+    create_sql_oree()
+    # add_column_oree()
     # modify_column()
