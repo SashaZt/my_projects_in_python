@@ -14,7 +14,7 @@ def load_connection_to_sql():
     else:
         application_path = os.path.dirname(os.path.abspath(__file__))
 
-    filename_config = os.path.join(application_path, "connection_to_sql_rdn.json")
+    filename_config = os.path.join(application_path, "connection_to_sql.json")
     if not os.path.exists(filename_config):
         print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
         time.sleep(3)
@@ -45,7 +45,9 @@ def create_sql_oree():
                     sales_volume DECIMAL(10,2),
                     purchase_volume DECIMAL(10,2),
                     declared_sales_volume DECIMAL(10,2),
-                    declared_volume_of_purchase DECIMAL(10,2)
+                    declared_volume_of_purchase DECIMAL(10,2),
+                    deficiency_rdn DECIMAL(10,2),
+                    hour INT
                        )
         """
     )
@@ -61,7 +63,7 @@ def add_column_oree():
     cursor = cnx.cursor()
 
     cursor.execute(f"USE {use_bd}")
-    add_column_command = f"ALTER TABLE {use_table} ADD COLUMN data_and_time_data_download VARCHAR(20) NOT NULL"
+    add_column_command = f"ALTER TABLE {use_table} ADD COLUMN hour INT NOT NULL"
 
     # Выполнение команды
     cursor.execute(add_column_command)
@@ -97,6 +99,6 @@ def modify_column():
     print(f"Колонка 'column_name' в таблице '{use_table}' успешно изменена на тип TIME.")
 
 if __name__ == "__main__":
-    create_sql_oree()
-    # add_column_oree()
+    # create_sql_oree()
+    add_column_oree()
     # modify_column()

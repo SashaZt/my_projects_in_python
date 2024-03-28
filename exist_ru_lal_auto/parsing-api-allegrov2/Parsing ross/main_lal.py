@@ -42,7 +42,7 @@ def creative_folders():
 
 def extract_data_from_csv():
     csv_filename = "data.csv"
-    columns_to_extract = ["price_zl", "Numer_katalogowy_części", "Producent_części"]
+    columns_to_extract = ["price", "Numer_katalogowy_części", "Producent_części"]
 
     data = []  # Создаем пустой список для хранения данных
 
@@ -152,7 +152,7 @@ def get_requests():
 
     def extract_data_from_csv():
         csv_filename = "data.csv"
-        columns_to_extract = ["price_zl", "Numer_katalogowy_części", "Producent_części"]
+        columns_to_extract = ["price", "Numer_katalogowy_części", "Producent_części"]
         # Создаем пустой список для хранения данных
         data = []
 
@@ -224,12 +224,12 @@ def parsing(name_files):
     ) as file, open("exist_data.csv", "a", newline="", encoding="utf-16") as exist_file:
         writer = csv.writer(file, delimiter="\t")
         exist_writer = csv.writer(exist_file, delimiter="\t")
-        exist_writer.writerow(["price_zl", "Numer_katalogowy_części", "Producent_części"])
+        exist_writer.writerow(["price", "Numer_katalogowy_części", "Producent_części"])
 
         writer.writerow(heandler)  # Записываем заголовки только один раз для output.csv
 
         for item in data_csv:
-            price_old = item["price_zl"]
+            price_old = item["price"]
             sku = item["Numer_katalogowy_części"]
             sku = re.sub(r"[^\w\d]|_", "", sku)
             brend = item["Producent_części"].capitalize()

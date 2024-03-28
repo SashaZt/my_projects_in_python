@@ -106,13 +106,15 @@ def get_requests():
         headers=headers,
         verify=False,
     )
-
+    sales_date_str = datetime.now()
     src = response.text
     current_hour = int(datetime.now().hour)
-    if current_hour == 22:
+    if current_hour == 21:
         name_files = "23-24"
+    elif current_hour == 22:
+        name_files = "0-1"
     elif current_hour == 23:
-        name_files = "0-1"  # Предположим, что после 23 часа вы хотите видеть "0-1"
+        name_files = "1-2"
     else:
         name_files = f"{current_hour + 2}-{current_hour + 3}"
     soup = BeautifulSoup(src, "lxml")
@@ -129,13 +131,14 @@ def get_requests():
         dt_object = datetime.strptime(item["Date"], "%Y-%m-%dT%H:%M:%S")
         sales_date = dt_object.strftime("%Y-%m-%d")
         sales_time = dt_object.strftime("%H:%M:%S")
-        sales_date_str = datetime.now()
+        
         # delivery_date_str = sales_date_str + timedelta(days=1)
         # delivery_date = delivery_date_str.strftime("%Y-%m-%d")
         delivery_date = sales_date_str.strftime("%Y-%m-%d")
         price_time = item["Price"]
         amount_time = item["Quantity"]
         delivery_time = name_files
+        hour = current_hour + 3
         # Проверка наличия записи в базе данных
         check_query = f"""
             SELECT COUNT(*) FROM {use_table}
@@ -148,8 +151,8 @@ def get_requests():
         data_and_time_data_download = datetime.now().strftime('%d.%m.%Y_%H:%M:%S')
         if result[0] == 0:  # Если записи не найдено, вставляем данные
             insert_query = f"""
-                INSERT INTO {use_table} (sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time,data_and_time_data_download)
-                VALUES (%s, %s, %s, %s, %s, %s, %s);
+                INSERT INTO {use_table} (sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time,data_and_time_data_download,hour)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
             """
             cursor.execute(
                 insert_query,
@@ -161,6 +164,7 @@ def get_requests():
                     delivery_date,
                     delivery_time,
                     data_and_time_data_download,
+                    hour,
                 ),
             )
 

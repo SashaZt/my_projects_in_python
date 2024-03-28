@@ -137,11 +137,13 @@ async def run():
 
                     if match:
                         extracted_part = match.group(1)
+                        keyno_match = re.search(r'K(\d+)N', extracted_part)
+                        keyno = keyno_match.group(1) if keyno_match else None
                     else:
                         print("Совпадение не найдено.")
                     url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
                     filename_pdf = os.path.join(
-                        pdf_path, f"{jurcode}_{current}_{extracted_part}.pdf"
+                        pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
                     )
                     await download_file(session, url, cookies_dict, filename_pdf)
                     current += 1
