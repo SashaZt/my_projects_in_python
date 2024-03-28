@@ -114,8 +114,77 @@ def get_sql_rdn():
     return df_rdn
 
 def joining_tables():
-    rdn = get_sql_rdn()
-    vdr = get_sql_vdr()
+    df_rdn = get_sql_rdn()
+    df_vdr = get_sql_vdr()
+
+    # df_rdn['delivery_date'] = pd.to_datetime(df_rdn['delivery_date'])
+    # df_vdr['delivery_date'] = pd.to_datetime(df_vdr['delivery_date'])
+    # df_rdn['hour'] = df_rdn['hour'].astype(int)
+    # df_vdr['hour'] = df_vdr['hour'].astype(int)
+
+    # # Объединение таблиц по delivery_date и hour
+    # df_joined = pd.merge(df_rdn, df_vdr, on=['delivery_date', 'hour'], how='inner')
+    df_rdn = get_sql_rdn()
+    df_vdr = get_sql_vdr()
+    current_date = '2024-03-28'
+    current_hour = 18
+
+    # filtered_vdr = df_vdr[(df_vdr['delivery_date'] == current_date) & (df_vdr['hour'] == current_hour)]
+    # matching_rdn_row = df_rdn[(df_rdn['delivery_date'] == current_date) & (df_rdn['hour'] == current_hour)]
     
+    df_rdn = get_sql_rdn()
+    df_vdr = get_sql_vdr()
+    current_date = '2024-03-28'
+    current_hour = 18
+    df_rdn['hour'] = df_rdn['hour'].astype(int)
+    df_rdn['delivery_date'] = pd.to_datetime(df_rdn['delivery_date'])
+    matching_rdn_row = df_rdn[(df_rdn['delivery_date'] == pd.to_datetime(current_date)) & (df_rdn['hour'] == current_hour)]
+    matching_rdn_row = matching_rdn_row.add_suffix('_rdn')
+
+    df_vdr['hour'] = df_vdr['hour'].astype(int)
+    df_vdr['delivery_date'] = pd.to_datetime(df_vdr['delivery_date'])
+    matching_vdr_row = df_vdr[(df_vdr['delivery_date'] == pd.to_datetime(current_date)) & (df_vdr['hour'] == current_hour)]
+    matching_vdr_row = matching_vdr_row.add_suffix('_vdr')
+
+    
+    num_rows_to_duplicate = len(matching_vdr_row)
+    duplicated_rdn_rows = pd.concat([matching_rdn_row] * num_rows_to_duplicate, ignore_index=True)
+    combined_df = pd.concat([duplicated_rdn_rows.reset_index(drop=True), matching_vdr_row.reset_index(drop=True)], axis=1)
+    
+    # Находим индекс колонки 'declared_volume_of_purchase_rdn'
+    idx = combined_df.columns.get_loc('declared_volume_of_purchase_rdn') + 1
+
+    # Расчет разности и добавление новой колонки на нужное место
+    combined_df.insert(idx, 'difference_rdn', combined_df['declared_sales_volume_rdn'] - combined_df['declared_volume_of_purchase_rdn'])
+
+
+
+   # Сохраняем результат в CSV файл
+    csv_file_path = 'combined_data.csv'  # Задайте путь и имя файла, в который вы хотите сохранить данные
+    combined_df.to_csv(csv_file_path, index=False, encoding='utf-8')
+
+    print(f"Данные сохранены в файл: {csv_file_path}")
+
+
+
+
+    
+
+
+
+
+    # # Инициализация duplicated_rows как пустого DataFrame
+    # duplicated_rows = pd.DataFrame()
+
+    # if not matching_rdn_row.empty and not filtered_vdr.empty:
+    #     duplicated_rows = pd.concat([matching_rdn_row] * len(filtered_vdr), ignore_index=True)
+
+    # if not duplicated_rows.empty:
+    #     print(duplicated_rows)
+    # else:
+    #     print("Нет соответствующих строк для обработки.")
+    
+    # print(duplicated_rows)
+
 if __name__ == "__main__":
     joining_tables()

@@ -1,3 +1,4 @@
+from tkinter import N
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import json
@@ -117,8 +118,18 @@ def get_requests():
         name_files = "1-2"
     else:
         name_files = f"{current_hour + 2}-{current_hour + 3}"
+    name_html = "vdn.html"
+
+        # Создаём полный путь к файлу
+    filename = os.path.join(current_directory, name_html)
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(src)
     soup = BeautifulSoup(src, "lxml")
-    json_str = soup.find("input", attrs={"id": "lastTradeChartPoints"}).get("value")
+    try:
+        json_str = soup.find("input", attrs={"id": "lastTradeChartPoints"}).get("value")
+    except:
+        print("Заменить куки!!!!!!!!!!!!!!!!!")
+        json_str = None
     decoded_json = html.unescape(json_str)
 
     data_json = json.loads(decoded_json)
