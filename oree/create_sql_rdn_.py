@@ -63,7 +63,7 @@ def add_column_oree():
     cursor = cnx.cursor()
 
     cursor.execute(f"USE {use_bd}")
-    add_column_command = f"ALTER TABLE {use_table} ADD COLUMN hour INT NOT NULL"
+    add_column_command = f"ALTER TABLE {use_table} ADD COLUMN deficiency_rdn DECIMAL(10,2) NOT NULL"
 
     # Выполнение команды
     cursor.execute(add_column_command)
