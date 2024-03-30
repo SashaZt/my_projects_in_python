@@ -219,7 +219,6 @@ def get_requests(url, params, headers, list_url, type_pars):
             if i == 1:
                 url = "https://sls.g2g.com/offer/search"
                 params["currency"] = ["USD"]
-
                 response = requests.get(url, params=params, headers=headers)
                 json_data = response.json()
                 filename = f"g2g_0{i}.json"
@@ -227,7 +226,7 @@ def get_requests(url, params, headers, list_url, type_pars):
                 with open(file_path, "w", encoding="utf-8") as f:
                     json.dump(
                         json_data, f, ensure_ascii=False, indent=4
-                    )  # Записываем в файл
+                    ) 
                 print(f"Паузка 1сек, скачал {file_path}")
                 time.sleep(1)
             if i > 1:
@@ -241,7 +240,7 @@ def get_requests(url, params, headers, list_url, type_pars):
                 with open(file_path, "w", encoding="utf-8") as f:
                     json.dump(
                         json_data, f, ensure_ascii=False, indent=4
-                    )  # Записываем в файл
+                    ) 
                 print(f"Паузка 1сек, скачал {file_path}")
                 time.sleep(1)
     elif type_pars == 0:
@@ -266,6 +265,7 @@ def get_requests(url, params, headers, list_url, type_pars):
                     '//div[@class="full-height full-width position-relative"]/a',
                 )
                 href = [urls.get_attribute("href") for urls in hrefs]
+                print(href)
                 extracted_parts = []
                 for u in href:
                     # Разделяем URL на части по '/'
@@ -300,6 +300,7 @@ def get_requests(url, params, headers, list_url, type_pars):
                 for d in extracted_parts:
                     urlss = f"https://sls.g2g.com/offer/{d}"
                     try:
+                        print(urlss)
                         response = requests.get(urlss, params=params, headers=headers)
 
                         # Проверяем статус ответа

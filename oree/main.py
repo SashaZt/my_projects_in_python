@@ -182,67 +182,6 @@ def get_requests():
     cnx.commit()
     cursor.close()
     cnx.close()
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-    #     name_json = f"{name_files}.json"
-    #     filename = os.path.join(json_path, name_json)
-    #     # Сохраняем в файл
-    #     with open(filename, "w", encoding="utf-8") as f:
-    #         json.dump(formatted_data, f, ensure_ascii=False, indent=4)
-    #     # filename_html = os.path.join(html_path, f"{name_files}.html")
-    #     # with open(filename_html, "w", encoding="utf-8") as file:
-    #     #     file.write(src)
-    # except RequestException as e:
-    #     # Обработка всех ошибок при запросе
-    #     print(f"Произошла ошибка:\n{e}")
-    
-
-   
-
-
-# def get_data():
-#     now = datetime.now()
-#     current_hour = now.hour
-#     if current_hour == 22:
-#         name_html = "0-1"
-#     elif current_hour == 23:
-#         name_html = "1-2"
-#     else:
-#         name_html = f"{current_hour + 2}-{current_hour + 3}"
-#     filename_html = os.path.join(html_path, f"{name_html}.html")
-#     with open(filename_html, encoding="utf-8") as file:
-#         src = file.read()
-#     soup = BeautifulSoup(src, "lxml")
-#     json_str = soup.find("input", attrs={"id": "lastTradeChartPoints"}).get("value")
-#     decoded_json = html.unescape(json_str)
-
-#     data_json = json.loads(decoded_json)
-
-#     formatted_data = [
-#         {"Date": item["Date"], "Price": item["Price"], "Quantity": item["Quantity"]}
-#         for item in data_json
-#     ]
-#     name_json = f"{current_hour + 2}-{current_hour + 3}.json"
-#     filename = os.path.join(json_path, name_json)
-#     # Сохраняем в файл
-#     with open(filename, "w", encoding="utf-8") as f:
-#         json.dump(formatted_data, f, ensure_ascii=False, indent=4)
 
 
 def json_to_sql():
