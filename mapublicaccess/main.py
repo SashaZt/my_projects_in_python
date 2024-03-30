@@ -44,9 +44,25 @@ async def download_file(session, url, cookies_dict, filename_pdf):
                     await out_file.write(chunk)
         else:
             print(f"Ошибка при загрузке файла: {response.status}")
-
+async def create_directories_async(folders_list):
+    for folder in folders_list:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
 
 async def run():
+    # Создайте полный путь к папке temp
+    current_directory = os.getcwd()
+    temp_path = os.path.join(current_directory, "temp")
+    csv_path = os.path.join(temp_path, "csv")
+    html_path = os.path.join(temp_path, "html")
+    # Убедитесь, что папки существуют или создайте их
+    await create_directories_async(
+        [
+            temp_path,
+            csv_path,
+            html_path,
+        ]
+    )
     url_start = 'https://mapublicaccess.tylerhost.net/search/CommonSearch.aspx?mode=ADDRESS'
     print("Введите начальную букву улицы")
     inpStreet = str(input())
@@ -133,7 +149,7 @@ async def run():
             # По завершении работы с новой страницей не забудьте ее закрыть
             await new_page.close()
         # Определение имени файла
-        filename_csv = f"MA199_{inpStreet}.csv"
+        filename_csv = os.path.join(csv_path, f"{inpCity}_{inpStreet}.csv")
 
         # Открытие файла для записи
         with open(filename_csv, mode='w', newline='', encoding='utf-8') as file:
