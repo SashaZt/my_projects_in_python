@@ -6,7 +6,6 @@ from sqlalchemy import create_engine
 
 import html
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
 import mysql.connector
 import time
 from datetime import datetime, timedelta
