@@ -1,0 +1,6 @@
+gspread
+oauth2client
+pandas
+mysql-connector-python
+schedule
+SQLAlchemy

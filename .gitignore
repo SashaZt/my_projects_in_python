@@ -48,7 +48,11 @@ Thumbs.db
 *.sql
 *.jpeg
 *.png
+
+# Здесь мы игнорируем все .txt файлы...
 *.txt
+# ...но затем добавляем исключение для requirements.txt
+!requirements.txt
 *.session
 
 # Игнорирование файл с прокси серверами
