@@ -1,19 +1,15 @@
-from tkinter import N
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import json
 import glob
 import html
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
 import mysql.connector
 import time
 from datetime import datetime, timedelta
 import os
 import sys
 import json
-import pandas as pd
-from datetime import datetime
 
 
 current_directory = os.getcwd()
@@ -145,11 +141,18 @@ def get_requests():
         
         # delivery_date_str = sales_date_str + timedelta(days=1)
         # delivery_date = delivery_date_str.strftime("%Y-%m-%d")
-        delivery_date = sales_date_str.strftime("%Y-%m-%d")
+        # delivery_date = sales_date_str.strftime("%Y-%m-%d")
         price_time = item["Price"]
         amount_time = item["Quantity"]
         delivery_time = name_files
-        hour = current_hour + 3
+        #Если current_hour 22 тогда hour = 1, current_hour 23 тогда hour = 2
+        if current_hour >= 22:
+            delivery_date = sales_date_str + timedelta(days=1)
+            delivery_date = delivery_date.strftime("%Y-%m-%d")
+            hour = (current_hour + 3) % 24
+        else:
+            delivery_date = sales_date_str.strftime("%Y-%m-%d")
+            hour = (current_hour + 3)
         # Проверка наличия записи в базе данных
         check_query = f"""
             SELECT COUNT(*) FROM {use_table}

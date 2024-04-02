@@ -124,24 +124,36 @@ async def run():
             await page.wait_for_selector(f"xpath={xpath_btSearch}", timeout=timeout)
             await page.click(xpath_btSearch)
             await sleep(5)
+            
+            total_records = None
             # Ожидаем, что элемент с информацией о количестве найденных записей станет доступен на странице.
-            await page.wait_for_selector('text=Total found')
-
-            # Получаем текстовое содержимое всей таблицы или конкретного элемента, содержащего нужные данные.
-            element_text = await page.text_content("table[align='center']")
-
-            # Проверяем, получили ли мы текст и применяем регулярное выражение для извлечения чисел.
-            if element_text:
-                match = re.search(r"Total found: (\d+) records, displayed: (\d+)", element_text)
-                if match:
-                    total_records = int(match.group(1))
-                    # displayed_records = int(match.group(2))
+            try:
+                await page.wait_for_selector('text=Total found')
+                # Получаем текстовое содержимое всей таблицы или конкретного элемента, содержащего нужные данные.
+                element_text = await page.text_content("table[align='center']")
+                
+                
+                # Проверяем, получили ли мы текст и применяем регулярное выражение для извлечения чисел.
+                if element_text:
+                    match = re.search(r"Total found: (\d+) records, displayed: (\d+)", element_text)
+                    if match:
+                        total_records = int(match.group(1))
+                        # displayed_records = int(match.group(2))
+                    else:
+                        print("Pattern 'Total found: X records, displayed: Y' not found in the text.")
+                else:
+                    print("No text found that matches the criteria.")
+                if total_records >= 250:
                     print(total_records)
                 else:
-                    print("Pattern 'Total found: X records, displayed: Y' not found in the text.")
-            else:
-                print("No text found that matches the criteria.")
+                    print('Нету значения')
+            except:
+                continue
 
+           
+
+
+            
 
 
 
