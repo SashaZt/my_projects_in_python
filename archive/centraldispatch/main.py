@@ -20,6 +20,24 @@ from concurrent.futures import ThreadPoolExecutor
 import csv
 
 
+current_directory = os.getcwd()
+# Создайте полный путь к папке temp
+temp_path = os.path.join(current_directory, "temp")
+list_path = os.path.join(temp_path, "list")
+products_path = os.path.join(temp_path, "products")
+
+
+def creative_folders():
+    # Убедитесь, что папки существуют или создайте их
+    for folder in [temp_path, json_path, html_path]:
+        try:
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+        except Exception as e:
+            print(f"Ошибка при создании {folder}: {e}")
+
+
+
 def get_chromedriver():
     chrome_options = webdriver.ChromeOptions()
 
@@ -46,6 +64,8 @@ def get_chromedriver():
       '''
     })
     return driver
+
+
 
 
 def get_selenium():
@@ -134,6 +154,7 @@ def parsing_products():
 
 
 if __name__ == '__main__':
+    creative_folders()
     # get_selenium()
     # parsing()
-    parsing_products()
+    # parsing_products()

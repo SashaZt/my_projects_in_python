@@ -63,7 +63,8 @@ def get_sql_vdr():
     cnx_vdr = mysql.connector.connect(**db_config_vdr)
     cursor_vdr = cnx_vdr.cursor()
     current_date = str(datetime.now().strftime("%Y-%m-%d"))
-    current_hour = int(datetime.now().hour)
+    """Добавляем час для получение наднных без задержки"""
+    current_hour = int(datetime.now().hour) + 2
 
     # query = f"SELECT CURDATE() as sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time, data_and_time_data_download, hour FROM {use_table_vdr};"
     query = f"SELECT sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time, data_and_time_data_download, hour FROM {use_table_vdr} WHERE delivery_date = '{current_date}' AND hour = '{current_hour}';"
@@ -128,7 +129,8 @@ def joining_tables():
 
     if df_vdr is not None and df_rdn is not None:
         current_date = str(datetime.now().strftime("%Y-%m-%d"))
-        current_hour = int(datetime.now().hour)
+        """Добавляем час для получение наднных без задержки"""
+        current_hour = int(datetime.now().hour) + 2
 
         df_rdn["hour"] = df_rdn["hour"].astype(int)
         df_rdn["delivery_date"] = pd.to_datetime(df_rdn["delivery_date"])

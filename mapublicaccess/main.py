@@ -7,7 +7,7 @@ import aiofiles
 import re
 import string
 import csv
-
+import re
 import os
 import glob
 from asyncio import sleep
@@ -49,6 +49,17 @@ async def create_directories_async(folders_list):
         if not os.path.exists(folder):
             os.makedirs(folder)
 
+async def read_csv_values():
+    current_directory = os.getcwd()
+    filename_csv = os.path.join(current_directory, "tylerhost.csv")
+    values = []
+    async with aiofiles.open(filename_csv, mode='r', encoding='utf-8') as file:
+        async for line in file:
+            # Удалите символы переноса строки и добавьте значения в список
+            values.append(line.strip())
+    return values
+
+
 async def run():
     # Создайте полный путь к папке temp
     current_directory = os.getcwd()
@@ -63,13 +74,14 @@ async def run():
             html_path,
         ]
     )
-    url_start = 'https://mapublicaccess.tylerhost.net/search/CommonSearch.aspx?mode=ADDRESS'
-    print("Введите начальную букву улицы")
-    inpStreet = str(input())
-    inpStreet = 'A'
-    print("Введите юрисдикцию, MA199 - как пример")
-    inpCity = str(input())
-    inpCity = 'MA199'
+    url_start = 'https://mapublicaccess.tylerhost.net/search/CommonSearch.aspx?mode=PARID'
+    """По буквам поиск"""
+    # print("Введите начальную букву улицы")
+    # inpStreet = str(input())
+    # inpStreet = 'A'
+    # print("Введите юрисдикцию, MA199 - как пример")
+    # inpCity = str(input())
+    # inpCity = 'MA199'
     
     # print("Введите диапозон поиска по кодам, до")
     # range_b = int(input())
@@ -98,67 +110,162 @@ async def run():
 
         await page.goto(url_start)
         await sleep(1)
+        values = await read_csv_values()
+
         parcel_set = set()
-        for num in range(10):
-            xpath_inpNumber = '//input[@id="inpNumber"]'
+
+        for v in values[:1]:
+            xpath_inpNumber = '//input[@id="inpParid"]'
             await page.wait_for_selector(f"xpath={xpath_inpNumber}", timeout=timeout)
-            await page.fill(xpath_inpNumber, str(num))
+            await page.fill(xpath_inpNumber, str(v))
 
-            xpath_inpStreet = '//input[@id="inpStreet"]'
-            await page.wait_for_selector(f"xpath={xpath_inpStreet}", timeout=timeout)
-            await page.fill(xpath_inpStreet, str(inpStreet))
-
-            
-            xpath_inpCity = '//select[@id="inpCity"]'
-            await page.wait_for_selector(f"xpath={xpath_inpCity}", timeout=timeout)
-            await page.select_option(f"xpath={xpath_inpCity}", 'MA199')
-            # await sleep(5)
-            
             """Нажимаем кнопку поиска"""
             xpath_btSearch = '//button[@id="btSearch"]'
             await page.wait_for_selector(f"xpath={xpath_btSearch}", timeout=timeout)
             await page.click(xpath_btSearch)
-            # await sleep(5)
-        
+            await sleep(5)
+            # Ожидаем, что элемент с информацией о количестве найденных записей станет доступен на странице.
+            await page.wait_for_selector('text=Total found')
+
+            # Получаем текстовое содержимое всей таблицы или конкретного элемента, содержащего нужные данные.
+            element_text = await page.text_content("table[align='center']")
+
+            # Проверяем, получили ли мы текст и применяем регулярное выражение для извлечения чисел.
+            if element_text:
+                match = re.search(r"Total found: (\d+) records, displayed: (\d+)", element_text)
+                if match:
+                    total_records = int(match.group(1))
+                    # displayed_records = int(match.group(2))
+                    print(total_records)
+                else:
+                    print("Pattern 'Total found: X records, displayed: Y' not found in the text.")
+            else:
+                print("No text found that matches the criteria.")
+
+
+
+
             """ПринтВерсия"""
             xpath_printSearch = '//a[@onclick="printSearch()"]'
-            await asyncio.sleep(1)  # Используйте asyncio.sleep в асинхронном контексте
-            await page.wait_for_selector(f"xpath={xpath_printSearch}", timeout=timeout)
+            printSearch_button = await page.query_selector(xpath_printSearch)
+            if printSearch_button:
+                async with page.expect_popup() as popup_info:
+                    await page.click(f"xpath={xpath_printSearch}")
+                new_page = await popup_info.value
 
-            # Используем async with для асинхронного ожидания попапа
-            async with page.expect_popup() as popup_info:
-                await page.click(f"xpath={xpath_printSearch}")
-            new_page = await popup_info.value
+                # Даем новой странице немного времени, чтобы загрузиться
+                await new_page.wait_for_load_state('networkidle')
 
-            # Даем новой странице немного времени, чтобы загрузиться
-            await new_page.wait_for_load_state('networkidle')
+                # Получаем содержимое новой страницы
+                page_content = await new_page.content()
+                td_elements = await new_page.query_selector_all('td.NewLink')
 
-            # Получаем содержимое новой страницы
-            page_content = await new_page.content()
-            td_elements = await new_page.query_selector_all('td.NewLink')
+                # Инициализируем пустой список для хранения извлеченных текстовых значений
+                td_texts = []
 
-            # Инициализируем пустой список для хранения извлеченных текстовых значений
-            td_texts = []
+                # Проходим по каждому найденному элементу
+                for td_element in td_elements:
+                    # Получаем текстовое содержимое элемента и добавляем его в список
+                    text = await td_element.text_content()
+                    parcel_set.add(text.strip())  # Используем .add() для добавления элемента в набор
 
-            # Проходим по каждому найденному элементу
-            for td_element in td_elements:
-                # Получаем текстовое содержимое элемента и добавляем его в список
-                text = await td_element.text_content()
-                parcel_set.add(text.strip())  # Используем .add() для добавления элемента в набор
+                # По завершении работы с новой страницей не забудьте ее закрыть
+                await new_page.close()
+            else:
+                # Элемент не найден, делаем что-то другое
+                print(f"Одно значение для {v}")
+                continue
+            # if not xpath_printSearch:
+            #     print(f"Одно значение для {v}")
+            #     continue
+            # else:
+            #     xpath_printSearch = '//a[@onclick="printSearch()"]'
+            #     await page.wait_for_selector(f"xpath={xpath_printSearch}", timeout=timeout)
+            #     # Используем async with для асинхронного ожидания попапа
+            #     async with page.expect_popup() as popup_info:
+            #         await page.click(f"xpath={xpath_printSearch}")
+            #     new_page = await popup_info.value
 
-            # По завершении работы с новой страницей не забудьте ее закрыть
-            await new_page.close()
-        # Определение имени файла
-        filename_csv = os.path.join(csv_path, f"{inpCity}_{inpStreet}.csv")
+            #     # Даем новой странице немного времени, чтобы загрузиться
+            #     await new_page.wait_for_load_state('networkidle')
 
-        # Открытие файла для записи
-        with open(filename_csv, mode='w', newline='', encoding='utf-8') as file:
-            # Создание объекта writer для записи в csv
-            writer = csv.writer(file)
+            #     # Получаем содержимое новой страницы
+            #     page_content = await new_page.content()
+            #     td_elements = await new_page.query_selector_all('td.NewLink')
+
+            #     # Инициализируем пустой список для хранения извлеченных текстовых значений
+            #     td_texts = []
+
+            #     # Проходим по каждому найденному элементу
+            #     for td_element in td_elements:
+            #         # Получаем текстовое содержимое элемента и добавляем его в список
+            #         text = await td_element.text_content()
+            #         parcel_set.add(text.strip())  # Используем .add() для добавления элемента в набор
+
+            #     # По завершении работы с новой страницей не забудьте ее закрыть
+            #     await new_page.close()
             
-            # Запись каждого уникального текстового значения из set в новую строку файла
-            for parcel_number in parcel_set:
-                writer.writerow([parcel_number])
+            # await sleep(5)
+        # for num in range(10):
+        #     xpath_inpNumber = '//input[@id="inpNumber"]'
+        #     await page.wait_for_selector(f"xpath={xpath_inpNumber}", timeout=timeout)
+        #     await page.fill(xpath_inpNumber, str(num))
+
+        #     xpath_inpStreet = '//input[@id="inpStreet"]'
+        #     await page.wait_for_selector(f"xpath={xpath_inpStreet}", timeout=timeout)
+        #     await page.fill(xpath_inpStreet, str(inpStreet))
+
+            
+        #     xpath_inpCity = '//select[@id="inpCity"]'
+        #     await page.wait_for_selector(f"xpath={xpath_inpCity}", timeout=timeout)
+        #     await page.select_option(f"xpath={xpath_inpCity}", 'MA199')
+        #     # await sleep(5)
+            
+            # """Нажимаем кнопку поиска"""
+            # xpath_btSearch = '//button[@id="btSearch"]'
+            # await page.wait_for_selector(f"xpath={xpath_btSearch}", timeout=timeout)
+            # await page.click(xpath_btSearch)
+            # # await sleep(5)
+        
+            # """ПринтВерсия"""
+            # xpath_printSearch = '//a[@onclick="printSearch()"]'
+            # await asyncio.sleep(1)  # Используйте asyncio.sleep в асинхронном контексте
+            # await page.wait_for_selector(f"xpath={xpath_printSearch}", timeout=timeout)
+
+            # # Используем async with для асинхронного ожидания попапа
+            # async with page.expect_popup() as popup_info:
+            #     await page.click(f"xpath={xpath_printSearch}")
+            # new_page = await popup_info.value
+
+            # # Даем новой странице немного времени, чтобы загрузиться
+            # await new_page.wait_for_load_state('networkidle')
+
+            # # Получаем содержимое новой страницы
+            # page_content = await new_page.content()
+            # td_elements = await new_page.query_selector_all('td.NewLink')
+
+            # # Инициализируем пустой список для хранения извлеченных текстовых значений
+            # td_texts = []
+
+            # # Проходим по каждому найденному элементу
+            # for td_element in td_elements:
+            #     # Получаем текстовое содержимое элемента и добавляем его в список
+            #     text = await td_element.text_content()
+            #     parcel_set.add(text.strip())  # Используем .add() для добавления элемента в набор
+
+            # # По завершении работы с новой страницей не забудьте ее закрыть
+            # await new_page.close()
+        # # Определение имени файла
+        # filename_csv = os.path.join(csv_path, f"{inpCity}_{inpStreet}.csv")
+
+        # # Открытие файла для записи
+        # with open(filename_csv, mode='w', newline='', encoding='utf-8') as file:
+        #     # Создание объекта writer для записи в csv
+        #     writer = csv.writer(file)
+            
+        #     # Запись каждого уникального текстового значения из set в новую строку файла
+        #     for parcel_number in parcel_set:
+        #         writer.writerow([parcel_number])
         exit()
 
         match = re.search(r"jurcode=(\d+)", url_start)
