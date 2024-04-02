@@ -117,76 +117,151 @@ async def run():
         for v in values[:1]:
             xpath_inpNumber = '//input[@id="inpParid"]'
             await page.wait_for_selector(f"xpath={xpath_inpNumber}", timeout=timeout)
-            await page.fill(xpath_inpNumber, str(v))
+            await page.fill(xpath_inpNumber, str(f"{v}*"))
 
             """Нажимаем кнопку поиска"""
             xpath_btSearch = '//button[@id="btSearch"]'
             await page.wait_for_selector(f"xpath={xpath_btSearch}", timeout=timeout)
             await page.click(xpath_btSearch)
-            await sleep(5)
+            await sleep(1)
             
             total_records = None
-            # Ожидаем, что элемент с информацией о количестве найденных записей станет доступен на странице.
-            try:
-                await page.wait_for_selector('text=Total found')
-                # Получаем текстовое содержимое всей таблицы или конкретного элемента, содержащего нужные данные.
-                element_text = await page.text_content("table[align='center']")
-                
-                
-                # Проверяем, получили ли мы текст и применяем регулярное выражение для извлечения чисел.
-                if element_text:
-                    match = re.search(r"Total found: (\d+) records, displayed: (\d+)", element_text)
-                    if match:
-                        total_records = int(match.group(1))
-                        # displayed_records = int(match.group(2))
-                    else:
-                        print("Pattern 'Total found: X records, displayed: Y' not found in the text.")
-                else:
-                    print("No text found that matches the criteria.")
-                if total_records >= 250:
-                    print(total_records)
-                else:
-                    print('Нету значения')
-            except:
-                continue
-
-           
-
-
             
+            total_found_selector = 'text=Total found'
+            if await page.is_visible(total_found_selector):
+                element_text = await page.text_content("table[align='center']")
+                match = re.search(r"Total found: (\d+) records", element_text)
+                if match:
+                    total_records = int(match.group(1))
+                    print(f"Total records found: {total_records}")
+                    if total_records >= 250:
+                        # Обрабатываем ситуацию, когда найдено более 250 записей
+                        sort_by_parcel_id = False
+                        iteration = 0
+                        while not sort_by_parcel_id and iteration < 2:
+                            xpath_printSearch = '//a[@onclick="printSearch()"]'
+                            printSearch_button = await page.query_selector(xpath_printSearch)
+                            iteration += 1
+                            xpath_sort_by_parcel_id = '//th[@title="Sort by Parcel ID"]'
+                            await page.wait_for_selector(f"xpath={xpath_sort_by_parcel_id}", timeout=timeout)
+                            await page.click(xpath_sort_by_parcel_id)
+                            await sleep(2)
+                            if await page.is_visible(xpath_printSearch):
+                                if iteration == 2:
+                                    sort_by_parcel_id = True
+                                async with page.expect_popup() as popup_info:
+                                    await page.click(f"xpath={xpath_printSearch}")
+                                new_page = await popup_info.value
 
+                                # Даем новой странице немного времени, чтобы загрузиться
+                                await new_page.wait_for_load_state('networkidle')
 
+                                # Получаем содержимое новой страницы
+                                td_elements = await new_page.query_selector_all('td.NewLink')
 
-            """ПринтВерсия"""
-            xpath_printSearch = '//a[@onclick="printSearch()"]'
-            printSearch_button = await page.query_selector(xpath_printSearch)
-            if printSearch_button:
-                async with page.expect_popup() as popup_info:
-                    await page.click(f"xpath={xpath_printSearch}")
-                new_page = await popup_info.value
+                                # Инициализируем пустой список для хранения извлеченных текстовых значений
+                                td_texts = []
 
-                # Даем новой странице немного времени, чтобы загрузиться
-                await new_page.wait_for_load_state('networkidle')
+                                # Проходим по каждому найденному элементу
+                                for td_element in td_elements:
+                                    # Получаем текстовое содержимое элемента и добавляем его в список
+                                    text = await td_element.text_content()
+                                    parcel_set.add(text.strip())  # Используем .add() для добавления элемента в набор
 
-                # Получаем содержимое новой страницы
-                page_content = await new_page.content()
-                td_elements = await new_page.query_selector_all('td.NewLink')
+                                # По завершении работы с новой страницей не забудьте ее закрыть
+                                await new_page.close()
+                            else:
+                                print('НЕТ xpath_printSearch')
 
-                # Инициализируем пустой список для хранения извлеченных текстовых значений
-                td_texts = []
-
-                # Проходим по каждому найденному элементу
-                for td_element in td_elements:
-                    # Получаем текстовое содержимое элемента и добавляем его в список
-                    text = await td_element.text_content()
-                    parcel_set.add(text.strip())  # Используем .add() для добавления элемента в набор
-
-                # По завершении работы с новой страницей не забудьте ее закрыть
-                await new_page.close()
+                            
+                                
+                            
+            
             else:
-                # Элемент не найден, делаем что-то другое
-                print(f"Одно значение для {v}")
-                continue
+                # Проверяем наличие и работаем с кнопкой "Print Version"
+                xpath_printSearch = '//a[@onclick="printSearch()"]'
+                if await page.is_visible(xpath_printSearch):
+                    async with page.expect_popup() as popup_info:
+                        await page.click(f"xpath={xpath_printSearch}")
+                    new_page = await popup_info.value
+
+                    # Даем новой странице немного времени, чтобы загрузиться
+                    await new_page.wait_for_load_state('networkidle')
+
+                    # Получаем содержимое новой страницы
+                    td_elements = await new_page.query_selector_all('td.NewLink')
+
+                    # Инициализируем пустой список для хранения извлеченных текстовых значений
+                    td_texts = []
+
+                    # Проходим по каждому найденному элементу
+                    for td_element in td_elements:
+                        # Получаем текстовое содержимое элемента и добавляем его в список
+                        text = await td_element.text_content()
+                        parcel_set.add(text.strip())  # Используем .add() для добавления элемента в набор
+
+                    # По завершении работы с новой страницей не забудьте ее закрыть
+                    await new_page.close()
+                else:
+                    print(f"Одна запись {v}")
+
+
+            print(len(parcel_set))
+            # # Ожидаем, что элемент с информацией о количестве найденных записей станет доступен на странице.
+            # try:
+            #     await page.wait_for_selector('text=Total found')
+            #     # Получаем текстовое содержимое всей таблицы или конкретного элемента, содержащего нужные данные.
+            #     element_text = await page.text_content("table[align='center']")
+                
+                
+            #     # Проверяем, получили ли мы текст и применяем регулярное выражение для извлечения чисел.
+            #     if element_text:
+            #         match = re.search(r"Total found: (\d+) records, displayed: (\d+)", element_text)
+            #         if match:
+            #             total_records = int(match.group(1))
+            #             # displayed_records = int(match.group(2))
+            #         else:
+            #             print("Pattern 'Total found: X records, displayed: Y' not found in the text.")
+            #     else:
+            #         print("No text found that matches the criteria.")
+            #     if total_records >= 250:
+            #         print(total_records)
+            #     else:
+            #         print('Нету значения')
+            # except:
+            #     continue
+
+
+            # """ПринтВерсия"""
+            # xpath_printSearch = '//a[@onclick="printSearch()"]'
+            # printSearch_button = await page.query_selector(xpath_printSearch)
+            # if printSearch_button:
+                # async with page.expect_popup() as popup_info:
+                #     await page.click(f"xpath={xpath_printSearch}")
+                # new_page = await popup_info.value
+
+            #     # Даем новой странице немного времени, чтобы загрузиться
+            #     await new_page.wait_for_load_state('networkidle')
+
+            #     # Получаем содержимое новой страницы
+            #     page_content = await new_page.content()
+            #     td_elements = await new_page.query_selector_all('td.NewLink')
+
+            #     # Инициализируем пустой список для хранения извлеченных текстовых значений
+            #     td_texts = []
+
+            #     # Проходим по каждому найденному элементу
+            #     for td_element in td_elements:
+            #         # Получаем текстовое содержимое элемента и добавляем его в список
+            #         text = await td_element.text_content()
+            #         parcel_set.add(text.strip())  # Используем .add() для добавления элемента в набор
+
+            #     # По завершении работы с новой страницей не забудьте ее закрыть
+            #     await new_page.close()
+            # else:
+            #     # Элемент не найден, делаем что-то другое
+            #     print(f"Одно значение для {v}")
+            #     continue
             # if not xpath_printSearch:
             #     print(f"Одно значение для {v}")
             #     continue
@@ -219,9 +294,9 @@ async def run():
             
             # await sleep(5)
         # for num in range(10):
-        #     xpath_inpNumber = '//input[@id="inpNumber"]'
-        #     await page.wait_for_selector(f"xpath={xpath_inpNumber}", timeout=timeout)
-        #     await page.fill(xpath_inpNumber, str(num))
+            # xpath_inpNumber = '//input[@id="inpNumber"]'
+            # await page.wait_for_selector(f"xpath={xpath_inpNumber}", timeout=timeout)
+            # await page.fill(xpath_inpNumber, str(num))
 
         #     xpath_inpStreet = '//input[@id="inpStreet"]'
         #     await page.wait_for_selector(f"xpath={xpath_inpStreet}", timeout=timeout)

@@ -104,7 +104,7 @@ async def run():
                 page.remove_listener("response", previous_handler)
 
             # Подписываемся на новый обработчик ДО перехода на страницу
-            url_name = f"initial_120000{letter}"
+            url_name = f"initial_180000{letter}"
             handler = create_log_response_with_counter(url_name)
             page.on("response", handler)
             previous_handler = handler  # Сохраняем текущий обработчик как предыдущий
@@ -128,7 +128,7 @@ async def run():
                     break
                 
                 # Если кнопка активна, готовимся перехватить ответы сервера
-                url_name = f"page_120000{counter}_{letter}"
+                url_name = f"page_180000{counter}_{letter}"
                 handler = create_log_response_with_counter(url_name)
                 
                 # Отписываемся от предыдущего обработчика, если он есть

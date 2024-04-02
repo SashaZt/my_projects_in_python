@@ -1,7 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
 import random
-from tkinter import N, NO
-from typing import Optional
 import csv
 import os
 import sys
@@ -523,7 +521,7 @@ def parsing_product():
                     script_tag.contents[0].strip().replace("},\n}\n}", "}\n}\n}")
                 )
             except Exception as e:
-                print(f"Ошибка при обработке содержимого тега script: {e}")
+                print(f"Ошибка при обработке содержимого тега script: {item}")
 
             try:
                 # Экранирование всех недопустимых последовательностей обратного слэша.
@@ -532,24 +530,37 @@ def parsing_product():
             except json.JSONDecodeError as e:
                 print(f"Ошибка {item} обработке JSON: {e}")
 
-            id_product = soup.find(
+            id_product_element = soup.find(
                 "div", {"class": "product-code-ui product-code-lq"}
-            ).text
+            )
+            if id_product_element is not None:
+                id_product = id_product_element.get_text()
+            else:
+                id_product = None
             name = data["itemOffered"]["productName"][0]["@value"]
             brandName = data["itemOffered"]["brand"]["brandName"][0]["@value"]
             gtin = data["itemOffered"]["gtin"]
-            brutto_price = (
-                soup.find("div", {"class": "brutto-price-ui"})
-                .text.strip()
-                .replace(" PLN", "")
-                .replace("\nbrutto", "")
-            )
-            netto_price = (
-                soup.find("div", {"class": "netto-price-ui"})
-                .text.strip()
-                .replace(" PLN", "")
-                .replace("\nnetto", "")
-            )
+            brutto_price_element = soup.find("div", {"class": "brutto-price-ui"})
+            if brutto_price_element is not None:
+                brutto_price = (
+                    brutto_price_element.get_text()
+                    .strip()
+                    .replace(" PLN", "")
+                    .replace("\nbrutto", "")
+                )
+            else:
+                brutto_price = None
+
+            netto_price_element = soup.find("div", {"class": "netto-price-ui"})
+            if netto_price_element is not None:
+                netto_price = (
+                    netto_price_element.get_text()
+                    .strip()
+                    .replace(" PLN", "")
+                    .replace("\nnetto", "")
+                )
+            else:
+                netto_price = None
             try:
                 product_blocks = soup.find(
                     "div", class_=re.compile("stock-ui no-on-mobile.*")

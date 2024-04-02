@@ -96,7 +96,6 @@ def get_requests():
     use_table = config["other_config"]["use_table"]
     cnx = mysql.connector.connect(**db_config)
     cursor = cnx.cursor()
-    # try:
     response = requests.get(
         url,
         params=params,
@@ -114,12 +113,12 @@ def get_requests():
         name_files = "1-2"
     else:
         name_files = f"{current_hour + 2}-{current_hour + 3}"
-    name_html = "vdn.html"
+    # name_html = "vdn.html"
 
         # Создаём полный путь к файлу
-    filename = os.path.join(current_directory, name_html)
-    with open(filename, "w", encoding="utf-8") as file:
-        file.write(src)
+    # filename = os.path.join(current_directory, name_html)
+    # with open(filename, "w", encoding="utf-8") as file:
+    #     file.write(src)
     soup = BeautifulSoup(src, "lxml")
     try:
         json_str = soup.find("input", attrs={"id": "lastTradeChartPoints"}).get("value")
@@ -187,69 +186,69 @@ def get_requests():
     cnx.close()
 
 
-def json_to_sql():
-    config = load_connection_to_sql()
-    db_config = config["db_config"]
-    use_table = config["other_config"]["use_table"]
-    try:
-        cnx = mysql.connector.connect(**db_config)
-        cursor = cnx.cursor()
-        folder_json = os.path.join(json_path, "*.json")
+# def json_to_sql():
+#     config = load_connection_to_sql()
+#     db_config = config["db_config"]
+#     use_table = config["other_config"]["use_table"]
+#     try:
+#         cnx = mysql.connector.connect(**db_config)
+#         cursor = cnx.cursor()
+#         folder_json = os.path.join(json_path, "*.json")
 
-        files_json = glob.glob(folder_json)
-        for item_json in files_json:
-            delivery_time = os.path.splitext(os.path.basename(item_json))[0]
-            with open(item_json, "r", encoding="utf-8") as file:
-                data = json.load(file)
+#         files_json = glob.glob(folder_json)
+#         for item_json in files_json:
+#             delivery_time = os.path.splitext(os.path.basename(item_json))[0]
+#             with open(item_json, "r", encoding="utf-8") as file:
+#                 data = json.load(file)
 
-            for item in data:
-                dt_object = datetime.strptime(item["Date"], "%Y-%m-%dT%H:%M:%S")
-                sales_date = dt_object.strftime("%Y-%m-%d")
-                sales_time = dt_object.strftime("%H:%M:%S")
-                sales_date_str = datetime.now()
-                # delivery_date_str = sales_date_str + timedelta(days=1)
-                # delivery_date = delivery_date_str.strftime("%Y-%m-%d")
-                delivery_date = sales_date_str.strftime("%Y-%m-%d")
-                price_time = item["Price"]
-                amount_time = item["Quantity"]
+#             for item in data:
+#                 dt_object = datetime.strptime(item["Date"], "%Y-%m-%dT%H:%M:%S")
+#                 sales_date = dt_object.strftime("%Y-%m-%d")
+#                 sales_time = dt_object.strftime("%H:%M:%S")
+#                 sales_date_str = datetime.now()
+#                 # delivery_date_str = sales_date_str + timedelta(days=1)
+#                 # delivery_date = delivery_date_str.strftime("%Y-%m-%d")
+#                 delivery_date = sales_date_str.strftime("%Y-%m-%d")
+#                 price_time = item["Price"]
+#                 amount_time = item["Quantity"]
 
-                # Проверка наличия записи в базе данных
-                check_query = f"""
-                    SELECT COUNT(*) FROM {use_table}
-                    WHERE sales_date = %s AND sales_time = %s AND amount_time = %s AND price_time = %s;
-                """
-                cursor.execute(
-                    check_query, (sales_date, sales_time, amount_time, price_time)
-                )
-                result = cursor.fetchone()
-                data_and_time_data_download = datetime.now().strftime('%d.%m.%Y_%H:%M:%S')
-                if result[0] == 0:  # Если записи не найдено, вставляем данные
-                    insert_query = f"""
-                        INSERT INTO {use_table} (sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time,data_and_time_data_download)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s);
-                    """
-                    cursor.execute(
-                        insert_query,
-                        (
-                            sales_date,
-                            sales_time,
-                            amount_time,
-                            price_time,
-                            delivery_date,
-                            delivery_time,
-                            data_and_time_data_download,
-                        ),
-                    )
+#                 # Проверка наличия записи в базе данных
+#                 check_query = f"""
+#                     SELECT COUNT(*) FROM {use_table}
+#                     WHERE sales_date = %s AND sales_time = %s AND amount_time = %s AND price_time = %s;
+#                 """
+#                 cursor.execute(
+#                     check_query, (sales_date, sales_time, amount_time, price_time)
+#                 )
+#                 result = cursor.fetchone()
+#                 data_and_time_data_download = datetime.now().strftime('%d.%m.%Y_%H:%M:%S')
+#                 if result[0] == 0:  # Если записи не найдено, вставляем данные
+#                     insert_query = f"""
+#                         INSERT INTO {use_table} (sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time,data_and_time_data_download)
+#                         VALUES (%s, %s, %s, %s, %s, %s, %s);
+#                     """
+#                     cursor.execute(
+#                         insert_query,
+#                         (
+#                             sales_date,
+#                             sales_time,
+#                             amount_time,
+#                             price_time,
+#                             delivery_date,
+#                             delivery_time,
+#                             data_and_time_data_download,
+#                         ),
+#                     )
 
-        cnx.commit()
-        os.remove(item_json)
+#         cnx.commit()
+#         os.remove(item_json)
 
-    except mysql.connector.Error as err:
-        print(f"Ошибка при работе с MySQL: {err}")
-    finally:
-        if cnx.is_connected():
-            cursor.close()
-            cnx.close()
+#     except mysql.connector.Error as err:
+#         print(f"Ошибка при работе с MySQL: {err}")
+#     finally:
+#         if cnx.is_connected():
+#             cursor.close()
+#             cnx.close()
 
 
 def run_at_specific_timee_ach_hour(target_minute, target_second):
@@ -276,7 +275,7 @@ def run_at_specific_timee_ach_hour(target_minute, target_second):
 
 
 if __name__ == "__main__":
-    run_at_specific_timee_ach_hour(59, 58)
+    run_at_specific_timee_ach_hour(59, 56)
 
 
 # if __name__ == "__main__":
