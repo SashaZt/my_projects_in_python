@@ -44,6 +44,9 @@ async def download_file(session, url, cookies_dict, filename_pdf):
         else:
             print(f"Ошибка при загрузке файла: {response.status}")
 
+async def write_log(message):
+    async with aiofiles.open('log.txt', 'a', encoding="utf-8") as log_file:
+        await log_file.write(message + '\n')
 
 async def run():
     print("Вставьте код город")
@@ -157,7 +160,7 @@ async def run():
     elif collection_method == 1:
         lowercase_letters_list = list(string.ascii_lowercase)
         for letter_streed in lowercase_letters_list:
-            print(f'Поиск по букве {letter_streed}')
+            await write_log(f'Поиск по букве {letter_streed}')
             current_directory = os.getcwd()
             # Создайте полный путь к папке temp
             temp_path = os.path.join(current_directory, "temp")
@@ -216,7 +219,7 @@ async def run():
                 if error_message_element:
                     error_message_text = await error_message_element.text_content()
                     if error_message_text == 'No records found using chosen criteria!':
-                        print("Нет записей, соответствующих критериям.")
+                        await write_log(f"Нет записей, соответствующих критериям - {letter_streed}")
                     elif error_message_text == 'Search results are limited to the first 300 records!':
 
                         lowercase_letters_list = list(string.ascii_lowercase)
@@ -231,12 +234,53 @@ async def run():
                             if error_message_element:
                                 error_message_text = await error_message_element.text_content()
                                 if error_message_text == 'No records found using chosen criteria!':
-                                    print(f"Нет записей, пропускаем {find_letter}")
+                                    await write_log(f"Нет записей, пропускаем {find_letter}")
                                     continue  # Пропускаем текущую итерацию и переходим к следующей букве
                                 elif error_message_text == 'Search results are limited to the first 300 records!':
-                                    print(f'Ручная проверка запроса\n {find_letter}!!!!!!!!!!!!!!!!!!')
+                                    #Добавляем 3ю букву для поиска
+                                    lowercase_letters_list_3 = list(string.ascii_lowercase)
+                                    for letter_3 in lowercase_letters_list_3:
+                                        find_letter = f"{letter_streed}{letter}{letter_3}"
+                                        await asyncio.sleep(1)
+                                        await page.fill(xpath_txtstreet, find_letter)
+                                        await page.press(xpath_txtstreet, "Enter")
+                                        await asyncio.sleep(1)
+                                    xpath_href = '//a[@target="_blank"]'
+                                    links_elements = await page.query_selector_all(f"xpath={xpath_href}")
+                                    urls = [await link_element.get_attribute('href') for link_element in links_elements]
+                                    # Создаем список словарей, где каждый словарь содержит jurcode, extracted_part и keyno для каждого URL
+                                    jurcode_extracted_list = []
+                                    pattern = re.compile(r'jurcode=(\d+)&pdf=([^&]+)')
+
+                                    for url in urls:
+                                        match = pattern.search(url)
+                                        if match:
+                                            jurcode, extracted_part = match.groups()
+                                            keyno_match = re.search(r'K(\d+)N', extracted_part)
+                                            keyno = keyno_match.group(1) if keyno_match else None
+
+                                            # Создаем словарь для каждого найденного совпадения и добавляем его в список
+                                            jurcode_extracted_dict = {
+                                                "jurcode": jurcode,
+                                                "extracted_part": extracted_part,
+                                                "keyno": keyno
+                                            }
+                                            jurcode_extracted_list.append(jurcode_extracted_dict)
+
+                                    # Выводим полученный список словарей
+                                    for item in jurcode_extracted_list:
+                                        jurcode = item['jurcode']
+                                        extracted_part = item['extracted_part']
+                                        keyno = item['keyno']
+                                        url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+                                        filename_pdf = os.path.join(
+                                            pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
+                                        )
+                                        if not os.path.exists(filename_pdf):
+                                            await download_file(session, url, cookies_dict, filename_pdf)
+                                    # print(f'Ручная проверка запроса\n {find_letter}!!!!!!!!!!!!!!!!!!')
                             else:
-                                print(f"качаем {find_letter}")
+                                await write_log(f"качаем {find_letter}")
 
                             xpath_href = '//a[@target="_blank"]'
                             links_elements = await page.query_selector_all(f"xpath={xpath_href}")

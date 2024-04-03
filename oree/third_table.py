@@ -65,6 +65,7 @@ def get_sql_vdr():
     current_date = str(datetime.now().strftime("%Y-%m-%d"))
     """Добавляем час для получение наднных без задержки"""
     current_hour = int(datetime.now().hour) + 2
+    # current_hour = int(4)
 
     # query = f"SELECT CURDATE() as sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time, data_and_time_data_download, hour FROM {use_table_vdr};"
     query = f"SELECT sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time, data_and_time_data_download, hour FROM {use_table_vdr} WHERE delivery_date = '{current_date}' AND hour = '{current_hour}';"
@@ -131,6 +132,7 @@ def joining_tables():
         current_date = str(datetime.now().strftime("%Y-%m-%d"))
         """Добавляем час для получение наднных без задержки"""
         current_hour = int(datetime.now().hour) + 2
+        # current_hour = int(4)
 
         df_rdn["hour"] = df_rdn["hour"].astype(int)
         df_rdn["delivery_date"] = pd.to_datetime(df_rdn["delivery_date"])
@@ -245,4 +247,5 @@ def run_at_specific_timee_ach_hour(target_minute, target_second):
 
 
 if __name__ == "__main__":
-    run_at_specific_timee_ach_hour(00, 58)
+    run_at_specific_timee_ach_hour(1, 58)
+    # write_to_sql()
