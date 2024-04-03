@@ -342,12 +342,31 @@ def main_download_url():
 
 coun = 0
 
+def delete_invalid_html():
+    # Используем glob.glob для получения списка всех файлов HTML в папке
+    html_files = glob.glob(os.path.join(html_path, "*.html"))
+
+    for file_path in html_files:
+        with open(file_path, encoding="utf-8") as f:
+            src = f.read()
+        
+        soup = BeautifulSoup(src, "lxml")
+        title_text = soup.find('title').get_text(strip=True) if soup.find('title') else ""
+
+        # Получаем размер файла в килобайтах
+        file_size_kb = os.path.getsize(file_path) / 1024
+
+        # Проверяем, меньше ли размер файла 30 КБ или содержит ли title текст "Błąd 404"
+        if file_size_kb < 30 or title_text == "Błąd 404":
+            print(f"Удаляем файл {file_path}, его размер {file_size_kb:.2f} КБ или он содержит ошибку 404")
+            os.remove(file_path)  # Удаляем файл
 
 def download_html_files():
     import aiohttp
     import asyncio
     import os
 
+    
     async def fetch(session, url, coun):
 
         config = load_config()
@@ -536,6 +555,7 @@ def parsing_product():
             if id_product_element is not None:
                 id_product = id_product_element.get_text()
             else:
+                print(item)
                 id_product = None
             name = data["itemOffered"]["productName"][0]["@value"]
             brandName = data["itemOffered"]["brand"]["brandName"][0]["@value"]
@@ -549,6 +569,7 @@ def parsing_product():
                     .replace("\nbrutto", "")
                 )
             else:
+                print(item)
                 brutto_price = None
 
             netto_price_element = soup.find("div", {"class": "netto-price-ui"})
@@ -560,6 +581,7 @@ def parsing_product():
                     .replace("\nnetto", "")
                 )
             else:
+                print(item)
                 netto_price = None
             try:
                 product_blocks = soup.find(
@@ -670,6 +692,7 @@ while True:
         delete_dublicate()
         print("Переходим к пункту 2")
     elif user_input == 2:
+        delete_invalid_html()
         download_html_files()
         print("Переходим к пункту 3")
     elif user_input == 3:

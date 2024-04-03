@@ -95,7 +95,7 @@ async def main():
     """
     # counter = 0
     limit = 10
-    delay = 10
+    delay = 20
 
     filename_csv = os.path.join(current_directory, "unique_company_ids.csv")
 
