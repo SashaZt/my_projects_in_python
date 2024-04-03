@@ -247,5 +247,5 @@ def run_at_specific_timee_ach_hour(target_minute, target_second):
 
 
 if __name__ == "__main__":
-    run_at_specific_timee_ach_hour(1, 58)
+    run_at_specific_timee_ach_hour(5, 00)
     # write_to_sql()

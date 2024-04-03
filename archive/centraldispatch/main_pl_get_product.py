@@ -73,14 +73,18 @@ async def run():
         await page.press(xpath_password, "Enter")
         values = await read_csv_values()
         await sleep(5)
-        for v in values[:1]:
-            filename_html = os.path.join(products_path, f"{v}.html")
+        for v in values:
+            url_name = v.split("=")[-1]
+            filename_html = os.path.join(products_path, f"{url_name}.html")
             if not os.path.isfile(filename_html):
                 await page.goto(v)
-                await sleep(5)
+                
+                xpath_page_header = '//div[@class="page-header"]'
+                await page.wait_for_selector(f"xpath={xpath_page_header}", timeout=timeout)
                 page_content = await page.content()
                 with open(filename_html, "w", encoding="utf-8") as f:
                     f.write(page_content)
+                await sleep(1)
         
         
         await browser.close()
