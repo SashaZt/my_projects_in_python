@@ -154,7 +154,7 @@ def parsing_products():
 
 
 if __name__ == '__main__':
-    creative_folders()
+    # creative_folders()
     # get_selenium()
     # parsing()
-    # parsing_products()
+    parsing_products()

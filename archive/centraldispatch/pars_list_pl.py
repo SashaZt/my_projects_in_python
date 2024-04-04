@@ -1,3 +1,5 @@
+# -*- mode: python ; coding: utf-8 -*-
+# Парсим url компани с папки list
 import json
 import csv
 import os

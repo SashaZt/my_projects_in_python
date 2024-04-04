@@ -3,8 +3,6 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 import json
 import pandas as pd
 from sqlalchemy import create_engine
-
-import html
 from bs4 import BeautifulSoup
 import mysql.connector
 import time
@@ -64,9 +62,13 @@ def get_sql_vdr():
     cursor_vdr = cnx_vdr.cursor()
     current_date = str(datetime.now().strftime("%Y-%m-%d"))
     """Добавляем час для получение наднных без задержки"""
-    current_hour = int(datetime.now().hour) + 2
+    current_hour = int(datetime.now().hour)
     # current_hour = int(4)
 
+    if current_hour >= 22:
+        current_hour = (current_hour + 2) % 24
+    else:
+        current_hour = current_hour + 2
     # query = f"SELECT CURDATE() as sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time, data_and_time_data_download, hour FROM {use_table_vdr};"
     query = f"SELECT sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time, data_and_time_data_download, hour FROM {use_table_vdr} WHERE delivery_date = '{current_date}' AND hour = '{current_hour}';"
 
@@ -95,11 +97,11 @@ def get_sql_vdr():
     cursor_vdr.close()
 
     if df_vdr.empty:
-        print(f"Нету данныех за дату {current_date} и время {current_hour}")
+        # print(f"Нету данныех за дату {current_date} и время {current_hour}")
         return None
 
     else:
-        print("Есть данныее")
+        # print("Есть данныее")
         return df_vdr
 
 
@@ -131,18 +133,21 @@ def joining_tables():
     if df_vdr is not None and df_rdn is not None:
         current_date = str(datetime.now().strftime("%Y-%m-%d"))
         """Добавляем час для получение наднных без задержки"""
-        current_hour = int(datetime.now().hour) + 2
+        current_hour = int(datetime.now().hour)
         # current_hour = int(4)
-
+        if current_hour >= 22:
+            current_hour = (current_hour + 2) % 24
+        else:
+            current_hour = current_hour + 2
         df_rdn["hour"] = df_rdn["hour"].astype(int)
         df_rdn["delivery_date"] = pd.to_datetime(df_rdn["delivery_date"])
         matching_rdn_row = df_rdn[
             (df_rdn["delivery_date"] == pd.to_datetime(current_date))
             & (df_rdn["hour"] == current_hour)
         ]
-        print(
-            f"Total columns: {len(df_vdr.columns)}, Unique columns: {len(set(df_vdr.columns))}"
-        )
+        # print(
+        #     f"Total columns: {len(df_vdr.columns)}, Unique columns: {len(set(df_vdr.columns))}"
+        # )
 
         matching_rdn_row = matching_rdn_row.add_suffix("_rdn")
         df_vdr["hour"] = df_vdr["hour"].astype(int)
@@ -217,12 +222,6 @@ def write_to_sql():
         print("Пропускаем час")
 
 
-# if __name__ == "__main__":
-#     # joining_tables()
-#     write_to_sql()
-
-
-
 def run_at_specific_timee_ach_hour(target_minute, target_second):
     while True:
         now = datetime.now()
@@ -241,8 +240,6 @@ def run_at_specific_timee_ach_hour(target_minute, target_second):
             time.sleep(1)
         # Вызов функции после достижения целевого времени
         write_to_sql()
-        # get_data()
-        # json_to_sql()
         time.sleep(1)  # Короткая пауза перед планированием следующего запуска
 
 

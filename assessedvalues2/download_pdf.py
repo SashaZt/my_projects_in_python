@@ -1,5 +1,4 @@
 import asyncio
-from math import e
 from time import sleep
 from playwright.async_api import async_playwright
 import aiohttp
@@ -99,7 +98,7 @@ async def run():
             match = re.search(r"jurcode=(\d+)", url_start)
 
             jurcode = match.group(1)
-            filename_log = f"{jurcode}_range"
+            filename_log = f"{code_sity}_range"
             # Ждем появление кнопки поиска и нажимаем на нее
             xpath_begin_search = '//input[@id="ctl00_MainContent_BtnSearch"]'
             # Дожидаемся появления кнопки с заданным текстом и кликаем по ней
@@ -167,6 +166,7 @@ async def run():
                     await download_file(session, url, cookies_dict, filename_pdf)
                     current += 1
                 except:
+                    await write_log(f"Нет данных для {current}", filename_log)
                     current += 1
                     continue
 
