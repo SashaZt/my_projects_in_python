@@ -88,7 +88,7 @@ def selenium_get_curl(url, type_pars):
 
     counets_url = driver.find_element(
         By.XPATH, '//div[@class="text-secondary"]'
-    ).text.replace(",", "")
+    ).text
     count_url = int(re.search(r"(\d+)", counets_url).group(0))
     url_in_page = 48
     list_url = math.ceil(count_url / url_in_page)
