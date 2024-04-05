@@ -1,16 +1,20 @@
+# -*- mode: python ; coding: utf-8 -*-
+# Скачивание PDF файлов
 import asyncio
+import sys
 from time import sleep
 from playwright.async_api import async_playwright
 import aiohttp
 import aiofiles
 import re
 import string
-
+import random
 import os
 import glob
 from asyncio import sleep
 
 
+# Выкачка PDF файлов
 async def download_file(session, url, cookies_dict, filename_pdf):
     headers = {
         "authority": "www.assessedvalues2.com",
@@ -20,7 +24,6 @@ async def download_file(session, url, cookies_dict, filename_pdf):
         # 'cookie': 'ASP.NET_SessionId=w1lubbprygi3wq5hdfiwa0tl; CookieTest=Testme; sucuri_cloudproxy_uuid_0766875d6=399c6876557455524af4b491910baaac; SearchList2=; SearchList3=; SearchList=000101',
         "dnt": "1",
         "pragma": "no-cache",
-        "referer": "https://www.assessedvalues2.com/SearchPage.aspx?jurcode=112",
         "sec-ch-ua": '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
@@ -44,6 +47,7 @@ async def download_file(session, url, cookies_dict, filename_pdf):
             print(f"Ошибка при загрузке файла: {response.status}")
 
 
+# Запись логов
 async def write_log(message, filename):
     current_directory = os.getcwd()
     temp_path = os.path.join(current_directory, "temp")
@@ -57,13 +61,22 @@ async def write_log(message, filename):
     filename_log = os.path.join(log_path, f"{filename}.txt")
     async with aiofiles.open(filename_log, "a", encoding="utf-8") as log_file:
         await log_file.write(message + "\n")
+#Прочитать файл 
+async def read_csv_values():
+    current_directory = os.getcwd()
+    filename_csv = os.path.join(current_directory, "list_keyno.csv")
+    values = []
+    async with aiofiles.open(filename_csv, mode="r", encoding="utf-8") as file:
+        async for line in file:
+            values.append(line.strip())
+    return values
 
-
+# Основная функция получение PDF
 async def run():
     print("Вставьте код город")
     code_sity = str(input())
     url_start = f"https://www.assessedvalues2.com/SearchPage.aspx?jurcode={code_sity}"
-    print("Собираем по улицам - 1\nСобираем по кодам - 2")
+    print("Собираем по улицам - 1\nСобираем по кодам  - 2\nСобираем по ключам - 3")
     collection_method = int(input())
     if collection_method == 2:
 
@@ -88,17 +101,16 @@ async def run():
         browsers_path = os.path.join(current_directory, "pw-browsers")
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
         async with async_playwright() as playwright, aiohttp.ClientSession() as session:
-            browser = await playwright.chromium.launch(
-                headless=False
-            )  # Для отладки можно использовать headless=False
+            browser = await playwright.chromium.launch(headless=False)
             context = await browser.new_context(accept_downloads=True)
             page = await context.new_page()
-
             await page.goto(url_start)
             match = re.search(r"jurcode=(\d+)", url_start)
-
             jurcode = match.group(1)
+            
+            #Имя лог-файла
             filename_log = f"{code_sity}_range"
+            
             # Ждем появление кнопки поиска и нажимаем на нее
             xpath_begin_search = '//input[@id="ctl00_MainContent_BtnSearch"]'
             # Дожидаемся появления кнопки с заданным текстом и кликаем по ней
@@ -108,6 +120,7 @@ async def run():
             # Ждем появление поля ввода, вводим значение из переменной current и нажимаем Enter
             xpath_keyno = '//input[@id="ctl00_MainContent_TxtKey"]'
             await page.wait_for_selector(f"xpath={xpath_keyno}", timeout=timeout)
+
             folder_pdf = os.path.join(pdf_path, "*.pdf")
             files_pdf = glob.glob(folder_pdf)
             found_parts = []
@@ -141,6 +154,8 @@ async def run():
 
                 await page.fill(xpath_keyno, str(current))
                 await page.press(xpath_keyno, "Enter")
+                sleep_time = random.randint(7, 11)
+                await asyncio.sleep(sleep_time)
                 # Получаем куки из контекста браузера
                 cookies = await context.cookies()
                 cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
@@ -264,7 +279,8 @@ async def run():
                                     == "No records found using chosen criteria!"
                                 ):
                                     await write_log(
-                                        f"Нет записей, пропускаем {find_letter}", filename_log
+                                        f"Нет записей, пропускаем {find_letter}",
+                                        filename_log,
                                     )
                                     continue  # Пропускаем текущую итерацию и переходим к следующей букве
                                 elif (
@@ -425,6 +441,90 @@ async def run():
                 print("Все скачано")
                 await sleep(5)
                 await browser.close()
+    elif collection_method == 3:
+        timeout = 3000
+        url_start = f"https://www.assessedvalues2.com/SearchPage.aspx?jurcode={code_sity}"
+        
+        current_directory = os.getcwd()
+        temp_path = os.path.join(current_directory, "temp")
+        pdf_path = os.path.join(temp_path, "pdf")
+        for folder in [
+            temp_path,
+            pdf_path,
+        ]:
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+        browsers_path = os.path.join(current_directory, "pw-browsers")
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+        async with async_playwright() as playwright, aiohttp.ClientSession() as session:
+            browser = await playwright.chromium.launch(headless=False)
+            context = await browser.new_context(accept_downloads=True)
+            page = await context.new_page()
+            await page.goto(url_start)
 
+            # Ждем появление кнопки поиска и нажимаем на нее
+            xpath_begin_search = '//input[@id="ctl00_MainContent_BtnSearch"]'
+            await page.wait_for_selector(f"xpath={xpath_begin_search}", timeout=timeout)
+            await page.click(xpath_begin_search)
+            await asyncio.sleep(1)
+            
+            # Ждем появление поля ввода, вводим значение из переменной current и нажимаем Enter
+            xpath_keyno = '//input[@id="ctl00_MainContent_TxtKey"]'
+            await page.wait_for_selector(f"xpath={xpath_keyno}", timeout=timeout)
+            values = await read_csv_values()
+            
+            match = re.search(r"jurcode=(\d+)", url_start)
+            jurcode = match.group(1)
+            
+            #Имя лог-файла
+            filename_log = f"{code_sity}_key"
+            for v in values:
+                
+                await page.fill(xpath_keyno, str(v))
+                await page.press(xpath_keyno, "Enter")
+                sleep_time = random.randint(7, 11)
+                await asyncio.sleep(sleep_time)
+                # Получаем куки из контекста браузера
+                cookies = await context.cookies()
+                cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
+                # Ждем появление ссылки и получаем с нее href
+                try:
+                    xpath_href = '//a[@target="_blank"]'
+                    await page.wait_for_selector(f"xpath={xpath_href}", timeout=timeout)
+                    url_href = await page.get_attribute(xpath_href, "href")
 
-asyncio.run(run())
+                    pattern = r"pdf=([^&]+)"
+                    match = re.search(pattern, url_href)
+
+                    if match:
+                        extracted_part = match.group(1)
+                        keyno_match = re.search(r"K(\d+)N", extracted_part)
+                        keyno = keyno_match.group(1) if keyno_match else None
+                    else:
+                        print("Совпадение не найдено.")
+                    url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+                    filename_pdf = os.path.join(
+                        pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
+                    )
+                    if not os.path.exists(filename_pdf):
+                        await download_file(session, url, cookies_dict, filename_pdf)
+                except:
+                    await write_log(f"Нет данных для {v}", filename_log)
+                    continue
+
+            print("Все скачано")
+            await sleep(5)
+            await browser.close()
+
+while True:
+    print('Введите 1 для запуска парсинга'
+        '\nВведите 0 для закрытия программы')
+    user_input = int(input("Выберите действие: "))
+
+    if user_input == 1:
+        asyncio.run(run())
+    elif user_input == 0:
+        print("Программа завершена.")
+        sys.exit(1)
+    else:
+        print("Неверный ввод, пожалуйста, введите корректный номер действия.")
