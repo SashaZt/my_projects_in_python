@@ -16,7 +16,6 @@ from playwright.async_api import async_playwright
 import aiohttp
 import math
 import re
-import string
 import csv
 import json
 import os
@@ -36,6 +35,7 @@ async def save_response_json(json_response, file_path):
         await f.write(json.dumps(json_response, ensure_ascii=False, indent=4))
 
 
+#Скачивание файлов json
 async def fetch_and_save_json(href, session, file_path):
     async with session.get(href) as response:
         # Проверяем статус ответа
@@ -47,7 +47,7 @@ async def fetch_and_save_json(href, session, file_path):
         else:
             print(f"Ошибка при запросе {href}: {response.status}")
 
-
+#Создание задание на скачивание
 async def process_hrefs(all_hrefs, session, type_pars):
     current_directory = os.getcwd()
     temp_path = os.path.join(current_directory, "temp")
@@ -69,7 +69,7 @@ async def process_hrefs(all_hrefs, session, type_pars):
     # Выполняем все задачи асинхронно
     await asyncio.gather(*tasks)
 
-
+#Основаная функция 
 async def run(url_start, type_pars):
     timeout = 20000
     current_directory = os.getcwd()
@@ -104,7 +104,32 @@ async def run(url_start, type_pars):
 
         url_in_page = 48
         list_pages = math.ceil(count_url / url_in_page)
+        
+        xpath_about_results = '//div[@class="text-secondary"]'
+        await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
 
+        all_hrefs = []
+
+        for pages in range(1, list_pages + 1):
+
+            await page.goto(f"{url_start}&page={pages}")
+            xpath_href = '//div[@class="full-height full-width position-relative"]/a'
+            await page.wait_for_selector(xpath_href, timeout=10000)
+            href_elements = await page.query_selector_all(xpath_href)
+            current_page_hrefs = [
+                await element.get_attribute("href") for element in href_elements
+            ]
+
+            for current in current_page_hrefs:
+                match = re.search(r"/([^/?]+)\?", current)
+                if match:
+                    id_product = match.group(1)
+                    all_hrefs.append(
+                        f"https://sls.g2g.com/offer/{id_product}?currency=USD&country=UA&include_out_of_stock=1"
+                    )
+        async with aiohttp.ClientSession() as session:
+            await process_hrefs(all_hrefs, session, type_pars)
+        await browser.close()
         # Устанавливаем обработчик для сбора и сохранения данных ответов
         # def create_log_response_with_counter(file_path, session):
         #     async def log_response(response):
@@ -132,30 +157,6 @@ async def run(url_start, type_pars):
 
         #     return log_response
 
-        xpath_about_results = '//div[@class="text-secondary"]'
-        await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
-
-        all_hrefs = []
-
-        for pages in range(1, list_pages + 1):
-
-            await page.goto(f"{url_start}&page={pages}")
-            xpath_href = '//div[@class="full-height full-width position-relative"]/a'
-            await page.wait_for_selector(xpath_href, timeout=10000)
-            href_elements = await page.query_selector_all(xpath_href)
-            current_page_hrefs = [
-                await element.get_attribute("href") for element in href_elements
-            ]
-
-            for current in current_page_hrefs:
-                match = re.search(r"/([^/?]+)\?", current)
-                if match:
-                    id_product = match.group(1)
-                    all_hrefs.append(
-                        f"https://sls.g2g.com/offer/{id_product}?currency=USD&country=UA&include_out_of_stock=1"
-                    )
-        async with aiohttp.ClientSession() as session:
-            await process_hrefs(all_hrefs, session, type_pars)
         # for href in all_hrefs:
         #     match = re.search(r"/([^/?]+)\?", href)
         #     if match:
@@ -238,9 +239,10 @@ async def run(url_start, type_pars):
         # После выхода из всех циклов, отписываемся от последнего обработчика
         # if previous_handler:
         #     page.remove_listener("response", previous_handler)
-    await browser.close()
+    
 
 
+#Основная функция паринга
 async def run_parsing(type_pars, file_name_csv):
     current_directory = os.getcwd()
     temp_path = os.path.join(current_directory, "temp")
@@ -281,7 +283,7 @@ async def run_parsing(type_pars, file_name_csv):
     if os.path.exists(temp_path) and os.path.isdir(temp_path):
         shutil.rmtree(temp_path)
 
-
+#Запись csv
 async def async_write_csv(filename, mode, data, is_header=False):
     async with aiofiles.open(filename, mode=mode, newline="", encoding="utf-8") as file:
         writer = csv.writer(file)

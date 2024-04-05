@@ -11,12 +11,12 @@ import glob
 from datetime import datetime
 
 def send_email(callerid, subject, message, filename_wav):
-    sender_email = "iceteam0800@gmail.com"
-    recipient_email = "iceteam.zt@ukr.net"
-    smtp_server = "smtp.gmail.com"
+    sender_email = sender_email
+    recipient_email = recipient_email
+    smtp_server = smtp_server
     smtp_port = 587
-    smtp_username = "iceteam0800@gmail.com"
-    smtp_password = "fccyjaoypsznqfkg"
+    smtp_username = smtp_username
+    smtp_password = smtp_password
     
     msg = MIMEMultipart()
     msg["Subject"] = subject

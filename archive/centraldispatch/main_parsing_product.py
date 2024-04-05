@@ -26,7 +26,7 @@ def parsing_products():
     with open("products.csv", "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(heandler)  # Записываем заголовки только один раз
-        for item in files_html[:20]:
+        for item in files_html:
             with open(item, encoding="utf-8") as file:
                 src = file.read()
             soup = BeautifulSoup(src, "lxml")
