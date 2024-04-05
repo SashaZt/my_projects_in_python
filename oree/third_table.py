@@ -61,15 +61,18 @@ def get_sql_vdr():
     cnx_vdr = mysql.connector.connect(**db_config_vdr)
     cursor_vdr = cnx_vdr.cursor()
     current_date = str(datetime.now().strftime("%Y-%m-%d"))
-    """Добавляем час для получение наднных без задержки"""
     current_hour = int(datetime.now().hour)
-    # current_hour = int(4)
 
-    if current_hour >= 22:
-        current_hour = (current_hour + 2) % 24
-    else:
+    # current_hour = int(23)
+
+    if current_hour <= 22:
         current_hour = current_hour + 2
-    # query = f"SELECT CURDATE() as sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time, data_and_time_data_download, hour FROM {use_table_vdr};"
+        current_date = str(datetime.now().strftime("%Y-%m-%d"))
+    elif current_hour == 23:
+        datetime_now = datetime.now()
+        delivery_date_1 = datetime_now + timedelta(days=1)
+        current_date = delivery_date_1.strftime("%Y-%m-%d")
+        current_hour = (current_hour + 2) % 24
     query = f"SELECT sales_date, sales_time, amount_time, price_time, delivery_date, delivery_time, data_and_time_data_download, hour FROM {use_table_vdr} WHERE delivery_date = '{current_date}' AND hour = '{current_hour}';"
 
     cursor_vdr.execute(query)
@@ -132,23 +135,24 @@ def joining_tables():
 
     if df_vdr is not None and df_rdn is not None:
         current_date = str(datetime.now().strftime("%Y-%m-%d"))
-        """Добавляем час для получение наднных без задержки"""
         current_hour = int(datetime.now().hour)
-        # current_hour = int(4)
-        if current_hour >= 22:
-            current_hour = (current_hour + 2) % 24
-        else:
+        # current_hour = int(23)
+        
+        if current_hour <= 22:
             current_hour = current_hour + 2
+            current_date = str(datetime.now().strftime("%Y-%m-%d"))
+        elif current_hour == 23:
+            datetime_now = datetime.now()
+            delivery_date_1 = datetime_now + timedelta(days=1)
+            current_date = delivery_date_1.strftime("%Y-%m-%d")
+            current_hour = (current_hour + 2) % 24
+        
         df_rdn["hour"] = df_rdn["hour"].astype(int)
         df_rdn["delivery_date"] = pd.to_datetime(df_rdn["delivery_date"])
         matching_rdn_row = df_rdn[
             (df_rdn["delivery_date"] == pd.to_datetime(current_date))
             & (df_rdn["hour"] == current_hour)
         ]
-        # print(
-        #     f"Total columns: {len(df_vdr.columns)}, Unique columns: {len(set(df_vdr.columns))}"
-        # )
-
         matching_rdn_row = matching_rdn_row.add_suffix("_rdn")
         df_vdr["hour"] = df_vdr["hour"].astype(int)
         df_vdr["delivery_date"] = pd.to_datetime(df_vdr["delivery_date"])
@@ -194,6 +198,7 @@ def joining_tables():
 
 
 def write_to_sql():
+
     config_rdn = load_connection_to_sql_rdn()
     username = config_rdn["other_config"]["user"]
     password = config_rdn["other_config"]["password"]
