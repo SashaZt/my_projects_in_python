@@ -107,98 +107,105 @@ async def run(url_start, type_pars):
         
         xpath_about_results = '//div[@class="text-secondary"]'
         await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
+        
+        #Items
+        if type_pars == 0:
+            all_hrefs = []
 
-        all_hrefs = []
+            for pages in range(1, list_pages + 1):
 
-        for pages in range(1, list_pages + 1):
+                await page.goto(f"{url_start}&page={pages}")
+                xpath_href = '//div[@class="full-height full-width position-relative"]/a'
+                await page.wait_for_selector(xpath_href, timeout=10000)
+                href_elements = await page.query_selector_all(xpath_href)
+                current_page_hrefs = [
+                    await element.get_attribute("href") for element in href_elements
+                ]
 
-            await page.goto(f"{url_start}&page={pages}")
-            xpath_href = '//div[@class="full-height full-width position-relative"]/a'
-            await page.wait_for_selector(xpath_href, timeout=10000)
-            href_elements = await page.query_selector_all(xpath_href)
-            current_page_hrefs = [
-                await element.get_attribute("href") for element in href_elements
-            ]
+                for current in current_page_hrefs:
+                    match = re.search(r"/([^/?]+)\?", current)
+                    if match:
+                        id_product = match.group(1)
+                        all_hrefs.append(
+                            f"https://sls.g2g.com/offer/{id_product}?currency=USD&country=UA&include_out_of_stock=1"
+                        )
+            async with aiohttp.ClientSession() as session:
+                await process_hrefs(all_hrefs, session, type_pars)
+            await browser.close()
+        #GamePal
+        elif type_pars == 1:
+            all_hrefs = []
+            counter = 0
+            for pages in range(1, list_pages + 1):
+                counter += 1
+                # Устанавливаем обработчик для сбора и сохранения данных ответов
+                def create_log_response_with_counter(file_path, session):
+                    async def log_response(response):
+                        # Паттерн для поиска в URL ответа.
+                        pattern = re.compile(
+                            r"https://sls\.g2g\.com/offer/search\?service_id=[^&]+"
+                        )
 
-            for current in current_page_hrefs:
-                match = re.search(r"/([^/?]+)\?", current)
-                if match:
-                    id_product = match.group(1)
-                    all_hrefs.append(
-                        f"https://sls.g2g.com/offer/{id_product}?currency=USD&country=UA&include_out_of_stock=1"
-                    )
-        async with aiohttp.ClientSession() as session:
-            await process_hrefs(all_hrefs, session, type_pars)
+                        request = response.request
+                        if request.method == "GET" and pattern.search(request.url):
+                            updated_url = request.url.replace("currency=EUR", "currency=USD")
+                            try:
+                                # Используем переданную сессию для выполнения запроса к обновленному URL.
+                                async with session.get(updated_url) as new_response:
+                                    if new_response.status == 200:
+                                        json_response = await new_response.json()
+                                        await save_response_json(json_response, file_path)
+                                    else:
+                                        print(
+                                            f"Ошибка запроса к {updated_url}: HTTP статус {new_response.status}"
+                                        )
+                            except Exception as e:
+                                print(f"Ошибка при запросе к {updated_url}: {e}")
+
+                    return log_response
+
+                # for href in all_hrefs:
+                #     match = re.search(r"/([^/?]+)\?", href)
+                #     if match:
+                #         id_product = match.group(1)
+                # if type_pars == 1:
+                filename = f"{counter}.json"
+                file_path = os.path.join(path_json_GamePal, filename)
+
+                handler = create_log_response_with_counter(file_path, session)
+
+                page.on("response", handler)
+
+                previous_handler = handler
+                if previous_handler:
+                    page.remove_listener("response", previous_handler)
+                handler = create_log_response_with_counter(file_path, session)
+
+                page.on("response", handler)
+                previous_handler = handler
+                await page.goto(f"{url_start}&page={pages}")
+                await sleep(5)
+                if previous_handler:
+                    page.remove_listener("response", previous_handler)
         await browser.close()
-        # Устанавливаем обработчик для сбора и сохранения данных ответов
-        # def create_log_response_with_counter(file_path, session):
-        #     async def log_response(response):
-        #         # Паттерн для поиска в URL ответа.
-        #         pattern = re.compile(
-        #             r"https://sls\.g2g\.com/offer/search\?service_id=[^&]+"
-        #         )
+                # elif type_pars == 0:
+                #     filename = f"{id_product}.json"
+                #     file_path = os.path.join(path_json_item, filename)
 
-        #         request = response.request
-        #         if request.method == "GET" and pattern.search(request.url):
-        #             updated_url = request.url.replace("currency=EUR", "currency=USD")
-        #             updated_url = request.url.replace("page_size=48", "currency=USD")
-        #             try:
-        #                 # Используем переданную сессию для выполнения запроса к обновленному URL.
-        #                 async with session.get(updated_url) as new_response:
-        #                     if new_response.status == 200:
-        #                         json_response = await new_response.json()
-        #                         await save_response_json(json_response, file_path)
-        #                     else:
-        #                         print(
-        #                             f"Ошибка запроса к {updated_url}: HTTP статус {new_response.status}"
-        #                         )
-        #             except Exception as e:
-        #                 print(f"Ошибка при запросе к {updated_url}: {e}")
+                # handler = create_log_response_with_counter(file_path, session)
 
-        #     return log_response
+                # page.on("response", handler)
+                # previous_handler = handler
+                # if previous_handler:
+                #     page.remove_listener("response", previous_handler)
+                # handler = create_log_response_with_counter(file_path, session)
 
-        # for href in all_hrefs:
-        #     match = re.search(r"/([^/?]+)\?", href)
-        #     if match:
-        #         id_product = match.group(1)
-        # if type_pars == 1:
-        #     filename = f"{id_product}.json"
-        #     file_path = os.path.join(path_json_GamePal, filename)
-
-        # handler = create_log_response_with_counter(file_path, session)
-
-        # page.on("response", handler)
-
-        # previous_handler = handler
-        # if previous_handler:
-        #     page.remove_listener("response", previous_handler)
-        # handler = create_log_response_with_counter(file_path, session)
-
-        # page.on("response", handler)
-        # previous_handler = handler
-        # await page.goto(f"{url_start}&page={pages}")
-        # await sleep(5)
-        # if previous_handler:
-        #     page.remove_listener("response", previous_handler)
-
-        # elif type_pars == 0:
-        #     filename = f"{id_product}.json"
-        #     file_path = os.path.join(path_json_item, filename)
-
-        # handler = create_log_response_with_counter(file_path, session)
-
-        # page.on("response", handler)
-        # previous_handler = handler
-        # if previous_handler:
-        #     page.remove_listener("response", previous_handler)
-        # handler = create_log_response_with_counter(file_path, session)
-
-        # page.on("response", handler)
-        # previous_handler = handler
-        # await page.goto(f"{url_start}&page={pages}")
-        # await sleep(5)
-        # if previous_handler:
-        #     page.remove_listener("response", previous_handler)
+                # page.on("response", handler)
+                # previous_handler = handler
+                # await page.goto(f"{url_start}&page={pages}")
+                # await sleep(5)
+                # if previous_handler:
+                #     page.remove_listener("response", previous_handler)
 
         # Выполняем переход
         # await page.goto(url_next)
@@ -266,7 +273,7 @@ async def run_parsing(type_pars, file_name_csv):
         file_path = os.path.join(path_json_item, "*.json")
 
     files_json = glob.glob(file_path)
-    await process_files(files_json, file_name_csv, header_order)
+    await process_files(files_json, file_name_csv, header_order,type_pars)
     # Теперь записываем уникальные заголовки в первую строку CSV файла в заданном порядке
     with open(f"{file_name_csv}.csv", "r", newline="", encoding="utf-8") as f:
         lines = f.readlines()
@@ -280,6 +287,8 @@ async def run_parsing(type_pars, file_name_csv):
 
     # Сохранение данных в файл XLSX
     data.to_excel(f"{file_name_csv}.xlsx", index=False, engine="openpyxl")
+    print(f'успешно добавлен файл {file_name_csv}')
+    # Открыть после тестов
     if os.path.exists(temp_path) and os.path.isdir(temp_path):
         shutil.rmtree(temp_path)
 
@@ -293,49 +302,96 @@ async def async_write_csv(filename, mode, data, is_header=False):
             await writer.writerow(data)
 
 
-async def process_files(files_json, file_name_csv, header_order):
-    unique_headers = set(header_order)
+async def process_files(files_json, file_name_csv, header_order,type_pars):
+    if type_pars == 1:
+        unique_headers = set(header_order)
 
-    for item in files_json:
-        async with aiofiles.open(item, "r", encoding="utf-8") as f:
-            data_json = json.loads(await f.read())
-        datas = data_json["payload"]
+        for item in files_json:
+            async with aiofiles.open(item, "r", encoding="utf-8") as f:
+                data_json = json.loads(await f.read())
+            data_results = data_json["payload"]["results"]
+            
+            for dr in data_results:
+                
+                title = dr["title"]
+                unit_price = str(dr["converted_unit_price"]).replace(".", ",")
+                available_qty = dr["available_qty"]
+                min_qty = dr["min_qty"]
+                display_price = str(unit_price * min_qty).replace(".", ",")
+                
+                region_id = dr["region_id"]
 
-        # for g in datas:
-        title = datas["title"]
-        unit_price = str(datas["converted_unit_price"]).replace(".", ",")
-        available_qty = datas["available_qty"]
-        min_qty = datas["min_qty"]
-        display_price = str(unit_price * min_qty).replace(".", ",")
-        
-        region_id = datas["region_id"]
+                if region_id == "dfced32f-2f0a-4df5-a218-1e068cfadffa":
+                    region_id = "US"
+                if region_id == "ac3f85c1-7562-437e-b125-e89576b9a38e":
+                    region_id = "EU"
+                values = [
+                    display_price,
+                    unit_price,
+                    title,
+                    region_id,
+                    available_qty,
+                    min_qty,
+                ]
+                offer_attributes = dr["offer_attributes"]
+                for o in offer_attributes:
+                    pattern = re.compile(r"lgc_\d+_(\w+)")
+                    # Используем pattern.search, чтобы проверить, соответствует ли collection_id паттерну
+                    match = pattern.search(o["collection_id"])
+                    if match:
+                        collection_id = match.group(1)  # Извлекаем collection_id
+                        value = o["value"]
+                        # Добавляем collection_id в множество уникальных заголовков
+                        unique_headers.add(collection_id)
+                        # Добавляем значение в список значений
+                        values.append(value)
+                await async_write_csv(f"{file_name_csv}.csv", "a", values)
+    
+    
+    
+    elif type_pars == 0:
+        unique_headers = set(header_order)
 
-        if region_id == "dfced32f-2f0a-4df5-a218-1e068cfadffa":
-            region_id = "US"
-        if region_id == "ac3f85c1-7562-437e-b125-e89576b9a38e":
-            region_id = "EU"
-        values = [
-            display_price,
-            unit_price,
-            title,
-            region_id,
-            available_qty,
-            min_qty,
-        ]
-        offer_attributes = datas["offer_attributes"]
-        for o in offer_attributes:
-            pattern = re.compile(r"lgc_\d+_(\w+)")
-            # Используем pattern.search, чтобы проверить, соответствует ли collection_id паттерну
-            match = pattern.search(o["collection_id"])
-            if match:
-                collection_id = match.group(1)  # Извлекаем collection_id
-                value = o["value"]
-                # Добавляем collection_id в множество уникальных заголовков
-                unique_headers.add(collection_id)
-                # Добавляем значение в список значений
-                values.append(value)
+        for item in files_json:
+            async with aiofiles.open(item, "r", encoding="utf-8") as f:
+                data_json = json.loads(await f.read())
+            datas = data_json["payload"]
 
-        await async_write_csv(f"{file_name_csv}.csv", "a", values)
+            # for g in datas:
+            title = datas["title"]
+            unit_price = str(datas["converted_unit_price"]).replace(".", ",")
+            available_qty = datas["available_qty"]
+            min_qty = datas["min_qty"]
+            display_price = str(unit_price * min_qty).replace(".", ",")
+            
+            region_id = datas["region_id"]
+
+            if region_id == "dfced32f-2f0a-4df5-a218-1e068cfadffa":
+                region_id = "US"
+            if region_id == "ac3f85c1-7562-437e-b125-e89576b9a38e":
+                region_id = "EU"
+            values = [
+                display_price,
+                unit_price,
+                title,
+                region_id,
+                available_qty,
+                min_qty,
+            ]
+            offer_attributes = datas["offer_attributes"]
+            for o in offer_attributes:
+                pattern = re.compile(r"lgc_\d+_(\w+)")
+                # Используем pattern.search, чтобы проверить, соответствует ли collection_id паттерну
+                match = pattern.search(o["collection_id"])
+                if match:
+                    collection_id = match.group(1)  # Извлекаем collection_id
+                    value = o["value"]
+                    # Добавляем collection_id в множество уникальных заголовков
+                    unique_headers.add(collection_id)
+                    # Добавляем значение в список значений
+                    values.append(value)
+
+            await async_write_csv(f"{file_name_csv}.csv", "a", values)
 
     # Теперь записываем уникальные заголовки в первую строку CSV файла в заданном порядке
     async with aiofiles.open(f"{file_name_csv}.csv", "r", encoding="utf-8") as f:
@@ -346,7 +402,19 @@ async def process_files(files_json, file_name_csv, header_order):
         await f.writelines(lines)
 
 
+
+
 if __name__ == "__main__":
+    # url_start = 'https://www.g2g.com/categories/gta-5-online-boosting-service?seller=AMELIBOOST'
+    # match = re.search(r"-(\w+)\?", url_start)
+    # type_pars_str = match.group(1)
+    # if type_pars_str == "item":
+    #     type_pars = 0  # Items
+    # else:
+    #     type_pars = 1  # GamePal
+    # # asyncio.run(run(url_start, type_pars))
+    # file_name_csv = 're'
+    # asyncio.run(run_parsing(type_pars, file_name_csv))
     while True:
         print("Вставьте ссылку (или введите 'exit' для выхода):")
         url_start = input()

@@ -114,8 +114,18 @@ def get_sql_rdn():
     use_table_rdn = config_rdn["other_config"]["use_table"]
     cnx_rdn = mysql.connector.connect(**db_config_rdn)
     cursor_rdn = cnx_rdn.cursor()
+    current_date = str(datetime.now().strftime("%Y-%m-%d"))
+    current_hour = int(datetime.now().hour)
+    if current_hour <= 22:
+        current_hour = current_hour + 2
+        current_date = str(datetime.now().strftime("%Y-%m-%d"))
+    elif current_hour == 23:
+        datetime_now = datetime.now()
+        delivery_date_1 = datetime_now + timedelta(days=1)
+        current_date = delivery_date_1.strftime("%Y-%m-%d")
+        current_hour = (current_hour + 2) % 24
 
-    query = f"SELECT delivery_date, hour, price, sales_volume, purchase_volume, declared_sales_volume, declared_volume_of_purchase FROM {use_table_rdn} WHERE delivery_date = CURDATE();"
+    query = f"SELECT delivery_date, hour, price, sales_volume, purchase_volume, declared_sales_volume, declared_volume_of_purchase FROM {use_table_rdn} WHERE delivery_date = '{current_date}' AND hour = '{current_hour}';"
     # query = f"SELECT CURDATE() as delivery_date, hour, price, sales_volume, purchase_volume, declared_sales_volume, declared_volume_of_purchase FROM {use_table_rdn};"
     cursor_rdn.execute(query)
     results_rdn = cursor_rdn.fetchall()
@@ -249,5 +259,5 @@ def run_at_specific_timee_ach_hour(target_minute, target_second):
 
 
 if __name__ == "__main__":
-    run_at_specific_timee_ach_hour(5, 00)
+    run_at_specific_timee_ach_hour(15, 00)
     # write_to_sql()
