@@ -12,6 +12,8 @@ import random
 import os
 import glob
 from asyncio import sleep
+from bs4 import BeautifulSoup
+import json
 
 
 # Выкачка PDF файлов
@@ -61,7 +63,9 @@ async def write_log(message, filename):
     filename_log = os.path.join(log_path, f"{filename}.txt")
     async with aiofiles.open(filename_log, "a", encoding="utf-8") as log_file:
         await log_file.write(message + "\n")
-#Прочитать файл 
+
+
+# Прочитать файл
 async def read_csv_values():
     current_directory = os.getcwd()
     filename_csv = os.path.join(current_directory, "list_keyno.csv")
@@ -71,6 +75,7 @@ async def read_csv_values():
             values.append(line.strip())
     return values
 
+
 # Основная функция получение PDF
 async def run():
     print("Вставьте код город")
@@ -78,23 +83,26 @@ async def run():
     url_start = f"https://www.assessedvalues2.com/SearchPage.aspx?jurcode={code_sity}"
     print("Собираем по улицам - 1\nСобираем по кодам  - 2\nСобираем по ключам - 3")
     collection_method = int(input())
+    current_directory = os.getcwd()
+    # Создайте полный путь к папке temp
+    temp_path = os.path.join(current_directory, "temp")
+    pdf_path = os.path.join(temp_path, "pdf")
+    search_results_path = os.path.join(temp_path, "search_results")
+    # Убедитесь, что папки существуют или создайте их
+    for folder in [
+        temp_path,
+        pdf_path,
+    ]:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+    # Сбор по кодам
     if collection_method == 2:
 
         print("Введите диапозон поиска по кодам, от")
         range_a = int(input())
         print("Введите диапозон поиска по кодам, до")
         range_b = int(input())
-        current_directory = os.getcwd()
-        # Создайте полный путь к папке temp
-        temp_path = os.path.join(current_directory, "temp")
-        pdf_path = os.path.join(temp_path, "pdf")
-        # Убедитесь, что папки существуют или создайте их
-        for folder in [
-            temp_path,
-            pdf_path,
-        ]:
-            if not os.path.exists(folder):
-                os.makedirs(folder)
 
         timeout = 3000
         current_directory = os.getcwd()
@@ -107,10 +115,10 @@ async def run():
             await page.goto(url_start)
             match = re.search(r"jurcode=(\d+)", url_start)
             jurcode = match.group(1)
-            
-            #Имя лог-файла
+
+            # Имя лог-файла
             filename_log = f"{code_sity}_range"
-            
+
             # Ждем появление кнопки поиска и нажимаем на нее
             xpath_begin_search = '//input[@id="ctl00_MainContent_BtnSearch"]'
             # Дожидаемся появления кнопки с заданным текстом и кликаем по ней
@@ -119,7 +127,32 @@ async def run():
             await asyncio.sleep(1)
             # Ждем появление поля ввода, вводим значение из переменной current и нажимаем Enter
             xpath_keyno = '//input[@id="ctl00_MainContent_TxtKey"]'
+
             await page.wait_for_selector(f"xpath={xpath_keyno}", timeout=timeout)
+
+            # # Получение Search_info
+            # page_content_soup = await page.content()
+            # # Парсинг HTML с помощью BeautifulSoup
+            # soup = BeautifulSoup(page_content_soup, "lxml")
+            # # Продолжаем работать с soup, как показано в предыдущем примере
+            # headers = [th.get_text().strip() for th in soup.find_all("th")]
+            # rows = soup.find_all("tr")[1:]  # Первый ряд пропускаем, т.к. это заголовки
+
+            # all_data = []
+            # for row in rows:
+            #     values = [td.get_text().strip() for td in row.find_all("td")]
+            #     pdf_link = row.find("a")["href"] if row.find("a") else None
+            #     data_dict = dict(zip(headers, values))
+            #     if pdf_link:
+            #         data_dict["Card_PDF"] = pdf_link
+            #     all_data.append(data_dict)
+            # # Сохраняем полученные данные в JSON файл
+            # async with aiofiles.open("data.json", mode="w", encoding="utf-8") as f:
+            #     await f.write(json.dumps(all_data, ensure_ascii=False, indent=4))
+
+            # # Получение Search_info
+            # page_content_soup = await page.content()
+            # await get_search_info_json(page_content_soup, jurcode, keyno, search_results_path)
 
             folder_pdf = os.path.join(pdf_path, "*.pdf")
             files_pdf = glob.glob(folder_pdf)
@@ -154,6 +187,14 @@ async def run():
 
                 await page.fill(xpath_keyno, str(current))
                 await page.press(xpath_keyno, "Enter")
+
+                # Получение Search_info
+                page_content_soup = await page.content()
+                # вместо keyno используем current
+                await get_search_info_json(
+                    page_content_soup, jurcode, current, search_results_path
+                )
+
                 sleep_time = random.randint(7, 11)
                 await asyncio.sleep(sleep_time)
                 # Получаем куки из контекста браузера
@@ -175,6 +216,7 @@ async def run():
                     else:
                         print("Совпадение не найдено.")
                     url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+
                     filename_pdf = os.path.join(
                         pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
                     )
@@ -188,6 +230,7 @@ async def run():
             print("Все скачано")
             await sleep(5)
             await browser.close()
+    # Сбор по улицам
     elif collection_method == 1:
         lowercase_letters_list = list(string.ascii_lowercase)
         for letter_streed in lowercase_letters_list:
@@ -266,6 +309,17 @@ async def run():
                             await page.fill(xpath_txtstreet, find_letter)
                             await page.press(xpath_txtstreet, "Enter")
                             await asyncio.sleep(1)
+
+                            # Получение Search_info
+                            page_content_soup = await page.content()
+                            # Вместо keyno использую две буквы
+                            await get_search_info_json(
+                                page_content_soup,
+                                jurcode,
+                                find_letter,
+                                search_results_path,
+                            )
+
                             # Обновляем состояние элемента с сообщением об ошибке
                             error_message_element = await page.query_selector(
                                 xpath_error_message
@@ -292,13 +346,22 @@ async def run():
                                         string.ascii_lowercase
                                     )
                                     for letter_3 in lowercase_letters_list_3:
-                                        find_letter = (
+                                        find_letter_3 = (
                                             f"{letter_streed}{letter}{letter_3}"
                                         )
                                         await asyncio.sleep(1)
-                                        await page.fill(xpath_txtstreet, find_letter)
+                                        await page.fill(xpath_txtstreet, find_letter_3)
                                         await page.press(xpath_txtstreet, "Enter")
                                         await asyncio.sleep(1)
+                                        # Получение Search_info
+                                        page_content_soup = await page.content()
+                                        await get_search_info_json(
+                                            page_content_soup,
+                                            jurcode,
+                                            find_letter_3,
+                                            search_results_path,
+                                        )
+
                                     xpath_href = '//a[@target="_blank"]'
                                     links_elements = await page.query_selector_all(
                                         f"xpath={xpath_href}"
@@ -307,6 +370,7 @@ async def run():
                                         await link_element.get_attribute("href")
                                         for link_element in links_elements
                                     ]
+
                                     # Создаем список словарей, где каждый словарь содержит jurcode, extracted_part и keyno для каждого URL
                                     jurcode_extracted_list = []
                                     pattern = re.compile(r"jurcode=(\d+)&pdf=([^&]+)")
@@ -340,6 +404,7 @@ async def run():
                                         extracted_part = item["extracted_part"]
                                         keyno = item["keyno"]
                                         url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+
                                         filename_pdf = os.path.join(
                                             pdf_path,
                                             f"{jurcode}_{keyno}_{extracted_part}.pdf",
@@ -392,12 +457,25 @@ async def run():
                                 filename_pdf = os.path.join(
                                     pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
                                 )
+
+                                # # Получение Search_info
+                                # page_content_soup = await page.content()
+                                # await get_search_info_json(page_content_soup, jurcode, keyno, search_results_path)
+
                                 if not os.path.exists(filename_pdf):
                                     await download_file(
                                         session, url, cookies_dict, filename_pdf
                                     )
                 else:
                     print(f"качаем {letter_streed}")
+
+                    # Получение Search_info
+                    page_content_soup = await page.content()
+                    # Вместо keyno использую букву
+                    await get_search_info_json(
+                        page_content_soup, jurcode, letter_streed, search_results_path
+                    )
+
                     # Если элемент с сообщением об ошибке не найден, собираем все ссылки
                     links_elements = await page.query_selector_all(xpath_href)
                     pattern = re.compile(r"jurcode=(\d+)&pdf=([^&]+)")
@@ -441,10 +519,13 @@ async def run():
                 print("Все скачано")
                 await sleep(5)
                 await browser.close()
+    # Поиск по ключам из файла list_keyno.csv
     elif collection_method == 3:
         timeout = 3000
-        url_start = f"https://www.assessedvalues2.com/SearchPage.aspx?jurcode={code_sity}"
-        
+        url_start = (
+            f"https://www.assessedvalues2.com/SearchPage.aspx?jurcode={code_sity}"
+        )
+
         current_directory = os.getcwd()
         temp_path = os.path.join(current_directory, "temp")
         pdf_path = os.path.join(temp_path, "pdf")
@@ -467,27 +548,29 @@ async def run():
             await page.wait_for_selector(f"xpath={xpath_begin_search}", timeout=timeout)
             await page.click(xpath_begin_search)
             await asyncio.sleep(1)
-            
+
             # Ждем появление поля ввода, вводим значение из переменной current и нажимаем Enter
             xpath_keyno = '//input[@id="ctl00_MainContent_TxtKey"]'
             await page.wait_for_selector(f"xpath={xpath_keyno}", timeout=timeout)
             values = await read_csv_values()
-            
+
             match = re.search(r"jurcode=(\d+)", url_start)
             jurcode = match.group(1)
-            
-            #Имя лог-файла
+
+            # Имя лог-файла
             filename_log = f"{code_sity}_key"
             for v in values:
-                
+
                 await page.fill(xpath_keyno, str(v))
                 await page.press(xpath_keyno, "Enter")
                 sleep_time = random.randint(7, 11)
                 await asyncio.sleep(sleep_time)
+
                 # Получаем куки из контекста браузера
                 cookies = await context.cookies()
                 cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
                 # Ждем появление ссылки и получаем с нее href
+
                 try:
                     xpath_href = '//a[@target="_blank"]'
                     await page.wait_for_selector(f"xpath={xpath_href}", timeout=timeout)
@@ -506,6 +589,38 @@ async def run():
                     filename_pdf = os.path.join(
                         pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
                     )
+                    # Получение Search_info
+                    page_content_soup = await page.content()
+                    await get_search_info_json(
+                        page_content_soup, jurcode, keyno, search_results_path
+                    )
+                    # # Парсинг HTML с помощью BeautifulSoup
+                    # soup = BeautifulSoup(page_content_soup, "lxml")
+
+                    # headers = [th.get_text().strip() for th in soup.find_all("th")]
+                    # # Первый ряд пропускаем, т.к. это заголовки
+
+                    # rows = soup.find_all("tr")[1:]
+                    # all_data = []
+                    # for row in rows:
+                    #     values = [td.get_text().strip() for td in row.find_all("td")]
+                    #     pdf_link = row.find("a")["href"] if row.find("a") else None
+                    #     data_dict = dict(zip(headers, values))
+                    #     pdf_link = f"https://www.assessedvalues2.com{pdf_link}"
+                    #     if pdf_link:
+                    #         data_dict["Card_PDF"] = pdf_link
+                    #     all_data.append(data_dict)
+                    # # Сохраняем полученные данные в JSON файл
+                    # filename_json_search_info = os.path.join(
+                    #     search_results_path, f"{jurcode}_{keyno}.json"
+                    # )
+                    # async with aiofiles.open(
+                    #     filename_json_search_info, mode="w", encoding="utf-8"
+                    # ) as f:
+                    #     await f.write(
+                    #         json.dumps(all_data, ensure_ascii=False, indent=4)
+                    #     )
+
                     if not os.path.exists(filename_pdf):
                         await download_file(session, url, cookies_dict, filename_pdf)
                 except:
@@ -516,9 +631,38 @@ async def run():
             await sleep(5)
             await browser.close()
 
+
+async def get_search_info_json(page_content_soup, jurcode, keyno, search_results_path):
+
+    # Парсинг HTML с помощью BeautifulSoup
+    soup = BeautifulSoup(page_content_soup, "lxml")
+
+    headers = [th.get_text().strip() for th in soup.find_all("th")]
+    # Первый ряд пропускаем, т.к. это заголовки
+
+    rows = soup.find_all("tr")[1:]
+    all_data = []
+    for row in rows:
+        values = [td.get_text().strip() for td in row.find_all("td")]
+        pdf_link = row.find("a")["href"] if row.find("a") else None
+        data_dict = dict(zip(headers, values))
+        pdf_link = f"https://www.assessedvalues2.com{pdf_link}"
+        if pdf_link:
+            data_dict["Card_PDF"] = pdf_link
+        all_data.append(data_dict)
+    # Сохраняем полученные данные в JSON файл
+    filename_json_search_info = os.path.join(
+        search_results_path, f"{jurcode}_{keyno}.json"
+    )
+    if not os.path.exists(filename_json_search_info):
+        async with aiofiles.open(
+            filename_json_search_info, mode="w", encoding="utf-8"
+        ) as f:
+            await f.write(json.dumps(all_data, ensure_ascii=False, indent=4))
+
+
 while True:
-    print('Введите 1 для запуска парсинга'
-        '\nВведите 0 для закрытия программы')
+    print("Введите 1 для запуска парсинга" "\nВведите 0 для закрытия программы")
     user_input = int(input("Выберите действие: "))
 
     if user_input == 1:

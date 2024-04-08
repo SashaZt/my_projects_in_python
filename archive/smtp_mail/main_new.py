@@ -6,17 +6,43 @@ from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 import re
+import sys
+import json
+import time
 import os
 import glob
 from datetime import datetime
 
+
+def load_config():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    filename_config = os.path.join(application_path, "config.json")
+    if not os.path.exists(filename_config):
+        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        time.sleep(3)
+        sys.exit(1)
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
+    config_mail = config["mail"]
+
+
+    return config_mail
+
 def send_email(callerid, subject, message, filename_wav):
-    sender_email = sender_email
-    recipient_email = recipient_email
-    smtp_server = smtp_server
-    smtp_port = 587
-    smtp_username = smtp_username
-    smtp_password = smtp_password
+    config = load_config()
+    sender_email = config["sender_email"]
+    recipient_email = config["recipient_email"]
+    smtp_server = config["smtp_server"]
+    smtp_port = config["smtp_port"]
+    smtp_username = config["smtp_username"]
+    smtp_password = config["smtp_password"]
     
     msg = MIMEMultipart()
     msg["Subject"] = subject

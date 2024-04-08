@@ -208,12 +208,12 @@ def pars_pdf():
                         ):
                             owner_parts = dict_item["CURRENT OWNER"].split("\n", 2)
                             dict_item["owner_data1"] = owner_parts[0]
-
+                            # Если условие истинно, выполняем необходимые действия
+                            # Например, присваиваем значение переменной owner_data3
                             if re.match(r"^\d", owner_parts[1]) or owner_parts[
                                 1
-                            ].startswith("P O BOX"):
-                                # Если условие истинно, выполняем необходимые действия
-                                # Например, присваиваем значение переменной owner_data3
+                            ].startswith("PO BOX"):
+
                                 dict_item["owner_data3"] = owner_parts[1]
 
                             dict_item["owner_data5"] = owner_parts[2]
@@ -257,9 +257,7 @@ def pars_pdf():
                             )  # Предполагается, что целевая ячейка через две клетки от заголовка
 
                             for row in table[7:8]:  # Обрабатывается только одна строка
-                                if target_index < len(
-                                    row
-                                ): 
+                                if target_index < len(row):
                                     target_value = (
                                         row[target_index].replace("Z", "").strip()
                                     )
@@ -462,14 +460,18 @@ def pars_pdf():
                         header_str = (
                             "" if header is None else header.replace("None", "")
                         )
-                        
+
                         current_dict_search_key_bat = {
                             "Keyno": key_number,
                             "card": page_index,
                             "bat": f"{header_str} {value}",
                             "bat_t": value_02,
                             "bat_desc": value_03,
-                            "bat_units": value_04.replace(",", "") if value_04 is not None else None,
+                            "bat_units": (
+                                value_04.replace(",", "")
+                                if value_04 is not None
+                                else None
+                            ),
                         }
                         values_list_search_key_bat.append(current_dict_search_key_bat)
                     filename_key_bat = os.path.join(
@@ -632,10 +634,11 @@ def process_json_files():
         for json_file_path in glob.glob(f"{folder_path}/*.json"):
             filename = os.path.basename(json_file_path)
             keyno, card = filename.rstrip(".json").split("_")
-
-            if check_data_exists(table_name, keyno, card):
-                continue
-
+            try:
+                if check_data_exists(table_name, keyno, card):
+                    continue
+            except:
+                print(f"Данные успешно вставлены в таблицу {table_name}")
             with open(json_file_path, "r", encoding="utf-8") as json_file:
                 data = json.load(json_file)
                 insert_data_into_table(table_name, data)
