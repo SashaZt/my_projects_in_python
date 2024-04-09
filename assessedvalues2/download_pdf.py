@@ -7,7 +7,13 @@ from playwright.async_api import async_playwright
 import aiohttp
 import aiofiles
 import re
+import aiomysql
+import json
+import time
+import glob
+import asyncio
 import string
+import shutil
 import random
 import os
 import glob
@@ -78,6 +84,13 @@ async def read_csv_values():
 
 # Основная функция получение PDF
 async def run():
+    current_directory = os.getcwd()
+    temp_path = os.path.join(current_directory, "temp")
+    log_path = os.path.join(temp_path, "log")
+
+    # Удаление папки log_path вместе со всем содержимым
+    shutil.rmtree(log_path, ignore_errors=True)
+    
     print("Вставьте код город")
     code_sity = str(input())
     url_start = f"https://www.assessedvalues2.com/SearchPage.aspx?jurcode={code_sity}"
@@ -302,6 +315,7 @@ async def run():
                         == "Search results are limited to the first 300 records!"
                     ):
 
+                        #Добавляем вторую букву
                         lowercase_letters_list = list(string.ascii_lowercase)
                         for letter in lowercase_letters_list:
                             find_letter = f"{letter_streed}{letter}"
@@ -353,6 +367,7 @@ async def run():
                                         await page.fill(xpath_txtstreet, find_letter_3)
                                         await page.press(xpath_txtstreet, "Enter")
                                         await asyncio.sleep(1)
+                                        
                                         # Получение Search_info
                                         page_content_soup = await page.content()
                                         await get_search_info_json(
@@ -362,60 +377,65 @@ async def run():
                                             search_results_path,
                                         )
 
-                                    xpath_href = '//a[@target="_blank"]'
-                                    links_elements = await page.query_selector_all(
-                                        f"xpath={xpath_href}"
-                                    )
-                                    urls = [
-                                        await link_element.get_attribute("href")
-                                        for link_element in links_elements
-                                    ]
-
-                                    # Создаем список словарей, где каждый словарь содержит jurcode, extracted_part и keyno для каждого URL
-                                    jurcode_extracted_list = []
-                                    pattern = re.compile(r"jurcode=(\d+)&pdf=([^&]+)")
-
-                                    for url in urls:
-                                        match = pattern.search(url)
-                                        if match:
-                                            jurcode, extracted_part = match.groups()
-                                            keyno_match = re.search(
-                                                r"K(\d+)N", extracted_part
-                                            )
-                                            keyno = (
-                                                keyno_match.group(1)
-                                                if keyno_match
-                                                else None
-                                            )
-
-                                            # Создаем словарь для каждого найденного совпадения и добавляем его в список
-                                            jurcode_extracted_dict = {
-                                                "jurcode": jurcode,
-                                                "extracted_part": extracted_part,
-                                                "keyno": keyno,
-                                            }
-                                            jurcode_extracted_list.append(
-                                                jurcode_extracted_dict
-                                            )
-
-                                    # Выводим полученный список словарей
-                                    for item in jurcode_extracted_list:
-                                        jurcode = item["jurcode"]
-                                        extracted_part = item["extracted_part"]
-                                        keyno = item["keyno"]
-                                        url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
-
-                                        filename_pdf = os.path.join(
-                                            pdf_path,
-                                            f"{jurcode}_{keyno}_{extracted_part}.pdf",
+                                        xpath_href = '//a[@target="_blank"]'
+                                        links_elements = await page.query_selector_all(
+                                            f"xpath={xpath_href}"
                                         )
-                                        if not os.path.exists(filename_pdf):
-                                            await download_file(
-                                                session, url, cookies_dict, filename_pdf
+                                        urls = [
+                                            await link_element.get_attribute("href")
+                                            for link_element in links_elements
+                                        ]
+                                        await write_log(f"Собираем {find_letter_3}", filename_log)
+                                        # Создаем список словарей, где каждый словарь содержит jurcode, extracted_part и keyno для каждого URL
+                                        jurcode_extracted_list = []
+                                        pattern = re.compile(r"jurcode=(\d+)&pdf=([^&]+)")
+
+                                        for url in urls:
+                                            match = pattern.search(url)
+                                            if match:
+                                                jurcode, extracted_part = match.groups()
+                                                keyno_match = re.search(
+                                                    r"K(\d+)N", extracted_part
+                                                )
+                                                keyno = (
+                                                    keyno_match.group(1)
+                                                    if keyno_match
+                                                    else None
+                                                )
+
+                                                # Создаем словарь для каждого найденного совпадения и добавляем его в список
+                                                jurcode_extracted_dict = {
+                                                    "jurcode": jurcode,
+                                                    "extracted_part": extracted_part,
+                                                    "keyno": keyno,
+                                                }
+                                                jurcode_extracted_list.append(
+                                                    jurcode_extracted_dict
+                                                )
+                                        await write_log(f"качаем {find_letter_3} количество {len(jurcode_extracted_list)}", filename_log)
+                                        # Выводим полученный список словарей
+                                        for item in jurcode_extracted_list:
+                                            jurcode = item["jurcode"]
+                                            extracted_part = item["extracted_part"]
+                                            keyno = item["keyno"]
+                                            url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+
+                                            filename_pdf = os.path.join(
+                                                pdf_path,
+                                                f"{jurcode}_{keyno}_{extracted_part}.pdf",
                                             )
-                                    # print(f'Ручная проверка запроса\n {find_letter}!!!!!!!!!!!!!!!!!!')
+
+                                            # await asyncio.sleep(1)
+                                            # #Открыть потом
+                                            if not os.path.exists(filename_pdf):
+                                                await download_file(
+                                                    session, url, cookies_dict, filename_pdf
+                                                )
+                                        # print(f'Ручная проверка запроса\n {find_letter}!!!!!!!!!!!!!!!!!!')
                             else:
-                                await write_log(f"качаем {find_letter}", filename_log)
+                                #Качаем две буквы
+                                await write_log(f"Собираем {find_letter}", filename_log)
+                                
 
                             xpath_href = '//a[@target="_blank"]'
                             links_elements = await page.query_selector_all(
@@ -447,7 +467,7 @@ async def run():
                                     jurcode_extracted_list.append(
                                         jurcode_extracted_dict
                                     )
-
+                            await write_log(f"качаем {find_letter} количество {len(jurcode_extracted_list)}", filename_log)
                             # Выводим полученный список словарей
                             for item in jurcode_extracted_list:
                                 jurcode = item["jurcode"]
@@ -461,11 +481,13 @@ async def run():
                                 # # Получение Search_info
                                 # page_content_soup = await page.content()
                                 # await get_search_info_json(page_content_soup, jurcode, keyno, search_results_path)
-
+                                # await asyncio.sleep(1)
+                                #Открыть потом
                                 if not os.path.exists(filename_pdf):
                                     await download_file(
                                         session, url, cookies_dict, filename_pdf
                                     )
+                #Качаем одну букву
                 else:
                     print(f"качаем {letter_streed}")
 
@@ -502,7 +524,9 @@ async def run():
                             }
                             jurcode_extracted_list.append(jurcode_extracted_dict)
 
+                    print(f"качаем {letter_streed}")
                     # Выводим полученный список словарей
+                    await write_log(f"качаем {letter_streed} количество {len(jurcode_extracted_list)}", filename_log)
                     for item in jurcode_extracted_list:
                         jurcode = item["jurcode"]
                         extracted_part = item["extracted_part"]
@@ -511,7 +535,11 @@ async def run():
                         filename_pdf = os.path.join(
                             pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
                         )
+                        # await asyncio.sleep(1)
+                        #Открыть потом
                         if not os.path.exists(filename_pdf):
+                            
+                            
                             await download_file(
                                 session, url, cookies_dict, filename_pdf
                             )
@@ -661,8 +689,123 @@ async def get_search_info_json(page_content_soup, jurcode, keyno, search_results
             await f.write(json.dumps(all_data, ensure_ascii=False, indent=4))
 
 
+def load_config():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    filename_config = os.path.join(application_path, "config.json")
+    if not os.path.exists(filename_config):
+        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        time.sleep(3)
+        sys.exit(1)
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
+
+    return config
+
+
+def convert_card_pdf_url(old_url):
+    # Проверяем наличие '?' в URL
+    if '?' in old_url:
+        # Разбиваем URL на части и извлекаем параметры
+        _, query_string = old_url.split('?')
+        params = dict(param.split('=') for param in query_string.split('&'))
+        
+        # Формируем новый URL
+        new_url = f"https://www.assessedvalues2.com/pdfs/{params['jurcode']}/{params['pdf']}.pdf"
+        return new_url
+    else:
+        # Возвращаем исходный URL, если в нем нет '?'
+        return old_url
+
+
+
+async def insert_data_into_table():
+    current_directory = os.getcwd()
+    # Создайте полный путь к папке temp
+    temp_path = os.path.join(current_directory, "temp")
+    search_results_path = os.path.join(temp_path, "search_results")
+    config = load_config()
+    db_config = config['db_config']
+    conn = await aiomysql.connect(host=db_config['host'], port=3306, user=db_config['user'], password=db_config['password'], db=db_config['database'])
+    cursor = await conn.cursor()
+
+    json_files = glob.glob(f"{search_results_path}/*.json")
+    for json_file_path in json_files:
+        filename = os.path.basename(json_file_path)
+        keyno, card = filename.rstrip(".json").split("_")
+        with open(json_file_path, "r", encoding="utf-8") as json_file:
+            data = json.load(json_file)
+        if not data:  # Пропускаем пустые json файлы
+            continue
+
+        await cursor.execute("SHOW COLUMNS FROM search_results")
+        columns_info = await cursor.fetchall()
+        column_can_be_null = {col[0]: (col[2] == "YES") for col in columns_info}
+        
+        for record in data:
+            if 'Card_PDF' in record:
+                record['Card_PDF'] = convert_card_pdf_url(record['Card_PDF'])
+            
+            filtered_record = {k: v for k, v in record.items() if k in column_can_be_null}
+            columns_str = ", ".join(filtered_record.keys())
+            placeholders = ", ".join(["%s"] * len(filtered_record))
+            values = list(filtered_record.values())
+            if not columns_str:
+                continue
+
+            insert_query = f"INSERT INTO search_results ({columns_str}) VALUES ({placeholders})"
+            await cursor.execute(insert_query, values)
+
+        await conn.commit()
+        print(f"Данные успешно вставлены в таблицу search_results из файла {filename}.")
+
+    await cursor.close()
+    conn.close()
+
+
+
+
+async def fetch_db_data():
+    config = load_config()
+    db_config = config['db_config']
+    async with aiomysql.connect(host=db_config['host'], port=3306, user=db_config['user'], password=db_config['password'], db=db_config['database']) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("SELECT Keyno, Card_PDF FROM search_results")
+            db_data = await cur.fetchall()
+    return db_data
+
+def extract_keyno_from_filename(filename):
+    match = re.search(r'_([0-9]+)_', filename)
+    if match:
+        return match.group(1)
+    return None
+
+async def find_missing_pdf_files():
+    current_directory = os.getcwd()
+    # Создайте полный путь к папке temp
+    temp_path = os.path.join(current_directory, "temp")
+    search_results_path = os.path.join(temp_path, "search_results")
+    # Извлекаем данные из БД
+    db_data = await fetch_db_data()
+    db_keynos = {str(keyno): pdf for keyno, pdf in db_data}
+
+    # Извлекаем Keyno из имен файлов
+    file_paths = glob.glob(os.path.join(search_results_path, "*.json"))
+    file_keynos = set(extract_keyno_from_filename(os.path.basename(path)) for path in file_paths)
+
+    # Находим недостающие Card_PDF
+    missing_pdfs = {db_keynos[keyno] for keyno in db_keynos if keyno not in file_keynos}
+    print(missing_pdfs)
+    return missing_pdfs
+
 while True:
-    print("Введите 1 для запуска парсинга" "\nВведите 0 для закрытия программы")
+    print("Введите 1 для запуска парсинга\nВведите 3 для загрузки данных в БД \nВведите 0 для закрытия программы")
     user_input = int(input("Выберите действие: "))
 
     if user_input == 1:
@@ -670,5 +813,8 @@ while True:
     elif user_input == 0:
         print("Программа завершена.")
         sys.exit(1)
+    elif user_input == 3:
+        asyncio.run(insert_data_into_table())
+    
     else:
         print("Неверный ввод, пожалуйста, введите корректный номер действия.")
