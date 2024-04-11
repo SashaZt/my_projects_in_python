@@ -142,12 +142,12 @@ async def run(url_start, type_pars):
                 def create_log_response_with_counter(file_path, session):
                     async def log_response(response):
                         # Паттерн для поиска в URL ответа.
-                        pattern = re.compile(
+                        pattern_service_id = re.compile(
                             r"https://sls\.g2g\.com/offer/search\?service_id=[^&]+"
                         )
 
                         request = response.request
-                        if request.method == "GET" and pattern.search(request.url):
+                        if request.method == "GET" and pattern_service_id.search(request.url):
                             updated_url = request.url.replace("currency=EUR", "currency=USD")
                             try:
                                 # Используем переданную сессию для выполнения запроса к обновленному URL.
@@ -161,6 +161,24 @@ async def run(url_start, type_pars):
                                         )
                             except Exception as e:
                                 print(f"Ошибка при запросе к {updated_url}: {e}")
+                        pattern_seo_term = re.compile(
+                            r"https://sls\.g2g\.com/offer/search\?seo_term=[^&]+"
+                        )
+                        if request.method == "GET" and pattern_seo_term.search(request.url):
+                            updated_url = request.url.replace("currency=EUR", "currency=USD")
+                            try:
+                                # Используем переданную сессию для выполнения запроса к обновленному URL.
+                                async with session.get(updated_url) as new_response:
+                                    if new_response.status == 200:
+                                        json_response = await new_response.json()
+                                        await save_response_json(json_response, file_path)
+                                    else:
+                                        print(
+                                            f"Ошибка запроса к {updated_url}: HTTP статус {new_response.status}"
+                                        )
+                            except Exception as e:
+                                print(f"Ошибка при запросе к {updated_url}: {e}")
+                            
 
                     return log_response
 

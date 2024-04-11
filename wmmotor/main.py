@@ -497,11 +497,12 @@ def get_cookies():
                 }''', input_element)
 
                 # Применяем регулярное выражение к текстовому содержимому
-                match = re.search(r"Podaj wynik działania: (\d+) \+ (\d+) =", text_content)
+                match_plus = re.search(r"Podaj wynik działania: (\d+) \+ (\d+) =", text_content)
+                match_minux = re.search(r"Podaj wynik działania: (\d+) \- (\d+) =", text_content)
 
-                if match:
+                if match_plus:
                     # Извлекаем числа из найденного совпадения
-                    num1, num2 = map(int, match.groups())
+                    num1, num2 = map(int, match_plus.groups())
                     
                     # Вычисляем результат
                     int_result = num1 + num2
@@ -509,6 +510,18 @@ def get_cookies():
                     # Выводим и/или вводим результат обратно в форму
                     print(f"Результат: {int_result}")
                     await input_element.fill(str(int_result))  # Заполняем поле результатом
+                elif match_minux:
+                    # Извлекаем числа из найденного совпадения
+                    num1, num2 = map(int, match_minux.groups())  # Исправлено здесь
+                    
+                    # Вычисляем результат
+                    int_result = num1 - num2
+                    
+                    # Выводим и/или вводим результат обратно в форму
+                    print(f"Результат: {int_result}")
+                    await input_element.fill(str(int_result))  # Заполняем поле результатом
+
+
                     
 
             else:
@@ -562,11 +575,12 @@ def cookies_to_requests():
 while True:
     # Запрос ввода от пользователя
     print(
-        "Введите 1 для загрузки категорий"
+        "Введите 0 для получение куки"
+        "\nВведите 1 для загрузки категорий"
         "\nВведите 2 для загрузки всех товаров"
         "\nВведите 3 после скачивания всех товаров, получаем отчет"
         "\nВведите 4 если у Вас есть файл с остатками, нужно удалить старые данные!!!!"
-        "\nВведите 0 Закрытия программы"
+        "\nВведите 9 Закрытия программы"
     )
     try:
         user_input = input("Выберите действие: ")  # Сначала получаем ввод как строку
@@ -576,8 +590,6 @@ while True:
         continue  # Пропускаем оставшуюся часть цикла и начинаем с новой итерации
 
     if user_input == 1:
-        get_cookies()
-        cookies_to_requests()
         print("Собираем категории товаров")
         get_categories_to_html_file()
         print("Скачиваем все ссылки")
@@ -593,10 +605,13 @@ while True:
     elif user_input == 4:
         delete_old_data()
         print("Старые файлы удалены, переходим к пункту 1")
-    elif user_input == 0:
+    elif user_input == 9:
         print("Программа завершена.")
         time.sleep(2)
         sys.exit(1)
+    elif user_input == 0:
+        get_cookies()
+        cookies_to_requests()
 
     else:
         print("Неверный ввод, пожалуйста, введите корректный номер действия.")
