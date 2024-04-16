@@ -34,7 +34,6 @@ headers = {
     "cache-control": "no-cache",
     "dnt": "1",
     "pragma": "no-cache",
-    "referer": "https://metalvis.ua/ru/catalog/sku-anker-t88v-1080-shurup/",
     "sec-ch-ua": '"Google Chrome";v="123", "Not:A-Brand";v="8", "Chromium";v="123"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": '"Windows"',
@@ -124,16 +123,6 @@ async def get_urls():
     # Удаляем папку temp полностью
     if os.path.exists(temp_path) and os.path.isdir(temp_path):
         shutil.rmtree(temp_path)
-
-    # current_directory = os.getcwd()
-    # values = await read_csv_values()
-    # browsers_path = os.path.join(current_directory, "pw-browsers")
-    # os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
-    # divided_values = list(chunk_list(values, 5))  # Деление на 5 потоков
-    # async with async_playwright() as playwright:
-    #     tasks = [asyncio.create_task(process_urls(part, playwright, browsers_path)) for part in divided_values]
-    #     await asyncio.gather(*tasks)
-    # Предполагаем, что этот метод возвращает список значений
 
     values = await read_csv_values()
     num_threads = 5  # Количество "потоков"

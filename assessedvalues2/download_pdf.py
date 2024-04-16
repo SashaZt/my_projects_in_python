@@ -51,6 +51,7 @@ async def download_file(session, url, cookies_dict, filename_pdf):
                     if not chunk:
                         break
                     await out_file.write(chunk)
+            print(f"Скачан {filename_pdf}")
         else:
             print(f"Ошибка при загрузке файла: {response.status}")
 
@@ -86,6 +87,8 @@ async def read_csv_values():
 async def run():
     current_directory = os.getcwd()
     temp_path = os.path.join(current_directory, "temp")
+    pdf_path = os.path.join(temp_path, "pdf")
+    search_results_path = os.path.join(temp_path, "search_results")
     log_path = os.path.join(temp_path, "log")
 
     # Удаление папки log_path вместе со всем содержимым
@@ -98,13 +101,13 @@ async def run():
     collection_method = int(input())
     current_directory = os.getcwd()
     # Создайте полный путь к папке temp
-    temp_path = os.path.join(current_directory, "temp")
-    pdf_path = os.path.join(temp_path, "pdf")
-    search_results_path = os.path.join(temp_path, "search_results")
+    
     # Убедитесь, что папки существуют или создайте их
     for folder in [
         temp_path,
         pdf_path,
+        search_results_path,
+        log_path
     ]:
         if not os.path.exists(folder):
             os.makedirs(folder)
@@ -612,62 +615,39 @@ async def run():
                 cookies = await context.cookies()
                 cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
                 # Ждем появление ссылки и получаем с нее href
-
+                url_href = None
                 try:
                     xpath_href = '//a[@target="_blank"]'
                     await page.wait_for_selector(f"xpath={xpath_href}", timeout=timeout)
                     url_href = await page.get_attribute(xpath_href, "href")
 
-                    pattern = r"pdf=([^&]+)"
-                    match = re.search(pattern, url_href)
-
-                    if match:
-                        extracted_part = match.group(1)
-                        keyno_match = re.search(r"K(\d+)N", extracted_part)
-                        keyno = keyno_match.group(1) if keyno_match else None
-                    else:
-                        print("Совпадение не найдено.")
-                    url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
-                    filename_pdf = os.path.join(
-                        pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
-                    )
-                    # Получение Search_info
-                    page_content_soup = await page.content()
-                    await get_search_info_json(
-                        page_content_soup, jurcode, keyno, search_results_path
-                    )
-                    # # Парсинг HTML с помощью BeautifulSoup
-                    # soup = BeautifulSoup(page_content_soup, "lxml")
-
-                    # headers = [th.get_text().strip() for th in soup.find_all("th")]
-                    # # Первый ряд пропускаем, т.к. это заголовки
-
-                    # rows = soup.find_all("tr")[1:]
-                    # all_data = []
-                    # for row in rows:
-                    #     values = [td.get_text().strip() for td in row.find_all("td")]
-                    #     pdf_link = row.find("a")["href"] if row.find("a") else None
-                    #     data_dict = dict(zip(headers, values))
-                    #     pdf_link = f"https://www.assessedvalues2.com{pdf_link}"
-                    #     if pdf_link:
-                    #         data_dict["Card_PDF"] = pdf_link
-                    #     all_data.append(data_dict)
-                    # # Сохраняем полученные данные в JSON файл
-                    # filename_json_search_info = os.path.join(
-                    #     search_results_path, f"{jurcode}_{keyno}.json"
-                    # )
-                    # async with aiofiles.open(
-                    #     filename_json_search_info, mode="w", encoding="utf-8"
-                    # ) as f:
-                    #     await f.write(
-                    #         json.dumps(all_data, ensure_ascii=False, indent=4)
-                    #     )
-
-                    if not os.path.exists(filename_pdf):
-                        await download_file(session, url, cookies_dict, filename_pdf)
                 except:
                     await write_log(f"Нет данных для {v}", filename_log)
                     continue
+                
+                pattern = r"pdf=([^&]+)"
+                match = re.search(pattern, url_href)
+
+                if match:
+                    extracted_part = match.group(1)
+                    keyno_match = re.search(r"K(\d+)N", extracted_part)
+                    keyno = keyno_match.group(1) if keyno_match else None
+                else:
+                    print("Совпадение не найдено.")
+                url = f"https://www.assessedvalues2.com/pdfs/{jurcode}/{extracted_part}.pdf"
+                filename_pdf = os.path.join(
+                    pdf_path, f"{jurcode}_{keyno}_{extracted_part}.pdf"
+                )
+                # Получение Search_info
+                page_content_soup = await page.content()
+                await get_search_info_json(
+                    page_content_soup, jurcode, keyno, search_results_path
+                )
+                
+                if not os.path.exists(filename_pdf):
+                    await download_file(session, url, cookies_dict, filename_pdf)
+                else:
+                    print(f"Файл{filename_pdf} уже есть!!!")
 
             print("Все скачано")
             await sleep(5)

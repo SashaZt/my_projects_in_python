@@ -1,5 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Скачивание PDF файлов
+import os
+import openpyxl
+from openpyxl import Workbook
 import asyncio
 import sys
 from time import sleep
@@ -69,7 +72,7 @@ async def write_log(message, filename):
 # Прочитать файл
 async def read_csv_values():
     current_directory = os.getcwd()
-    filename_csv = os.path.join(current_directory, "list_keyno.csv")
+    filename_csv = os.path.join(current_directory, "mapgeo_list.csv")
     values = []
     async with aiofiles.open(filename_csv, mode="r", encoding="utf-8") as file:
         async for line in file:
@@ -77,309 +80,518 @@ async def read_csv_values():
     return values
 
 
-# Основная функция получение PDF
+async def create_directories_async(folders_list):
+    for folder in folders_list:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+
+def is_valid_uuid(uuid_string):
+    """
+    Проверяет, соответствует ли строка формату UUID.
+    """
+    pattern = re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    )
+    return pattern.match(uuid_string)
+
+
+async def write_log(message, filename):
+    current_directory = os.getcwd()
+    temp_path = os.path.join(current_directory, "temp")
+    log_path = os.path.join(temp_path, "log")
+    for folder in [
+        temp_path,
+        log_path,
+    ]:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+    filename_log = os.path.join(log_path, filename)
+    async with aiofiles.open(filename_log, "a", encoding="utf-8") as log_file:
+        await log_file.write(message + "\n")
+
+
+async def check_for_no_results(page):
+    # Ждем, пока страница загрузится или другие условия, которые нужны до проверки
+    await page.wait_for_load_state("domcontentloaded")
+
+    # Используем селектор с текстом, чтобы найти элемент
+    no_results_selector = 'text="No results were found with your query."'
+    # Проверяем, есть ли элемент на странице
+    no_results_element = await page.query_selector(no_results_selector)
+
+    if no_results_element:
+        # Если элемент найден, получаем его содержимое или выполняем другие действия
+        print(
+            "No results were found with your query. Maybe try refining your search to make it more general."
+        )
+    else:
+        # Если элемент не найден, делаем другие необходимые действия
+        print("Results are available or the specific text is not present.")
+
+
+# Основная рабочая функция
+# async def run():
+#     current_directory = os.getcwd()
+#     temp_path = os.path.join(current_directory, "temp")
+#     log_path = os.path.join(temp_path, "log")
+#     downloads_path = os.path.join(temp_path, "downloads_path")
+#     await create_directories_async(
+#         [
+#             temp_path,
+#             log_path,
+#             downloads_path,
+#         ]
+#     )
+
+#     # Удаление папки log_path вместе со всем содержимым
+#     shutil.rmtree(log_path, ignore_errors=True)
+
+#     url_start = f"https://pittsfieldma.mapgeo.io/datasets/properties?abuttersDistance=300&latlng=42.45079%2C-73.260428&panel=search&zoom=12"
+#     for folder in [temp_path, log_path, downloads_path]:
+#         if not os.path.exists(folder):
+#             os.makedirs(folder)
+
+#     timeout = 30000
+#     browsers_path = os.path.join(current_directory, "pw-browsers")
+#     os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+
+#     async with async_playwright() as playwright:
+#         filename_log = f"log.txt"
+#         browser = await playwright.chromium.launch(
+#             headless=False, downloads_path=downloads_path
+#         )
+#         context = await browser.new_context(accept_downloads=True)
+#         page = await context.new_page()
+#         await page.goto(url_start)
+
+#         xpath_coockies = '//button[@class="btn btn-primary"]'
+#         await page.wait_for_selector(f"xpath={xpath_coockies}", timeout=timeout)
+#         await page.click(xpath_coockies)
+
+#         xpath_begin_search = (
+#             '//button[@class="shepherd-button-secondary shepherd-button "]'
+#         )
+#         await page.wait_for_selector(f"xpath={xpath_begin_search}", timeout=timeout)
+#         await page.click(xpath_begin_search)
+#         values = await read_csv_values()
+#         for identifier in values:
+#             new_filename = os.path.join(downloads_path, f"{identifier}.xlsx")
+#             if not os.path.exists(new_filename):
+#                 xpath_identifier = '//input[@placeholder="Identifier"]'
+#                 await page.wait_for_selector(
+#                     f"xpath={xpath_identifier}", timeout=timeout
+#                 )
+
+#                 await page.fill(xpath_identifier, identifier)
+#                 await page.press(xpath_identifier, "Enter")
+#                 try:
+#                     # Селектор для поиска кнопки по тексту "More"
+#                     more_button_selector = 'text="More"'
+
+#                     # Дождитесь, пока кнопка станет видимой на странице
+#                     await page.wait_for_selector(
+#                         more_button_selector, state="visible", timeout=timeout
+#                     )
+
+#                     # Найдите кнопку и выполните клик
+#                     more_button = await page.query_selector(more_button_selector)
+#                     if more_button:
+#                         await more_button.click()
+#                         await asyncio.sleep(1)
+
+#                     # Селектор для поиска кнопки по тексту "More"
+#                     all_results_button_selector = 'text="All Results"'
+#                     # Дождитесь, пока кнопка станет видимой на странице
+#                     await page.wait_for_selector(
+#                         all_results_button_selector, state="visible", timeout=timeout
+#                     )
+
+#                     # Найдите кнопку и выполните клик
+#                     all_results_button = await page.query_selector(
+#                         all_results_button_selector
+#                     )
+#                     if all_results_button:
+#                         await all_results_button.click()
+#                         await asyncio.sleep(1)
+#                     xpath_yes_no = '//button[@class="btn btn-default"]'
+#                     await page.wait_for_selector(
+#                         f"xpath={xpath_yes_no}", timeout=timeout
+#                     )
+#                     # Получаем все элементы по заданному XPath
+#                     all_yes_no = await page.query_selector_all(f"xpath={xpath_yes_no}")
+
+#                     # Проверяем, есть ли хотя бы два элемента
+#                     if len(all_yes_no) >= 2:
+#                         # Кликаем по второму элементу
+#                         await all_yes_no[1].click()
+#                         await asyncio.sleep(5)
+
+#                     # Селектор для поиска кнопки по тексту "More"
+#                     download_results_button_selector = 'text="Download Results"'
+
+#                     # Дождитесь, пока кнопка станет видимой на странице
+#                     await page.wait_for_selector(
+#                         download_results_button_selector,
+#                         state="visible",
+#                         timeout=timeout,
+#                     )
+
+#                     # Найдите кнопку и выполните клик
+#                     download_results_button = await page.query_selector(
+#                         download_results_button_selector
+#                     )
+#                     if download_results_button:
+#                         await download_results_button.click()
+#                         await asyncio.sleep(1)
+
+#                     xpath_download_search_results = (
+#                         '//div[@class="list-group"]//button[@class="list-group-item"]'
+#                     )
+#                     await page.wait_for_selector(
+#                         f"xpath={xpath_download_search_results}", timeout=timeout
+#                     )
+#                     # Получаем все элементы по заданному XPath
+#                     download_search_results = await page.query_selector_all(
+#                         f"xpath={xpath_download_search_results}"
+#                     )
+
+#                     # Проверяем, есть ли хотя бы два элемента
+#                     if len(download_search_results) >= 2:
+#                         # Кликаем по второму элементу
+#                         await download_search_results[0].click()
+#                         # Дождитесь загрузки нужной кнопки или элемента
+#                         await page.wait_for_selector(".list-group-item")
+
+#                         # Находим все кнопки и извлекаем из каждой последний div с текстом результатов
+#                         results = []
+#                         try:
+#                             buttons = await page.query_selector_all(".list-group-item")
+
+#                             for button in buttons:
+#                                 # Используем await для корректного выполнения запроса к элементу
+#                                 last_div = await button.query_selector("div:last-child")
+#                                 if last_div:
+#                                     result_text = await last_div.text_content()
+#                                     results.append(result_text.strip())
+#                         except:
+#                             continue
+#                         results = int(results[0].split(" ")[0])
+#                         if results <= 500:
+#                             # Ожидаем событие загрузки файла
+#                             download = await page.wait_for_event("download")
+#                             # Путь к загруженному файлу
+#                             download_path = await download.path()
+
+#                             filename = os.path.basename(download_path)
+#                             if is_valid_uuid(filename):
+#                                 # Переименовываем файл, если имя соответствует формату UUID
+#                                 new_filename = os.path.join(
+#                                     downloads_path, f"{identifier}.xlsx"
+#                                 )
+#                                 os.replace(download_path, new_filename)
+
+#                                 await write_log(
+#                                     f"Скачали файл  {new_filename}", filename_log
+#                                 )
+
+#                         else:
+#                             await write_log(
+#                                 f"В {identifier} количество {results}", filename_log
+#                             )
+#                     xpath_button_close = '//button[@class="close"]'
+#                     try:
+#                         await page.wait_for_selector(
+#                             f"xpath={xpath_button_close}", timeout=timeout
+#                         )
+#                         await page.click(xpath_button_close)
+#                     except:
+#                         continue
+#                     xpath_results_close = '//button[@class="btn btn-block btn-primary"]'
+#                     try:
+#                         await page.wait_for_selector(
+#                             f"xpath={xpath_results_close}", timeout=timeout
+#                         )
+#                         await page.click(xpath_results_close)
+#                     except:
+#                         continue
+#                 except:
+#                     # Ждем, пока страница загрузится или другие условия, которые нужны до проверки
+#                     await page.wait_for_load_state("domcontentloaded")
+
+#                     # Используем селектор с текстом, чтобы найти элемент
+#                     no_results_selector = (
+#                         'text="No results were found with your query."'
+#                     )
+#                     # Проверяем, есть ли элемент на странице
+#                     no_results_element = await page.query_selector(no_results_selector)
+
+#                     if no_results_element:
+#                         await write_log(
+#                             f"нет результата  для {identifier}", filename_log
+#                         )
+#                     xpath_results_close = '//button[@class="btn btn-block btn-primary"]'
+#                     try:
+#                         await page.wait_for_selector(
+#                             f"xpath={xpath_results_close}", timeout=timeout
+#                         )
+#                         await page.click(xpath_results_close)
+#                     except:
+#                         continue
+#                     continue
+
+#         await browser.close()
+
 async def run():
     current_directory = os.getcwd()
     temp_path = os.path.join(current_directory, "temp")
     log_path = os.path.join(temp_path, "log")
+    downloads_path = os.path.join(temp_path, "downloads_path")
+    # await create_directories_async(
+    #     [
+    #         temp_path,
+    #         log_path,
+    #         downloads_path,
+    #     ]
+    # )
 
     # Удаление папки log_path вместе со всем содержимым
     shutil.rmtree(log_path, ignore_errors=True)
 
     url_start = f"https://pittsfieldma.mapgeo.io/datasets/properties?abuttersDistance=300&latlng=42.45079%2C-73.260428&panel=search&zoom=12"
-    for folder in [temp_path, log_path]:
+    for folder in [temp_path, log_path, downloads_path]:
         if not os.path.exists(folder):
             os.makedirs(folder)
 
-    timeout = 3000
-    current_directory = os.getcwd()
+    timeout = 30000
     browsers_path = os.path.join(current_directory, "pw-browsers")
     os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+    values = await read_csv_values()
+    for identifier in values:
+        new_filename = os.path.join(downloads_path, f"{identifier}.xlsx")
+        if not os.path.exists(new_filename):
+            async with async_playwright() as playwright:
+                filename_log = f"log.txt"
+                browser = await playwright.chromium.launch(
+                    headless=False, downloads_path=downloads_path
+                )
+                context = await browser.new_context(accept_downloads=True)
+                page = await context.new_page()
+                await page.goto(url_start)
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False, downloads_path=current_directory)
-        context = await browser.new_context(accept_downloads=True)
-        page = await context.new_page()
-        await page.goto(url_start)
-        
-        xpath_coockies = '//button[@class="btn btn-primary"]'
-        await page.wait_for_selector(f"xpath={xpath_coockies}", timeout=timeout)
-        await page.click(xpath_coockies)
+                xpath_coockies = '//button[@class="btn btn-primary"]'
+                await page.wait_for_selector(f"xpath={xpath_coockies}", timeout=timeout)
+                await page.click(xpath_coockies)
 
-        xpath_begin_search = (
-            '//button[@class="shepherd-button-secondary shepherd-button "]'
-        )
-        await page.wait_for_selector(f"xpath={xpath_begin_search}", timeout=timeout)
-        await page.click(xpath_begin_search)
-
-        identifier = "A010"
-        xpath_identifier = '//input[@placeholder="Identifier"]'
-        await page.wait_for_selector(f"xpath={xpath_identifier}", timeout=timeout)
-        
-        await page.fill(xpath_identifier, identifier)
-        await page.press(xpath_identifier, "Enter")
-        async def handle_download(download, current_directory, identifier):
-                # Get information about the downloaded file (optional)
-                file_info = await page.evaluate(
-                    """
-                    return {
-                        filename: download.url.split('/').pop(),
-                        contentType: download.contentType,
-                        contentDisposition: download.contentDisposition,
-                    };
-                    """,
-                    download,
+                xpath_begin_search = (
+                    '//button[@class="shepherd-button-secondary shepherd-button "]'
+                )
+                await page.wait_for_selector(f"xpath={xpath_begin_search}", timeout=timeout)
+                await page.click(xpath_begin_search)
+                xpath_identifier = '//input[@placeholder="Identifier"]'
+                await page.wait_for_selector(
+                    f"xpath={xpath_identifier}", timeout=timeout
                 )
 
-                # Formulate the desired filename
-                filename_prefix = "A01"
-                filename_suffix = ".xlsx"  # Assuming it's an Excel file
-                filename = f"{filename_prefix}_{file_info.get('filename', '')}{filename_suffix}"
+                await page.fill(xpath_identifier, identifier)
+                await page.press(xpath_identifier, "Enter")
+                try:
+                    # Селектор для поиска кнопки по тексту "More"
+                    more_button_selector = 'text="More"'
 
-                # Set the suggested filename for download
-                download.suggested_filename = filename
+                    # Дождитесь, пока кнопка станет видимой на странице
+                    await page.wait_for_selector(
+                        more_button_selector, state="visible", timeout=5000
+                    )
 
+                    # Найдите кнопку и выполните клик
+                    more_button = await page.query_selector(more_button_selector)
+                    if more_button:
+                        await more_button.click()
+                        await asyncio.sleep(1)
 
-        # Селектор для поиска кнопки по тексту "More"
-        more_button_selector = 'text="More"'
+                    # Селектор для поиска кнопки по тексту "More"
+                    all_results_button_selector = 'text="All Results"'
+                    # Дождитесь, пока кнопка станет видимой на странице
+                    await page.wait_for_selector(
+                        all_results_button_selector, state="visible", timeout=timeout
+                    )
 
-        # Дождитесь, пока кнопка станет видимой на странице
-        await page.wait_for_selector(
-            more_button_selector, state="visible", timeout=timeout
-        )
+                    # Найдите кнопку и выполните клик
+                    all_results_button = await page.query_selector(
+                        all_results_button_selector
+                    )
+                    if all_results_button:
+                        await all_results_button.click()
+                        await asyncio.sleep(1)
+                    xpath_yes_no = '//button[@class="btn btn-default"]'
+                    await page.wait_for_selector(
+                        f"xpath={xpath_yes_no}", timeout=timeout
+                    )
+                    # Получаем все элементы по заданному XPath
+                    all_yes_no = await page.query_selector_all(f"xpath={xpath_yes_no}")
 
-        # Найдите кнопку и выполните клик
-        more_button = await page.query_selector(more_button_selector)
-        if more_button:
-            await more_button.click()
-            await asyncio.sleep(1)
+                    # Проверяем, есть ли хотя бы два элемента
+                    if len(all_yes_no) >= 2:
+                        # Кликаем по второму элементу
+                        await all_yes_no[1].click()
+                        await asyncio.sleep(5)
 
-        # Селектор для поиска кнопки по тексту "More"
-        all_results_button_selector = 'text="All Results"'
+                    # Селектор для поиска кнопки по тексту "More"
+                    download_results_button_selector = 'text="Download Results"'
 
-        # Дождитесь, пока кнопка станет видимой на странице
-        await page.wait_for_selector(
-            all_results_button_selector, state="visible", timeout=timeout
-        )
+                    # Дождитесь, пока кнопка станет видимой на странице
+                    await page.wait_for_selector(
+                        download_results_button_selector,
+                        state="visible",
+                        timeout=timeout,
+                    )
 
-        # Найдите кнопку и выполните клик
-        all_results_button = await page.query_selector(all_results_button_selector)
-        if all_results_button:
-            await all_results_button.click()
-            await asyncio.sleep(1)
+                    # Найдите кнопку и выполните клик
+                    download_results_button = await page.query_selector(
+                        download_results_button_selector
+                    )
+                    if download_results_button:
+                        await download_results_button.click()
+                        await asyncio.sleep(1)
 
-        xpath_yes_no = '//button[@class="btn btn-default"]'
-        await page.wait_for_selector(f"xpath={xpath_yes_no}", timeout=timeout)
-        # Получаем все элементы по заданному XPath
-        all_yes_no = await page.query_selector_all(f"xpath={xpath_yes_no}")
+                    xpath_download_search_results = (
+                        '//div[@class="list-group"]//button[@class="list-group-item"]'
+                    )
+                    await page.wait_for_selector(
+                        f"xpath={xpath_download_search_results}", timeout=timeout
+                    )
+                    # Получаем все элементы по заданному XPath
+                    download_search_results = await page.query_selector_all(
+                        f"xpath={xpath_download_search_results}"
+                    )
 
-        # Проверяем, есть ли хотя бы два элемента
-        if len(all_yes_no) >= 2:
-            # Кликаем по второму элементу
-            await all_yes_no[1].click()
+                    # Проверяем, есть ли хотя бы два элемента
+                    if len(download_search_results) >= 2:
+                        # Кликаем по второму элементу
+                        await download_search_results[0].click()
+                        # Дождитесь загрузки нужной кнопки или элемента
+                        await page.wait_for_selector(".list-group-item")
 
-        # Селектор для поиска кнопки по тексту "More"
-        download_results_button_selector = 'text="Download Results"'
+                        # Находим все кнопки и извлекаем из каждой последний div с текстом результатов
+                        results = []
+                        try:
+                            buttons = await page.query_selector_all(".list-group-item")
 
-        # Дождитесь, пока кнопка станет видимой на странице
-        await page.wait_for_selector(
-            download_results_button_selector, state="visible", timeout=timeout
-        )
+                            for button in buttons:
+                                # Используем await для корректного выполнения запроса к элементу
+                                last_div = await button.query_selector("div:last-child")
+                                if last_div:
+                                    result_text = await last_div.text_content()
+                                    results.append(result_text.strip())
+                        except:
+                            continue
+                        results = int(results[0].split(" ")[0])
+                        if results <= 500:
+                            # Ожидаем событие загрузки файла
+                            download = await page.wait_for_event("download")
+                            # Путь к загруженному файлу
+                            download_path = await download.path()
 
-        # Найдите кнопку и выполните клик
-        download_results_button = await page.query_selector(
-            download_results_button_selector
-        )
-        if download_results_button:
-            await download_results_button.click()
-            await asyncio.sleep(1)
+                            filename = os.path.basename(download_path)
+                            if is_valid_uuid(filename):
+                                # Переименовываем файл, если имя соответствует формату UUID
+                                new_filename = os.path.join(
+                                    downloads_path, f"{identifier}.xlsx"
+                                )
+                                os.replace(download_path, new_filename)
 
-        xpath_download_search_results = (
-            '//div[@class="list-group"]//button[@class="list-group-item"]'
-        )
-        await page.wait_for_selector(
-            f"xpath={xpath_download_search_results}", timeout=timeout
-        )
-        # Получаем все элементы по заданному XPath
-        download_search_results = await page.query_selector_all(
-            f"xpath={xpath_download_search_results}"
-        )
-
-        # Проверяем, есть ли хотя бы два элемента
-        if len(download_search_results) >= 2:
-            # Кликаем по второму элементу
-            await download_search_results[0].click()
-            page.on('download', handle_download, current_directory, identifier)
-
-            await asyncio.sleep(5)
-        
-        await browser.close()
-
-
-async def get_search_info_json(page_content_soup, jurcode, keyno, search_results_path):
-
-    # Парсинг HTML с помощью BeautifulSoup
-    soup = BeautifulSoup(page_content_soup, "lxml")
-
-    headers = [th.get_text().strip() for th in soup.find_all("th")]
-    # Первый ряд пропускаем, т.к. это заголовки
-
-    rows = soup.find_all("tr")[1:]
-    all_data = []
-    for row in rows:
-        values = [td.get_text().strip() for td in row.find_all("td")]
-        pdf_link = row.find("a")["href"] if row.find("a") else None
-        data_dict = dict(zip(headers, values))
-        pdf_link = f"https://www.assessedvalues2.com{pdf_link}"
-        if pdf_link:
-            data_dict["Card_PDF"] = pdf_link
-        all_data.append(data_dict)
-    # Сохраняем полученные данные в JSON файл
-    filename_json_search_info = os.path.join(
-        search_results_path, f"{jurcode}_{keyno}.json"
-    )
-    if not os.path.exists(filename_json_search_info):
-        async with aiofiles.open(
-            filename_json_search_info, mode="w", encoding="utf-8"
-        ) as f:
-            await f.write(json.dumps(all_data, ensure_ascii=False, indent=4))
-
-
-def load_config():
-    if getattr(sys, "frozen", False):
-        # Если приложение 'заморожено' с помощью PyInstaller
-        application_path = os.path.dirname(sys.executable)
-    else:
-        # Обычный режим выполнения (например, во время разработки)
-        application_path = os.path.dirname(os.path.abspath(__file__))
-
-    filename_config = os.path.join(application_path, "config.json")
-    if not os.path.exists(filename_config):
-        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
-        time.sleep(3)
-        sys.exit(1)
-    else:
-        with open(filename_config, "r") as config_file:
-            config = json.load(config_file)
-
-    return config
+                                await write_log(
+                                    f"Скачали файл  {new_filename}", filename_log
+                                )
+                            await asyncio.sleep(1)
 
 
-def convert_card_pdf_url(old_url):
-    # Проверяем наличие '?' в URL
-    if "?" in old_url:
-        # Разбиваем URL на части и извлекаем параметры
-        _, query_string = old_url.split("?")
-        params = dict(param.split("=") for param in query_string.split("&"))
+                        else:
+                            await write_log(
+                                f"В {identifier} количество {results}", filename_log
+                            )
+                    xpath_button_close = '//button[@class="close"]'
+                    try:
+                        await page.wait_for_selector(
+                            f"xpath={xpath_button_close}", timeout=timeout
+                        )
+                        await page.click(xpath_button_close)
+                    except:
+                        continue
+                    xpath_results_close = '//button[@class="btn btn-block btn-primary"]'
+                    try:
+                        await page.wait_for_selector(
+                            f"xpath={xpath_results_close}", timeout=timeout
+                        )
+                        await page.click(xpath_results_close)
+                    except:
+                        continue
+                except:
+                    # Ждем, пока страница загрузится или другие условия, которые нужны до проверки
+                    await page.wait_for_load_state("domcontentloaded")
 
-        # Формируем новый URL
-        new_url = f"https://www.assessedvalues2.com/pdfs/{params['jurcode']}/{params['pdf']}.pdf"
-        return new_url
-    else:
-        # Возвращаем исходный URL, если в нем нет '?'
-        return old_url
+                    # Используем селектор с текстом, чтобы найти элемент
+                    no_results_selector = (
+                        'text="No results were found with your query."'
+                    )
+                    # Проверяем, есть ли элемент на странице
+                    no_results_element = await page.query_selector(no_results_selector)
 
+                    if no_results_element:
+                        await write_log(
+                            f"нет результата  для {identifier}", filename_log
+                        )
+                    xpath_results_close = '//button[@class="btn btn-block btn-primary"]'
+                    try:
+                        await page.wait_for_selector(
+                            f"xpath={xpath_results_close}", timeout=timeout
+                        )
+                        await page.click(xpath_results_close)
 
-async def insert_data_into_table():
+                    except:
+                        continue
+                    continue
+
+            await browser.close()
+
+def combine_excel_files():
     current_directory = os.getcwd()
-    # Создайте полный путь к папке temp
     temp_path = os.path.join(current_directory, "temp")
-    search_results_path = os.path.join(temp_path, "search_results")
-    config = load_config()
-    db_config = config["db_config"]
-    conn = await aiomysql.connect(
-        host=db_config["host"],
-        port=3306,
-        user=db_config["user"],
-        password=db_config["password"],
-        db=db_config["database"],
-    )
-    cursor = await conn.cursor()
+    downloads_path = os.path.join(temp_path, "downloads_path")
 
-    json_files = glob.glob(f"{search_results_path}/*.json")
-    for json_file_path in json_files:
-        filename = os.path.basename(json_file_path)
-        keyno, card = filename.rstrip(".json").split("_")
-        with open(json_file_path, "r", encoding="utf-8") as json_file:
-            data = json.load(json_file)
-        if not data:  # Пропускаем пустые json файлы
-            continue
+    # Список всех файлов Excel в директории
+    files = [f for f in os.listdir(downloads_path) if f.endswith(".xlsx")]
 
-        await cursor.execute("SHOW COLUMNS FROM search_results")
-        columns_info = await cursor.fetchall()
-        column_can_be_null = {col[0]: (col[2] == "YES") for col in columns_info}
+    # Создаем новый рабочий файл
+    combined_wb = Workbook()
+    combined_ws = combined_wb.active
 
-        for record in data:
-            if "Card_PDF" in record:
-                record["Card_PDF"] = convert_card_pdf_url(record["Card_PDF"])
+    for index, filename in enumerate(files):
+        file_path = os.path.join(downloads_path, filename)
 
-            filtered_record = {
-                k: v for k, v in record.items() if k in column_can_be_null
-            }
-            columns_str = ", ".join(filtered_record.keys())
-            placeholders = ", ".join(["%s"] * len(filtered_record))
-            values = list(filtered_record.values())
-            if not columns_str:
-                continue
+        # Загружаем каждый файл
+        wb = openpyxl.load_workbook(file_path)
+        ws = wb.active
 
-            insert_query = (
-                f"INSERT INTO search_results ({columns_str}) VALUES ({placeholders})"
-            )
-            await cursor.execute(insert_query, values)
+        # Определяем, должны ли мы пропустить заголовки
+        start_row = 1 if index == 0 else 2
 
-        await conn.commit()
-        print(f"Данные успешно вставлены в таблицу search_results из файла {filename}.")
+        for row in ws.iter_rows(min_row=start_row):
+            # Считываем данные из строки
+            row_data = [cell.value for cell in row]
+            # Добавляем строку в новый файл
+            combined_ws.append(row_data)
 
-    await cursor.close()
-    conn.close()
-
-
-async def fetch_db_data():
-    config = load_config()
-    db_config = config["db_config"]
-    async with aiomysql.connect(
-        host=db_config["host"],
-        port=3306,
-        user=db_config["user"],
-        password=db_config["password"],
-        db=db_config["database"],
-    ) as conn:
-        async with conn.cursor() as cur:
-            await cur.execute("SELECT Keyno, Card_PDF FROM search_results")
-            db_data = await cur.fetchall()
-    return db_data
-
-
-def extract_keyno_from_filename(filename):
-    match = re.search(r"_([0-9]+)_", filename)
-    if match:
-        return match.group(1)
-    return None
-
-
-async def find_missing_pdf_files():
-    current_directory = os.getcwd()
-    # Создайте полный путь к папке temp
-    temp_path = os.path.join(current_directory, "temp")
-    search_results_path = os.path.join(temp_path, "search_results")
-    # Извлекаем данные из БД
-    db_data = await fetch_db_data()
-    db_keynos = {str(keyno): pdf for keyno, pdf in db_data}
-
-    # Извлекаем Keyno из имен файлов
-    file_paths = glob.glob(os.path.join(search_results_path, "*.json"))
-    file_keynos = set(
-        extract_keyno_from_filename(os.path.basename(path)) for path in file_paths
-    )
-
-    # Находим недостающие Card_PDF
-    missing_pdfs = {db_keynos[keyno] for keyno in db_keynos if keyno not in file_keynos}
-    print(missing_pdfs)
-    return missing_pdfs
+    # Сохраняем объединенный файл
+    combined_wb.save(os.path.join(downloads_path, "combined.xlsx"))
+    print(f"Файл combined.xlsx готов")
 
 
 if __name__ == "__main__":
     asyncio.run(run())
+    combine_excel_files()
+
 # while True:
 #     print(
 #         "Введите 1 для запуска парсинга\nВведите 3 для загрузки данных в БД \nВведите 0 для закрытия программы"
