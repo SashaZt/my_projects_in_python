@@ -1,5 +1,82 @@
 {
-    "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "basic",
-    "git.ignoreLimitWarning": true
+    // updates disabled
+    "extensions.autoCheckUpdates": false,
+    "update.enableWindowsBackgroundUpdates": false,
+    "extensions.autoUpdate": false,
+    "update.showReleaseNotes": false,
+    "update.mode": "none",
+    //terminal
+    "terminal.integrated.defaultProfile.windows": "Command Prompt",
+    "breadcrumbs.enabled": false,
+    "explorer.compactFolders": false,
+    "terminal.integrated.cursorStyle": "line",
+    "terminal.integrated.cursorBlinking": true,
+    "window.commandCenter": false,
+    "explorer.autoReveal": false,
+    "workbench.startupEditor": "none",
+    "workbench.iconTheme": "material-icon-theme",
+    "workbench.colorTheme": "Darcula Pycharm with Light GUI",
+    "editor.minimap.enabled": false,
+    "files.autoSave": "afterDelay",
+    "editor.detectIndentation": false,
+    "python.autoComplete.extraPaths": [],
+    "python.analysis.extraPaths": [],
+    "editor.defaultFormatter": "ms-python.vscode-pylance",
+    "python.languageServer": "Pylance",
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "python.analysis.packageIndexDepths": [
+        {
+            "name": "sklearn",
+            "depth": 2
+        },
+        {
+            "name": "matplotlib",
+            "depth": 2
+        },
+        {
+            "name": "scipy",
+            "depth": 2
+        },
+        {
+            "name": "django",
+            "depth": 2
+        },
+        {
+            "name": "flask",
+            "depth": 2
+        },
+        {
+            "name": "fastapi",
+            "depth": 2
+        }
+    ],
+    "explorer.confirmDelete": false,
+    "editor.largeFileOptimizations": false,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "terminal.integrated.enablePersistentSessions": false,
+    "terminal.integrated.stickyScroll.enabled": true,
+    "explorer.confirmDragAndDrop": false,
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "git.autofetch": true,
+    "[html]": {
+        "editor.defaultFormatter": "vscode.html-language-features"
+    },
+    "editor.renderWhitespace": "all",
+    "editor.wordWrap": "on",
+    "security.workspace.trust.banner": "never",
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.autoImportCompletions": false,
+    "editor.hover.enabled": true,
+    "editor.mouseWheelZoom": true,
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "python.analysis.diagnosticMode": "openFilesOnly"
 }

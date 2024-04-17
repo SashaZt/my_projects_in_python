@@ -186,6 +186,7 @@ def pars_pdf():
                     values_list_search_key_info.append(dict_search_key_info)
 
                     for dict_item in values_list_search_key_info:
+
                         # Проверяем наличие ключа 'CURRENT OWNER' и его разделение на части
                         if (
                             "CURRENT OWNER" in dict_item
@@ -219,8 +220,10 @@ def pars_pdf():
                             ].startswith("PO BOX"):
 
                                 dict_item["owner_data3"] = owner_parts[1]
-
-                            dict_item["owner_data5"] = owner_parts[2]
+                                dict_item["owner_data5"] = owner_parts[2]
+                            else:
+                                dict_item["owner_data3"] = owner_parts[1]
+                                dict_item["owner_data5"] = owner_parts[2]
                             # dict_item["owner_data3"] = owner_parts[2]
                             # dict_item["owner_data4"] = owner_parts[3]
                             # dict_item["owner_data5"] = owner_parts[4]

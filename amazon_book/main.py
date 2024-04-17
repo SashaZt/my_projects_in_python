@@ -1,4 +1,3 @@
-# -*- mode: python ; coding: utf-8 -*-
 # Скачивание PDF файлов
 
 import aiofiles
@@ -31,7 +30,7 @@ async def run():
     # Удаление папки log_path вместе со всем содержимым
     shutil.rmtree(log_path, ignore_errors=True)
 
-    url_start = f"https://www.amazon.com/dp/B084ZH43LV/"
+    url_start = "https://www.amazon.com/dp/B084ZH43LV/"
     # Создайте полный путь к папке temp
     temp_path = os.path.join(current_directory, "temp")
     html_path = os.path.join(temp_path, "html")
@@ -57,7 +56,7 @@ async def run():
         # Путь к файлу, в который будет сохранено содержимое
         page_content = await page.content()
         filename = "saved_page.html"
-        filename_to_check = os.path.join(html_path, f"data_.html")
+        filename_to_check = os.path.join(html_path, "data_.html")
         # Асинхронная запись содержимого в файл
         async with aiofiles.open(filename_to_check, "w", encoding="utf-8") as file:
             await file.write(page_content)
@@ -65,6 +64,8 @@ async def run():
         print("Все скачано")
         await sleep(5)
         await browser.close()
+
+
 def parsin_html():
     current_directory = os.getcwd()
     temp_path = os.path.join(current_directory, "temp")
@@ -78,22 +79,25 @@ def parsin_html():
         # Создаем парсер для прочитанного HTML
         parser = HTMLParser(src)
 
-        product_title = parser.css_first('span#productTitle').text()
-        
-        a_autoid_0_announce = parser.css_first('a#a-autoid-0-announce').text().split()
-        a_autoid_0_announce_string = ' '.join(a_autoid_0_announce)
-        a_autoid_1_announce = parser.css_first('a#a-autoid-1-announce').text().split()
-        a_autoid_1_announce_string = ' '.join(a_autoid_1_announce)
-        bylineInfo = parser.css_first('div#bylineInfo').text().split()
-        bylineInfo_string = ' '.join(bylineInfo)
-        acrPopover = parser.css_first('span#acrPopover span.a-declarative > a > i.a-icon.a-icon-star.a-star-4.cm-cr-review-stars-spacing-big > span').text().split()
-        averageCustomerReviews_string = ' '.join(acrPopover)
+        product_title = parser.css_first("span#productTitle").text()
 
-        
-        
+        a_autoid_0_announce = parser.css_first("a#a-autoid-0-announce").text().split()
+        a_autoid_0_announce_string = " ".join(a_autoid_0_announce)
+        a_autoid_1_announce = parser.css_first("a#a-autoid-1-announce").text().split()
+        a_autoid_1_announce_string = " ".join(a_autoid_1_announce)
+        bylineInfo = parser.css_first("div#bylineInfo").text().split()
+        bylineInfo_string = " ".join(bylineInfo)
+        acrPopover = (
+            parser.css_first(
+                "span#acrPopover span.a-declarative > a > i.a-icon.a-icon-star.a-star-4.cm-cr-review-stars-spacing-big > span"
+            )
+            .text()
+            .split()
+        )
+        averageCustomerReviews_string = " ".join(acrPopover)
+
         print(averageCustomerReviews_string)
 
-        
 
 def load_config():
     if getattr(sys, "frozen", False):
@@ -113,7 +117,6 @@ def load_config():
             config = json.load(config_file)
 
     return config
-
 
 
 if __name__ == "__main__":
