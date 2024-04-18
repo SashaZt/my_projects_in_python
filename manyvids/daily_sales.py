@@ -1738,6 +1738,7 @@ def get_asio():
     import os
     import random
     from datetime import datetime
+    from asyncio import create_task, wait, FIRST_COMPLETED
 
     import aiofiles
     import aiohttp
@@ -2009,6 +2010,7 @@ def get_asio():
         async with aiohttp.ClientSession() as session:
             for item in data_login_pass:
                 successful_login = False
+
                 attempts = 0
                 while attempts < max_attempts and not successful_login:
                     proxy = (
@@ -2021,26 +2023,123 @@ def get_asio():
                     page = await context.new_page()
 
                     try:
+
                         await page.goto(
                             "https://www.manyvids.com/Login/",
-                            wait_until="networkidle",
+                            wait_until="load",
                             timeout=timeout_ancet,
                         )
+                        # await asyncio.sleep(60)
+                        # Ожидаем появления заголовка с текстом "Sign in to ManyVids" на странице
                         await page.wait_for_selector(
-                            'h1:text("Login to ManyVids")', timeout=timeout_ancet
+                            'text="Sign in to ManyVids"', timeout=timeout_ancet
                         )
-                        await page.fill("input#triggerUsername", item["login"])
-                        await page.fill("input#triggerPassword", item["password"])
-                        await page.press("input#triggerPassword", "Enter")
 
-                        # Проверяем исчезновение элемента login
+                        # Заполнение поля ввода имени пользователя, после того как оно появится
                         await page.wait_for_selector(
-                            '//a[@data-recaptcha-action="login"]',
-                            state="hidden",
-                            timeout=30000,
+                            "input[name='userName']", timeout=timeout_ancet
                         )
-                        print(f"Успешный вход для {item['login']}")
-                        successful_login = True
+                        await page.fill("input[name='userName']", item["login"])
+
+                        # Заполнение поля ввода пароля, после того как оно появится
+                        await page.wait_for_selector(
+                            "input[name='password'][type='password']",
+                            timeout=timeout_ancet,
+                        )
+                        await page.fill("input[name='password']", item["password"])
+
+                        await page.press("input[name='password']", "Enter")
+                        await asyncio.sleep(10)
+
+                        # login_hidden = page.wait_for_selector(
+                        #     "button:has-text('Sign In')",
+                        #     state="attached",  # Используем 'attached' для проверки, что кнопка присутствует на странице
+                        #     timeout=timeout_ancet,
+                        # )
+                        # error_detected = page.wait_for_selector(
+                        #     "span[class*='Snackbar_message']", timeout=timeout_ancet
+                        # )
+
+                        login_task = page.wait_for_selector(
+                            "button:has-text('Sign In')",
+                            state="attached",  # Используем 'attached' для проверки, что кнопка присутствует на странице
+                            timeout=1000,
+                        )
+                        error_task = page.wait_for_selector(
+                            "span[class*='Snackbar_message']", timeout=1000
+                        )
+
+                        results = await asyncio.gather(
+                            login_task,
+                            error_task,
+                            return_exceptions=True,
+                        )
+
+                        # Проверяем результаты
+                        # if isinstance(results[0], Exception):
+                        #     print(f"Login failed: {results[0]}")
+                        #     attempts += 1
+                        # else:
+                        #     print(f"Успешный вход для {item['login']}")
+                        #     successful_login = True
+
+                        if isinstance(results[1], Exception):
+                            print(f"Успешный вход для {item['login']}")
+                            successful_login = True
+                        else:
+                            error_text = await results[1].text_content()
+                            print(f'{item["login"]}: {error_text}')
+                            attempts += 1
+                            await browser.close()  # Закрыть браузер при ошибке
+                        # login_task = asyncio.create_task(
+                        #     page.wait_for_selector(
+                        #         "button:has-text('Sign In')",
+                        #         state="attached",  # Используем 'attached' для проверки, что кнопка присутствует на странице
+                        #         timeout=timeout_ancet,
+                        #     )
+                        # )
+
+                        # error_task = asyncio.create_task(
+                        #     page.wait_for_selector(
+                        #         "span[class*='Snackbar_message']", timeout=timeout_ancet
+                        #     )
+                        # )
+
+                        # done, pending = await asyncio.wait(
+                        #     [login_task, error_task],
+                        #     return_when=asyncio.FIRST_COMPLETED,
+                        # )
+
+                        # # Проверка, какая задача завершилась
+                        # for task in done:
+                        #     result = await task  # Получаем результат завершенной задачи
+                        #     if task == error_task:
+                        #         error_message = await result.text_content()
+                        #         print(f"Error detected: {error_message}")
+                        #         for p in pending:
+                        #             p.cancel()
+                        #         attempts += 1
+                        #         await browser.close()  # Закрыть браузер при ошибке
+
+                        #     elif task == login_task and result is None:
+                        #         print("Успешный вход")
+                        #         for p in pending:
+                        #             p.cancel()
+                        #         await asyncio.sleep(5)
+                        #         successful_login = True
+                        #     # elif task == error_task:
+                        #     #     error_message = await result.text_content()
+                        #     #     print(f"Error detected: {error_message}")
+                        #     #     for p in pending:
+                        #     #         p.cancel()
+                        #     #     attempts += 1
+                        #     #     await browser.close()  # Закрыть браузер при ошибке
+
+                        # for task in pending:
+                        #     task.cancel()
+
+                        # attempts += 1
+                        # await browser.close()  # Закрыть браузер при ошибке
                     except Exception as e:
                         print(
                             f"Ошибка при попытке входа для {item['login']} на попытке {attempts + 1}: {str(e)}"
@@ -2048,12 +2147,18 @@ def get_asio():
                         attempts += 1
                         await browser.close()  # Закрыть браузер при ошибке
 
+                    # finally:
+                    #     if not successful_login:
+                    #         await browser.close()  # Закрываем браузер и перезапускаем его в следующей итерации
+                    #         print("Restarting browser for a new login attempt.")
+
                 if successful_login:
                     # Продолжаем использовать текущий браузер и прокси
                     try:
+                        await asyncio.sleep(5)
                         await page.goto(
                             "https://www.manyvids.com/View-my-earnings/",
-                            wait_until="networkidle",
+                            wait_until="load",
                             timeout=timeout_ancet,
                         )
                         try:
@@ -2061,18 +2166,30 @@ def get_asio():
                                 '//div[@class="text-left"]', timeout=timeout_ancet
                             )
                         except:
-                            print(f"Страница не загрузилась для {item['login']} 60 секунд.")
+                            print(
+                                f"Страница не загрузилась для {item['login']} 60 секунд."
+                            )
                             await browser.close()
 
-                        await page.wait_for_selector("[data-mvtoken]", timeout=timeout_ancet)
-                        mvtoken = await page.get_attribute("[data-mvtoken]", "data-mvtoken")
+                        await page.wait_for_selector(
+                            "[data-mvtoken]", timeout=timeout_ancet
+                        )
+                        mvtoken = await page.get_attribute(
+                            "[data-mvtoken]", "data-mvtoken"
+                        )
                         filename = await save_cookies(page, item["identifier"], mvtoken)
 
                         await load_cookies_and_update_session(session, filename)
 
                         """Дневные продажи"""
                         data_json_day = await get_requests_day(
-                            session, proxy, headers, mvtoken, month, filterYear, filename
+                            session,
+                            proxy,
+                            headers,
+                            mvtoken,
+                            month,
+                            filterYear,
+                            filename,
                         )
                         await save_day_json(data_json_day, mvtoken, month, filterYear)
 
@@ -2100,7 +2217,7 @@ def get_asio():
                         )
                         for data_json, i in results:
                             await save_all_chat_json(data_json, mvtoken, i)
-                        
+
                     except Exception as e:
                         print(
                             f"Не удалось загрузить страницу заработков для {item['login']}: {str(e)}"
@@ -2111,8 +2228,6 @@ def get_asio():
                     print(
                         f"Не удалось войти для {item['login']} после {max_attempts} попыток."
                     )
-
-                
 
                 """Закрываем"""
             await browser.close()
