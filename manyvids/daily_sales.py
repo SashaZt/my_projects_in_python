@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 import glob
 import json
 import os
@@ -6,7 +6,7 @@ import random
 import time
 from collections import defaultdict
 from datetime import datetime, timedelta
-
+import os
 import gspread
 import mysql.connector
 import numpy as np
@@ -555,160 +555,6 @@ def get_requests_chat(param_chat, session):
                     should_stop
                 ):  # Повторная проверка флага после обработки каждой страницы
                     break  # Прерываем внешний цикл, если флаг установлен
-    # if not should_stop and filename_chat:
-    #     with open(filename_chat, 'r', encoding="utf-8") as f:
-    #         data_json = json.load(f)
-    #     os.remove(filename_chat)
-    #     try:
-    #         total_msg = int(data_json['conversations']['meta']['total'])
-    #         total_pages = (total_msg // 13) + 2
-    #         offset = 0
-    #         data_and_time_json = []
-    #         for i in range(total_pages):
-    #             filename_chat_all = os.path.join(daily_sales_path, f'{mvtoken}_0{i}.json')
-    #             if i == 1:
-    #                 params = {'mvtoken': mvtoken, 'typeMessage': 'private', 'action': 'clc', 'isMobile': '0'}
-    #                 while attempts < max_attempts:
-    #                     try:
-    #                         proxi = proxy_random()
-    #                         response = session.get('https://www.manyvids.com/includes/user_messages.php',
-    #                                                params=params, headers=headers, proxies=proxi)
-    #                         if "error" in data_json:
-    #                             log_message(f"Ошибка: в получение дневных продаж {mvtoken}", data_json["error"])
-    #                         else:
-    #                             # Если ключ "error" отсутствует, записываем данные в файл
-    #                             with open(filename_chat_all, 'w', encoding='utf-8') as f:
-    #                                 json.dump(data_json, f, ensure_ascii=False, indent=4)  # Записываем в файл
-    #                         break  # Если запрос успешен, выходим из цикла
-    #                     except requests.exceptions.ConnectionError as e:
-    #                         log_message(f"Попытка {attempts + 1} не удалась из-за проблемы соединения: {e}")
-    #                     except requests.exceptions.RequestException as e:
-    #                         log_message(f"Попытка {attempts + 1} не удалась: {e}")
-    #                     finally:
-    #                         attempts += 1
-    #                         if attempts < max_attempts:
-    #                             time.sleep(30)  # Задержка перед следующей попыткой
-    #                         else:
-    #                             log_message("Достигнуто максимальное количество попыток.")
-    #                 # json_data = response.json()
-    #                 # data_json = json_data['conversations']
-    #                 # for dj in data_json['list']:
-    #                 #     msg_last_id = dj['msg_last_id']  # id чата
-    #                 #     sender_id = dj['sender_id']  # id  модели
-    #                 #     user_id = dj['user_id']  # id  клиента
-    #                 #     msg_date = dj['msg_date']  # дата  чата
-    #                 #     msg_date = datetime.strptime(msg_date, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
-    #                 #     # log_message(f'в Чате {msg_date} последняя дата {latest_date}')
-    #                 #
-    #                 #     if msg_date == latest_date:
-    #                 #         should_stop = True  # Устанавливаем флаг в True, когда нашли совпадение
-    #                 #         log_message('Стоп')
-    #                 #         break  # Прерываем внутренний цикл
-    #                 #     date_part, time_part = msg_date.split(' ')
-    #                 #     json_data_chat = (msg_last_id, msg_date)
-    #                 #     values = [msg_last_id, user_id, sender_id, date_part, time_part]
-    #                 #
-    #                 #     if not json_data_chat in sql_data:
-    #                 #         # SQL-запрос для вставки данных
-    #                 #         insert_query = f"""
-    #                 #                     INSERT IGNORE INTO {use_table_chat}
-    #                 #                     (msg_last_id, user_id, sender_id, date_part, time_part)
-    #                 #                     VALUES (%s, %s, %s, %s, %s)
-    #                 #                     """
-    #                 #         cursor.execute(insert_query, values)
-    #                 #
-    #                 #         cnx.commit()  # Подтверждение изменений
-    #                 #     else:
-    #                 #         break
-    #
-    #             sleep_time = random.randint(time_a, time_b)
-    #             log_message(f'Пауза {sleep_time}сек')
-    #             time.sleep(sleep_time)
-    #             if should_stop:  # Повторная проверка флага после обработки каждой страницы
-    #                 break  # Прерываем внешний цикл, если флаг установлен
-    #
-    #             elif i > 1:
-    #                 if should_stop:  # Проверяем флаг перед выполнением запроса на следующие страницы
-    #                     break  # Прерываем внешний цикл, если флаг установлен
-    #
-    #                 offset += 13
-    #                 params = {'mvtoken': mvtoken, 'typeMessage': 'private', 'action': 'cl', 'offset': offset,
-    #                           'type': 'all', 'isMobile': '0'}
-    #                 while attempts < max_attempts:
-    #                     try:
-    #                         proxi = proxy_random()
-    #                         response = session.get('https://www.manyvids.com/includes/user_messages.php',
-    #                                                params=params, headers=headers, proxies=proxi)
-    #                         if "error" in data_json:
-    #                             log_message(f"Ошибка: в получение дневных продаж {mvtoken}", data_json["error"])
-    #                         else:
-    #                             # Если ключ "error" отсутствует, записываем данные в файл
-    #                             with open(filename_chat_all, 'w', encoding='utf-8') as f:
-    #                                 json.dump(data_json, f, ensure_ascii=False, indent=4)  # Записываем в файл
-    #                         break  # Если запрос успешен, выходим из цикла
-    #                     except requests.exceptions.ConnectionError as e:
-    #                         log_message(f"Попытка {attempts + 1} не удалась из-за проблемы соединения: {e}")
-    #                     except requests.exceptions.RequestException as e:
-    #                         log_message(f"Попытка {attempts + 1} не удалась: {e}")
-    #                     finally:
-    #                         attempts += 1
-    #                         if attempts < max_attempts:
-    #                             time.sleep(30)  # Задержка перед следующей попыткой
-    #                         else:
-    #                             log_message("Достигнуто максимальное количество попыток.")
-    #                 # try:
-    #                 #     json_data = response.json()
-    #                 # except:
-    #                 #     log_message(f'что-то не то с {mvtoken}')
-    #                 #     continue
-    #                 # data_json = json_data['conversations']
-    #                 # for dj in data_json['list']:
-    #                 #     msg_last_id = dj['msg_last_id']  # id чата
-    #                 #     sender_id = dj['sender_id']  # id  модели
-    #                 #     user_id = dj['user_id']  # id  клиента
-    #                 #     msg_date = dj['msg_date']  # дата  чата
-    #                 #     msg_date = datetime.strptime(msg_date, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
-    #                 #     # log_message(f'в Чате {msg_date} последняя дата {latest_date}')
-    #                 #     if msg_date == latest_date:
-    #                 #         should_stop = True  # Устанавливаем флаг в True, когда нашли совпадение
-    #                 #         log_message('Стоп')
-    #                 #         break  # Прерываем внутренний цикл
-    #                 #     date_part, time_part = msg_date.split(' ')
-    #                 #     json_data_chat = (msg_last_id, msg_date)
-    #                 #     values = [msg_last_id, user_id, sender_id, date_part, time_part]
-    #                 #
-    #                 #     if not json_data_chat in sql_data:
-    #                 #         # SQL-запрос для вставки данных
-    #                 #         insert_query = f"""
-    #                 #         INSERT IGNORE INTO {use_table_chat}
-    #                 #             (msg_last_id, user_id, sender_id, date_part, time_part)
-    #                 #         VALUES (%s, %s, %s, %s, %s)
-    #                 #         """
-    #                 #         cursor.execute(insert_query, values)
-    #                 #
-    #                 #         cnx.commit()  # Подтверждение изменений
-    #                 #     else:
-    #                 #         break
-    #             """Открыть когда пущу автомат"""
-    #             if i == 20:
-    #                 should_stop = True
-    #                 break
-    #             if should_stop:  # Повторная проверка флага после обработки каждой страницы
-    #                 break  # Прерываем внешний цикл, если флаг установлен
-    #
-    #         # Здесь ваш код для обработки страниц
-    #     except KeyError as e:
-    #         log_message(f"В ответе отсутствуют необходимые данные: {e}")
-    # else:
-    #     log_message("Пропускаем итерацию или выполняем альтернативные действия")
-    #
-    # # Дополнительная логика, если была ошибка
-    # if should_stop:
-    #     log_message("Обработка остановлена из-за ошибки")
-    #
-    # # Закрытие соединения с базой данных
-    # cursor.close()
-    # cnx.close()
 
 
 def unique_users_to_sql():
@@ -722,7 +568,7 @@ def unique_users_to_sql():
     cursor = cnx.cursor()
 
     # Выполнение SQL запроса для получения данных
-    query = f"""
+    query = """
             SELECT sender_id, EXTRACT(MONTH FROM date_part) AS month, user_id
             FROM chat
             ORDER BY sender_id, month;
@@ -825,7 +671,7 @@ def unique_users_to_sql():
 
     # # Подтверждение изменений и закрытие подключения
     cnx.commit()
-    update_query = f"""
+    update_query = """
         UPDATE monthly_sales m
         JOIN unique_users u ON m.model_id = u.model_id AND m.sales_month = u.sales_month
         SET m.chat_user = u.chat_user;
@@ -1009,51 +855,6 @@ def get_sql_payout_history():
     """
     Функция для отправки данных об истории в в Mysql
     """
-    # cnx = mysql.connector.connect(**db_config)
-    # cursor = cnx.cursor()
-    #
-    # # # Очистка таблицы перед вставкой новых данных
-    # truncate_query = f"TRUNCATE TABLE {use_table_payout_history}"
-    # cursor.execute(truncate_query)
-    # cnx.commit()  # Подтверждение изменений
-    #
-    # folder = os.path.join(payout_history_path, '*.json')
-    # files_json = glob.glob(folder)
-    # id_models = get_id_models()
-    #
-    # for item in files_json:
-    #     filename = os.path.basename(item)
-    #     parts = filename.split("_")
-    #     mvtoken = parts[0]
-    #
-    #     # Ищем, какому ключу соответствует mvtoken
-    #     models_id = [key for key, value in id_models.items() if value == mvtoken]
-    #     try:
-    #         model_id = models_id[0]
-    #         log_message(models_id)
-    #
-    #     except:
-    #         model_id = None
-    #     with open(item, 'r', encoding="utf-8") as f:
-    #         data_json = json.load(f)
-    #     try:
-    #         payPeriodItems = data_json['payPeriodItems']
-    #     except:
-    #         continue
-    #     for item in payPeriodItems:
-    #         payment_date = item['end_period_date']
-    #         paid = item['paid']
-    #         values = [model_id, payment_date, paid]
-    #         # log_message(values)
-    #
-    #         # SQL-запрос для вставки данных
-    #         insert_query = f"""
-    #         INSERT INTO {use_table_payout_history} (model_id, payment_date, paid)
-    #         VALUES (%s, %s, %s)"""
-    #         cursor.execute(insert_query, values)
-    #     cnx.commit()  # Подтверждение изменений
-    # cursor.close()
-    # cnx.close()
 
     sql_data = check_payout_history()
 
@@ -1066,8 +867,15 @@ def get_sql_payout_history():
     for item in files_json:
         with open(item, "r", encoding="utf-8") as f:
             raw_json_str = f.read()
-            data_json = json.loads(raw_json_str)
-            data_json = json.loads(data_json)
+            try:
+                data_json = json.loads(raw_json_str)
+                data_json = json.loads(data_json)
+            except json.JSONDecodeError as e:
+                print(f"Ошибка декодирования JSON в файле {item}: {e}")
+                continue
+            except Exception as e:
+                print(f"Произошла ошибка при работе с файлом {item}: {e}")
+                continue
         try:
             mvtoken = str(data_json["user_id"])
         except:
@@ -1126,8 +934,15 @@ def get_sql_chat():
     for item in files_json:
         with open(item, "r", encoding="utf-8") as f:
             raw_json_str = f.read()
-            data_json = json.loads(raw_json_str)
-            data_json = json.loads(data_json)
+            try:
+                data_json = json.loads(raw_json_str)
+                data_json = json.loads(data_json)
+            except json.JSONDecodeError as e:
+                print(f"Ошибка декодирования JSON в файле {item}: {e}")
+                continue
+            except Exception as e:
+                print(f"Произошла ошибка при работе с файлом {item}: {e}")
+                continue
         try:
             json_data = data_json["conversations"]
         except:
@@ -1154,93 +969,15 @@ def get_sql_chat():
             if not json_data_chat in sql_data:
                 # SQL-запрос для вставки данных
                 insert_query = f"""
-                                                INSERT IGNORE INTO {use_table_chat}
-                                                (msg_last_id, user_id, sender_id, date_part, time_part)
-                                                VALUES (%s, %s, %s, %s, %s)
-                                                """
+                    INSERT IGNORE INTO {use_table_chat}
+                    (msg_last_id, user_id, sender_id, date_part, time_part)
+                    VALUES (%s, %s, %s, %s, %s)
+                    """
                 cursor.execute(insert_query, values)
 
                 cnx.commit()  # Подтверждение изменений
             else:
                 break
-
-
-#             # Закрытие соединения с базой данных
-#             cursor.close()
-#             cnx.close()
-#     # # Проверяем, были ли
-# #                   json_data = response.json()
-#                     data_json = json_data['conversations']
-#                     for dj in data_json['list']:
-#                         msg_last_id = dj['msg_last_id']  # id чата
-#                         sender_id = dj['sender_id']  # id  модели
-#                         user_id = dj['user_id']  # id  клиента
-#                         msg_date = dj['msg_date']  # дата  чата
-#                         msg_date = datetime.strptime(msg_date, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
-#                         # print(f'в Чате {msg_date} последняя дата {latest_date}')
-#
-#                         if msg_date == latest_date:
-#                             should_stop = True  # Устанавливаем флаг в True, когда нашли совпадение
-#                             print('Стоп')
-#                             break  # Прерываем внутренний цикл
-#                         date_part, time_part = msg_date.split(' ')
-#                         json_data_chat = (msg_last_id, msg_date)
-#                         values = [msg_last_id, user_id, sender_id, date_part, time_part]
-#
-#                         if not json_data_chat in sql_data:
-#                             # SQL-запрос для вставки данных
-#                             insert_query = f"""
-#                                         INSERT IGNORE INTO {use_table_chat} (msg_last_id, user_id, sender_id, date_part, time_part)
-#                                                                                VALUES (%s, %s, %s, %s, %s)
-#                                                                                """
-#                             cursor.execute(insert_query, values)
-#
-#                             cnx.commit()  # Подтверждение изменений
-#                         else:
-#                             break
-#                 print(f'Пауза {sleep_time}сек')
-#                 sleep_time = random.randint(time_a, time_b)
-#                 time.sleep(sleep_time)
-#                 if should_stop:  # Повторная проверка флага после обработки каждой страницы
-#                     break  # Прерываем внешний цикл, если флаг установлен
-#
-# while attempts < max_attempts:
-#     try:
-#         response = session.get('https://www.manyvids.com/includes/user_messages.php', params=params,
-#                                headers=headers, proxies=proxi)
-#         break  # Если запрос успешен, выходим из цикла
-#     except requests.exceptions.ConnectionError as e:
-#         print(f"Попытка {attempts + 1} не удалась: {e}")
-#         attempts += 1
-#         time.sleep(sleep_time)  # Задержка перед следующей попыткой
-# json_data = response.json()
-# data_json = json_data['conversations']
-# for dj in data_json['list']:
-#     msg_last_id = dj['msg_last_id']  # id чата
-#     sender_id = dj['sender_id']  # id  модели
-#     user_id = dj['user_id']  # id  клиента
-#     msg_date = dj['msg_date']  # дата  чата
-#     msg_date = datetime.strptime(msg_date, '%Y-%m-%d %H:%M:%S').strftime('%Y-%m-%d %H:%M:%S')
-#     # print(f'в Чате {msg_date} последняя дата {latest_date}')
-#     if msg_date == latest_date:
-#         should_stop = True  # Устанавливаем флаг в True, когда нашли совпадение
-#         print('Стоп')
-#         break  # Прерываем внутренний цикл
-#     date_part, time_part = msg_date.split(' ')
-#     json_data_chat = (msg_last_id, msg_date)
-#     values = [msg_last_id, user_id, sender_id, date_part, time_part]
-#
-#     if not json_data_chat in sql_data:
-#         # SQL-запрос для вставки данных
-#         insert_query = f"""
-#                                     INSERT IGNORE INTO {use_table_chat} (msg_last_id, user_id, sender_id, date_part, time_part)
-#                                                                            VALUES (%s, %s, %s, %s, %s)
-#                                                                            """
-#         cursor.execute(insert_query, values)
-#
-#         cnx.commit()  # Подтверждение изменений
-#     else:
-#         break
 
 
 def get_table_01_to_google():
@@ -1262,10 +999,7 @@ def get_table_01_to_google():
         """
         )
         results = cursor.fetchall()
-        # Обработка результатов запроса здесь
-        # Например, вывод результатов:
-        # for row in results:
-        #     print(row)
+
     except mysql.connector.Error as e:
         log_message(f"Произошла ошибка при выполнении запроса к базе данных: {e}")
     finally:
@@ -1309,33 +1043,27 @@ def get_table_01_to_google():
 
     # Добавляем заголовки столбцов в начало списка
     values.insert(0, df.columns.tolist())
-    try:
-        # Очистка всего листа
-        sheet_daily_sales.clear()
-    except gspread.exceptions.APIError as e:
-        log_message(f"Произошла ошибка при обновлении Google Sheets: {e}")
-    except Exception as e:
-        log_message(f"Произошла неожиданная ошибка: {e}")
-    try:
-        # Обновляем данные в Google Sheets
-        sheet_daily_sales.update(values, "A1")
-    except gspread.exceptions.APIError as e:
-        log_message(f"Произошла ошибка при обновлении Google Sheets: {e}")
-    except Exception as e:
-        log_message(f"Произошла неожиданная ошибка: {e}")
-
-    # Форматирование текущей даты и времени
-    try:
-        # Предполагается, что sheet_daily_sales уже определен и настроен
-        current_datetime_get_table_01 = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Обновляем ячейку A1 с текущей датой и временем
-        sheet_daily_sales.update(
-            [[current_datetime_get_table_01]], "A1", value_input_option="USER_ENTERED"
-        )
-    except gspread.exceptions.APIError as e:
-        log_message(f"Произошла ошибка при обновлении Google Sheets: {e}")
-    except Exception as e:
-        log_message(f"Произошла неожиданная ошибка: {e}")
+    # Очистка и обновление листа
+    max_attempts = 5
+    attempts = 0
+    while attempts < max_attempts:
+        try:
+            sheet_daily_sales.clear()
+            sheet_daily_sales.update(values, "A1")
+            current_datetime_get_table_01 = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Обновляем ячейку A1 с текущей датой и временем
+            sheet_daily_sales.update(
+                [[current_datetime_get_table_01]],
+                "A1",
+                value_input_option="USER_ENTERED",
+            )
+            break  # Если успешно, выходим из цикла
+        except gspread.exceptions.APIError as e:
+            print(f"Произошла ошибка: {e}")
+            attempts += 1
+            time.sleep(5)  # Ожидание перед следующей попыткой
+            if attempts == max_attempts:
+                print("Не удалось обновить данные после нескольких попыток.")
     if os.path.exists(filename):
         os.remove(filename)
 
@@ -1477,7 +1205,9 @@ def get_pending_to_google():
     cursor.close()
     cnx.close()
 
-    """Запись в Google Таблицу"""
+    """
+    Запись в Google Таблицу
+    """
 
     query = f"""
         SELECT model_id,  sales_month, total_sum, pending_custom, chat_user 
@@ -1583,14 +1313,25 @@ def get_pending_to_google():
             )
 
             # Очистка и обновление листа
-            worksheet.clear()
-            worksheet.update(values, "A1")
+            max_attempts = 5
+            attempts = 0
+            while attempts < max_attempts:
+                try:
+                    worksheet.clear()
+                    worksheet.update(values, "A1")
 
-            # Форматирование текущей даты и времени
-            current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    # Форматирование текущей даты и времени
+                    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # Обновление ячейки A1 с текущей датой и временем
-            worksheet.update([[current_datetime]], "A1")
+                    # Обновление ячейки A1 с текущей датой и временем
+                    worksheet.update([[current_datetime]], "A1")
+                    break  # Если успешно, выходим из цикла
+                except gspread.exceptions.APIError as e:
+                    print(f"Произошла ошибка: {e}")
+                    attempts += 1
+                    time.sleep(5)  # Ожидание перед следующей попыткой
+                    if attempts == max_attempts:
+                        print("Не удалось обновить данные после нескольких попыток.")
         else:
             # Если нет данных для total_sum_col, лист не создается и пропускаем обновление
             log_message(
@@ -1659,16 +1400,29 @@ def get_table_03_to_google():
     # Добавляем заголовки столбцов в начало списка
     values.insert(0, df.columns.tolist())
 
-    # Очистка всего листа
-    sheet_payout_history.clear()
-    # Обновляем данные в Google Sheets
-    sheet_payout_history.update(values, "A1")
+    max_attempts = 5
+    attempts = 0
+    while attempts < max_attempts:
+        try:
+            # Попытка обновить данные
+            # Очистка всего листа
+            sheet_payout_history.clear()
+            # Обновляем данные в Google Sheets
+            sheet_payout_history.update(values, "A1")
 
-    # Форматирование текущей даты и времени
-    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Форматирование текущей даты и времени
+            current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Обновление ячейки A1 с текущей датой и временем
-    sheet_payout_history.update([[current_datetime]], "A1")
+            # Обновление ячейки A1 с текущей датой и временем
+            sheet_payout_history.update([[current_datetime]], "A1")
+            break  # Если успешно, выходим из цикла
+        except gspread.exceptions.APIError as e:
+            print(f"Произошла ошибка: {e}")
+            attempts += 1
+            time.sleep(5)  # Ожидание перед следующей попыткой
+            if attempts == max_attempts:
+                print("Не удалось обновить данные после нескольких попыток.")
+
     if os.path.exists(filename):
         os.remove(filename)
 
@@ -1717,16 +1471,27 @@ def get_table_04_to_google():
     # Добавляем заголовки столбцов в начало списка
     values.insert(0, df.columns.tolist())
 
-    # Очистка всего листа
-    sheet_payout_history.clear()
-    # Обновляем данные в Google Sheets
-    sheet_payout_history.update(values, "A1")
+    max_attempts = 5
+    attempts = 0
+    while attempts < max_attempts:
+        try:
+            # Очистка всего листа
+            sheet_payout_history.clear()
+            # Обновляем данные в Google Sheets
+            sheet_payout_history.update(values, "A1")
 
-    # Форматирование текущей даты и времени
-    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # Форматирование текущей даты и времени
+            current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Обновление ячейки A1 с текущей датой и временем
-    sheet_payout_history.update([[current_datetime]], "A1")
+            # Обновление ячейки A1 с текущей датой и временем
+            sheet_payout_history.update([[current_datetime]], "A1")
+            break  # Если успешно, выходим из цикла
+        except gspread.exceptions.APIError as e:
+            print(f"Произошла ошибка: {e}")
+            attempts += 1
+            time.sleep(5)  # Ожидание перед следующей попыткой
+            if attempts == max_attempts:
+                print("Не удалось обновить данные после нескольких попыток.")
     if os.path.exists(filename):
         os.remove(filename)
 
@@ -1840,13 +1605,6 @@ def get_asio():
         ) as response:
             data_json = await response.text()
             return data_json
-            # if response.headers.get('Content-Type') == 'application/json':
-            #     data_json = await response.json()
-            #     return data_json
-            # else:
-            #     content = await response.text()
-            #     print(f'Unexpected response: {content}')
-            #     return None
 
     async def save_day_json(data_json, mvtoken, month, filterYear):
         filename = os.path.join(
@@ -1876,13 +1634,6 @@ def get_asio():
         ) as response:
             data_json = await response.text()
             return data_json
-            # if response.headers.get('Content-Type') == 'application/json':
-            #     data_json = await response.json()
-            #     return data_json
-            # else:
-            #     content = await response.text()
-            #     print(f'Unexpected response: {content}')
-            #     return None
 
     async def save_history_json(data_json, mvtoken, filterYear):
         filename = os.path.join(payout_history_path, f"{mvtoken}_{filterYear}.json")
@@ -1970,10 +1721,11 @@ def get_asio():
                 "typeMessage": "private",
                 "action": "clc" if i == 1 else "cl",
                 "isMobile": "0",
+                "type": "all",
             }
             if i > 1:
                 offset += 13
-                data.update({"offset": offset, "type": "all"})
+                data.update({"offset": offset})
 
             # Выполнение запроса
             async with session.post(
@@ -1986,7 +1738,7 @@ def get_asio():
                 data_json = await response.text()
                 results.append((data_json, i))  # Добавляем результат в список
                 # Добавляем случайную задержку от 0 до 5 секунд
-            await asyncio.sleep(random.uniform(0, 5))
+            await asyncio.sleep(random.uniform(0, 2))
             if i == 5:  # Прерываем цикл после обработки пяти итераций
                 break
 
@@ -2013,9 +1765,8 @@ def get_asio():
 
                 attempts = 0
                 while attempts < max_attempts and not successful_login:
-                    proxy = (
-                        await proxy_random()
-                    )  # Получение нового прокси при каждой попытке
+                    # Получение нового прокси при каждой попытке
+                    proxy = await proxy_random()
                     browser = await playwright.chromium.launch(
                         headless=False, proxy=proxy
                     )
@@ -2029,8 +1780,6 @@ def get_asio():
                             wait_until="load",
                             timeout=timeout_ancet,
                         )
-                        # await asyncio.sleep(60)
-                        # Ожидаем появления заголовка с текстом "Sign in to ManyVids" на странице
                         await page.wait_for_selector(
                             'text="Sign in to ManyVids"', timeout=timeout_ancet
                         )
@@ -2051,15 +1800,6 @@ def get_asio():
                         await page.press("input[name='password']", "Enter")
                         await asyncio.sleep(10)
 
-                        # login_hidden = page.wait_for_selector(
-                        #     "button:has-text('Sign In')",
-                        #     state="attached",  # Используем 'attached' для проверки, что кнопка присутствует на странице
-                        #     timeout=timeout_ancet,
-                        # )
-                        # error_detected = page.wait_for_selector(
-                        #     "span[class*='Snackbar_message']", timeout=timeout_ancet
-                        # )
-
                         login_task = page.wait_for_selector(
                             "button:has-text('Sign In')",
                             state="attached",  # Используем 'attached' для проверки, что кнопка присутствует на странице
@@ -2075,71 +1815,23 @@ def get_asio():
                             return_exceptions=True,
                         )
 
-                        # Проверяем результаты
-                        # if isinstance(results[0], Exception):
-                        #     print(f"Login failed: {results[0]}")
-                        #     attempts += 1
-                        # else:
-                        #     print(f"Успешный вход для {item['login']}")
-                        #     successful_login = True
-
                         if isinstance(results[1], Exception):
-                            print(f"Успешный вход для {item['login']}")
+                            # print(f"Успешный вход для {item['login']}")
                             successful_login = True
                         else:
                             error_text = await results[1].text_content()
                             print(f'{item["login"]}: {error_text}')
-                            attempts += 1
-                            await browser.close()  # Закрыть браузер при ошибке
-                        # login_task = asyncio.create_task(
-                        #     page.wait_for_selector(
-                        #         "button:has-text('Sign In')",
-                        #         state="attached",  # Используем 'attached' для проверки, что кнопка присутствует на странице
-                        #         timeout=timeout_ancet,
-                        #     )
-                        # )
 
-                        # error_task = asyncio.create_task(
-                        #     page.wait_for_selector(
-                        #         "span[class*='Snackbar_message']", timeout=timeout_ancet
-                        #     )
-                        # )
+                            if (
+                                "Check Username & Password are correct and re-try"
+                                in error_text
+                            ):
+                                attempts += 5  # Если сообщение об ошибке указывает на проблему с учетными данными, увеличиваем попытки
+                            else:
+                                attempts += 1  # Для других ошибок увеличиваем на 1
 
-                        # done, pending = await asyncio.wait(
-                        #     [login_task, error_task],
-                        #     return_when=asyncio.FIRST_COMPLETED,
-                        # )
+                            await browser.close()  # Закрываем браузер после обработки ошибки
 
-                        # # Проверка, какая задача завершилась
-                        # for task in done:
-                        #     result = await task  # Получаем результат завершенной задачи
-                        #     if task == error_task:
-                        #         error_message = await result.text_content()
-                        #         print(f"Error detected: {error_message}")
-                        #         for p in pending:
-                        #             p.cancel()
-                        #         attempts += 1
-                        #         await browser.close()  # Закрыть браузер при ошибке
-
-                        #     elif task == login_task and result is None:
-                        #         print("Успешный вход")
-                        #         for p in pending:
-                        #             p.cancel()
-                        #         await asyncio.sleep(5)
-                        #         successful_login = True
-                        #     # elif task == error_task:
-                        #     #     error_message = await result.text_content()
-                        #     #     print(f"Error detected: {error_message}")
-                        #     #     for p in pending:
-                        #     #         p.cancel()
-                        #     #     attempts += 1
-                        #     #     await browser.close()  # Закрыть браузер при ошибке
-
-                        # for task in pending:
-                        #     task.cancel()
-
-                        # attempts += 1
-                        # await browser.close()  # Закрыть браузер при ошибке
                     except Exception as e:
                         print(
                             f"Ошибка при попытке входа для {item['login']} на попытке {attempts + 1}: {str(e)}"
@@ -2229,7 +1921,9 @@ def get_asio():
                         f"Не удалось войти для {item['login']} после {max_attempts} попыток."
                     )
 
-                """Закрываем"""
+                """
+                Закрываем
+                """
             await browser.close()
 
     async def main():
@@ -2271,7 +1965,7 @@ def job():
     get_pending_to_google()
     unique_users_to_sql()
 
-    log_message(f"Все выполнено, ждем 30мин")
+    log_message("Все выполнено, ждем 30мин")
     delete_all_files()
 
 
