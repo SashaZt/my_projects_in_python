@@ -1961,7 +1961,7 @@ def job():
     """payout_history"""
     get_table_03_to_google()
 
-    # get_table_04_to_google()
+    get_table_04_to_google()
     get_pending_to_google()
     unique_users_to_sql()
 
