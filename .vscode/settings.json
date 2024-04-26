@@ -78,5 +78,6 @@
     "editor.mouseWheelZoom": true,
     "editor.formatOnPaste": true,
     "editor.formatOnSave": true,
-    "python.analysis.diagnosticMode": "openFilesOnly"
+    "python.analysis.diagnosticMode": "openFilesOnly",
+    "diffEditor.wordWrap": "inherit"
 }

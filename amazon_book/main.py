@@ -79,14 +79,27 @@ def parsin_html():
         # Создаем парсер для прочитанного HTML
         parser = HTMLParser(src)
 
-        product_title = parser.css_first("span#productTitle").text()
-
+        # Название
+        product_title = parser.css_first("span#productTitle").text().strip()
+        # Цена левая
         a_autoid_0_announce = parser.css_first("a#a-autoid-0-announce").text().split()
         a_autoid_0_announce_string = " ".join(a_autoid_0_announce)
+        # Цена правая
         a_autoid_1_announce = parser.css_first("a#a-autoid-1-announce").text().split()
         a_autoid_1_announce_string = " ".join(a_autoid_1_announce)
+
+        # Автор и формат
         bylineInfo = parser.css_first("div#bylineInfo").text().split()
         bylineInfo_string = " ".join(bylineInfo)
+        bylineInfo_string_parts = bylineInfo_string.split(" Format:")
+        authors = bylineInfo_string_parts[0].strip()
+        format_info = (
+            "Format:" + bylineInfo_string_parts[1].strip()
+            if len(bylineInfo_string_parts) > 1
+            else "Format not specified"
+        )
+
+        # Рейтинг
         acrPopover = (
             parser.css_first(
                 "span#acrPopover span.a-declarative > a > i.a-icon.a-icon-star.a-star-4.cm-cr-review-stars-spacing-big > span"
@@ -95,8 +108,32 @@ def parsin_html():
             .split()
         )
         averageCustomerReviews_string = " ".join(acrPopover)
+        acrCustomerReviewText_string = (
+            parser.css_first("span#acrCustomerReviewText").text().split()
+        )
+        acrCustomerReviewText = " ".join(acrCustomerReviewText_string)
 
-        print(averageCustomerReviews_string)
+        # Хлебные крошки
+        # Выборка всех ссылок в списке, игнорируя разделители
+        breadcrumb_string = None
+        breadcrumb = parser.css_first("ul.a-unordered-list.a-horizontal.a-size-small")
+        if breadcrumb:
+            links = breadcrumb.css("a.a-link-normal")
+            categories = [link.text().strip() for link in links if link.text().strip()]
+            breadcrumb_string = ", ".join(categories)
+        # Ссылка на изображение
+        main_image_click = parser.css_first("div#imgTagWrapperId > img").attributes.get(
+            "data-old-hires"
+        )
+        description = (
+            parser.css_first(
+                "div.a-expander-content.a-expander-partial-collapse-content"
+            )
+            .text()
+            
+        )
+
+        print(description)
 
 
 def load_config():
