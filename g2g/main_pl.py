@@ -412,7 +412,6 @@ def parsin_html(type_pars):
     temp_path = os.path.join(current_directory, "temp")
     path_json_GamePal = os.path.join(temp_path, "json_GamePal")
     path_json_item = os.path.join(temp_path, "json_Item")
-<<<<<<< HEAD
     folder_GamePal = os.path.join(path_json_GamePal, "*.html")
     folder_item = os.path.join(path_json_item, "*.html")
     if type_pars == 1:
@@ -421,15 +420,6 @@ def parsin_html(type_pars):
         files_html = glob.glob(folder_item)
     all_products_ru = []
     for item in files_html[:1]:
-=======
-    if type_pars == 1:
-        files_html = glob.glob(path_json_GamePal)
-    elif type_pars == 0:
-        files_html = glob.glob(path_json_item)
-    all_products_ua = []
-    all_products_ru = []
-    for item in files_html:
->>>>>>> f4a2e8aa8f71791dbd71d22aa827a1c7858b0f62
         with open(item, encoding="utf-8") as file:
             src = file.read()
             filename = os.path.basename(item)
@@ -443,13 +433,9 @@ def parsin_html(type_pars):
             # Словарь для хранения свойств текущего продукта
             properties = {}
             # Извлекаем наименование продукта из тега <h1>
-<<<<<<< HEAD
             product_name_node = parser.css_first("div.q-mb-md > h1").text()
             print(product_name_node)
             exit()
-=======
-            product_name_node = parser.css_first('h1.product_name[itemprop="name"]')
->>>>>>> f4a2e8aa8f71791dbd71d22aa827a1c7858b0f62
             if product_name_node:
                 properties["Наименование"] = product_name_node.text(strip=True)
 
