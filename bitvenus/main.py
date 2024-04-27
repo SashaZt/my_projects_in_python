@@ -316,9 +316,23 @@ async def fetch_and_save_json(page, url, filename):
 #     asyncio.run(main())
 
 
+# if __name__ == "__main__":
+#     asyncio.run(run_get_all_couples())
+#     asyncio.run(run_get_index_mark())
+#     # save_to_xml_and_upload()
+#     # asyncio.run(funding_rate_record())
+#     # get_xml()
+
+
+async def periodic_task(interval):
+    while True:
+        asyncio.run(run_get_all_couples())
+        asyncio.run(run_get_index_mark())
+        print("Sleeping for", interval, "seconds")
+        await asyncio.sleep(interval)  # Ожидание перед следующим запуском
+
+async def main():
+    await periodic_task(300)  # Запускать каждые 5 минут (300 секунд)
+
 if __name__ == "__main__":
-    asyncio.run(run_get_all_couples())
-    asyncio.run(run_get_index_mark())
-    # save_to_xml_and_upload()
-    # asyncio.run(funding_rate_record())
-    # get_xml()
+    asyncio.run(main())
