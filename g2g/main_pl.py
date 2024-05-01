@@ -1,5 +1,4 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Получаем json в папку list
 import asyncio
 import aiofiles
 import json
@@ -250,7 +249,7 @@ async def run_html(url_start, type_pars):
             path_json_item,
         ]
     )
-    async with async_playwright() as playwright, aiohttp.ClientSession() as session:
+    async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
@@ -407,7 +406,7 @@ async def main_html(type_pars):
         await asyncio.gather(*tasks)
 
 
-def parsin_html(type_pars):
+def parsin_html(type_pars, file_name_csv):
     current_directory = os.getcwd()
     temp_path = os.path.join(current_directory, "temp")
     path_json_GamePal = os.path.join(temp_path, "json_GamePal")
@@ -418,104 +417,104 @@ def parsin_html(type_pars):
         files_html = glob.glob(folder_GamePal)
     elif type_pars == 0:
         files_html = glob.glob(folder_item)
-    all_products_ru = []
-    for item in files_html[:1]:
+    all_product = []
+    for item in files_html:
         with open(item, encoding="utf-8") as file:
             src = file.read()
-            filename = os.path.basename(item)
-
-            # Извлекаем часть имени файла до расширения
-            sku = os.path.splitext(filename)[0]
-
             # Создаем парсер для прочитанного HTML
             parser = HTMLParser(src)
 
-            # Словарь для хранения свойств текущего продукта
-            properties = {}
-            # Извлекаем наименование продукта из тега <h1>
-            product_name_node = parser.css_first("div.q-mb-md > h1").text()
-            print(product_name_node)
-            exit()
-            if product_name_node:
-                properties["Наименование"] = product_name_node.text(strip=True)
+            # Извлекаем наименование продукта
+            try:
+                product_name = parser.css_first("div.q-mb-md > h1").text().strip()
+            except:
+                product_name = None
 
-            # Находим блок с информацией о продукте
-            properties_block = parser.css_first(".Properties-block")
-            if properties_block:
-                # Итерация по всем строкам с описанием свойств внутри блока
-                for row in properties_block.css(".description-row"):
-                    property_node = row.css_first(".Property")
-                    if property_node is None:
-                        continue
-
-                    property_name = property_node.text(strip=True)
-                    value_node = row.css_first(".value")
-                    if value_node is None:
-                        continue
-
-                    property_value = (
-                        value_node.text(strip=True).replace("\n", " ").strip()
+            try:
+                # Извлекаем все количество
+                available_node = (
+                    parser.css_first(
+                        "div.row.items-center.justify-center.q-mt-md.q-mb-md > div"
                     )
-
-                    # Добавляем свойство в словарь текущего продукта
-                    properties[property_name] = property_value
-            properties["Артикул"] = sku
-            # Добавляем словарь текущего продукта в список всех продуктов
-            if properties:
-                all_products_ua.append(properties)
-    with open("all_products_ua.json", "w", encoding="utf-8") as json_file:
-        json.dump(all_products_ua, json_file, ensure_ascii=False, indent=4)
-
-    for item in files_html_ru:
-        with open(item, encoding="utf-8") as file:
-            src = file.read()
-            filename = os.path.basename(item)
-
-            # Извлекаем часть имени файла до расширения
-            sku = os.path.splitext(filename)[0]
-
-            # Создаем парсер для прочитанного HTML
-            parser = HTMLParser(src)
-
-            # Словарь для хранения свойств текущего продукта
-            properties = {}
-            # Извлекаем наименование продукта из тега <h1>
-            product_name_node = parser.css_first('h1.product_name[itemprop="name"]')
-            if product_name_node:
-                properties["Название товара на русском"] = product_name_node.text(
-                    strip=True
+                    .text()
+                    .split()
                 )
+                available = available_node[0]
+            except:
+                available = None
+            try:
+                # Прайс
+                price = (
+                    parser.css_first("span.text-h6.text-weight-medium").text().strip()
+                )
+            except:
+                price = None
 
-            # Находим блок с информацией о продукте
-            properties_block = parser.css_first(".Properties-block")
-            if properties_block:
-                # Итерация по всем строкам с описанием свойств внутри блока
-                for row in properties_block.css(".description-row"):
-                    property_node = row.css_first(".Property")
-                    if property_node is None:
-                        continue
-
-                    property_name = property_node.text(strip=True)
-                    value_node = row.css_first(".value")
-                    if value_node is None:
-                        continue
-
-                    property_value = (
-                        value_node.text(strip=True).replace("\n", " ").strip()
+            try:
+                value_01 = (
+                    parser.css_first(
+                        "div:nth-child(4) > div:nth-child(1) > div > div.product-info__content.self-start.text-body1 > span"
                     )
+                    .text()
+                    .strip()
+                )
+            except:
+                value_01 = None
+            try:
 
-                    # Добавляем свойство в словарь текущего продукта
-                    properties[property_name] = property_value
-            properties["Артикул"] = sku
-            # Добавляем словарь текущего продукта в список всех продуктов
-            if properties:
-                all_products_ru.append(properties)
+                value_02 = (
+                    parser.css_first(
+                        "div:nth-child(4) > div:nth-child(2) > div > div.product-info__content.self-start.text-body1 > span"
+                    )
+                    .text()
+                    .strip()
+                )
+            except:
+                value_02 = None
+            try:
+                value_03 = (
+                    parser.css_first(
+                        "div:nth-child(4) > div:nth-child(3) > div > div.product-info__content.self-start.text-body1 > span"
+                    )
+                    .text()
+                    .strip()
+                )
+            except:
+                value_03 = None
 
-    # Записываем список словарей в файл JSON
-    with open("all_products_ru.json", "w", encoding="utf-8") as json_file:
-        json.dump(all_products_ru, json_file, ensure_ascii=False, indent=4)
+            product = {
+                "product_name": product_name,
+                "available": available,
+                "price": price,
+                "header_01": value_01,
+                "header_02": value_02,
+                "header_03": value_03,
+            }
+            all_product.append(product)
 
-    print("Данные о всех товарах сохранены")
+    with open(f"{file_name_csv}.csv", "w", newline="", encoding="utf-8") as csvfile:
+        # Определяем заголовки на основе ключей первого словаря в списке
+        fieldnames = all_product[0].keys()
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+
+        # Запись заголовков
+        writer.writeheader()
+
+        # Запись строк данных
+        for item in all_product:
+            writer.writerow(item)
+    # Загрузка данных из файла CSV
+    data = pd.read_csv(f"{file_name_csv}.csv", encoding="utf-8")
+
+    # Сохранение данных в файл XLSX
+    data.to_excel(f"{file_name_csv}.xlsx", index=False, engine="openpyxl")
+    print(f"успешно добавлен файл {file_name_csv}")
+    # Открыть после тестов
+    excel_file_path = os.path.join(current_directory, f"{file_name_csv}.xlsx")
+    if os.path.exists(excel_file_path):
+        if os.path.exists(temp_path) and os.path.isdir(temp_path):
+            shutil.rmtree(temp_path)
+    print(f"Временные файлы удалены")
 
 
 # Основная функция паринга
@@ -671,25 +670,18 @@ async def process_files(files_json, file_name_csv, header_order, type_pars):
 
 
 if __name__ == "__main__":
-    # url_start = 'https://www.g2g.com/categories/gta-5-online-boosting-service?seller=AMELIBOOST'
-    # match = re.search(r"-(\w+)\?", url_start)
-    # type_pars_str = match.group(1)
-    # if type_pars_str == "item":
-    #     type_pars = 0  # Items
-    # else:
-    #     type_pars = 1  # GamePal
-    # # asyncio.run(run(url_start, type_pars))
-    # file_name_csv = 're'
-    # asyncio.run(run_parsing(type_pars, file_name_csv))
+
     while True:
         print("Вставьте ссылку (или введите 'exit' для выхода):")
         url_start = input()
+        # url_start = "https://www.g2g.com/categories/fallout-76-items?seller=FO76STORE"
         if url_start.lower() == "exit":
             print("Программа завершена.")
             break
 
         print("Название файла:")
         file_name_csv = input()
+        # file_name_csv = "1"
 
         while True:
             print(
@@ -723,9 +715,9 @@ if __name__ == "__main__":
             if user_input == "1":
                 asyncio.run(run(url_start, type_pars))
             elif user_input == "3":
-                # asyncio.run(run_html(url_start, type_pars))
-                # asyncio.run(main_html(type_pars))
-                parsin_html(type_pars)
+                asyncio.run(run_html(url_start, type_pars))
+                asyncio.run(main_html(type_pars))
+                parsin_html(type_pars, file_name_csv)
             elif user_input == "2":
                 asyncio.run(run_parsing(type_pars, file_name_csv))
             else:

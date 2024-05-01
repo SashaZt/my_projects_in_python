@@ -488,50 +488,59 @@ def get_cookies():
             input_element = await page.query_selector('input[name="fldResult"]')
 
             """Решаем математическую задачу"""
-            
+
             if input_element:
                 # Для получения родительского элемента используем XPath и функцию evaluate
-                text_content = await page.evaluate('''(input) => {
+                text_content = await page.evaluate(
+                    """(input) => {
                     const parentTd = input.closest('td'); // Находим ближайший родительский элемент td
                     return parentTd ? parentTd.textContent : ''; // Возвращаем текстовое содержимое элемента td или пустую строку
-                }''', input_element)
+                }""",
+                    input_element,
+                )
 
                 # Применяем регулярное выражение к текстовому содержимому
-                match_plus = re.search(r"Podaj wynik działania: (\d+) \+ (\d+) =", text_content)
-                match_minux = re.search(r"Podaj wynik działania: (\d+) \- (\d+) =", text_content)
+                match_plus = re.search(
+                    r"Podaj wynik działania: (\d+) \+ (\d+) =", text_content
+                )
+                match_minux = re.search(
+                    r"Podaj wynik działania: (\d+) \- (\d+) =", text_content
+                )
 
                 if match_plus:
                     # Извлекаем числа из найденного совпадения
                     num1, num2 = map(int, match_plus.groups())
-                    
+
                     # Вычисляем результат
                     int_result = num1 + num2
-                    
+
                     # Выводим и/или вводим результат обратно в форму
                     print(f"Результат: {int_result}")
-                    await input_element.fill(str(int_result))  # Заполняем поле результатом
+                    await input_element.fill(
+                        str(int_result)
+                    )  # Заполняем поле результатом
                 elif match_minux:
                     # Извлекаем числа из найденного совпадения
                     num1, num2 = map(int, match_minux.groups())  # Исправлено здесь
-                    
+
                     # Вычисляем результат
                     int_result = num1 - num2
-                    
+
                     # Выводим и/или вводим результат обратно в форму
                     print(f"Результат: {int_result}")
-                    await input_element.fill(str(int_result))  # Заполняем поле результатом
-
-
-                    
+                    await input_element.fill(
+                        str(int_result)
+                    )  # Заполняем поле результатом
 
             else:
                 print("Элемент не найден.")
 
             """Нажимаем кнопку ZALOGUJ"""
             flinkButton_xpath = '//a[@class="linkButton"]'
-            flinkButton = await page.wait_for_selector(flinkButton_xpath, state="visible")
+            flinkButton = await page.wait_for_selector(
+                flinkButton_xpath, state="visible"
+            )
             await flinkButton.click()
-
 
             await sleep(5)
         except TimeoutError:
