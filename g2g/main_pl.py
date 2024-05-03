@@ -299,7 +299,13 @@ async def run_html(url_start, type_pars):
                 # Извлеките из каждого элемента атрибут href и сохраните в список
                 for link_element in link_elements:
                     href = await link_element.get_attribute("href")
-                    all_hrefs.append(f"https://www.g2g.com{href}")
+                    # Проверяем, начинается ли ссылка с http:// или https://
+                    if href.startswith("http://") or href.startswith("https://"):
+                        all_hrefs.append(href)  # Ссылка уже полная, добавляем как есть
+                    else:
+                        all_hrefs.append(
+                            f"https://www.g2g.com{href}"
+                        )  # Добавляем префикс, если это относительная ссылка
 
             await save_hrefs_to_json(all_hrefs)
             await browser.close()

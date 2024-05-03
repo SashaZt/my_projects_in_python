@@ -285,9 +285,9 @@ def save_to_xml_and_upload():
 
 async def periodic_task(interval):
     while True:
-        # await run_get_all_couples()
-        # await funding_rate_record()
-        # get_xml()  # Предполагается, что это синхронная функция
+        await run_get_all_couples()
+        await funding_rate_record()
+        get_xml()  # Предполагается, что это синхронная функция
         save_to_xml_and_upload()  # Предполагается, что это синхронная функция
         print("Sleeping for", interval, "seconds")
         await asyncio.sleep(interval)  # Ожидание перед следующим запуском
