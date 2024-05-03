@@ -2,11 +2,9 @@ import websockets
 import asyncio
 import json
 from datetime import datetime, timezone, timedelta
-import aiofiles
 import csv
 import math
 import os
-import pandas as pd
 from collections import defaultdict
 
 
@@ -193,17 +191,14 @@ async def run_for_a_while(number_of_seconds):
 
 
 def report():
-
     def process_file(
         file_name, time_key, quantity_key, filter_key=None, filter_value=None
     ):
         """Обрабатывает файл для подсчета количества данных по минутам."""
         quantity_per_minute = defaultdict(float)
-
         with open(file_name, "r", encoding="utf-8") as file:
             for line in file:
                 data = json.loads(line)
-                # Проверка, соответствует ли запись фильтру (если он задан)
                 if (
                     filter_key is None
                     or data.get(filter_key, "").strip() == filter_value
@@ -213,28 +208,36 @@ def report():
                     quantity_per_minute[minute_key] += float(data[quantity_key])
         return quantity_per_minute
 
-    def print_results(results, label):
-        """Печатает результаты подсчета по минутам."""
-        print(label)
-        for minute, total_quantity in sorted(results.items()):
-            print(f"Время: {minute}, Суммарное количество: {total_quantity:.8f}")
+    def write_results(results, label, file_path):
+        """Записывает результаты подсчета по минутам в файл."""
+        with open(file_path, "a", encoding="utf-8") as file:
+            file.write(f"{label}\n")
+            for minute, total_quantity in sorted(results.items()):
+                file.write(
+                    f"Время: {minute}, Суммарное количество: {total_quantity:.8f}\n"
+                )
+
+    output_file = "report_results.txt"
+    # Удаляем файл, если он уже существует
+    if os.path.exists(output_file):
+        os.remove(output_file)
 
     # Подсчет данных для различных файлов и условий
     quantity_per_minute_asks = process_file("asks.json", "Время события", "Количество")
-    print_results(quantity_per_minute_asks, "Продажа:")
+    write_results(quantity_per_minute_asks, "Продажа:", output_file)
 
     quantity_per_minute_bids = process_file("bids.json", "Время события", "Количество")
-    print_results(quantity_per_minute_bids, "Покупка:")
+    write_results(quantity_per_minute_bids, "Покупка:", output_file)
 
     sales_per_minute = process_file(
         "trades.json", "Время сделки", "Количество", "Покупка или продажа:", "Продажа"
     )
-    print_results(sales_per_minute, "Ордера на продажу:")
+    write_results(sales_per_minute, "Ордера на продажу:", output_file)
 
     purchases_per_minute = process_file(
         "trades.json", "Время сделки", "Количество", "Покупка или продажа:", "Покупка"
     )
-    print_results(purchases_per_minute, "Ордера на Покупку:")
+    write_results(purchases_per_minute, "Ордера на покупку:", output_file)
 
 
 def remove_if_exists():
@@ -248,12 +251,8 @@ def remove_if_exists():
 
 
 if __name__ == "__main__":
-    # asyncio.run(main_order_book_and_trade())
     remove_if_exists()
     print("Сколько времени нужно что бы скрипт работал? Введите в секунах")
     number_of_seconds = int(input())
     asyncio.run(run_for_a_while(number_of_seconds))
     report()
-    # json_to_csv()
-
-    # asyncio.run(main_order_book())
