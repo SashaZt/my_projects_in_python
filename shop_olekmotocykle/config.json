@@ -16,15 +16,15 @@
         "sec-ch-ua-platform": "Windows"
     },
     "cookies": {
-        "_clck": "1q78xju%7C2%7Cfk4%7C0%7C1533",
-        "_clsk": "16q2i0j%7C1710594368041%7C2%7C1%7Cj.clarity.ms%2Fcollect",
-        "_ga": "GA1.2.1484268844.1710330290",
-        "_ga_YBF7Q20GFD": "GS1.1.1710594297.7.0.1710594297.0.0.0",
-        "_gat_UA-232962489-1": "1",
-        "_gid": "GA1.2.316790084.1710330290",
-        ".cdneshopsid": "nknLBB6A+zpD0Yc8O4fR6CeLlGx3XHoBQZx52k3ivSdrfCfT99S3HIYMp+ZYLHGdRUi2Pk0KdDpg2L+w3w|004",
-        "isMobileDevice": "0",
+        "cf_clearance": "RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw",
+        "LastSeenProducts": "187102,170505,189086,189108,189085,189082",
         "lastCartId": "-1",
-        "LastSeenProducts": "133311,68394,25945,25927,25929,25932"
+        "_gid": "GA1.2.1356992272.1715171409",
+        "_gat_gtag_UA_232962489_1": "1",
+        "_gat_UA-232962489-1": "1",
+        "_clck": "9hbfrd%7C2%7Cfll%7C0%7C1589",
+        "_clsk": "1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect",
+        "_ga_YBF7Q20GFD": "GS1.1.1715171082.2.1.1715171409.0.0.0",
+        "_ga": "GA1.1.1797401917.1715171409"
     }
 }

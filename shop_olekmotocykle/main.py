@@ -73,12 +73,13 @@ def load_config():
     else:
         with open(filename_config, "r") as config_file:
             config = json.load(config_file)
-    headers = config["headers"]
+    # headers = config["headers"]
+    # cookies = config["cookies"]
 
-    # Генерация строки кукисов из конфигурации
-    if "cookies" in config:
-        cookies_str = "; ".join([f"{k}={v}" for k, v in config["cookies"].items()])
-        headers["Cookie"] = cookies_str
+    # # Генерация строки кукисов из конфигурации
+    # if "cookies" in config:
+    #     cookies_str = "; ".join([f"{k}={v}" for k, v in config["cookies"].items()])
+    #     headers["Cookie"] = cookies_str
     return config
 
 
@@ -101,15 +102,54 @@ def create_folders():
 
 
 def parsing_url_category_in_html():
-    config = load_config()
-    headers = config["headers"]
+    cookies = {
+        'cf_clearance': 'RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw',
+        'LastSeenProducts': '187102,170505,189086,189108,189085,189082',
+        'lastCartId': '-1',
+        '_gid': 'GA1.2.1356992272.1715171409',
+        '_gat_gtag_UA_232962489_1': '1',
+        '_gat_UA-232962489-1': '1',
+        '_clck': '9hbfrd%7C2%7Cfll%7C0%7C1589',
+        '_clsk': '1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect',
+        '_ga_YBF7Q20GFD': 'GS1.1.1715171082.2.1.1715171409.0.0.0',
+        '_ga': 'GA1.1.1797401917.1715171409',
+    }
+
+    headers = {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6',
+        'cache-control': 'no-cache',
+        # 'cookie': 'cf_clearance=RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw; LastSeenProducts=187102,170505,189086,189108,189085,189082; lastCartId=-1; _gid=GA1.2.1356992272.1715171409; _gat_gtag_UA_232962489_1=1; _gat_UA-232962489-1=1; _clck=9hbfrd%7C2%7Cfll%7C0%7C1589; _clsk=1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect; _ga_YBF7Q20GFD=GS1.1.1715171082.2.1.1715171409.0.0.0; _ga=GA1.1.1797401917.1715171409',
+        'dnt': '1',
+        'pragma': 'no-cache',
+        'priority': 'u=0, i',
+        'referer': 'https://shop.olekmotocykle.com/?__cf_chl_tk=5ZgfWaIKoOoMEWWS_G89fZ.msEaq_np8I5eK0Y3En3c-1715171079-0.0.1.1-1471',
+        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        'sec-ch-ua-arch': '"x86"',
+        'sec-ch-ua-bitness': '"64"',
+        'sec-ch-ua-full-version': '"124.0.6367.119"',
+        'sec-ch-ua-full-version-list': '"Chromium";v="124.0.6367.119", "Google Chrome";v="124.0.6367.119", "Not-A.Brand";v="99.0.0.0"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-model': '""',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-ch-ua-platform-version': '"15.0.0"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    }
     """Универсальное использование прокси-серверов"""
     proxies_requests, proxy_aiohttp = load_proxy()
 
     filename_to_csv = os.path.join(category_path, "category_product.csv")
     url = "https://shop.olekmotocykle.com/"
     try:
-        response = requests.get(url, headers=headers, proxies=proxies_requests)
+        response = requests.get(
+            url, cookies=cookies, headers=headers
+        )  # , proxies=proxies_requests
+        print(response.status_code)
     except RequestException:
         print(f"Проблема с прокси {proxies_requests}. Пропускаем.")
         return None  # или возвращайте какое-либо значение по умолчанию
@@ -244,11 +284,49 @@ def main_download_url():
     # Создайте полный путь к папке temp
     temp_path = os.path.join(current_directory, "temp")
     category_path = os.path.join(temp_path, "category")
-
+    
     def get_with_proxies(url, headers):
+        cookies = {
+        'cf_clearance': 'RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw',
+        'LastSeenProducts': '187102,170505,189086,189108,189085,189082',
+        'lastCartId': '-1',
+        '_gid': 'GA1.2.1356992272.1715171409',
+        '_gat_gtag_UA_232962489_1': '1',
+        '_gat_UA-232962489-1': '1',
+        '_clck': '9hbfrd%7C2%7Cfll%7C0%7C1589',
+        '_clsk': '1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect',
+        '_ga_YBF7Q20GFD': 'GS1.1.1715171082.2.1.1715171409.0.0.0',
+        '_ga': 'GA1.1.1797401917.1715171409',
+        }
+
+        headers = {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6',
+        'cache-control': 'no-cache',
+        # 'cookie': 'cf_clearance=RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw; LastSeenProducts=187102,170505,189086,189108,189085,189082; lastCartId=-1; _gid=GA1.2.1356992272.1715171409; _gat_gtag_UA_232962489_1=1; _gat_UA-232962489-1=1; _clck=9hbfrd%7C2%7Cfll%7C0%7C1589; _clsk=1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect; _ga_YBF7Q20GFD=GS1.1.1715171082.2.1.1715171409.0.0.0; _ga=GA1.1.1797401917.1715171409',
+        'dnt': '1',
+        'pragma': 'no-cache',
+        'priority': 'u=0, i',
+        'referer': 'https://shop.olekmotocykle.com/?__cf_chl_tk=5ZgfWaIKoOoMEWWS_G89fZ.msEaq_np8I5eK0Y3En3c-1715171079-0.0.1.1-1471',
+        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        'sec-ch-ua-arch': '"x86"',
+        'sec-ch-ua-bitness': '"64"',
+        'sec-ch-ua-full-version': '"124.0.6367.119"',
+        'sec-ch-ua-full-version-list': '"Chromium";v="124.0.6367.119", "Google Chrome";v="124.0.6367.119", "Not-A.Brand";v="99.0.0.0"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-model': '""',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-ch-ua-platform-version': '"15.0.0"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        }
         try:
             proxies_requests, proxy_aiohttp = load_proxy()
-            response = requests.get(url, headers=headers, proxies=proxies_requests)
+            response = requests.get(url, cookies=cookies, headers=headers)
             return response
         except RequestException:
             print(f"Проблема с прокси {proxies_requests}. Пропускаем.")
@@ -342,6 +420,7 @@ def main_download_url():
 
 coun = 0
 
+
 def delete_invalid_html():
     # Используем glob.glob для получения списка всех файлов HTML в папке
     html_files = glob.glob(os.path.join(html_path, "*.html"))
@@ -349,24 +428,28 @@ def delete_invalid_html():
     for file_path in html_files:
         with open(file_path, encoding="utf-8") as f:
             src = f.read()
-        
+
         soup = BeautifulSoup(src, "lxml")
-        title_text = soup.find('title').get_text(strip=True) if soup.find('title') else ""
+        title_text = (
+            soup.find("title").get_text(strip=True) if soup.find("title") else ""
+        )
 
         # Получаем размер файла в килобайтах
         file_size_kb = os.path.getsize(file_path) / 1024
 
         # Проверяем, меньше ли размер файла 30 КБ или содержит ли title текст "Błąd 404"
         if file_size_kb < 30 or title_text == "Błąd 404":
-            print(f"Удаляем файл {file_path}, его размер {file_size_kb:.2f} КБ или он содержит ошибку 404")
+            print(
+                f"Удаляем файл {file_path}, его размер {file_size_kb:.2f} КБ или он содержит ошибку 404"
+            )
             os.remove(file_path)  # Удаляем файл
+
 
 def download_html_files():
     import aiohttp
     import asyncio
     import os
 
-    
     async def fetch(session, url, coun):
 
         config = load_config()
