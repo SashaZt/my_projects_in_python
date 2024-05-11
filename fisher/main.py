@@ -3,6 +3,8 @@ import json
 import os
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
+from googleapiclient.discovery import build
+from google.oauth2.service_account import Credentials
 
 
 def get_json_data():
@@ -62,15 +64,15 @@ def get_google():
     spreadsheet_id = "1D4YEMQVAUjwrkaUa70uHS8ZpEclxNvfzeT1m7Q6G11U"
     current_directory = os.getcwd()
     scope = [
-        "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive.file",
         "https://www.googleapis.com/auth/drive",
     ]
     creds_file = os.path.join(current_directory, "access.json")
-    creds = ServiceAccountCredentials.from_json_keyfile_name(creds_file, scope)
+    creds = Credentials.from_service_account_file(creds_file, scopes=scope)
     client = gspread.authorize(creds)
-    return client, spreadsheet_id
+    sheet = client.open_by_key(spreadsheet_id).worksheet("Лист1")
+
+    return sheet, creds
 
 
 def read_json_file():
@@ -103,8 +105,7 @@ def transform_data(data):
 
 
 def write_to_sheet():
-    client, spreadsheet_id = get_google()
-    sheet = client.open_by_key(spreadsheet_id).worksheet("Лист1")
+    sheet, creds = get_google()
     sheet.clear()  # Очистка листа
 
     # Первая строка и форматирование
@@ -167,6 +168,80 @@ def write_to_sheet():
         "Вес",
     ]
     sheet.update(values=[detailed_headers], range_name="A2:O2")
+    format_sheet(sheet, creds)
+
+
+def format_sheet(sheet, creds):
+    """
+    Форматирует лист с помощью объединения ячеек, выравнивания текста и границ.
+
+    Args:
+      sheet: Объект листа Google Sheets.
+    """
+
+    # Объединение ячеек для заголовков периодов
+    # sheet.merge_cells("F1:H1")
+    # sheet.merge_cells("I1:K1")
+    # sheet.merge_cells("L1:N1")
+
+    # # Выравнивание текста в объединенных ячейках
+    # center_format = {"horizontalAlignment": "CENTER", "verticalAlignment": "MIDDLE"}
+    # sheet.format("F1:N1", center_format)
+
+    # Создание вертикальной границы между колонками E и F
+    # Создание вертикальной границы между колонками E и F
+    # Создание вертикальной границы между колонками E и F
+    border_style = {
+        "style": "SOLID",
+        "width": 1,
+        "color": {"red": 0, "green": 0, "blue": 0},
+    }
+
+    # Установка границы для каждой ячейки в диапазоне
+    requests = [
+        {
+            "updateBorders": {
+                "range": {
+                    "sheetId": sheet.id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1000,
+                    "startColumnIndex": 4,  # столбец E
+                    "endColumnIndex": 5,  # столбец F
+                },
+                "right": border_style,  # Use 'right' for border style
+            }
+        },
+        {
+            "updateBorders": {
+                "range": {
+                    "sheetId": sheet.id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1000,
+                    "startColumnIndex": 7,  # столбец H
+                    "endColumnIndex": 8,  # столбец I
+                },
+                "right": border_style,  # Use 'right' for border style
+            }
+        },
+        {
+            "updateBorders": {
+                "range": {
+                    "sheetId": sheet.id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1000,
+                    "startColumnIndex": 10,  # столбец H
+                    "endColumnIndex": 11,  # столбец I
+                },
+                "right": border_style,  # Use 'right' for border style
+            }
+        },
+    ]
+
+    # Отправляем запрос на обновление форматирования
+    service = build("sheets", "v4", credentials=creds)
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet.spreadsheet.id, body={"requests": requests}
+    ).execute()
 
 
 def pars_json():
@@ -200,6 +275,6 @@ def pars_json():
 
 
 if __name__ == "__main__":
-    get_json_data()
+    # get_json_data()
     write_to_sheet()
     # pars_json()
