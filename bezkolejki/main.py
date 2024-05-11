@@ -40,25 +40,21 @@ async def run():
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context(accept_downloads=True)
-        url = "https://uw.bezkolejki.eu/lodzkiuw"
+        url = "https://uw.bezkolejki.eu/luw-olp"
         page = await context.new_page()
         await page.goto(url, wait_until="load")
-        await asyncio.sleep(1)
-        xpath_button = '//button[@class="btn p-2 operation-button btn-secondary btn-block"]'
-        await page.wait_for_selector(xpath_button, timeout=timeout)
-        buttons = await page.query_selector_all(xpath_button)
-        last_button = buttons[-1]
-        # Клик по последней кнопке
-        await last_button.click()
-        
-        xpath_button_dalej = '//button[@class="btn footer-btn btn-secondary btn-lg btn-block"]'
-        await page.wait_for_selector(f"xpath={xpath_button_dalej}", timeout=timeout)
-        await page.click(xpath_button_dalej)
-        await asyncio.sleep(30)
+        await asyncio.sleep(100)
+        # xpath_button = '//button[@class="btn p-2 operation-button btn-secondary btn-block"]'
+        # await page.wait_for_selector(xpath_button, timeout=timeout)
+        # buttons = await page.query_selector_all(xpath_button)
+        # last_button = buttons[-1]
+        # # Клик по последней кнопке
+        # await last_button.click()
 
-
-
-        
+        # xpath_button_dalej = '//button[@class="btn footer-btn btn-secondary btn-lg btn-block"]'
+        # await page.wait_for_selector(f"xpath={xpath_button_dalej}", timeout=timeout)
+        # await page.click(xpath_button_dalej)
+        # await asyncio.sleep(30)
 
         # pages = 0
         # perpetual_pairs = set()
@@ -146,7 +142,7 @@ async def run():
 #             url_start = f"https://www.xt.com/fapi/market/v1/public/q/funding-rate-record?symbol={pair}&direction=NEXT&limit=1"
 #             filename = os.path.join(funding_rate_record_path, f"{pair}.json")
 #             await save_json_funding_rate_record(page_start, url_start, filename)
-        # await browser.close()
+# await browser.close()
 
 
 # # сохраняем json Ставка финансирования

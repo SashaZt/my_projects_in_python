@@ -25,31 +25,28 @@ import pandas as pd
 #                 await file.write(json.dumps(trades, ensure_ascii=False) + "\n")
 
 
-
-
-
 # def process_files(json_file, csv_file, xlsx_file):
-    # try:
-    #     # Читаем JSON и записываем в CSV
-    #     with open(json_file, "r", encoding="utf-8") as file:
-    #         data = [json.loads(line) for line in file]
+# try:
+#     # Читаем JSON и записываем в CSV
+#     with open(json_file, "r", encoding="utf-8") as file:
+#         data = [json.loads(line) for line in file]
 
-    #     headers = data[0].keys() if data else []
-    #     with open(csv_file, "w", newline="", encoding="utf-8") as file:
-    #         writer = csv.DictWriter(file, fieldnames=headers)
-    #         writer.writeheader()
-    #         writer.writerows(data)
-    #     print(f"Данные из {json_file} успешно записаны в {csv_file}")
+#     headers = data[0].keys() if data else []
+#     with open(csv_file, "w", newline="", encoding="utf-8") as file:
+#         writer = csv.DictWriter(file, fieldnames=headers)
+#         writer.writeheader()
+#         writer.writerows(data)
+#     print(f"Данные из {json_file} успешно записаны в {csv_file}")
 
-    #     # Загружаем данные из CSV в DataFrame
-    #     data_df = pd.read_csv(csv_file, encoding="utf-8")
+#     # Загружаем данные из CSV в DataFrame
+#     data_df = pd.read_csv(csv_file, encoding="utf-8")
 
-    #     # Сохраняем данные из DataFrame в Excel
-    #     data_df.to_excel(xlsx_file, index=False, engine="openpyxl")
-    #     print(f"Данные из {csv_file} успешно записаны в {xlsx_file}")
+#     # Сохраняем данные из DataFrame в Excel
+#     data_df.to_excel(xlsx_file, index=False, engine="openpyxl")
+#     print(f"Данные из {csv_file} успешно записаны в {xlsx_file}")
 
-    # except Exception as e:
-    #     print(f"Произошла ошибка при обработке файлов: {e}")
+# except Exception as e:
+#     print(f"Произошла ошибка при обработке файлов: {e}")
 
 
 # def json_to_csv():
@@ -98,8 +95,7 @@ import pandas as pd
 #     print("Текущее время в UNIX timestamp:", unix_timestamp)
 
 
-
-#Формируем данные для записи об ордерах
+# Формируем данные для записи об ордерах
 def format_trade_data(trade_data):
     # Конвертируем время события из UNIX в UTC+3
     trade_time = datetime.fromtimestamp(
@@ -124,7 +120,9 @@ def format_trade_data(trade_data):
         "Покупка или продажа:": buying_or_selling,
     }
     return formatted_data
-#Сохраняем лучшие заявки на покупку и продажу
+
+
+# Сохраняем лучшие заявки на покупку и продажу
 async def process_order_book(data):
     bids = data["bids"]  # Список заявок на покупку
     asks = data["asks"]  # Список заявок на продажу
@@ -136,7 +134,7 @@ async def process_order_book(data):
 
     # Преобразуем время в строку в нужном формате
     formatted_time = moscow_time.strftime("%Y-%m-%d %H:%M:%S")
-    #покупка
+    # покупка
     async with aiofiles.open("bids.json", "a", encoding="utf-8") as file:
         for bid in bids:
             price, quantity = bid
@@ -159,7 +157,7 @@ async def process_order_book(data):
             await file.write(json.dumps(formatted_data_asks, ensure_ascii=False) + "\n")
 
 
-#Распределяем по потокам Depth и Trade
+# Распределяем по потокам Depth и Trade
 async def receive_data(websocket, label):
     while True:
         response = await websocket.recv()
@@ -173,7 +171,7 @@ async def receive_data(websocket, label):
                 await file.write(json.dumps(formatted_data, ensure_ascii=False) + "\n")
 
 
-#Указывае ссылки uri_depth и uri_trade
+# Указывае ссылки uri_depth и uri_trade
 async def main_order_book_and_trade():
     uri_depth = "wss://stream.binance.com:9443/ws/btcusdt@depth20@100ms"
     # uri_depth = "wss://stream.binance.com:9443/ws/btcusdt@depth100@100ms"
@@ -191,10 +189,7 @@ async def main_order_book_and_trade():
         await asyncio.gather(task_depth, task_trade)
 
 
-
-
-
-#Основная функция запуска программы
+# Основная функция запуска программы
 async def run_for_a_while(number_of_seconds):
 
     try:
@@ -204,7 +199,7 @@ async def run_for_a_while(number_of_seconds):
         print("Время работы программы истекло")
 
 
-#Формирование отчета
+# Формирование отчета
 def report():
     def process_file(
         file_name, time_key, quantity_key, filter_key=None, filter_value=None
@@ -254,7 +249,8 @@ def report():
     )
     write_results(purchases_per_minute, "Ордера на покупку:", output_file)
 
-#Удаляем старые файлы
+
+# Удаляем старые файлы
 def remove_if_exists():
     files_to_check = ["trades.json", "bids.json", "asks.json"]
     current_directory = os.getcwd()
