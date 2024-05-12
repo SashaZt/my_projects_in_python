@@ -7,6 +7,7 @@ from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 
 
+# Функция для получение данных с API
 def get_json_data():
 
     # url = f"https://betatransfer.io/excel/cascades/{id_accounts}/accounts"
@@ -60,6 +61,7 @@ def get_json_data():
             json.dump(tables, file, ensure_ascii=False, indent=4)
 
 
+# Фукция для подключения к sheet
 def get_google():
     spreadsheet_id = "1D4YEMQVAUjwrkaUa70uHS8ZpEclxNvfzeT1m7Q6G11U"
     current_directory = os.getcwd()
@@ -75,6 +77,7 @@ def get_google():
     return sheet, creds
 
 
+# Чтение json для дальнейшего использваония
 def read_json_file():
     filename = "json_data.json"
     with open(filename, "r", encoding="utf-8") as file:
@@ -82,6 +85,7 @@ def read_json_file():
     return data
 
 
+# Функция для трансформации данных для таблицы
 def transform_data(data):
     # Словарь для агрегации данных по ID Каскада и ID Аккаунта
     transformed = {}
@@ -104,25 +108,76 @@ def transform_data(data):
     return list(transformed.values())
 
 
+# def write_to_sheet():
+#     sheet, creds = get_google()
+#     sheet.clear()  # Очистка листа
+
+#     # Первая строка и форматирование
+#     sheet.append_row([""] * 15)  # Добавляем пустую строку для объединения ячеек
+#     sheet.merge_cells("F1:H1")
+#     sheet.merge_cells("I1:K1")
+#     sheet.merge_cells("L1:N1")
+#     sheet.update(values=[["today"]], range_name="F1", value_input_option="USER_ENTERED")
+#     sheet.update(
+#         values=[["yesterday"]], range_name="I1", value_input_option="USER_ENTERED"
+#     )
+#     sheet.update(values=[["week"]], range_name="L1", value_input_option="USER_ENTERED")
+#     sheet.format(
+#         "A1:N100", {"horizontalAlignment": "CENTER", "verticalAlignment": "MIDDLE"}
+#     )
+
+#     # Вторая строка: Детальные заголовки
+#     detailed_headers = [
+#         "ID Каскада",
+#         "Название Каскада",
+#         "ID Аккаунта",
+#         "Название Аккаунта",
+#         "Валюта",
+#         "today Конверсия",
+#         "today Реквизиты",
+#         "today Споры",
+#         "yesterday Конверсия",
+#         "yesterday Реквизиты",
+#         "yesterday Споры",
+#         "week Конверсия",
+#         "week Реквизиты",
+#         "week Споры",
+#         "Вес",
+#     ]
+#     sheet.update(values=[detailed_headers], range_name="A2:O2")
+
+#     # Читаем и преобразуем данные из JSON-файла
+#     data = read_json_file()
+#     transformed_data = transform_data(data)
+
+#     # Записываем данные в лист
+#     for item in transformed_data:
+#         row = [item.get(header, "") for header in detailed_headers]
+#         sheet.append_row(row)
+#     detailed_headers = [
+#         "ID Каскада",
+#         "Название Каскада",
+#         "ID Аккаунта",
+#         "Название Аккаунта",
+#         "Валюта",
+#         "Конверсия",
+#         "Реквизиты",
+#         "Споры",
+#         "Конверсия",
+#         "Реквизиты",
+#         "Споры",
+#         "Конверсия",
+#         "Реквизиты",
+#         "Споры",
+#         "Вес",
+#     ]
+#     sheet.update(values=[detailed_headers], range_name="A2:O2")
+# format_sheet(sheet, creds)
+
+
+# Функция для загрузки данных
 def write_to_sheet():
     sheet, creds = get_google()
-    sheet.clear()  # Очистка листа
-
-    # Первая строка и форматирование
-    sheet.append_row([""] * 15)  # Добавляем пустую строку для объединения ячеек
-    sheet.merge_cells("F1:H1")
-    sheet.merge_cells("I1:K1")
-    sheet.merge_cells("L1:N1")
-    sheet.update(values=[["today"]], range_name="F1", value_input_option="USER_ENTERED")
-    sheet.update(
-        values=[["yesterday"]], range_name="I1", value_input_option="USER_ENTERED"
-    )
-    sheet.update(values=[["week"]], range_name="L1", value_input_option="USER_ENTERED")
-    sheet.format(
-        "A1:N100", {"horizontalAlignment": "CENTER", "verticalAlignment": "MIDDLE"}
-    )
-
-    # Вторая строка: Детальные заголовки
     detailed_headers = [
         "ID Каскада",
         "Название Каскада",
@@ -140,37 +195,59 @@ def write_to_sheet():
         "week Споры",
         "Вес",
     ]
-    sheet.update(values=[detailed_headers], range_name="A2:O2")
+    # Проверяем, содержит ли первая строка заголовки периодов
+    if not sheet.cell(1, 6).value:  # Проверяем ячейку в строке 1, колонке 6 (F1)
+        sheet.append_row([""] * 15)  # Добавляем пустую строку для объединения ячеек
+        sheet.merge_cells("F1:H1")
+        sheet.merge_cells("I1:K1")
+        sheet.merge_cells("L1:N1")
+        sheet.update(
+            values=[["today"]], range_name="F1", value_input_option="USER_ENTERED"
+        )
+        sheet.update(
+            values=[["yesterday"]], range_name="I1", value_input_option="USER_ENTERED"
+        )
+        sheet.update(
+            values=[["week"]], range_name="L1", value_input_option="USER_ENTERED"
+        )
 
-    # Читаем и преобразуем данные из JSON-файла
+    # Проверяем, содержит ли вторая строка детальные заголовки
+    if not sheet.cell(2, 1).value:  # Проверяем ячейку в строке 2, колонке 1 (A2)
+
+        sheet.update(values=[detailed_headers], range_name="A2:O2")
+
+    # Чтение и преобразование данных из JSON
     data = read_json_file()
     transformed_data = transform_data(data)
 
-    # Записываем данные в лист
+    # Начало записи данных с третьей строки
+    row_index = 3
     for item in transformed_data:
         row = [item.get(header, "") for header in detailed_headers]
-        sheet.append_row(row)
-    detailed_headers = [
-        "ID Каскада",
-        "Название Каскада",
-        "ID Аккаунта",
-        "Название Аккаунта",
-        "Валюта",
-        "Конверсия",
-        "Реквизиты",
-        "Споры",
-        "Конверсия",
-        "Реквизиты",
-        "Споры",
-        "Конверсия",
-        "Реквизиты",
-        "Споры",
-        "Вес",
-    ]
-    sheet.update(values=[detailed_headers], range_name="A2:O2")
+        # Если строка уже существует, обновляем её, иначе добавляем
+        if sheet.row_count >= row_index:
+            range_to_update = f"A{row_index}:O{row_index}"
+            sheet.update(values=[row], range_name=range_to_update)
+        else:
+            sheet.append_row(row)
+        row_index += 1
+
+    # # Находим первую свободную строку для добавления данных
+    # first_empty_row = (
+    #     len(sheet.get_all_values()) + 1
+    # )  # Получаем количество всех заполненных строк и добавляем 1
+
+    # # Записываем данные в лист, начиная с первой свободной строки
+    # for item in transformed_data:
+    #     row = [item.get(header, "") for header in detailed_headers]
+    #     sheet.insert_row(row, first_empty_row)
+    #     first_empty_row += 1  # Перемещаем указатель строки
     format_sheet(sheet, creds)
+    counts = count_values(sheet)
+    format_rows(sheet, creds, counts)
 
 
+# Форматирование строк
 def format_sheet(sheet, creds):
     """
     Форматирует лист с помощью объединения ячеек, выравнивания текста и границ.
@@ -178,19 +255,6 @@ def format_sheet(sheet, creds):
     Args:
       sheet: Объект листа Google Sheets.
     """
-
-    # Объединение ячеек для заголовков периодов
-    # sheet.merge_cells("F1:H1")
-    # sheet.merge_cells("I1:K1")
-    # sheet.merge_cells("L1:N1")
-
-    # # Выравнивание текста в объединенных ячейках
-    # center_format = {"horizontalAlignment": "CENTER", "verticalAlignment": "MIDDLE"}
-    # sheet.format("F1:N1", center_format)
-
-    # Создание вертикальной границы между колонками E и F
-    # Создание вертикальной границы между колонками E и F
-    # Создание вертикальной границы между колонками E и F
     border_style = {
         "style": "SOLID",
         "width": 1,
@@ -229,10 +293,55 @@ def format_sheet(sheet, creds):
                     "sheetId": sheet.id,
                     "startRowIndex": 0,
                     "endRowIndex": 1000,
-                    "startColumnIndex": 10,  # столбец H
-                    "endColumnIndex": 11,  # столбец I
+                    "startColumnIndex": 10,  # столбец K
+                    "endColumnIndex": 11,  # столбец L
                 },
                 "right": border_style,  # Use 'right' for border style
+            }
+        },
+        {
+            "updateBorders": {
+                "range": {
+                    "sheetId": sheet.id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1000,
+                    "startColumnIndex": 13,  # столбец H
+                    "endColumnIndex": 14,  # столбец I
+                },
+                "right": border_style,  # Use 'right' for border style
+            }
+        },
+        {
+            "updateBorders": {
+                "range": {
+                    "sheetId": sheet.id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1000,
+                    "startColumnIndex": 14,  # столбец H
+                    "endColumnIndex": 15,  # столбец I
+                },
+                "right": border_style,  # Use 'right' for border style
+            }
+        },
+        {
+            "updateSheetProperties": {
+                "properties": {
+                    "sheetId": sheet.id,
+                    "gridProperties": {
+                        "frozenRowCount": 2  # Закрепление первых двух строк
+                    },
+                },
+                "fields": "gridProperties.frozenRowCount",
+            }
+        },
+        {
+            "autoResizeDimensions": {
+                "dimensions": {
+                    "sheetId": sheet.id,
+                    "dimension": "COLUMNS",  # Автоматически изменять размеры столбцов
+                    "startIndex": 0,  # Начиная с первого столбца
+                    "endIndex": 15,  # До пятнадцатого столбца
+                }
             }
         },
     ]
@@ -242,6 +351,66 @@ def format_sheet(sheet, creds):
     service.spreadsheets().batchUpdate(
         spreadsheetId=sheet.spreadsheet.id, body={"requests": requests}
     ).execute()
+
+
+# Получаем все значения из первой колонки
+def count_values(sheet):
+    return sheet.col_values(1)
+
+
+# Заливка строк
+def format_rows(sheet, creds, values_list):
+    service = build("sheets", "v4", credentials=creds)
+    color_index = 0  # Индекс для выбора цвета из списка
+
+    # Начинаем с первой строки с данными, пропускаем первые две строки (индекс 2 в списке, т.к. он 0-индексированный)
+    current_row = 3
+
+    while current_row <= len(values_list):
+        value = values_list[current_row - 1]
+        start_row = current_row
+        while current_row <= len(values_list) and values_list[current_row - 1] == value:
+            current_row += 1
+        count = current_row - start_row
+
+        # Определение цветов
+        colors = [
+            {"red": 0.9, "green": 1.0, "blue": 0.9},  # Светло-зеленый
+            {"red": 0.9, "green": 1.0, "blue": 1.0},  # Светло-бирюзовый
+            {"red": 1.0, "green": 0.9, "blue": 0.9},  # Светло-розовый
+            {"red": 1.0, "green": 1.0, "blue": 0.9},  # Светло-желтый
+            {"red": 0.9, "green": 0.9, "blue": 1.0},  # Светло-голубой
+            {"red": 1.0, "green": 0.9, "blue": 1.0},  # Светло-фиолетовый
+            {"red": 0.9, "green": 1.0, "blue": 0.8},  # Светло-лимонный
+        ]
+
+        # Выбор цвета из списка
+        background_color = colors[color_index % len(colors)]
+        color_index += 1  # Переход к следующему цвету для следующей группы
+
+        # Формирование и отправка запроса на форматирование
+        requests = [
+            {
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet.id,
+                        "startRowIndex": start_row - 1,
+                        "endRowIndex": start_row + count - 1,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": 15,  # До пятнадцатого столбца
+                    },
+                    "cell": {
+                        "userEnteredFormat": {"backgroundColor": background_color}
+                    },
+                    "fields": "userEnteredFormat.backgroundColor",
+                }
+            }
+        ]
+
+        # Отправляем запрос
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=sheet.spreadsheet.id, body={"requests": requests}
+        ).execute()
 
 
 def pars_json():
