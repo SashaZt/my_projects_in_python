@@ -1924,7 +1924,7 @@ def get_asio():
                 """
                 Закрываем
                 """
-            await browser.close()
+            # await browser.close()
 
     async def main():
         async with async_playwright() as playwright:

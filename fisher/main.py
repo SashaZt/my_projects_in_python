@@ -236,6 +236,7 @@ def write_to_sheet():
     format_sheet(sheet, creds)
     counts = count_values(sheet)
     format_rows(sheet, creds, counts)
+    process_data(sheet)
     # # Находим первую свободную строку для добавления данных
     # first_empty_row = (
     #     len(sheet.get_all_values()) + 1
@@ -412,6 +413,46 @@ def format_rows(sheet, creds, values_list):
         service.spreadsheets().batchUpdate(
             spreadsheetId=sheet.spreadsheet.id, body={"requests": requests}
         ).execute()
+
+
+# Из Комиссия % получаем Рейтинг
+def process_data(sheet):
+    # Получаем все значения из колонок A и P
+    data_A = sheet.col_values(1)[2:]  # A3 до конца
+    data_P = sheet.col_values(16)[2:]  # P3 до конца
+
+    # Обрезаем списки до минимальной длины
+    min_length = min(len(data_A), len(data_P))
+    data_A = data_A[:min_length]
+    data_P = data_P[:min_length]
+
+    # Преобразуем данные из P в числа, заменяя запятые на точки
+    data_P = [float(x.replace(",", ".")) if x else None for x in data_P]
+
+    # Найдем уникальные значения в колонке A
+    unique_values = sorted(set(data_A))
+
+    for unique_value in unique_values:
+        # Найдем индексы всех строк, которые содержат текущее уникальное значение
+        indices = [i for i, x in enumerate(data_A) if x == unique_value]
+
+        # Извлечем соответствующие значения из колонки P
+        corresponding_values = [data_P[i] for i in indices]
+
+        # Обработаем соответствующие значения
+        min_value = min([x for x in corresponding_values if x is not None])
+        step = 0.5
+
+        for i, value in zip(indices, corresponding_values):
+            # Записываем результат в колонку U (21-я колонка)
+            cell = f"U{3 + i}"
+            if value is None:
+                sheet.update_acell(cell, "")
+            else:
+                # Округляем значение и находим индекс для колонки U
+                rounded_value = round(value * 2) / 2
+                index_U = int((rounded_value - min_value) / step) + 1
+                sheet.update_acell(cell, index_U)
 
 
 def pars_json():

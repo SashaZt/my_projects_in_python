@@ -35,7 +35,7 @@ async def main(url):
     now = datetime.now()
     time_now = now.strftime("%H:%M:%S")
     print(time_now)
-    timeout_selector = 10000
+    timeout_selector = 60000
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
@@ -60,29 +60,30 @@ async def main(url):
 
             return log_response
 
-        url_name = url.split("/")[-2]
+        url_name = url.split("/")[-1]
         filename = f"{url_name}.html"
         file_path = os.path.join(current_directory, filename)
         # Для сохранения html файла
-        if not os.path.exists(file_path):
-            await page.goto(url, wait_until="load", timeout=timeout_selector)
-            await asyncio.sleep(1)
-            try:
-                await page.wait_for_selector(
-                    "button#onetrust-accept-btn-handler", timeout=10000
-                )
-                accept_button = await page.query_selector(
-                    "button#onetrust-accept-btn-handler"
-                )
+        # if not os.path.exists(file_path):
+        await page.goto(url, wait_until="networkidle", timeout=60000)
+        await asyncio.sleep(1)
+        await save_page_content_html(page, file_path)
+        # try:
+        #     await page.wait_for_selector(
+        #         "button#onetrust-accept-btn-handler", timeout=10000
+        #     )
+        #     accept_button = await page.query_selector(
+        #         "button#onetrust-accept-btn-handler"
+        #     )
 
-                if accept_button:
-                    await accept_button.click()
-                    await asyncio.sleep(1)
-                    await save_page_content_html(page, file_path)
-                else:
-                    print("Accept button not found")
-            except Exception as e:
-                print(f"An error occurred: {e}")
+        #     if accept_button:
+        #         await accept_button.click()
+        #         await asyncio.sleep(1)
+        #         await save_page_content_html(page, file_path)
+        #     else:
+        #         print("Accept button not found")
+        # except Exception as e:
+        #     print(f"An error occurred: {e}")
 
         # Для сохранения json файла
         handler = create_log_response_with_counter(url_name)
@@ -143,5 +144,5 @@ async def main(url):
     # # Итерация по страницам
 
 
-url = "https://www.tradeinn.com/dressinn/en/adidas-future-icons-3-stripes-leggings/140501453/p"
+url = "https://auto1.by/avtozapchasti/dvigatel/61745"
 asyncio.run(main(url))

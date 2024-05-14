@@ -62,7 +62,18 @@ async def main(url):
         response_handlers = {}
 
         for number in numbers:
-            await page.goto(url, wait_until="networkidle", timeout=timeout_selector)
+            proxy_host = "node-us-2.astroproxy.com"
+            proxy_port = 10437
+            proxy_user = "textilenco7577"
+            proxy_pass = "a245fe"
+            proxy = {
+                "server": f"http://{proxy_host}:{proxy_port}",
+                "username": proxy_user,
+                "password": proxy_pass,
+            }
+            await page.goto(
+                url, wait_until="networkidle", timeout=timeout_selector, proxy=proxy
+            )
             button_selector = "//button[h6[text()='ENTENDIDO']]"
 
             button = await page.wait_for_selector(
