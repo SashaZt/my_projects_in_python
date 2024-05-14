@@ -5,6 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
+import time
 
 
 # Функция для получение данных с API
@@ -99,8 +100,10 @@ def transform_data(data):
                 "Название Аккаунта": entry["Название Аккаунта"],
                 "Валюта": entry["Валюта"],
                 "Вес": entry["Вес"],
+                "Теги": entry["Теги"],
             }
         period = entry["Период"]
+
         transformed[key][f"{period} Конверсия"] = entry["Конверсия"]
         transformed[key][f"{period} Реквизиты"] = entry["Реквизиты"]
         transformed[key][f"{period} Споры"] = entry["Споры"]
@@ -108,71 +111,59 @@ def transform_data(data):
     return list(transformed.values())
 
 
-# def write_to_sheet():
-#     sheet, creds = get_google()
-#     sheet.clear()  # Очистка листа
+# Функция записи комментариев
+def add_comments(sheet, row_index, text, creds):
+    """Добавляет комментарий к ячейке в Google Sheets в колонке D."""
+    service = build("sheets", "v4", credentials=creds)
+    requests = [
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet.id,  # ID листа
+                    "startRowIndex": row_index - 1,
+                    "endRowIndex": row_index,
+                    "startColumnIndex": 3,  # Колонка D
+                    "endColumnIndex": 4,
+                },
+                "cell": {"note": text},  # Затем добавляем новый комментарий
+                "fields": "note",
+            }
+        },
+    ]
+    body = {"requests": requests}
+    # Используйте spreadsheetId таблицы, а не sheet.id
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet.spreadsheet.id,  # Исправлено на правильное свойство
+        body=body,
+    ).execute()
 
-#     # Первая строка и форматирование
-#     sheet.append_row([""] * 15)  # Добавляем пустую строку для объединения ячеек
-#     sheet.merge_cells("F1:H1")
-#     sheet.merge_cells("I1:K1")
-#     sheet.merge_cells("L1:N1")
-#     sheet.update(values=[["today"]], range_name="F1", value_input_option="USER_ENTERED")
-#     sheet.update(
-#         values=[["yesterday"]], range_name="I1", value_input_option="USER_ENTERED"
-#     )
-#     sheet.update(values=[["week"]], range_name="L1", value_input_option="USER_ENTERED")
-#     sheet.format(
-#         "A1:N100", {"horizontalAlignment": "CENTER", "verticalAlignment": "MIDDLE"}
-#     )
 
-#     # Вторая строка: Детальные заголовки
-#     detailed_headers = [
-#         "ID Каскада",
-#         "Название Каскада",
-#         "ID Аккаунта",
-#         "Название Аккаунта",
-#         "Валюта",
-#         "today Конверсия",
-#         "today Реквизиты",
-#         "today Споры",
-#         "yesterday Конверсия",
-#         "yesterday Реквизиты",
-#         "yesterday Споры",
-#         "week Конверсия",
-#         "week Реквизиты",
-#         "week Споры",
-#         "Вес",
-#     ]
-#     sheet.update(values=[detailed_headers], range_name="A2:O2")
-
-#     # Читаем и преобразуем данные из JSON-файла
-#     data = read_json_file()
-#     transformed_data = transform_data(data)
-
-#     # Записываем данные в лист
-#     for item in transformed_data:
-#         row = [item.get(header, "") for header in detailed_headers]
-#         sheet.append_row(row)
-#     detailed_headers = [
-#         "ID Каскада",
-#         "Название Каскада",
-#         "ID Аккаунта",
-#         "Название Аккаунта",
-#         "Валюта",
-#         "Конверсия",
-#         "Реквизиты",
-#         "Споры",
-#         "Конверсия",
-#         "Реквизиты",
-#         "Споры",
-#         "Конверсия",
-#         "Реквизиты",
-#         "Споры",
-#         "Вес",
-#     ]
-#     sheet.update(values=[detailed_headers], range_name="A2:O2")
-# format_sheet(sheet, creds)
+def clear_comments(sheet, row_index, text, creds):
+    """Добавляет комментарий к ячейке в Google Sheets в колонке D."""
+    service = build("sheets", "v4", credentials=creds)
+    requests = [
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": sheet.id,  # ID листа
+                    "startRowIndex": row_index - 1,
+                    "endRowIndex": row_index,
+                    "startColumnIndex": 3,  # Колонка D
+                    "endColumnIndex": 4,
+                },
+                "cell": {
+                    "note": ""  # Сначала "очищаем" комментарий, устанавливая пустую строку
+                },
+                "fields": "note",
+            }
+        },
+    ]
+    body = {"requests": requests}
+    # Используйте spreadsheetId таблицы, а не sheet.id
+    service.spreadsheets().batchUpdate(
+        spreadsheetId=sheet.spreadsheet.id,  # Исправлено на правильное свойство
+        body=body,
+    ).execute()
 
 
 # Функция для загрузки данных
@@ -230,8 +221,21 @@ def write_to_sheet():
             sheet.update(values=[row], range_name=range_to_update)
         else:
             sheet.append_row(row)
-        row_index += 1
+        # Добавление комментариев, если есть теги
+        if "Теги" in item and isinstance(item["Теги"], list):
+            tags_text = "\n".join(
+                item["Теги"]
+            )  # Объединяем все теги в одну строку, если они есть
+            clear_comments(sheet, row_index, tags_text, creds)
+            time.sleep(5)
+            add_comments(sheet, row_index, tags_text, creds)
+        elif "Теги" in item and item["Теги"] is None:
+            clear_comments(sheet, row_index, tags_text, creds)
 
+        row_index += 1
+    format_sheet(sheet, creds)
+    counts = count_values(sheet)
+    format_rows(sheet, creds, counts)
     # # Находим первую свободную строку для добавления данных
     # first_empty_row = (
     #     len(sheet.get_all_values()) + 1
@@ -242,9 +246,6 @@ def write_to_sheet():
     #     row = [item.get(header, "") for header in detailed_headers]
     #     sheet.insert_row(row, first_empty_row)
     #     first_empty_row += 1  # Перемещаем указатель строки
-    format_sheet(sheet, creds)
-    counts = count_values(sheet)
-    format_rows(sheet, creds, counts)
 
 
 # Форматирование строк

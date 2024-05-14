@@ -51,6 +51,7 @@ Thumbs.db
 *.zip
 *.jpg
 *.xml
+*.html
 # Здесь мы игнорируем все .txt файлы...
 *.txt
 # ...но затем добавляем исключение для requirements.txt
