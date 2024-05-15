@@ -27,7 +27,16 @@ async def save_response_json(json_response, number):
 async def main(url):
     timeout_selector = 60000
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
+        proxy_host = "node-us-2.astroproxy.com"
+        proxy_port = 10437
+        proxy_user = "textilenco7577"
+        proxy_pass = "a245fe"
+        proxy = {
+            "server": f"http://{proxy_host}:{proxy_port}",
+            "username": proxy_user,
+            "password": proxy_pass,
+        }
+        browser = await playwright.chromium.launch(headless=False, proxy=proxy)
         context = await browser.new_context()
         page = await context.new_page()
 
@@ -62,18 +71,8 @@ async def main(url):
         response_handlers = {}
 
         for number in numbers:
-            proxy_host = "node-us-2.astroproxy.com"
-            proxy_port = 10437
-            proxy_user = "textilenco7577"
-            proxy_pass = "a245fe"
-            proxy = {
-                "server": f"http://{proxy_host}:{proxy_port}",
-                "username": proxy_user,
-                "password": proxy_pass,
-            }
-            await page.goto(
-                url, wait_until="networkidle", timeout=timeout_selector, proxy=proxy
-            )
+
+            await page.goto(url, wait_until="networkidle", timeout=timeout_selector)
             button_selector = "//button[h6[text()='ENTENDIDO']]"
 
             button = await page.wait_for_selector(

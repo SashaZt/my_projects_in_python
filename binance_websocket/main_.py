@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timedelta, timezone
 from databases import Database
 import websockets
+import time
 
 
 # Асинхронное подключение к базе данных
@@ -75,31 +76,58 @@ async def receive_data(database, websocket, label):
     try:
         while True:
             response = await websocket.recv()
-            if label == "Depth":
-                data = json.loads(response)
-                await process_order_book(database, data)
-            elif label == "Trade":
-                trade_data = json.loads(response)
-                formatted_data = format_trade_data(trade_data)
-                await save_trade_data(database, formatted_data)
+            if response == "ping":  # Check for ping message
+                await websocket.pong(b"")  # Send empty pong for keep-alive
+                print(f"Sent pong response to ping (label: {label})")
+            else:
+                if label == "Depth":
+                    data = json.loads(response)
+                    await process_order_book(database, data)
+                elif label == "Trade":
+                    trade_data = json.loads(response)
+                    formatted_data = format_trade_data(trade_data)
+                    await save_trade_data(database, formatted_data)
     except websockets.ConnectionClosedError as e:
-        print(f"Соединение WebSocket {label} было закрыто с ошибкой: {e}")
+        now = datetime.now()
+        current_time = now.strftime("%M:%S:%f")[:-3]
+        print(
+            f"Соединение WebSocket {label} было закрыто с ошибкой: {e} время {current_time}"
+        )
+        await reconnect(database, label)
     except Exception as e:
         print(f"Произошла ошибка при получении данных {label}: {e}")
+        await reconnect(database, label)
+
+
+# Функция переподключения
+async def reconnect(database, label):
+    # Записываем время начала переподключения
+    start_time = time.time()
+    print(f"Переподключение к WebSocket {label}")
+    await asyncio.sleep(0.1)  # Минимальная задержка перед повторным подключением
+    await main_order_book_and_trade(database)
+    # Записываем время окончания переподключения
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Переподключение завершено за {elapsed_time:.3f} секунд.")
 
 
 # Основная функция управления ордербуком и торгами
-async def main_order_book_and_trade(database, number_of_seconds):
+async def main_order_book_and_trade(database, number_of_seconds=None):
     uri_depth = "wss://stream.binance.com:9443/ws/btcusdt@depth20@100ms"
     uri_trade = "wss://stream.binance.com:9443/ws/btcusdt@trade"
 
     try:
         async with websockets.connect(
-            uri_depth, ping_interval=10
+            uri_depth, ping_interval=None
         ) as websocket_depth, websockets.connect(
-            uri_trade, ping_interval=10
+            uri_trade, ping_interval=None
         ) as websocket_trade:
             print("Соединение установлено.")
+            now = datetime.now()
+            current_time = now.strftime("%M:%S:%f")[:-3]
+            print(f"Время установления соединения: {current_time}")
+
             task_depth = asyncio.create_task(
                 receive_data(database, websocket_depth, "Depth")
             )
@@ -108,7 +136,10 @@ async def main_order_book_and_trade(database, number_of_seconds):
             )
             await asyncio.gather(task_depth, task_trade)
     except websockets.ConnectionClosedError as e:
-        print(f"Соединение было закрыто с ошибкой: {e}")
+        now = datetime.now()
+        current_time = now.strftime("%M:%S:%f")[:-3]
+        print(f"Соединение было закрыто с ошибкой: {e} время {current_time}")
+        await reconnect(database, "Main")
 
 
 # Основная функция запуска программы
