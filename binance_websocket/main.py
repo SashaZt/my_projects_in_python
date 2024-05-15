@@ -234,20 +234,20 @@ def report():
 
     # Подсчет данных для различных файлов и условий
     quantity_per_minute_asks = process_file("asks.json", "Время события", "Количество")
-    write_results(quantity_per_minute_asks, "Продажа:", output_file)
+    write_results(quantity_per_minute_asks, "Ордера на продажу:", output_file)
 
     quantity_per_minute_bids = process_file("bids.json", "Время события", "Количество")
-    write_results(quantity_per_minute_bids, "Покупка:", output_file)
+    write_results(quantity_per_minute_bids, "Ордера на покупку:", output_file)
 
     sales_per_minute = process_file(
         "trades.json", "Время сделки", "Количество", "Покупка или продажа:", "Продажа"
     )
-    write_results(sales_per_minute, "Ордера на продажу:", output_file)
+    write_results(sales_per_minute, "Совершенная сделка на продажу:", output_file)
 
     purchases_per_minute = process_file(
         "trades.json", "Время сделки", "Количество", "Покупка или продажа:", "Покупка"
     )
-    write_results(purchases_per_minute, "Ордера на покупку:", output_file)
+    write_results(purchases_per_minute, "Совершенная сделка на покупку:", output_file)
 
 
 # Удаляем старые файлы

@@ -27,10 +27,10 @@ async def save_response_json(json_response, number):
 async def main(url):
     timeout_selector = 60000
     async with async_playwright() as playwright:
-        proxy_host = "node-us-2.astroproxy.com"
-        proxy_port = 10437
-        proxy_user = "textilenco7577"
-        proxy_pass = "a245fe"
+        proxy_host = "proxy.scrapingant.com"
+        proxy_port = 443
+        proxy_user = "scrapingant"
+        proxy_pass = "5762b6b89e9e4462baf572e921fade22"
         proxy = {
             "server": f"http://{proxy_host}:{proxy_port}",
             "username": proxy_user,
