@@ -9,89 +9,61 @@ import os
 from datetime import datetime
 import csv
 
-# cookies = {
-#     "sid": "iddx1xqd4e4iwzoyl1tbdkiu",
-#     "uss": "4e3a002b-b10f-4f5a-83b1-2af3659855ff",
-#     "__RequestVerificationToken": "-daFHhNiGck4PTcLDV3OeqSHdp36Up1xo4uy_xDhkrzHV0h7oFsimLxyPC5aT2rMEs3Ee0XR-aiH8jtmOYuH2VLuPRR9ohhmXAxDBwojQr01",
-#     "_gcl_au": "1.1.1649775358.1715416861",
-#     "_fbp": "fb.1.1715416861473.1152719356",
-#     "_tt_enable_cookie": "1",
-#     "_ttp": "vkj1jKVoQzkc1sxB-kJG93_LWyo",
-#     "_gid": "GA1.2.1206992160.1715578557",
-#     "_gat": "1",
-#     "_ga_6352MSYKNX": "GS1.1.1715592801.4.1.1715592813.48.0.0",
-#     "_dc_gtm_UA-38210263-4": "1",
-#     "_gat_UA-238453145-1": "1",
-#     "_ga_83HJKTVF69": "GS1.1.1715592801.3.1.1715592813.0.0.0",
-#     "_ga": "GA1.1.833406689.1715416861",
-#     "_ga_ECXG0392JW": "GS1.1.1715592801.4.1.1715592813.0.0.0",
-#     "session_timer_104054": "1",
-# }
-
-# headers = {
-#     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-#     "Accept-Language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-#     "Cache-Control": "no-cache",
-#     "Connection": "keep-alive",
-#     # 'Cookie': 'sid=iddx1xqd4e4iwzoyl1tbdkiu; uss=4e3a002b-b10f-4f5a-83b1-2af3659855ff; __RequestVerificationToken=-daFHhNiGck4PTcLDV3OeqSHdp36Up1xo4uy_xDhkrzHV0h7oFsimLxyPC5aT2rMEs3Ee0XR-aiH8jtmOYuH2VLuPRR9ohhmXAxDBwojQr01; _gcl_au=1.1.1649775358.1715416861; _fbp=fb.1.1715416861473.1152719356; _tt_enable_cookie=1; _ttp=vkj1jKVoQzkc1sxB-kJG93_LWyo; _gid=GA1.2.1206992160.1715578557; _gat=1; _ga_6352MSYKNX=GS1.1.1715592801.4.1.1715592813.48.0.0; _dc_gtm_UA-38210263-4=1; _gat_UA-238453145-1=1; _ga_83HJKTVF69=GS1.1.1715592801.3.1.1715592813.0.0.0; _ga=GA1.1.833406689.1715416861; _ga_ECXG0392JW=GS1.1.1715592801.4.1.1715592813.0.0.0; session_timer_104054=1',
-#     "DNT": "1",
-#     "Pragma": "no-cache",
-#     "Referer": "https://auto1.by/",
-#     "Sec-Fetch-Dest": "document",
-#     "Sec-Fetch-Mode": "navigate",
-#     "Sec-Fetch-Site": "same-origin",
-#     "Sec-Fetch-User": "?1",
-#     "Upgrade-Insecure-Requests": "1",
-#     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-#     "sec-ch-ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-#     "sec-ch-ua-mobile": "?0",
-#     "sec-ch-ua-platform": '"Windows"',
-# }
-
-# params = {
-#     "pattern": "OC47",
-# }
-
-# response = requests.get(
-#     "https://auto1.by/search", params=params, cookies=cookies, headers=headers
-# )
+"""
+await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+load: Ожидание завершения события загрузки страницы. Это событие срабатывает, когда вся страница и все ее ресурсы полностью загружены.
+domcontentloaded: Ожидание завершения события DOMContentLoaded. Это событие срабатывает, когда начальная структура документа была полностью загружена и обработана, без ожидания завершения загрузки стилей, изображений и подрамок.
+networkidle: Ожидание, пока сеть станет "пустой" (idle), то есть когда не будет более 0 сетевых соединений на протяжении как минимум 500 мс. Это полезно для ожидания завершения всех сетевых запросов.
+commit: Ожидание подтверждения навигации в контексте текущей страницы. Это самое раннее событие, которое может сработать при переходе на новую страницу.
+"""
 
 
-# Рабочий!!!!!!!!!!!!
-# filename = f"61745.html"
-# # src = response.text
-# # with open(filename, "w", encoding="utf-8") as file:
-# #     file.write(src)
-# with open(filename, encoding="utf-8") as file:
-#     src = file.read()
-# parser = HTMLParser(src)
-# product_name_nodes = parser.css("h1.details_title > span.text-wrap")
-# product_name = " ".join([node.text() for node in product_name_nodes])
-# print(product_name)
-# link_node = parser.css_first('link[itemprop="image"]')
+def parsing():
+    filename = f"61745.html"
+    # src = response.text
+    # with open(filename, "w", encoding="utf-8") as file:
+    #     file.write(src)
+    with open(filename, encoding="utf-8") as file:
+        src = file.read()
+    parser = HTMLParser(src)
+    product_name_nodes = parser.css("h1.details_title > span.text-wrap")
+    product_name = " ".join([node.text() for node in product_name_nodes])
+    link_node = parser.css_first('meta[property="og:image"]')
 
-# # Извлекаем значение атрибута href
-# image_url = link_node.attrs.get("href")
-# print(image_url)
-# product_info_nodes = parser.css("#product-info > li")
+    # Извлекаем значение атрибута href
+    image_url = link_node.attrs.get("content")
+    category_node = parser.css_first('li[itemprop="category"]')
+    category = category_node.text(strip=True)
+    # product_info_nodes = parser.css("#product-info > li")
 
-# # Извлекаем текст всех найденных li элементов
-# product_info = [node.text(strip=True) for node in product_info_nodes]
+    # Извлекаем текст всех найденных li элементов
+    # product_info = [node.text(strip=True) for node in product_info_nodes]
 
-# for info in product_info:
-#     print(info)
-# date_node = parser.css_first(
-#     "table > tbody > tr:nth-child(2) > td:nth-child(2) > span > span:nth-child(1)"
-# )
-# price_node = parser.css_first(
-#     "table > tbody > tr:nth-child(2) > td:nth-child(5) > span"
-# )
+    # for info in product_info:
+    #     print(info)
+    # date_node = parser.css_first(
+    #     "table > tbody > tr:nth-child(2) > td:nth-child(2) > span > span:nth-child(1)"
+    # )
+    price_node = parser.css_first(
+        "table > tbody > tr:nth-child(2) > td:nth-child(5) > span"
+    )
+    in_stock_node = parser.css_first(
+        "table > tbody > tr:nth-child(2) > td:nth-child(2) > span > span:nth-child(1)"
+    )
 
-# # Извлекаем текстовые значения
-# date = date_node.text(strip=True)
-# price = price_node.text(strip=True)
-# print(date)
-# print(price)
+    # Извлекаем текстовые значения
+    # date = date_node.text(strip=True)
+    price = price_node.text(strip=True)
+    in_stock = in_stock_node.text(strip=True)
+    # print(date)
+    values = {
+        "product_name": product_name,
+        "image_url": image_url,
+        "category": category,
+        "price": price,
+        "in_stock": in_stock,
+    }
+    print(values)
 
 
 current_directory = os.getcwd()
@@ -117,17 +89,24 @@ async def read_csv_values():
     return values
 
 
-async def main(url):
-    timeout_selector = 90000
-    values = await read_csv_values()
+async def read_all_href():
+    async with aiofiles.open("all_href_sku.json", "r", encoding="utf-8") as f:
+        contents = await f.read()
+        all_href = json.loads(contents)
+    return all_href
 
+
+async def get_all_href_sku(url):
+    timeout_selector = 10000
+    values = await read_csv_values()
+    all_href = []
     async with async_playwright() as playwright:
         browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
-        await page.goto(url, wait_until="networkidle", timeout=timeout_selector)
+        await page.goto(url, wait_until="domcontentloaded", timeout=60000)
         # Проверка наличия элемента с селектором #headerSearchSmall
-        for v in values[1:2]:
+        for v in values[1:10]:
             sku = v[0].replace(" ", "")
             brand = v[1]
             if await page.query_selector("#headerSearchSmall"):
@@ -135,11 +114,12 @@ async def main(url):
                 await page.fill("#headerSearchSmall", sku)
                 await page.press("#headerSearchSmall", "Enter")
                 # Ожидание появления первого элемента с классом .search-results-row
-                await page.wait_for_selector(
-                    ".search-results-row", timeout=timeout_selector
-                )
-                # Поиск всех элементов с классом .search-results-row
-                search_results = await page.query_selector_all(".search-results-row")
+                try:
+                    await page.wait_for_selector("#oemP", timeout=timeout_selector)
+                except:
+                    continue
+                # Поиск всех элементов #oemP > div
+                search_results = await page.query_selector_all("#oemP > div")
 
                 for result in search_results:
                     # Проверка наличия элемента span с нужным data-brand
@@ -151,11 +131,69 @@ async def main(url):
                         parent_a_href = await brand_span.evaluate(
                             '(element) => element.closest("a").href'
                         )
-                        print(f"Найдено значение href: {parent_a_href}")
+                        all_href.append(parent_a_href)
+                        # print(f"Найдено значение href: {parent_a_href}")
+                    else:
+                        continue
+
             else:
                 print("Элемент не найден.")
+    # Сохранение результатов в JSON файл
+    with open("all_href_sku.json", "w", encoding="utf-8") as f:
+        json.dump(all_href, f, ensure_ascii=False, indent=4)
+
+
+async def get_html_files():
+    timeout_selector = 10000
+    values = await read_all_href()
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=False)
+        context = await browser.new_context()
+        page = await context.new_page()
+
+        # Проверка наличия элемента с селектором #headerSearchSmall
+        for v in values[:1]:
+            await page.goto(v, wait_until="domcontentloaded", timeout=60000)
+            try:
+                await page.wait_for_selector(
+                    "#CloseStoreSelector", timeout=timeout_selector
+                )
+            except:
+                continue
+            page_content = await page.content()
+            parser = HTMLParser(page_content)
+            product_name_nodes = parser.css("h1.details_title > span.text-wrap")
+            product_name = " ".join([node.text() for node in product_name_nodes])
+            print(product_name)
+
+            link_node = parser.css_first('meta[property="og:image"]')
+
+            # Извлекаем значение атрибута href
+            image_url = link_node.attrs.get("content")
+            print(image_url)
+            product_info_nodes = parser.css("#product-info > li")
+
+            # Извлекаем текст всех найденных li элементов
+            product_info = [node.text(strip=True) for node in product_info_nodes]
+
+            for info in product_info:
+                print(info)
+            date_node = parser.css_first(
+                "table > tbody > tr:nth-child(2) > td:nth-child(2) > span > span:nth-child(1)"
+            )
+            price_node = parser.css_first(
+                "table > tbody > tr:nth-child(2) > td:nth-child(5) > span"
+            )
+
+            # Извлекаем текстовые значения
+            date = date_node.text(strip=True)
+            price = price_node.text(strip=True)
+            print(date)
+            print(price)
 
 
 if __name__ == "__main__":
+    parsing()
     url = "https://auto1.by/"
-    asyncio.run(main(url))
+    # asyncio.run(get_all_href_sku(url))
+    # asyncio.run(get_html_files())

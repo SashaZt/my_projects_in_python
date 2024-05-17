@@ -8,158 +8,130 @@ import time
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
-all_hotels = os.path.join(temp_path, "all_hotels")
-hotel_path = os.path.join(temp_path, "hotel")
+repuve_path = os.path.join(temp_path, "repuve")
+pgj_path = os.path.join(temp_path, "pgj")
+ocra_path = os.path.join(temp_path, "ocra")
+carfax_path = os.path.join(temp_path, "carfax")
+aviso_path = os.path.join(temp_path, "aviso")
 
 # Создание директории, если она не существует
 os.makedirs(temp_path, exist_ok=True)
-os.makedirs(all_hotels, exist_ok=True)
-os.makedirs(hotel_path, exist_ok=True)
+os.makedirs(repuve_path, exist_ok=True)
+os.makedirs(pgj_path, exist_ok=True)
+os.makedirs(ocra_path, exist_ok=True)
+os.makedirs(carfax_path, exist_ok=True)
+os.makedirs(aviso_path, exist_ok=True)
 
 
-async def save_response_json(json_response, number):
+# Универсальная функция для сохранения JSON
+async def save_response_json(json_response, number, path):
     """Асинхронно сохраняет JSON-данные в файл."""
-    filename = os.path.join(hotel_path, f"{number}.json")
+    filename = os.path.join(path, f"{number}.json")
     async with aiofiles.open(filename, mode="w", encoding="utf-8") as f:
         await f.write(json.dumps(json_response, ensure_ascii=False, indent=4))
 
 
-async def main(url):
-    timeout_selector = 60000
-    async with async_playwright() as playwright:
-        proxy_host = "proxy.scrapingant.com"
-        proxy_port = 443
-        proxy_user = "scrapingant"
-        proxy_pass = "5762b6b89e9e4462baf572e921fade22"
-        proxy = {
-            "server": f"http://{proxy_host}:{proxy_port}",
-            "username": proxy_user,
-            "password": proxy_pass,
+# Универсальная функция для ожидания и клика по элементу
+async def wait_and_click(page, selector, timeout=10000):
+    button = await page.wait_for_selector(selector, timeout=timeout)
+    if button:
+        await button.click()
+        await page.wait_for_timeout(1000)  # Задержка для наглядности (необязательно)
+
+
+# Функция для обработки ответов
+def create_response_handler(number):
+    async def log_response(response):
+        url_to_path = {
+            "https://www2.repuve.gob.mx:8443/consulta/consulta/repuve": repuve_path,
+            "https://www2.repuve.gob.mx:8443/consulta/consulta/pgj": pgj_path,
+            "https://www2.repuve.gob.mx:8443/consulta/consulta/ocra": ocra_path,
+            "https://www2.repuve.gob.mx:8443/consulta/consulta/carfax": carfax_path,
+            "https://www2.repuve.gob.mx:8443/consulta/consulta/aviso": aviso_path,
         }
-        browser = await playwright.chromium.launch(headless=False, proxy=proxy)
-        context = await browser.new_context()
+
+        if response.request.method == "POST" and response.url in url_to_path:
+            try:
+                json_response = await response.json()
+                path = url_to_path[response.url]
+                await save_response_json(json_response, number, path)
+            except Exception as e:
+                print(f"Ошибка при получении JSON из ответа {response.url}: {e}")
+
+    return log_response
+
+
+async def main(url):
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    timeout_selector = 90000
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=False)  # , proxy=proxy
+        context = await browser.new_context(
+            user_agent=user_agent,
+            viewport={"width": 1920, "height": 1080},  # Настройка размеров экрана
+            device_scale_factor=1,  # Плотность пикселей
+            is_mobile=False,
+            has_touch=False,
+            java_script_enabled=True,
+            timezone_id="America/New_York",  # Настройка часового пояса
+            geolocation={
+                "latitude": 40.7128,
+                "longitude": -74.0060,
+            },  # Настройка геолокации
+            permissions=["geolocation"],  # Включение разрешений
+            locale="en-US",  # Настройка локали
+            color_scheme="light",  # Настройка цветовой схемы
+        )
         page = await context.new_page()
 
-        # Устанавливаем обработчик для сбора и сохранения данных ответов
-        def create_log_response_with_counter(number):
-            async def log_response(response):
-                api_url = "https://www2.repuve.gob.mx:8443/consulta/consulta/repuve"
-                request = response.request
-                if request.method == "POST" and api_url in request.url:
-                    try:
-                        json_response = await response.json()
-                        await save_response_json(json_response, number)
-                    except Exception as e:
-                        print(
-                            f"Ошибка при получении JSON из ответа {response.url}: {e}"
-                        )
-
-            return log_response
-
-        numbers = [
-            "NGU8989",
-            "NCV2895",
-            "MMT832A",
-            "MNW954A",
-            "C53AVJ",
-            "53f878",
-            "773YMZ",
-            "247VDK",
-            "XZE363B",
-            "YEC678B",
-        ]
-        response_handlers = {}
-
+        numbers = ["NUE2691", "NUE2691"]  # , "VBE252B"
         for number in numbers:
-
             await page.goto(url, wait_until="networkidle", timeout=timeout_selector)
-            button_selector = "//button[h6[text()='ENTENDIDO']]"
-
-            button = await page.wait_for_selector(
-                button_selector, timeout=timeout_selector
+            await wait_and_click(
+                page, "//button[h6[text()='ENTENDIDO']]", timeout_selector
             )
-            await button.click()  # Кликаем по кнопке
-            input_selector = "input[placeholder='AA123D']"
-            await page.fill(input_selector, number)  # Заполняем input значением number
+            # Заполняем input значением number
+            await page.fill("input[placeholder='AA123D']", number)
+            await wait_and_click(
+                page, "//button[contains(text(), 'Buscar')]", timeout_selector
+            )
 
-            # Находим кнопку с текстом "Buscar" и кликаем по ней
-            button_selector = "//button[contains(text(), 'Buscar')]"
-            buscar_button = await page.wait_for_selector(button_selector)
-            await buscar_button.click()  # Кликаем по кнопке
-
-            handler = create_log_response_with_counter(number)
-            response_handlers[number] = handler
+            handler = create_response_handler(number)
             page.on("response", handler)
+            try:
+                # Клики по различным кнопкам
+                await wait_and_click(
+                    page,
+                    "//li[a[@data-toggle='tab' and @routerlink='/consulta/pgj' and @href='/ciudadania/consulta/pgj' and text()='FGJ']]",
+                    1000,
+                )
+                await asyncio.sleep(1)
+                await wait_and_click(
+                    page,
+                    "//li[a[@data-toggle='tab' and @routerlink='/consulta/ocra' and @href='/ciudadania/consulta/ocra' and text()='OCRA']]",
+                    1000,
+                )
+                await asyncio.sleep(1)
+                await wait_and_click(
+                    page,
+                    "//li[a[@data-toggle='tab' and @routerlink='/consulta/carfax' and @href='/ciudadania/consulta/carfax' and text()='Robo USA/CAN']]",
+                    1000,
+                )
+                await asyncio.sleep(1)
+                await wait_and_click(
+                    page,
+                    "//li[a[@data-toggle='tab' and @routerlink='/consulta/aviso' and @href='/ciudadania/consulta/aviso' and text()='Avisos Ministeriales/Judiciales']]",
+                    1000,
+                )
+                await asyncio.sleep(1)
+            except:
+                continue
 
-            await asyncio.sleep(5)
+            page.remove_listener("response", handler)
 
-            # Удаляем обработчик и очищаем инпут
-            page.remove_listener("response", response_handlers[number])
-            # await page.evaluate(
-            #     """() => {
-            #     document.querySelector("input[placeholder='AA123D']").value = '';
-            # }"""
-            # )
-
-            # Удаляем обработчик после первой итерации
-            # if count > 1:
-            #     page.remove_listener("response", response_handlers[numbers[count - 1]])
-            # elif count > 1:
-            #     page.remove_listener("response", response_handlers[numbers[count - 1]])
-
-        # await asyncio.sleep(5)
-        # # Здесь нажимаем кнопку cookies
-        # button_cookies = '//button[@class="r-button r-button--accent r-button--hover r-button--contained r-button--only-text r-button--svg-margin-left r-consent-buttons__button cmpboxbtnyes"]'
-        # await page.wait_for_selector(button_cookies, timeout=timeout_selector)
-        # cookies_button = await page.query_selector(button_cookies)
-        # if cookies_button:
-        #     # Кликаем по кнопке "Следующая", если она найдена
-        #     await cookies_button.click()
-
-        # # Дождитесь загрузки страницы и элементов
-        # await page.wait_for_selector(
-        #     '//button[@class="r-select-button r-select-button-termin"]',
-        #     timeout=timeout_selector,
-        # )
-        # termin_element = '//button[@class="r-select-button r-select-button-termin"]'
-        # # Найдите все элементы по селектору
-        # await page.wait_for_selector(termin_element, timeout=timeout_selector)
-        # element_termin = await page.query_selector(termin_element)
-        # # Проверка наличия элементов перед извлечением текста
-        # # await asyncio.sleep(5)
-        # if element_termin:
-        #     await element_termin.click()
-        # else:
-        #     print("Элементы не найдены")
-        # list_element = '//button[@class="r-tab"]'
-        # # Найдите все элементы по селектору
-        # await page.wait_for_selector(list_element, timeout=timeout_selector)
-        # element_list = await page.query_selector(list_element)
-        # # Проверка наличия элементов перед извлечением текста
-        # # await asyncio.sleep(5)
-        # if element_list:
-        #     await element_list.click()
-        # else:
-        #     print("Элементы не найдены")
-        # try:
-        #     list_item = '//div[@class="kh-terminy-list__item"]'
-        # except:
-        #     list_item = (
-        #         '//div[@class="kh-terminy-list__item kh-terminy-list__item--active"]'
-        #     )
-        # await page.wait_for_selector(list_item, timeout=timeout_selector)
-        # item_list = await page.query_selector_all(list_item)
-        # # Проверка наличия элементов перед извлечением текста
-        # # await asyncio.sleep(5)
-        # if item_list:
-        #     await item_list[0].click()
-        # else:
-        #     print("Элементы не найдены")
-
-        # Итерация по страницам
-
-        await browser.close()
+            # await asyncio.sleep(5)  # Пауза для проверки (можно убрать)
 
 
-url = "https://www2.repuve.gob.mx:8443/ciudadania/"
-asyncio.run(main(url))
+if __name__ == "__main__":
+    url = "https://www2.repuve.gob.mx:8443/ciudadania/"
+    asyncio.run(main(url))

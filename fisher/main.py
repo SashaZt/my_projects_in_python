@@ -427,7 +427,14 @@ def process_data(sheet):
     data_P = data_P[:min_length]
 
     # Преобразуем данные из P в числа, заменяя запятые на точки
-    data_P = [float(x.replace(",", ".")) if x else None for x in data_P]
+    def to_float(value):
+        try:
+            num = float(value.replace(",", "."))
+            return num if num >= 0 else "error!!!"
+        except ValueError:
+            return "error"
+
+    data_P = [to_float(x) if x else None for x in data_P]
 
     # Найдем уникальные значения в колонке A
     unique_values = sorted(set(data_A))
@@ -440,7 +447,12 @@ def process_data(sheet):
         corresponding_values = [data_P[i] for i in indices]
 
         # Обработаем соответствующие значения
-        min_value = min([x for x in corresponding_values if x is not None])
+        non_null_values = [x for x in corresponding_values if isinstance(x, float)]
+        if non_null_values:
+            min_value = min(non_null_values)
+        else:
+            min_value = 0
+
         step = 0.5
 
         for i, value in zip(indices, corresponding_values):
@@ -448,6 +460,8 @@ def process_data(sheet):
             cell = f"U{3 + i}"
             if value is None:
                 sheet.update_acell(cell, "")
+            elif value == "error":
+                sheet.update_acell(cell, "error")
             else:
                 # Округляем значение и находим индекс для колонки U
                 rounded_value = round(value * 2) / 2

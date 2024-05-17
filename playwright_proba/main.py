@@ -5,6 +5,7 @@ from playwright.async_api import async_playwright
 import time
 import os
 from datetime import datetime
+from selectolax.parser import HTMLParser
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
@@ -61,11 +62,12 @@ async def main(url):
             return log_response
 
         url_name = url.split("/")[-1]
-        filename = f"{url_name}.html"
+        # filename = f"{url_name}.html"
+        filename = "url_name.html"
         file_path = os.path.join(current_directory, filename)
         # Для сохранения html файла
         # if not os.path.exists(file_path):
-        await page.goto(url, wait_until="networkidle", timeout=60000)
+        await page.goto(url)  # , wait_until="networkidle", timeout=60000
         await asyncio.sleep(1)
         await save_page_content_html(page, file_path)
         # try:
@@ -144,5 +146,23 @@ async def main(url):
     # # Итерация по страницам
 
 
-url = "https://auto1.by/avtozapchasti/dvigatel/61745"
-asyncio.run(main(url))
+def parsing_num():
+    all_href = []
+    filename = "url_name.html"
+    with open(filename, encoding="utf-8") as file:
+        src = file.read()
+    parser = HTMLParser(src)
+    numbuttons = parser.css('a[class="button button-outline button-small numbutton"]')
+    for num in numbuttons:
+        href = num.attributes.get("href")
+        all_href.append(href)
+    print(all_href)
+
+
+
+
+
+if __name__ == "__main__":
+    # parsing_num()
+    url = "https://smstome.com/usa/phone/12622727616/sms/6816"
+    asyncio.run(main(url))
