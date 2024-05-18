@@ -6,29 +6,39 @@ import gspread
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 import time
+import glob
+
+current_directory = os.getcwd()
+temp_path = os.path.join(current_directory, "temp")
+json_path = os.path.join(temp_path, "json")
+
+# Создание директории, если она не существует
+os.makedirs(temp_path, exist_ok=True)
+os.makedirs(json_path, exist_ok=True)
 
 
 # Функция для получение данных с API
 def get_json_data():
 
     # url = f"https://betatransfer.io/excel/cascades/{id_accounts}/accounts"
-    url = "https://betatransfer.io/excel/cascades"
+    first_url = "https://betatransfer.io/excel/cascades"
     token = "pLaZ2zGFtbKt8UOdw6EAfpIBWwbsGETd"
     headers = {"Authorization": f"Basic {token}"}
-    response = requests.get(url, headers=headers)
+    response = requests.get(first_url, headers=headers)
 
     if response.status_code == 200:
         datas = response.json()
         tables = []
+        first_currency = None  # Переменная для хранения первой валюты
         for data in datas:
 
             id_cascada = data["id"]
 
             name_cascada = data["name"]
 
-            url = f"https://betatransfer.io/excel/cascades/{id_cascada}/accounts"
+            second_url = f"https://betatransfer.io/excel/cascades/{id_cascada}/accounts"
 
-            response = requests.get(url, headers=headers)
+            response = requests.get(second_url, headers=headers)
             if response.status_code == 200:
                 datas = response.json()
                 for data in datas:
@@ -36,6 +46,8 @@ def get_json_data():
                     name_account = data["name"]
                     periods = data["periods"]
                     currency = data["currency"]
+                    if first_currency is None:
+                        first_currency = currency  # Сохраняем первую валюту
                     for p in periods:
                         period = p["period"]
                         conversion = p["conversion"]
@@ -57,31 +69,33 @@ def get_json_data():
                             "Теги": tags,
                         }
                         tables.append(rows)
-        filename = "json_data.json"
+
+        if first_currency:
+            filename = os.path.join(json_path, f"{first_currency}.json")
+        else:
+            filename = "json_data.json"
         with open(filename, "w", encoding="utf-8") as file:
             json.dump(tables, file, ensure_ascii=False, indent=4)
 
 
 # Фукция для подключения к sheet
 def get_google():
-    spreadsheet_id = "1D4YEMQVAUjwrkaUa70uHS8ZpEclxNvfzeT1m7Q6G11U"
+    spreadsheet_id = "1ot1RkXNsIGFbxuTVAwPNaX0i9OO0TBFZGaky2FqXnGY"
     current_directory = os.getcwd()
     scope = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds_file = os.path.join(current_directory, "access.json")
+    creds_file = os.path.join(current_directory, "for-gt2-b96166ae6643.json")
     creds = Credentials.from_service_account_file(creds_file, scopes=scope)
     client = gspread.authorize(creds)
-    sheet = client.open_by_key(spreadsheet_id).worksheet("Лист1")
 
-    return sheet, creds
+    return client, spreadsheet_id, creds
 
 
 # Чтение json для дальнейшего использваония
-def read_json_file():
-    filename = "json_data.json"
-    with open(filename, "r", encoding="utf-8") as file:
+def read_json_file(item):
+    with open(item, "r", encoding="utf-8") as file:
         data = json.load(file)
     return data
 
@@ -168,85 +182,102 @@ def clear_comments(sheet, row_index, text, creds):
 
 # Функция для загрузки данных
 def write_to_sheet():
-    sheet, creds = get_google()
-    detailed_headers = [
-        "ID Каскада",
-        "Название Каскада",
-        "ID Аккаунта",
-        "Название Аккаунта",
-        "Валюта",
-        "today Конверсия",
-        "today Реквизиты",
-        "today Споры",
-        "yesterday Конверсия",
-        "yesterday Реквизиты",
-        "yesterday Споры",
-        "week Конверсия",
-        "week Реквизиты",
-        "week Споры",
-        "Вес",
-    ]
-    # Проверяем, содержит ли первая строка заголовки периодов
-    if not sheet.cell(1, 6).value:  # Проверяем ячейку в строке 1, колонке 6 (F1)
-        sheet.append_row([""] * 15)  # Добавляем пустую строку для объединения ячеек
-        sheet.merge_cells("F1:H1")
-        sheet.merge_cells("I1:K1")
-        sheet.merge_cells("L1:N1")
-        sheet.update(
-            values=[["today"]], range_name="F1", value_input_option="USER_ENTERED"
-        )
-        sheet.update(
-            values=[["yesterday"]], range_name="I1", value_input_option="USER_ENTERED"
-        )
-        sheet.update(
-            values=[["week"]], range_name="L1", value_input_option="USER_ENTERED"
-        )
+    client, spreadsheet_id, creds = get_google()
+    folder = os.path.join(json_path, "*.json")
 
-    # Проверяем, содержит ли вторая строка детальные заголовки
-    if not sheet.cell(2, 1).value:  # Проверяем ячейку в строке 2, колонке 1 (A2)
+    files_json = glob.glob(folder)
+    for item in files_json:
 
-        sheet.update(values=[detailed_headers], range_name="A2:O2")
+        data = read_json_file(item)
+        transformed_data = transform_data(data)
+        name_sheet = os.path.splitext(os.path.basename(item))[0]
+        spreadsheet = client.open_by_key(spreadsheet_id)
+        try:
+            sheet = spreadsheet.worksheet(name_sheet)
+            print(f"Лист '{name_sheet}' уже существует.")
+        except gspread.exceptions.WorksheetNotFound:
+            # Создайте лист, если он не существует
+            sheet = spreadsheet.add_worksheet(title=name_sheet, rows="1000", cols="30")
+            print(f"Лист '{name_sheet}' создан.")
+        detailed_headers = [
+            "ID Каскада",
+            "Название Каскада",
+            "ID Аккаунта",
+            "Название Аккаунта",
+            "Валюта",
+            "today Конверсия",
+            "today Реквизиты",
+            "today Споры",
+            "yesterday Конверсия",
+            "yesterday Реквизиты",
+            "yesterday Споры",
+            "week Конверсия",
+            "week Реквизиты",
+            "week Споры",
+            "Вес",
+        ]
+        # Проверяем, содержит ли первая строка заголовки периодов
+        if not sheet.cell(1, 6).value:  # Проверяем ячейку в строке 1, колонке 6 (F1)
+            sheet.append_row([""] * 15)  # Добавляем пустую строку для объединения ячеек
+            sheet.merge_cells("F1:H1")
+            sheet.merge_cells("I1:K1")
+            sheet.merge_cells("L1:N1")
+            sheet.update(
+                values=[["today"]], range_name="F1", value_input_option="USER_ENTERED"
+            )
+            sheet.update(
+                values=[["yesterday"]],
+                range_name="I1",
+                value_input_option="USER_ENTERED",
+            )
+            sheet.update(
+                values=[["week"]], range_name="L1", value_input_option="USER_ENTERED"
+            )
 
-    # Чтение и преобразование данных из JSON
-    data = read_json_file()
-    transformed_data = transform_data(data)
+        # Проверяем, содержит ли вторая строка детальные заголовки
+        if not sheet.cell(2, 1).value:  # Проверяем ячейку в строке 2, колонке 1 (A2)
 
-    # Начало записи данных с третьей строки
-    row_index = 3
-    for item in transformed_data:
-        row = [item.get(header, "") for header in detailed_headers]
-        # Если строка уже существует, обновляем её, иначе добавляем
-        if sheet.row_count >= row_index:
-            range_to_update = f"A{row_index}:O{row_index}"
-            sheet.update(values=[row], range_name=range_to_update)
-        else:
-            sheet.append_row(row)
-        # Добавление комментариев, если есть теги
-        if "Теги" in item and isinstance(item["Теги"], list):
-            tags_text = "\n".join(
-                item["Теги"]
-            )  # Объединяем все теги в одну строку, если они есть
-            clear_comments(sheet, row_index, tags_text, creds)
-            time.sleep(5)
-            add_comments(sheet, row_index, tags_text, creds)
-        elif "Теги" in item and item["Теги"] is None:
-            clear_comments(sheet, row_index, tags_text, creds)
+            sheet.update(values=[detailed_headers], range_name="A2:O2")
 
-        row_index += 1
-    format_sheet(sheet, creds)
-    counts = count_values(sheet)
-    format_rows(sheet, creds, counts)
-    process_data(sheet)
-    # # Находим первую свободную строку для добавления данных
-    # first_empty_row = (
-    #     len(sheet.get_all_values()) + 1
-    # )  # Получаем количество всех заполненных строк и добавляем 1
+        # Чтение и преобразование данных из JSON
 
-    # # Записываем данные в лист, начиная с первой свободной строки
-    # for item in transformed_data:
-    #     row = [item.get(header, "") for header in detailed_headers]
-    #     sheet.insert_row(row, first_empty_row)
-    #     first_empty_row += 1  # Перемещаем указатель строки
+        # Начало записи данных с третьей строки
+        row_index = 3
+        for item in transformed_data:
+            row = [item.get(header, "") for header in detailed_headers]
+            # Если строка уже существует, обновляем её, иначе добавляем
+            if sheet.row_count >= row_index:
+                range_to_update = f"A{row_index}:O{row_index}"
+                sheet.update(values=[row], range_name=range_to_update)
+            else:
+                sheet.append_row(row)
+            # Добавление комментариев, если есть теги
+            if "Теги" in item and isinstance(item["Теги"], list):
+                tags_text = "\n".join(
+                    item["Теги"]
+                )  # Объединяем все теги в одну строку, если они есть
+                clear_comments(sheet, row_index, tags_text, creds)
+
+                time.sleep(1)
+                add_comments(sheet, row_index, tags_text, creds)
+            elif "Теги" in item and item["Теги"] is None:
+                clear_comments(sheet, row_index, tags_text, creds)
+
+            row_index += 1
+        format_sheet(sheet, creds)
+        counts = count_values(sheet)
+        format_rows(sheet, creds, counts)
+        process_data(sheet)
+        # # Находим первую свободную строку для добавления данных
+        # first_empty_row = (
+        #     len(sheet.get_all_values()) + 1
+        # )  # Получаем количество всех заполненных строк и добавляем 1
+
+        # # Записываем данные в лист, начиная с первой свободной строки
+        # for item in transformed_data:
+        #     row = [item.get(header, "") for header in detailed_headers]
+        #     sheet.insert_row(row, first_empty_row)
+        #     first_empty_row += 1  # Перемещаем указатель строки
 
 
 # Форматирование строк
@@ -417,6 +448,18 @@ def format_rows(sheet, creds, values_list):
 
 # Из Комиссия % получаем Рейтинг
 def process_data(sheet):
+    detailed_headers = [
+        "Комиссия %",
+        "Комиссия fix",
+        "Settle fee %",
+        "Settle fee fix",
+        "Курс вывода (зачисления)",
+        "Рейтинг",
+    ]
+    # Проверяем ячейку в строке 2, колонке 16 (P2)
+    if not sheet.cell(2, 16).value:
+
+        sheet.update(values=[detailed_headers], range_name="P2:U2")
     # Получаем все значения из колонок A и P
     data_A = sheet.col_values(1)[2:]  # A3 до конца
     data_P = sheet.col_values(16)[2:]  # P3 до конца

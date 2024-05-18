@@ -47,14 +47,12 @@ def load_proxy():
         formatted_proxy_http = (
             f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
         )
-        formatted_proxy_https = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"  # Измените, если https требует другой прокси
+        proxy_aiohttp = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"  # Измените, если https требует другой прокси
 
         # Для requests
-        proxies_dict = {"http": formatted_proxy_http, "https": formatted_proxy_https}
+        proxies_requests = {"http": formatted_proxy_http, "https": proxy_aiohttp}
 
-        # Для aiohttp (если вам нужен только один прокси, верните formatted_proxy_http или formatted_proxy_https)
-        # Возвращаем оба формата для удобства
-        return proxies_dict, formatted_proxy_http
+        return proxies_requests, proxy_aiohttp
 
 
 def load_config():
@@ -102,52 +100,19 @@ def create_folders():
 
 
 def parsing_url_category_in_html():
-    cookies = {
-        'cf_clearance': 'RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw',
-        'LastSeenProducts': '187102,170505,189086,189108,189085,189082',
-        'lastCartId': '-1',
-        '_gid': 'GA1.2.1356992272.1715171409',
-        '_gat_gtag_UA_232962489_1': '1',
-        '_gat_UA-232962489-1': '1',
-        '_clck': '9hbfrd%7C2%7Cfll%7C0%7C1589',
-        '_clsk': '1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect',
-        '_ga_YBF7Q20GFD': 'GS1.1.1715171082.2.1.1715171409.0.0.0',
-        '_ga': 'GA1.1.1797401917.1715171409',
-    }
+    config = load_config()
+    cookies = config["cookies"]
+    headers = config["headers"]
 
-    headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-language': 'ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6',
-        'cache-control': 'no-cache',
-        # 'cookie': 'cf_clearance=RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw; LastSeenProducts=187102,170505,189086,189108,189085,189082; lastCartId=-1; _gid=GA1.2.1356992272.1715171409; _gat_gtag_UA_232962489_1=1; _gat_UA-232962489-1=1; _clck=9hbfrd%7C2%7Cfll%7C0%7C1589; _clsk=1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect; _ga_YBF7Q20GFD=GS1.1.1715171082.2.1.1715171409.0.0.0; _ga=GA1.1.1797401917.1715171409',
-        'dnt': '1',
-        'pragma': 'no-cache',
-        'priority': 'u=0, i',
-        'referer': 'https://shop.olekmotocykle.com/?__cf_chl_tk=5ZgfWaIKoOoMEWWS_G89fZ.msEaq_np8I5eK0Y3En3c-1715171079-0.0.1.1-1471',
-        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-        'sec-ch-ua-arch': '"x86"',
-        'sec-ch-ua-bitness': '"64"',
-        'sec-ch-ua-full-version': '"124.0.6367.119"',
-        'sec-ch-ua-full-version-list': '"Chromium";v="124.0.6367.119", "Google Chrome";v="124.0.6367.119", "Not-A.Brand";v="99.0.0.0"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-model': '""',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-ch-ua-platform-version': '"15.0.0"',
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'same-origin',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-    }
     """Универсальное использование прокси-серверов"""
     proxies_requests, proxy_aiohttp = load_proxy()
+    print(proxies_requests)
 
     filename_to_csv = os.path.join(category_path, "category_product.csv")
     url = "https://shop.olekmotocykle.com/"
     try:
         response = requests.get(
-            url, cookies=cookies, headers=headers
+            url, cookies=cookies, headers=headers, proxies=proxies_requests
         )  # , proxies=proxies_requests
         print(response.status_code)
     except RequestException:
@@ -284,55 +249,24 @@ def main_download_url():
     # Создайте полный путь к папке temp
     temp_path = os.path.join(current_directory, "temp")
     category_path = os.path.join(temp_path, "category")
-    
-    def get_with_proxies(url, headers):
-        cookies = {
-        'cf_clearance': 'RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw',
-        'LastSeenProducts': '187102,170505,189086,189108,189085,189082',
-        'lastCartId': '-1',
-        '_gid': 'GA1.2.1356992272.1715171409',
-        '_gat_gtag_UA_232962489_1': '1',
-        '_gat_UA-232962489-1': '1',
-        '_clck': '9hbfrd%7C2%7Cfll%7C0%7C1589',
-        '_clsk': '1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect',
-        '_ga_YBF7Q20GFD': 'GS1.1.1715171082.2.1.1715171409.0.0.0',
-        '_ga': 'GA1.1.1797401917.1715171409',
-        }
 
-        headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-language': 'ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6',
-        'cache-control': 'no-cache',
-        # 'cookie': 'cf_clearance=RqRHPBQ.LDYfdC968DJ01cJ3OuDS2bHtHn992Hs2mcs-1715171079-1.0.1.1-kaF7dRefOHWB2aJhG4FxtyYApC7IS7vDE3p8v6LluvIhZy2H4qramMaYuxUSzdOBNzEe8JgCwIHDJcPDDBLMiw; LastSeenProducts=187102,170505,189086,189108,189085,189082; lastCartId=-1; _gid=GA1.2.1356992272.1715171409; _gat_gtag_UA_232962489_1=1; _gat_UA-232962489-1=1; _clck=9hbfrd%7C2%7Cfll%7C0%7C1589; _clsk=1ge1k9d%7C1715171410440%7C3%7C1%7Cw.clarity.ms%2Fcollect; _ga_YBF7Q20GFD=GS1.1.1715171082.2.1.1715171409.0.0.0; _ga=GA1.1.1797401917.1715171409',
-        'dnt': '1',
-        'pragma': 'no-cache',
-        'priority': 'u=0, i',
-        'referer': 'https://shop.olekmotocykle.com/?__cf_chl_tk=5ZgfWaIKoOoMEWWS_G89fZ.msEaq_np8I5eK0Y3En3c-1715171079-0.0.1.1-1471',
-        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-        'sec-ch-ua-arch': '"x86"',
-        'sec-ch-ua-bitness': '"64"',
-        'sec-ch-ua-full-version': '"124.0.6367.119"',
-        'sec-ch-ua-full-version-list': '"Chromium";v="124.0.6367.119", "Google Chrome";v="124.0.6367.119", "Not-A.Brand";v="99.0.0.0"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-model': '""',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-ch-ua-platform-version': '"15.0.0"',
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'same-origin',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        }
+    def get_with_proxies(url, headers):
+        config = load_config()
+        cookies = config["cookies"]
+        headers = config["headers"]
         try:
-            proxies_requests, proxy_aiohttp = load_proxy()
-            response = requests.get(url, cookies=cookies, headers=headers)
+            proxies_requests, _ = load_proxy()
+            response = requests.get(
+                url, cookies=cookies, headers=headers, proxies=proxies_requests
+            )
+            print(response.status_code)
             return response
         except RequestException:
             print(f"Проблема с прокси {proxies_requests}. Пропускаем.")
             return None  # или возвращайте какое-либо значение по умолчанию
 
     async def fetch_url(url, headers):
+        _, proxy_aiohttp = load_proxy()
         response = await asyncio.get_event_loop().run_in_executor(
             None, get_with_proxies, url, headers
         )
@@ -350,25 +284,14 @@ def main_download_url():
                 a = block.find("a", class_="product-link-ui")
                 if a and a.has_attr("href"):
                     img_links.append(f"{url_home}" + a["href"])
-            # # for img in soup.find_all('img', alt=lambda x: x and '9' in x):
-
-            #     # Для каждого найденного тега <img> ищем ближайший предшествующий тег <a>.
-            #     # Метод find_previous('a') возвращает ближайший выше по коду тег <a>.
-            #     a = img.find_previous('a')
-
-            #     # Проверяем, что тег <a> найден (a не является None) и у него есть атрибут 'href'.
-            #     if a and 'href' in a.attrs:
-            #         # Добавляем в список img_links полную ссылку, состоящую из какой-то базовой части 'url'
-            #         # (предполагается, что это какой-то базовый URL, к которому нужно добавить относительную ссылку из 'href'),
-            #         # и сами значения 'href' из тега <a>.
-            #         img_links.append(f'{url_home}' + a['href'])
 
             # Возвращаем список ссылок
             return img_links
         else:
             return []
 
-    async def process_category(url, headers, writer, unique_links):
+    async def process_category(url, headers, cookies, writer, unique_links):
+        _, proxy_aiohttp = load_proxy()
         response = await asyncio.get_event_loop().run_in_executor(
             None, get_with_proxies, url, headers
         )
@@ -397,6 +320,7 @@ def main_download_url():
 
     async def main():
         config = load_config()
+        cookies = config["cookies"]
         headers = config["headers"]
         filename_category = os.path.join(category_path, "category_product.csv")
         filename_url = os.path.join(category_path, "url.csv")
@@ -408,9 +332,10 @@ def main_download_url():
             tasks = []
             unique_links = set()
             for row in urls:
-
                 url = row[0]
-                tasks.append(process_category(url, headers, writer, unique_links))
+                tasks.append(
+                    process_category(url, headers, cookies, writer, unique_links)
+                )
 
             await asyncio.gather(*tasks)
 
