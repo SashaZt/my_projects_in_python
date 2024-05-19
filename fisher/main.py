@@ -20,7 +20,6 @@ os.makedirs(json_path, exist_ok=True)
 # Функция для получение данных с API
 def get_json_data():
 
-    # url = f"https://betatransfer.io/excel/cascades/{id_accounts}/accounts"
     first_url = "https://betatransfer.io/excel/cascades"
     token = "pLaZ2zGFtbKt8UOdw6EAfpIBWwbsGETd"
     headers = {"Authorization": f"Basic {token}"}
@@ -154,6 +153,7 @@ def add_comments(sheet, row_index, text, creds):
     ).execute()
 
 
+# Очистка комментариев
 def clear_comments(sheet, row_index, text, creds):
     """Добавляет комментарий к ячейке в Google Sheets в колонке D."""
     service = build("sheets", "v4", credentials=creds)
@@ -284,16 +284,6 @@ def write_to_sheet():
             admin_sheet_name,
             manager_sheet_name,
         )
-        # # Находим первую свободную строку для добавления данных
-        # first_empty_row = (
-        #     len(sheet.get_all_values()) + 1
-        # )  # Получаем количество всех заполненных строк и добавляем 1
-
-        # # Записываем данные в лист, начиная с первой свободной строки
-        # for item in transformed_data:
-        #     row = [item.get(header, "") for header in detailed_headers]
-        #     sheet.insert_row(row, first_empty_row)
-        #     first_empty_row += 1  # Перемещаем указатель строки
 
 
 # Форматирование строк
@@ -528,6 +518,7 @@ def process_data(sheet):
                 sheet.update_acell(cell, index_U)
 
 
+# Копирование данных в лист менеджера
 def copy_data(
     client,
     admin_spreadsheet_id,
@@ -566,37 +557,6 @@ def copy_data(
     )
 
 
-def pars_json():
-    filename = "json_data.json"
-    with open(filename, "r", encoding="utf-8") as file:
-        datas = json.load(file)
-    tables = []
-    for data in datas[:1]:
-        id_account = data["id"]
-        name_account = data["name"]
-        periods = data["periods"]
-        for p in periods:
-            period = p["period"]
-            conversion = p["conversion"]
-            requisites = p["requisites"]
-            disputes = p["disputes"]
-            weight = data["weight"]
-            tags = data["tags"][0]
-            rows = {
-                "id_account": id_account,
-                "name_account": name_account,
-                "period": period,
-                "conversion": conversion,
-                "requisites": requisites,
-                "disputes": disputes,
-                "weight": weight,
-                "tags": tags,
-            }
-            tables.append(rows)
-    print(tables)
-
-
 if __name__ == "__main__":
-    # get_json_data()
+    get_json_data()
     write_to_sheet()
-    # pars_json()
