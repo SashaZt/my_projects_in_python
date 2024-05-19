@@ -76,11 +76,13 @@ def get_json_data():
             filename = "json_data.json"
         with open(filename, "w", encoding="utf-8") as file:
             json.dump(tables, file, ensure_ascii=False, indent=4)
+        print(f"Данные по валюте сохраннены {filename}")
 
 
 # Фукция для подключения к sheet
 def get_google():
-    spreadsheet_id = "1ot1RkXNsIGFbxuTVAwPNaX0i9OO0TBFZGaky2FqXnGY"
+    spreadsheet_id_admin = "1ot1RkXNsIGFbxuTVAwPNaX0i9OO0TBFZGaky2FqXnGY"
+    spreadsheet_id_manager = "1LO7Po0a7qgplazvBSe6R6_4X7GGbWLleXvpebL5lWdE"
     current_directory = os.getcwd()
     scope = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -90,7 +92,7 @@ def get_google():
     creds = Credentials.from_service_account_file(creds_file, scopes=scope)
     client = gspread.authorize(creds)
 
-    return client, spreadsheet_id, creds
+    return client, spreadsheet_id_admin, creds, spreadsheet_id_manager
 
 
 # Чтение json для дальнейшего использваония
@@ -182,23 +184,31 @@ def clear_comments(sheet, row_index, text, creds):
 
 # Функция для загрузки данных
 def write_to_sheet():
-    client, spreadsheet_id, creds = get_google()
+    client, spreadsheet_id_admin, creds, spreadsheet_id_manager = get_google()
     folder = os.path.join(json_path, "*.json")
 
     files_json = glob.glob(folder)
     for item in files_json:
-
         data = read_json_file(item)
         transformed_data = transform_data(data)
         name_sheet = os.path.splitext(os.path.basename(item))[0]
-        spreadsheet = client.open_by_key(spreadsheet_id)
+        admin_sheet_name = f"Adm{name_sheet}"
+        manager_sheet_name = name_sheet
+
+        # Открытие Admin таблицы
+        spreadsheet = client.open_by_key(spreadsheet_id_admin)
         try:
-            sheet = spreadsheet.worksheet(name_sheet)
-            print(f"Лист '{name_sheet}' уже существует.")
+            sheet = spreadsheet.worksheet(admin_sheet_name)
+            print(f"Лист '{admin_sheet_name}' уже существует.")
         except gspread.exceptions.WorksheetNotFound:
             # Создайте лист, если он не существует
-            sheet = spreadsheet.add_worksheet(title=name_sheet, rows="1000", cols="30")
-            print(f"Лист '{name_sheet}' создан.")
+            sheet = spreadsheet.add_worksheet(
+                title=admin_sheet_name, rows="1000", cols="30"
+            )
+            print(f"Лист '{admin_sheet_name}' создан.")
+
+        # Копирование данных из Admin таблицы в Manager таблицу
+
         detailed_headers = [
             "ID Каскада",
             "Название Каскада",
@@ -268,6 +278,14 @@ def write_to_sheet():
         counts = count_values(sheet)
         format_rows(sheet, creds, counts)
         process_data(sheet)
+        time.sleep(60)
+        copy_data(
+            client,
+            spreadsheet_id_admin,
+            spreadsheet_id_manager,
+            admin_sheet_name,
+            manager_sheet_name,
+        )
         # # Находим первую свободную строку для добавления данных
         # first_empty_row = (
         #     len(sheet.get_all_values()) + 1
@@ -512,6 +530,44 @@ def process_data(sheet):
                 sheet.update_acell(cell, index_U)
 
 
+def copy_data(
+    client,
+    admin_spreadsheet_id,
+    manager_spreadsheet_id,
+    admin_sheet_name,
+    manager_sheet_name,
+):
+    # Открытие таблиц
+    admin_spreadsheet = client.open_by_key(admin_spreadsheet_id)
+    manager_spreadsheet = client.open_by_key(manager_spreadsheet_id)
+
+    # Открытие листов
+    admin_sheet = admin_spreadsheet.worksheet(admin_sheet_name)
+    try:
+        manager_sheet = manager_spreadsheet.worksheet(manager_sheet_name)
+        print(f"Лист '{manager_sheet_name}' уже существует.")
+    except gspread.exceptions.WorksheetNotFound:
+        manager_sheet = manager_spreadsheet.add_worksheet(
+            title=manager_sheet_name, rows="1000", cols="30"
+        )
+        print(f"Лист '{manager_sheet_name}' создан.")
+
+    # Получение всех данных из Admin таблицы
+    admin_data = admin_sheet.get_all_values()
+
+    # Запись данных в Manager таблицу
+    if admin_data:
+        manager_sheet.update(admin_data, "A1")
+
+    # Очистка колонки P
+    p_column_range = f"P2:P{len(admin_data)}"
+    manager_sheet.batch_clear([p_column_range])
+
+    print(
+        f"Данные успешно перенесены из '{admin_sheet_name}' в '{manager_sheet_name}' и колонка P очищена."
+    )
+
+
 def pars_json():
     filename = "json_data.json"
     with open(filename, "r", encoding="utf-8") as file:
@@ -543,6 +599,6 @@ def pars_json():
 
 
 if __name__ == "__main__":
-    # get_json_data()
+    get_json_data()
     write_to_sheet()
     # pars_json()
