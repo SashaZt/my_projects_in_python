@@ -249,8 +249,6 @@ def write_to_sheet():
 
             sheet.update(values=[detailed_headers], range_name="A2:O2")
 
-        # Чтение и преобразование данных из JSON
-
         # Начало записи данных с третьей строки
         row_index = 3
         for item in transformed_data:
@@ -274,11 +272,11 @@ def write_to_sheet():
                 clear_comments(sheet, row_index, tags_text, creds)
 
             row_index += 1
+        time.sleep(5)
         format_sheet(sheet, creds)
         counts = count_values(sheet)
         format_rows(sheet, creds, counts)
         process_data(sheet)
-        time.sleep(60)
         copy_data(
             client,
             spreadsheet_id_admin,
@@ -599,6 +597,6 @@ def pars_json():
 
 
 if __name__ == "__main__":
-    get_json_data()
+    # get_json_data()
     write_to_sheet()
     # pars_json()

@@ -8,7 +8,8 @@ import time
 
 # Асинхронное подключение к базе данных
 async def get_database_connection():
-    db_url = "mysql+aiomysql://python_mysql:python_mysql@127.0.0.1/crypto"
+    # db_url = "mysql+aiomysql://python_mysql:python_mysql@164.92.240.39/btc"
+    db_url = "mysql+aiomysql://python_mysql:python_mysql@localhost/crypto"
     database = Database(db_url)
     await database.connect()
     return database
@@ -113,7 +114,7 @@ async def reconnect(database, label):
 
 
 # Основная функция управления ордербуком и торгами
-async def main_order_book_and_trade(database, number_of_seconds=None):
+async def main_order_book_and_trade(database):
     uri_depth = "wss://stream.binance.com:9443/ws/btcusdt@depth20@100ms"
     uri_trade = "wss://stream.binance.com:9443/ws/btcusdt@trade"
 
@@ -125,7 +126,7 @@ async def main_order_book_and_trade(database, number_of_seconds=None):
         ) as websocket_trade:
             print("Соединение установлено.")
             now = datetime.now()
-            current_time = now.strftime("%M:%S:%f")[:-3]
+            current_time = now.strftime("%H:%M:%S:%f")[:-3]
             print(f"Время установления соединения: {current_time}")
 
             task_depth = asyncio.create_task(
@@ -137,7 +138,7 @@ async def main_order_book_and_trade(database, number_of_seconds=None):
             await asyncio.gather(task_depth, task_trade)
     except websockets.ConnectionClosedError as e:
         now = datetime.now()
-        current_time = now.strftime("%M:%S:%f")[:-3]
+        current_time = now.strftime("%H:%M:%S:%f")[:-3]
         print(f"Соединение было закрыто с ошибкой: {e} время {current_time}")
         await reconnect(database, "Main")
 
@@ -156,7 +157,17 @@ async def run_for_a_while(number_of_seconds):
         print("Соединение с базой данных закрыто.")
 
 
+async def run_forever():
+    database = await get_database_connection()
+    try:
+        await main_order_book_and_trade(database)
+    finally:
+        await database.disconnect()
+        print("Соединение с базой данных закрыто.")
+
+
 if __name__ == "__main__":
-    print("Сколько времени нужно чтобы скрипт работал? Введите в секундах")
-    number_of_seconds = int(input())
-    asyncio.run(run_for_a_while(number_of_seconds))
+    # print("Сколько времени нужно чтобы скрипт работал? Введите в секундах")
+    # number_of_seconds = int(input())
+    # asyncio.run(run_for_a_while(number_of_seconds))
+    asyncio.run(run_forever())
