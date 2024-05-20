@@ -47,11 +47,10 @@ def load_proxy():
         formatted_proxy_http = (
             f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
         )
-        proxy_aiohttp = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"  # Измените, если https требует другой прокси
+        proxy_aiohttp = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
 
         # Для requests
-        proxies_requests = {"http": formatted_proxy_http, "https": proxy_aiohttp}
-
+        proxies_requests = {"http": formatted_proxy_http, "https": formatted_proxy_http}
         return proxies_requests, proxy_aiohttp
 
 
@@ -105,7 +104,7 @@ def parsing_url_category_in_html():
     headers = config["headers"]
 
     """Универсальное использование прокси-серверов"""
-    proxies_requests, proxy_aiohttp = load_proxy()
+    proxies_requests, _ = load_proxy()
     print(proxies_requests)
 
     filename_to_csv = os.path.join(category_path, "category_product.csv")
@@ -254,16 +253,26 @@ def main_download_url():
         config = load_config()
         cookies = config["cookies"]
         headers = config["headers"]
-        try:
-            proxies_requests, _ = load_proxy()
-            response = requests.get(
-                url, cookies=cookies, headers=headers, proxies=proxies_requests
-            )
-            print(response.status_code)
-            return response
-        except RequestException:
-            print(f"Проблема с прокси {proxies_requests}. Пропускаем.")
-            return None  # или возвращайте какое-либо значение по умолчанию
+        attempts = 5
+        for attempt in range(attempts):
+            try:
+                proxies_requests, _ = load_proxy()
+                response = requests.get(
+                    url, cookies=cookies, headers=headers, proxies=proxies_requests
+                )
+                time.sleep(1)
+                if response.status_code == 200:
+                    print(response.status_code)
+                    return response
+                else:
+                    print(
+                        f"Попытка {attempt + 1} не удалась. Статус-код: {response.status_code}. Меняем прокси."
+                    )
+            except RequestException as e:
+                print(
+                    f"Проблема с прокси на попытке {attempt + 1}: {e}. Меняем прокси."
+                )
+        return None  # Возвращаем None после всех неудачных попыток
 
     async def fetch_url(url, headers):
         _, proxy_aiohttp = load_proxy()
