@@ -106,13 +106,18 @@ async def main_order_book_and_trade():
 
 
 # Основная функция запуска программы
-async def run_for_a_while(number_of_seconds):
+# async def run_for_a_while(number_of_seconds):
 
-    try:
-        # Запускаем main_trade на 10 минут (600 секунд)
-        await asyncio.wait_for(main_order_book_and_trade(), number_of_seconds)
-    except asyncio.TimeoutError:
-        print("Время работы программы истекло")
+#     try:
+#         # Запускаем main_trade на 10 минут (600 секунд)
+#         await asyncio.wait_for(main_order_book_and_trade(), number_of_seconds)
+#     except asyncio.TimeoutError:
+#         print("Время работы программы истекло")
+
+
+async def run_forever():
+    # database = await get_database_connection()
+    await main_order_book_and_trade()
 
 
 # # Формирование отчета
@@ -166,19 +171,19 @@ async def run_for_a_while(number_of_seconds):
 #     write_results(purchases_per_minute, "Совершенная сделка на покупку:", output_file)
 
 
-# Удаляем старые файлы
-def remove_if_exists():
-    files_to_check = ["trades.json", "bids.json", "asks.json"]
-    current_directory = os.getcwd()
-    for file_name in files_to_check:
-        file_path = os.path.join(current_directory, file_name)
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            print(f"Файл {file_path} удален.")
+# # Удаляем старые файлы
+# def remove_if_exists():
+#     files_to_check = ["trades.json", "bids.json", "asks.json"]
+#     current_directory = os.getcwd()
+#     for file_name in files_to_check:
+#         file_path = os.path.join(current_directory, file_name)
+#         if os.path.exists(file_path):
+#             os.remove(file_path)
+#             print(f"Файл {file_path} удален.")
 
 
 if __name__ == "__main__":
-    remove_if_exists()
+    # remove_if_exists()
     print("Сколько времени нужно что бы скрипт работал? Введите в секунах")
     number_of_seconds = int(input())
     asyncio.run(run_for_a_while(number_of_seconds))
