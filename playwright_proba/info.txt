@@ -1,0 +1,15 @@
+# Ожидание события load
+await page.goto(url, wait_until="load", timeout=timeout_selector)
+load: Ожидание завершения события загрузки страницы. Это событие срабатывает, когда вся страница и все ее ресурсы полностью загружены.
+
+# Ожидание события domcontentloaded
+await page.goto(url, wait_until="domcontentloaded", timeout=timeout_selector)
+domcontentloaded: Ожидание завершения события DOMContentLoaded. Это событие срабатывает, когда начальная структура документа была полностью загружена и обработана, без ожидания завершения загрузки стилей, изображений и подрамок.
+
+# Ожидание события networkidle
+await page.goto(url, wait_until="networkidle", timeout=timeout_selector)
+networkidle: Ожидание, пока сеть станет "пустой" (idle), то есть когда не будет более 0 сетевых соединений на протяжении как минимум 500 мс. Это полезно для ожидания завершения всех сетевых запросов.
+
+# Ожидание события commit
+await page.goto(url, wait_until="commit", timeout=timeout_selector)
+commit: Ожидание подтверждения навигации в контексте текущей страницы. Это самое раннее событие, которое может сработать при переходе на новую страницу.
