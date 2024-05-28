@@ -37,9 +37,76 @@ async def main(url):
     time_now = now.strftime("%H:%M:%S")
     print(time_now)
     timeout_selector = 60000
+    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
-        context = await browser.new_context()
+        # Убедитесь, что headless=False, чтобы браузер работал в режиме визуализации
+        browser = await playwright.chromium.launch(
+            headless=False
+        )  # , args=["--start-maximized"]
+
+        context = await browser.new_context(
+            user_agent=user_agent,
+            viewport={"width": 1920, "height": 1080},  # Настройка размеров экрана
+            java_script_enabled=True,
+            locale="en-US",  # Настройка локали
+            geolocation={
+                "latitude": 40.7128,
+                "longitude": -74.0060,
+            },  # Настройка геолокации
+            permissions=["geolocation"],  # Включение разрешений
+        )
+
+        # Настройка заголовков
+        await context.set_extra_http_headers(
+            {
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+        )
+
+        # Переопределение navigator.webdriver и других признаков автоматизации
+        await context.add_init_script(
+            """
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        """
+        )
+
+        # Удаление свойств, указывающих на автоматизацию
+        await context.add_init_script(
+            """
+            // Отключение наличия window.chrome
+            delete window.chrome;
+
+            // Переопределение navigator.permissions.query для блокировки автоматизации
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                Promise.resolve({ state: Notification.permission }) :
+                originalQuery(parameters)
+            );
+
+            // Установка navigator.plugins
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3],
+            });
+
+            // Установка navigator.languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['en-US', 'en'],
+            });
+
+            // Отключение Device Memory
+            Object.defineProperty(navigator, 'deviceMemory', {
+                get: () => 8, // Установите значение, соответствующее типичному устройству
+            });
+
+            // Установка maxTouchPoints
+            Object.defineProperty(navigator, 'maxTouchPoints', {
+                get: () => 0,
+            });
+        """
+        )
+
         page = await context.new_page()
 
         # Устанавливаем обработчик для сбора и сохранения данных ответов
@@ -67,8 +134,8 @@ async def main(url):
         file_path = os.path.join(current_directory, filename)
         # Для сохранения html файла
         # if not os.path.exists(file_path):
-        await page.goto(url)  # , wait_until="networkidle", timeout=60000
-        await asyncio.sleep(1)
+        await page.goto(url, wait_until="networkidle")
+        await asyncio.sleep(20)
         await save_page_content_html(page, file_path)
         # try:
         #     await page.wait_for_selector(
@@ -159,10 +226,7 @@ def parsing_num():
     print(all_href)
 
 
-
-
-
 if __name__ == "__main__":
     # parsing_num()
-    url = "https://smstome.com/usa/phone/12622727616/sms/6816"
+    url = "https://rs.kompass.com/c/sunarrow-limited/jp001670/"
     asyncio.run(main(url))
