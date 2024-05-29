@@ -86,8 +86,9 @@ async def optimize_and_analyze_db():
         optimize_query = f"OPTIMIZE TABLE {table};"
         analyze_query = f"ANALYZE TABLE {table};"
         await database.execute(optimize_query)
+        print(f"Оптимизация таблицы {table}.")
         await database.execute(analyze_query)
-        print(f"Optimized and analyzed table {table}.")
+        print(f"Анализ таблицы {table}.")
 
 
 # Главная функция запуска
@@ -105,22 +106,22 @@ async def main():
             "\nВведите 0 для закрытия программы"
         )
         user_input = int(input("Выберите действие: "))
-        tables = ["asks", "bids", "trades"]
         if user_input == 0:
             print("Программа завершена.")
             break  # Выход из цикла, завершение программы
-        for target_date in dates:
-            for table in tables:
-                if user_input == 1:
+        tables = ["asks", "bids", "trades"]
+        if user_input == 1:
+            for target_date in dates:
+                for table in tables:
                     await save_to_csv(target_date, table)
-                elif user_input == 2:
+        elif user_input == 2:
+            for target_date in dates:
+                for table in tables:
                     await delete_data_sql(target_date, table)
-                elif user_input == 3:
-                    await optimize_and_analyze_db()
-                else:
-                    print(
-                        "Неверный ввод, пожалуйста, введите корректный номер действия."
-                    )
+        elif user_input == 3:
+            await optimize_and_analyze_db()
+        else:
+            print("Неверный ввод, пожалуйста, введите корректный номер действия.")
     await database.disconnect()
 
 
