@@ -104,19 +104,28 @@ def parsing_url_category_in_html():
     headers = config["headers"]
 
     """Универсальное использование прокси-серверов"""
-    proxies_requests, _ = load_proxy()
-    print(proxies_requests)
-
+    # proxies_requests, _ = load_proxy()
+    # print(proxies_requests)
+    proxies = {
+        "http": "http://scraperapi:08ed3288dfca36359e9d28ddbe833829@proxy-server.scraperapi.com:8001",
+        "https": "http://scraperapi:08ed3288dfca36359e9d28ddbe833829@proxy-server.scraperapi.com:8001",
+    }
     filename_to_csv = os.path.join(category_path, "category_product.csv")
     url = "https://shop.olekmotocykle.com/"
-    try:
-        response = requests.get(
-            url, cookies=cookies, headers=headers, proxies=proxies_requests
-        )  # , proxies=proxies_requests
-        print(response.status_code)
-    except RequestException:
-        print(f"Проблема с прокси {proxies_requests}. Пропускаем.")
-        return None  # или возвращайте какое-либо значение по умолчанию
+    # try:
+    # response = requests.get(
+    #     url, cookies=cookies, headers=headers, proxies=proxies, verify=False
+    # )
+    payload = {
+        "api_key": "08ed3288dfca36359e9d28ddbe833829",
+        "url": url,
+        "render": "true",
+    }
+    response = requests.get("http://api.scraperapi.com", params=payload)
+    print(response.status_code)
+    # except RequestException:
+    # print(f"Проблема с прокси {proxies_requests}. Пропускаем.")
+    # return None  # или возвращайте какое-либо значение по умолчанию
     category_product = []
     if response.content:
         soup = BeautifulSoup(response.content, "lxml")
@@ -256,10 +265,12 @@ def main_download_url():
         attempts = 5
         for attempt in range(attempts):
             try:
-                proxies_requests, _ = load_proxy()
-                response = requests.get(
-                    url, cookies=cookies, headers=headers, proxies=proxies_requests
-                )
+                payload = {
+                    "api_key": "08ed3288dfca36359e9d28ddbe833829",
+                    "url": url,
+                    "render": "true",
+                }
+                response = requests.get("http://api.scraperapi.com", params=payload)
                 time.sleep(1)
                 if response.status_code == 200:
                     print(response.status_code)
@@ -276,25 +287,27 @@ def main_download_url():
 
     async def fetch_url(url, headers):
         _, proxy_aiohttp = load_proxy()
+        payload = {
+            "api_key": "08ed3288dfca36359e9d28ddbe833829",
+            "url": url,
+            "render": "true",
+        }
         response = await asyncio.get_event_loop().run_in_executor(
             None, get_with_proxies, url, headers
         )
         url_home = "https://shop.olekmotocykle.com/"
         if response is not None:
             soup = BeautifulSoup(response.text, "lxml")
-            # Создаём пустой список для сохранения ссылок
             img_links = []
 
             regex_cart = re.compile("product-item.*")
 
             product_blocks = soup.find_all("div", class_=regex_cart)
             for block in product_blocks:
-                # Ищем все изображения в блоке
                 a = block.find("a", class_="product-link-ui")
                 if a and a.has_attr("href"):
                     img_links.append(f"{url_home}" + a["href"])
 
-            # Возвращаем список ссылок
             return img_links
         else:
             return []
@@ -304,33 +317,36 @@ def main_download_url():
         response = await asyncio.get_event_loop().run_in_executor(
             None, get_with_proxies, url, headers
         )
-        soup = BeautifulSoup(response.text, "lxml")
-        # Получаем пагинацию
-        span_tag = soup.find("span", {"class": "page-amount-ui"})
-        data_max_int = int(span_tag.text.split()[1]) if span_tag is not None else 1
-        group = url.split("produkty/")[1].split(",")[0]
-        tasks = []
-        for i in range(1, data_max_int + 1):
-            if i == 1:
-                img_links = await fetch_url(url, headers)
-                for img_link in img_links:
-                    if img_link not in unique_links:
-                        writer.writerow([img_link])
-                        unique_links.add(img_link)
-            else:
-                tasks.append(fetch_url(f"{url}?pageId={i}", headers))
-        if tasks:
-            img_links_list = await asyncio.gather(*tasks)
-            for img_links in img_links_list:
-                for img_link in img_links:
-                    if img_link not in unique_links:
-                        writer.writerow([img_link])
-                        unique_links.add(img_link)
+        if response is not None:
+            soup = BeautifulSoup(response.text, "lxml")
+            span_tag = soup.find("span", {"class": "page-amount-ui"})
+            data_max_int = int(span_tag.text.split()[1]) if span_tag is not None else 1
+            group = url.split("produkty/")[1].split(",")[0]
+            tasks = []
+            for i in range(1, data_max_int + 1):
+                if i == 1:
+                    img_links = await fetch_url(url, headers)
+                    for img_link in img_links:
+                        if img_link not in unique_links:
+                            writer.writerow([img_link])
+                            unique_links.add(img_link)
+                else:
+                    tasks.append(fetch_url(f"{url}?pageId={i}", headers))
+            if tasks:
+                img_links_list = await asyncio.gather(*tasks)
+                for img_links in img_links_list:
+                    for img_link in img_links:
+                        if img_link not in unique_links:
+                            writer.writerow([img_link])
+                            unique_links.add(img_link)
 
     async def main():
         config = load_config()
         cookies = config["cookies"]
         headers = config["headers"]
+        current_directory = os.getcwd()
+        temp_path = os.path.join(current_directory, "temp")
+        category_path = os.path.join(temp_path, "category")
         filename_category = os.path.join(category_path, "category_product.csv")
         filename_url = os.path.join(category_path, "url.csv")
         with open(filename_category, newline="", encoding="utf-8") as files, open(
