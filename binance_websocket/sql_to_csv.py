@@ -25,17 +25,30 @@ database = Database(database_url)
 
 # Функция сохранения данных в csv
 async def save_to_csv(target_date, table):
-
     query = f"""
     SELECT * FROM {table}
     WHERE DATE(Event_time) = :target_date
     """
     rows = await database.fetch_all(query=query, values={"target_date": target_date})
-    df = pd.DataFrame(rows)
-    if not df.empty:
-        file_name = f"{target_date}_{table}.csv"
-        df.to_csv(file_name, index=False)
-        print(f"Сохранил {file_name}")
+
+    if rows:
+        # Преобразуем каждую строку в словарь
+        data = [dict(row) for row in rows]
+
+        # Преобразуем в DataFrame
+        df = pd.DataFrame(data)
+
+        # Проверка содержимого DataFrame
+        # print(f"DataFrame:\n{df}")
+
+        if not df.empty:
+            file_name = f"{target_date}_{table}.csv"
+            df.to_csv(file_name, index=False)
+            print(f"Сохранил {file_name}")
+        else:
+            print("Данные отсутствуют для заданной даты.")
+    else:
+        print("Запрос не вернул никаких данных.")
 
 
 # Удаление данных из БД
@@ -43,22 +56,22 @@ async def delete_data_sql(target_date, table):
     start_date = target_date
     end_date = start_date + timedelta(days=1)
     # Подтверждение удаления данных
-    confirm = input(f"Удалить данные из базы {table} за {start_date}? Y/N: ")
-    if confirm.lower() == "y":
-        delete_query = f"""
-        DELETE FROM {table}
-        WHERE Event_time >= :start_date AND Event_time < :end_date
-        """
-        await database.execute(
-            delete_query,
-            values={
-                "start_date": start_date.strftime("%Y-%m-%d %H:%M:%S"),
-                "end_date": end_date.strftime("%Y-%m-%d %H:%M:%S"),
-            },
-        )
-        print(f"Данные удалены успешно {start_date} in table {table}.")
-    else:
-        print("Удаление данных отменено.")
+    # confirm = input(f"Удалить данные из базы {table} за {start_date}? Y/N: ")
+    # if confirm.lower() == "y":
+    delete_query = f"""
+    DELETE FROM {table}
+    WHERE Event_time >= :start_date AND Event_time < :end_date
+    """
+    await database.execute(
+        delete_query,
+        values={
+            "start_date": start_date.strftime("%Y-%m-%d %H:%M:%S"),
+            "end_date": end_date.strftime("%Y-%m-%d %H:%M:%S"),
+        },
+    )
+    print(f"Данные удалены успешно {start_date} in table {table}.")
+    # else:
+    #     print("Удаление данных отменено.")
 
 
 # Получение даты по таблицам
