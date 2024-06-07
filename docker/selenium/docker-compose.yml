@@ -1,0 +1,36 @@
+version: '3.8'
+services:
+  selenium-hub:
+    image: selenium/hub
+    container_name: selenium-hub
+    ports:
+      - "4444:4444"
+    environment:
+      SE_EVENT_BUS_HOST: selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT: 4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+
+  chrome:
+    build:
+      context: .
+      dockerfile: Dockerfile.chrome
+    shm_size: 2g
+    environment:
+      HUB_HOST: selenium-hub
+      HUB_PORT: 4444
+      VNC_PASSWORD: 12345677
+      SE_EVENT_BUS_HOST: selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT: 4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT: 4443
+    depends_on:
+      - selenium-hub
+    ports:
+      - "5900:5900"
+      - "7900:7900"  # Добавлен порт для noVNC
+
+  mitmproxy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"

@@ -3,6 +3,7 @@ import json
 import aiofiles
 from playwright.async_api import async_playwright
 import time
+import glob
 import os
 from datetime import datetime
 from selectolax.parser import HTMLParser
@@ -32,111 +33,97 @@ async def save_page_content_html(page, file_path):
         await f.write(content)
 
 
-async def main(url):
+async def main():
     now = datetime.now()
-    time_now = now.strftime("%H:%M:%S")
-    print(time_now)
+    time_start = now.strftime("%H:%M:%S")
     timeout_selector = 60000
-    user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 
     async with async_playwright() as playwright:
-        # Убедитесь, что headless=False, чтобы браузер работал в режиме визуализации
-        browser = await playwright.chromium.launch(
-            headless=False
-        )  # , args=["--start-maximized"]
-
-        context = await browser.new_context(
-            user_agent=user_agent,
-            viewport={"width": 1920, "height": 1080},  # Настройка размеров экрана
-            java_script_enabled=True,
-            locale="en-US",  # Настройка локали
-            geolocation={
-                "latitude": 40.7128,
-                "longitude": -74.0060,
-            },  # Настройка геолокации
-            permissions=["geolocation"],  # Включение разрешений
-        )
-
-        # Настройка заголовков
-        await context.set_extra_http_headers(
-            {
-                "Accept-Language": "en-US,en;q=0.9",
-            }
-        )
-
-        # Переопределение navigator.webdriver и других признаков автоматизации
-        await context.add_init_script(
-            """
-            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-        """
-        )
-
-        # Удаление свойств, указывающих на автоматизацию
-        await context.add_init_script(
-            """
-            // Отключение наличия window.chrome
-            delete window.chrome;
-
-            // Переопределение navigator.permissions.query для блокировки автоматизации
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
-                parameters.name === 'notifications' ?
-                Promise.resolve({ state: Notification.permission }) :
-                originalQuery(parameters)
-            );
-
-            // Установка navigator.plugins
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3],
-            });
-
-            // Установка navigator.languages
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en'],
-            });
-
-            // Отключение Device Memory
-            Object.defineProperty(navigator, 'deviceMemory', {
-                get: () => 8, // Установите значение, соответствующее типичному устройству
-            });
-
-            // Установка maxTouchPoints
-            Object.defineProperty(navigator, 'maxTouchPoints', {
-                get: () => 0,
-            });
-        """
-        )
-
+        browser = await playwright.chromium.launch(headless=False)
+        context = await browser.new_context()
         page = await context.new_page()
 
-        # Устанавливаем обработчик для сбора и сохранения данных ответов
-        def create_log_response_with_counter(url_name):
-            async def log_response(response):
-                api_url = "https://r.pl/api/wyszukiwarka/wyszukaj-kalkulator"
-                request = response.request
-                if (
-                    request.method == "POST" and api_url in request.url
-                ):  # Подставьте актуальное условие URL
-                    try:
-                        json_response = await response.json()
-                        await save_response_json(json_response, url_name)
+        # Читаем данные из JSON файла
+        output_path = os.path.join(current_directory, "all_href.json")
+        with open(output_path, "r", encoding="utf-8") as json_file:
+            all_href = json.load(json_file)
 
-                    except Exception as e:
-                        print(
-                            f"Ошибка при получении JSON из ответа {response.url}: {e}"
-                        )
+        all_data = []
 
-            return log_response
+        # Функция для извлечения текста по селектору
+        def get_text(element):
+            return (
+                element.text().replace(" \n", "").replace("\n", "").strip()
+                if element is not None
+                else None
+            )
 
-        url_name = url.split("/")[-1]
+        # Функция для добавления значений в словарь
+        def add_to_dict(d, key, value):
+            if key in d:
+                d[key] += f"; {value}"
+            else:
+                d[key] = value
+
+        for href in all_href:
+            await page.goto(href, wait_until="load", timeout=60000)
+            await asyncio.sleep(1)
+            content = await page.content()
+
+            parser = HTMLParser(content)
+
+            # Извлечение всех p-тегов, находящихся в нужных div-блоках
+            paragraphs = parser.css("div > div > div > div > p")
+
+            data = [get_text(p) for p in paragraphs]
+
+            # Создание словаря из данных
+            data_dict = {}
+            name_company_element = parser.css_first("div.page-header.clearfix > h1")
+            name_company = get_text(name_company_element)
+
+            if name_company:
+                data_dict["Company Name"] = name_company
+
+            for entry in data:
+                if ":" in entry:
+                    key, value = entry.split(":", 1)
+                    key = key.strip()
+                    value = value.strip()
+                elif entry.lower().startswith("ph") or entry.lower().startswith(
+                    "phone"
+                ):
+                    key = "Phone"
+                    value = entry.split(" ", 1)[1].strip()
+                else:
+                    continue
+
+                add_to_dict(data_dict, key, value)
+
+            all_data.append(data_dict)
+
+        # Запись всех данных в JSON файл
+        output_path = os.path.join(current_directory, "all_data.json")
+        with open(output_path, "w", encoding="utf-8") as json_file:
+            json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+
+        # url_row = href.split("/")[-1]
+        # url_name = url_row.replace("-", "_")
+        # if len(url_name) > max_length:
+        #     url_name = url_name[:max_length]
         # filename = f"{url_name}.html"
-        filename = "url_name.html"
-        file_path = os.path.join(current_directory, filename)
-        # Для сохранения html файла
+        # file_path = os.path.join(hotel_path, filename)
         # if not os.path.exists(file_path):
-        await page.goto(url, wait_until="networkidle")
-        await asyncio.sleep(20)
-        await save_page_content_html(page, file_path)
+
+        #     await asyncio.sleep(1)
+        #     await save_page_content_html(page, file_path)
+        # else:
+        #     filename = f"{url_name}_.html"
+        #     file_path = os.path.join(hotel_path, filename)
+        #     await page.goto(href, wait_until="load", timeout=60000)
+
+        #     await save_page_content_html(page, file_path)
+
         # try:
         #     await page.wait_for_selector(
         #         "button#onetrust-accept-btn-handler", timeout=10000
@@ -155,13 +142,15 @@ async def main(url):
         #     print(f"An error occurred: {e}")
 
         # Для сохранения json файла
-        handler = create_log_response_with_counter(url_name)
-        page.on("response", handler)
-        await asyncio.sleep(1)
-        await browser.close()
+        # handler = create_log_response_with_counter(url_name)
+        # page.on("response", handler)
+        # await asyncio.sleep(1)
+        # await browser.close()
+        # now = datetime.now()
+        # time_now = now.strftime("%H:%M:%S")
         now = datetime.now()
-        time_now = now.strftime("%H:%M:%S")
-        print(time_now)
+        time_stop = now.strftime("%H:%M:%S")
+        print(time_stop)
     # # Здесь нажимаем кнопку cookies
     # button_cookies = '//button[@class="r-button r-button--accent r-button--hover r-button--contained r-button--only-text r-button--svg-margin-left r-consent-buttons__button cmpboxbtnyes"]'
     # await page.wait_for_selector(button_cookies, timeout=timeout_selector)
@@ -214,19 +203,159 @@ async def main(url):
 
 
 def parsing_num():
-    all_href = []
-    filename = "url_name.html"
-    with open(filename, encoding="utf-8") as file:
-        src = file.read()
-    parser = HTMLParser(src)
-    numbuttons = parser.css('a[class="button button-outline button-small numbutton"]')
-    for num in numbuttons:
-        href = num.attributes.get("href")
-        all_href.append(href)
-    print(all_href)
+    # Указываем путь к папке с файлами
+    folder = os.path.join(hotel_path, "*.html")
+    files_html = glob.glob(folder)
+
+    # Функция для извлечения текста по селектору
+    def get_text(element):
+        return (
+            element.text().replace(" \n", "").replace("\n", "").strip()
+            if element is not None
+            else None
+        )
+
+    # Функция для добавления значений в словарь
+    def add_to_dict(d, key, value):
+        if key in d:
+            d[key] += f"; {value}"
+        else:
+            d[key] = value
+
+    all_data = []
+    # Проходим по всем HTML файлам в папке
+    for item in files_html:
+        with open(item, encoding="utf-8") as file:
+            src = file.read()
+
+        parser = HTMLParser(src)
+
+        # Извлечение всех p-тегов, находящихся в нужных div-блоках
+        paragraphs = parser.css("div > div > div > div > p")
+
+        data = [get_text(p) for p in paragraphs]
+
+        # Создание словаря из данных
+        data_dict = {}
+        for entry in data:
+            if ":" in entry:
+                key, value = entry.split(":", 1)
+                key = key.strip()
+                value = value.strip()
+            elif entry.lower().startswith("ph") or entry.lower().startswith("phone"):
+                key = "Phone"
+                value = entry.split(" ", 1)[1].strip()
+            else:
+                continue
+
+            add_to_dict(data_dict, key, value)
+
+        all_data.append(data_dict)
+
+    # Запись всех данных в JSON файл
+    output_path = os.path.join(current_directory, "all_data.json")
+    with open(output_path, "w", encoding="utf-8") as json_file:
+        json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+
+        # Печать словаря данных
+        # # Извлекаем данные
+        # data = {
+        #     "name_company": name_company,
+        #     "LEI code": extract_text_by_strong(info_company_node, "LEI code"),
+        #     "Registration code": extract_text_by_strong(
+        #         info_company_node, "Registration code"
+        #     ),
+        #     "Category": (
+        #         info_company_node.css_first(
+        #             'p:has(strong:contains("Category")) a'
+        #         ).text()
+        #         if info_company_node.css_first('p:has(strong:contains("Category")) a')
+        #         else None
+        #     ),
+        #     "Country": extract_text_by_strong(info_company_node, "Country"),
+        #     "Address": extract_text_by_strong(info_company_node, "Address"),
+        #     "Correspondence address": extract_text_by_strong(
+        #         info_company_node, "Correspondence address"
+        #     ),
+        #     "Email address": (
+        #         info_company_node.css_first(
+        #             'p:has(strong:contains("Email address")) a'
+        #         ).text()
+        #         if info_company_node.css_first(
+        #             'p:has(strong:contains("Email address")) a'
+        #         )
+        #         else None
+        #     ),
+        #     "Phone": (
+        #         info_company_node.css_first('p:contains("Ph.")')
+        #         .text()
+        #         .replace("Ph.", "")
+        #         .strip()
+        #         if info_company_node.css_first('p:contains("Ph.")')
+        #         else None
+        #     ),
+        # }
+
+        # print(data)
+
+        # # Ищем ссылки в первых 100 строках таблицы
+        # for i in range(1, 101):
+        #     selector = f"div.table-responsive > table > tbody > tr:nth-child({i}) > td:nth-child(1) a"
+        #     for node in parser.css(selector):
+        #         href = node.attributes.get("href").replace("//www", "www")
+        #         if href:
+        #             all_href.append(href)
+
+    # # Записываем найденные ссылки в JSON файл
+
+
+# Функция для извлечения текста по тегу <strong>
+def extract_text_by_label(node, label):
+    element = node.css_first(f'p:has(strong:contains("{label}"))')
+    if element:
+        text = element.text().replace(f"{label}:", "").strip()
+        # Проверка на наличие вложенного тега <a>
+        link = element.css_first("a")
+        if link:
+            text = link.text().strip()
+        return text
+    return None
+
+
+def remove_duplicates():
+    current_directory = os.path.dirname(os.path.abspath(__file__))
+    input_path = os.path.join(current_directory, "all_data.json")
+
+    # Загрузка данных из JSON файла
+    with open(input_path, "r", encoding="utf-8") as json_file:
+        all_data = json.load(json_file)
+
+    unique_data = {}
+
+    # Функция для создания уникального ключа
+    def create_unique_key(entry):
+        if "Registration code" in entry:
+            return entry["Registration code"]
+        elif "LEI code" in entry:
+            return entry["LEI code"]
+        return None
+
+    # Проход по всем элементам и удаление дубликатов
+    for entry in all_data:
+        unique_key = create_unique_key(entry)
+        if unique_key:
+            unique_data[unique_key] = entry
+
+    # Получение списка уникальных записей
+    unique_data_list = list(unique_data.values())
+
+    # Запись уникальных данных обратно в JSON файл
+    with open(input_path, "w", encoding="utf-8") as json_file:
+        json.dump(unique_data_list, json_file, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
     # parsing_num()
-    url = "https://rs.kompass.com/c/sunarrow-limited/jp001670/"
-    asyncio.run(main(url))
+    # remove_duplicates()
+    # url = "https://www.lb.lt/en/sfi-financial-market-participants?ff=1&market=1"
+    asyncio.run(main())

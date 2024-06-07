@@ -1,5 +1,5 @@
 # Открываем файл для чтения
-with open("proxy.txt", "r") as file:
+with open("proxies.txt", "r") as file:
     # Читаем строки из файла
     lines = file.readlines()
 

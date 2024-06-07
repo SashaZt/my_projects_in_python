@@ -538,6 +538,7 @@ async def run_parsing(type_pars, file_name_csv):
         "stock",
         "Server",
         "ServiceType",
+        "description",
     ]
     await async_write_csv(f"{file_name_csv}.csv", "w", header_order, is_header=True)
 
@@ -562,9 +563,9 @@ async def run_parsing(type_pars, file_name_csv):
     # Сохранение данных в файл XLSX
     data.to_excel(f"{file_name_csv}.xlsx", index=False, engine="openpyxl")
     print(f"успешно добавлен файл {file_name_csv}")
-    # Открыть после тестов
-    if os.path.exists(temp_path) and os.path.isdir(temp_path):
-        shutil.rmtree(temp_path)
+    # # Открыть после тестов
+    # if os.path.exists(temp_path) and os.path.isdir(temp_path):
+    #     shutil.rmtree(temp_path)
 
 
 # Запись csv
@@ -600,6 +601,9 @@ async def process_files(files_json, file_name_csv, header_order, type_pars):
                     region_id = "US"
                 if region_id == "ac3f85c1-7562-437e-b125-e89576b9a38e":
                     region_id = "EU"
+                description = dr["description"]
+                print(description)
+                exit()
                 values = [
                     display_price,
                     unit_price,
@@ -607,6 +611,7 @@ async def process_files(files_json, file_name_csv, header_order, type_pars):
                     region_id,
                     available_qty,
                     min_qty,
+                    description,
                 ]
                 offer_attributes = dr["offer_attributes"]
                 for o in offer_attributes:
@@ -632,6 +637,8 @@ async def process_files(files_json, file_name_csv, header_order, type_pars):
 
             # for g in datas:
             title = datas["title"]
+            description = datas["description"]
+            description = description.replace("\\n", " ")
             unit_price = str(datas["converted_unit_price"]).replace(".", ",")
             available_qty = datas["available_qty"]
             min_qty = datas["min_qty"]
@@ -650,6 +657,7 @@ async def process_files(files_json, file_name_csv, header_order, type_pars):
                 region_id,
                 available_qty,
                 min_qty,
+                description,
             ]
             offer_attributes = datas["offer_attributes"]
             for o in offer_attributes:

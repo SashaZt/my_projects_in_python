@@ -3,8 +3,8 @@ import json
 import os
 from datetime import datetime
 import aiofiles
-from playwright.async_api import async_playwright, Error
-import argparse
+from playwright.async_api import async_playwright
+import time
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
@@ -61,31 +61,31 @@ def create_response_handler(number):
     return log_response
 
 
-# Главная функция
-async def main(number):
+async def main(url):
     user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     timeout_selector = 90000
-    try:
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=False)  # , proxy=proxy
-            context = await browser.new_context(
-                user_agent=user_agent,
-                viewport={"width": 1920, "height": 1080},  # Настройка размеров экрана
-                device_scale_factor=1,  # Плотность пикселей
-                is_mobile=False,
-                has_touch=False,
-                java_script_enabled=True,
-                timezone_id="America/New_York",  # Настройка часового пояса
-                geolocation={
-                    "latitude": 40.7128,
-                    "longitude": -74.0060,
-                },  # Настройка геолокации
-                permissions=["geolocation"],  # Включение разрешений
-                locale="en-US",  # Настройка локали
-                color_scheme="light",  # Настройка цветовой схемы
-            )
-            page = await context.new_page()
-            url = "https://www2.repuve.gob.mx:8443/ciudadania/"
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=False)  # , proxy=proxy
+        context = await browser.new_context(
+            user_agent=user_agent,
+            viewport={"width": 1920, "height": 1080},  # Настройка размеров экрана
+            device_scale_factor=1,  # Плотность пикселей
+            is_mobile=False,
+            has_touch=False,
+            java_script_enabled=True,
+            timezone_id="America/New_York",  # Настройка часового пояса
+            geolocation={
+                "latitude": 40.7128,
+                "longitude": -74.0060,
+            },  # Настройка геолокации
+            permissions=["geolocation"],  # Включение разрешений
+            locale="en-US",  # Настройка локали
+            color_scheme="light",  # Настройка цветовой схемы
+        )
+        page = await context.new_page()
+
+        numbers = ["NUE2691", "NUE2691"]  # Список номеров
+        for number in numbers:
             await page.goto(url, wait_until="networkidle", timeout=timeout_selector)
             await wait_and_click(
                 page, "//button[h6[text()='ENTENDIDO']]", timeout_selector
@@ -124,25 +124,14 @@ async def main(number):
                     1000,
                 )
                 await asyncio.sleep(1)
-            except Error as e:
-                print(f"Ошибка при клике по элементу: {e}")
-            except Exception as e:
-                print(f"Неизвестная ошибка: {e}")
+            except:
+                continue
 
-            # Убедимся, что браузер закрывается корректно
-            await browser.close()
-            # page.remove_listener("response", handler)
-    except Error as e:
-        print(f"Ошибка Playwright: {e}")
-    except Exception as e:
-        print(f"Неизвестная ошибка: {e}")
+            page.remove_listener("response", handler)
+
+            # await asyncio.sleep(5)  # Пауза для проверки (можно убрать)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Script to run with a specific number parameter."
-    )
-    parser.add_argument("number", type=str, help="The number to be used in the script")
-    args = parser.parse_args()
-
-    asyncio.run(main(args.number))
+    url = "https://www2.repuve.gob.mx:8443/ciudadania/"
+    asyncio.run(main(url))

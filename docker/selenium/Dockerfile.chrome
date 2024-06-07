@@ -1,0 +1,5 @@
+FROM selenium/node-chrome
+
+USER root
+RUN apt-get update && apt-get install -y iputils-ping curl
+USER seluser

@@ -757,8 +757,13 @@ def get_sql_data_day():
     for item in files_json:
         with open(item, "r", encoding="utf-8") as f:
             raw_json_str = f.read()
-            data_json = json.loads(raw_json_str)
-            data_json = json.loads(data_json)
+            try:
+                data_json = json.loads(raw_json_str)
+                data_json = json.loads(data_json)
+            except:
+                data_json = None
+                print(item)
+                continue
         try:
             dayItems = data_json["dayItems"]
         except:
@@ -1497,6 +1502,7 @@ def get_table_04_to_google():
 
 
 def get_asio():
+
     import glob
     import asyncio
     import json
@@ -1750,9 +1756,9 @@ def get_asio():
             await f.write(json.dumps(data_json, ensure_ascii=False, indent=4))
 
     async def run(playwright):
+
         # Попытка входа и повтор в случае необходимости
         max_attempts = 5  # Максимальное количество попыток
-        attempts = 0  # Счетчик попыток
         now = datetime.now()
         month = str(now.month)
         filterYear = str(now.year)
@@ -1949,7 +1955,7 @@ def job():
     # Ваши функции здесь
     # get_requests(month, filterYear)
 
-    get_asio()
+    # get_asio()
 
     get_sql_data_day()
 
