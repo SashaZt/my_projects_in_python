@@ -1,4 +1,5 @@
 docker run -d -p 4444:4444 -p 7900:7900 --shm-size="2g" -e VNC_PASSWORD=12345677 selenium/standalone-chrome:latest
+http://localhost:4444/ui/
 http://localhost:7900/?autoconnect=1&resize=scale&password=12345677
 docker run -d -p 9090:9090 -p 39500-39999:39500-39999 --name browsermob-proxy qautomatron/docker-browsermob-proxy
 
