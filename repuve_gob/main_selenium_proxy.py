@@ -67,6 +67,7 @@ def load_config():
 
 
 def main(number):
+    time_wait = 60
     config = load_config()
     proxy = config.get("proxy", {})
     should_run_locally = (
@@ -109,8 +110,18 @@ def main(number):
         # Игнорирование ошибок сертификатов
         chrome_options.add_argument("--ignore-certificate-errors")
 
-        # Отключение загрузки изображений
-        prefs = {"profile.managed_default_content_settings.images": 2}
+        """Отключение загрузки изображений и других типов контента"""
+        prefs = {
+            "profile.managed_default_content_settings.images": 2,  # Отключение загрузки изображений
+            "profile.managed_default_content_settings.stylesheets": 2,  # Отключение загрузки стилей (CSS)
+            "profile.managed_default_content_settings.cookies": 2,  # Отключение сохранения и использования cookies
+            # "profile.managed_default_content_settings.javascript": 2,  # Отключение выполнения JavaScript
+            "profile.managed_default_content_settings.plugins": 2,  # Отключение загрузки плагинов
+            "profile.managed_default_content_settings.popups": 2,  # Отключение всплывающих окон
+            "profile.managed_default_content_settings.geolocation": 2,  # Отключение доступа к геолокации
+            "profile.managed_default_content_settings.media_stream": 2,  # Отключение доступа к медиа-стримам (видео/аудио)
+        }
+
         chrome_options.add_experimental_option("prefs", prefs)
 
         # Инициализация драйвера для удаленного запуска
@@ -122,7 +133,8 @@ def main(number):
 
     # Запускаем удаллено Selenium
     try:
-        # driver.implicitly_wait(15)  # Установка неявного ожидания
+        driver.implicitly_wait(time_wait)  # Установка неявного ожидания на 10 секунд
+        # driver.set_page_load_timeout(30)  # Установка таймаута для загрузки страницы
         driver.maximize_window()  # Максимизация окна браузера
 
         # Переход на заданный URL
@@ -137,13 +149,13 @@ def main(number):
         while not first_element_found:
             try:
                 # Ждем, пока элемент станет доступным
-                element_entendido = WebDriverWait(driver, 10).until(
+                element_entendido = WebDriverWait(driver, time_wait).until(
                     ec.presence_of_element_located(locator_entendido)
                 )
                 first_element_found = True
             except selenium.common.exceptions.TimeoutException:
                 driver.get("https://www2.repuve.gob.mx:8443/ciudadania/")
-                element_entendido = WebDriverWait(driver, 10).until(
+                element_entendido = WebDriverWait(driver, time_wait).until(
                     ec.presence_of_element_located(locator_entendido)
                 )
 
@@ -157,7 +169,7 @@ def main(number):
         )
 
         # Ждем, пока элемент станет доступным
-        input_numero_de_placa = WebDriverWait(driver, 10).until(
+        input_numero_de_placa = WebDriverWait(driver, time_wait).until(
             ec.presence_of_element_located(locator_numero_de_placa)
         )
         time.sleep(1)
@@ -170,7 +182,7 @@ def main(number):
         )
         time.sleep(1)
         # Ждем, пока элемент станет доступным
-        button_buscar = WebDriverWait(driver, 10).until(
+        button_buscar = WebDriverWait(driver, time_wait).until(
             ec.presence_of_element_located(locator_buscar)
         )
 
@@ -185,7 +197,7 @@ def main(number):
         element_found = False
         while not element_found:
             try:
-                WebDriverWait(driver, 10).until(
+                WebDriverWait(driver, time_wait).until(
                     ec.presence_of_element_located(locator_next_element)
                 )
                 element_found = True
@@ -198,7 +210,7 @@ def main(number):
                 )
 
                 # Ждем, пока элемент станет доступным
-                element_entendido = WebDriverWait(driver, 10).until(
+                element_entendido = WebDriverWait(driver, time_wait).until(
                     ec.presence_of_element_located(locator_entendido)
                 )
 
@@ -211,7 +223,7 @@ def main(number):
                 )
 
                 # Ждем, пока элемент станет доступным
-                input_numero_de_placa = WebDriverWait(driver, 10).until(
+                input_numero_de_placa = WebDriverWait(driver, time_wait).until(
                     ec.presence_of_element_located(locator_numero_de_placa)
                 )
                 # Повторяем действия снова
@@ -222,7 +234,7 @@ def main(number):
                 )
                 time.sleep(1)
                 # Ждем, пока элемент станет доступным
-                button_buscar = WebDriverWait(driver, 10).until(
+                button_buscar = WebDriverWait(driver, time_wait).until(
                     ec.presence_of_element_located(locator_buscar)
                 )
                 button_buscar.click()
@@ -231,7 +243,7 @@ def main(number):
             By.CSS_SELECTOR,
             "div.col-sm-12 > div > div > div:nth-child(1) > div > ul > li:nth-child(2) > a",
         )
-        button_pgj = WebDriverWait(driver, 10).until(
+        button_pgj = WebDriverWait(driver, time_wait).until(
             ec.presence_of_element_located(button_pgj_element)
         )
         button_pgj.click()
@@ -240,7 +252,7 @@ def main(number):
             By.CSS_SELECTOR,
             "div.col-sm-12 > div > div > div:nth-child(1) > div > ul > li:nth-child(3) > a",
         )
-        button_ocra = WebDriverWait(driver, 10).until(
+        button_ocra = WebDriverWait(driver, time_wait).until(
             ec.presence_of_element_located(button_ocra_element)
         )
         button_ocra.click()
@@ -249,7 +261,7 @@ def main(number):
             By.CSS_SELECTOR,
             "div.col-sm-12 > div > div > div:nth-child(1) > div > ul > li:nth-child(4) > a",
         )
-        button_carfax = WebDriverWait(driver, 10).until(
+        button_carfax = WebDriverWait(driver, time_wait).until(
             ec.presence_of_element_located(button_carfax_element)
         )
         button_carfax.click()
@@ -258,7 +270,7 @@ def main(number):
             By.CSS_SELECTOR,
             "div.col-sm-12 > div > div > div:nth-child(1) > div > ul > li:nth-child(5) > a",
         )
-        button_aviso = WebDriverWait(driver, 10).until(
+        button_aviso = WebDriverWait(driver, time_wait).until(
             ec.presence_of_element_located(button_aviso_element)
         )
         button_aviso.click()

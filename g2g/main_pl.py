@@ -602,8 +602,6 @@ async def process_files(files_json, file_name_csv, header_order, type_pars):
                 if region_id == "ac3f85c1-7562-437e-b125-e89576b9a38e":
                     region_id = "EU"
                 description = dr["description"]
-                print(description)
-                exit()
                 values = [
                     display_price,
                     unit_price,
