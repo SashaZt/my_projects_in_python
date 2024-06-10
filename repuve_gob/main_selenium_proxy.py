@@ -7,6 +7,7 @@ import aiofiles
 import json
 import socks
 import socket
+import argparse
 
 # selenium-wire import
 from seleniumwire import webdriver
@@ -48,7 +49,7 @@ def save_response_json(json_response, number, path):
     print(filename)
 
 
-def main():
+def main(number):
     should_run_locally = (
         False  # Переменная для выбора режима запуска (локально или удаленно)
     )
@@ -146,7 +147,7 @@ def main():
         )
         time.sleep(1)
         # Вставляем текст в найденный элемент
-        number = "NUE2691"
+        # number = "NUE2691"
         input_numero_de_placa.send_keys(number)
 
         # Определяем локатор для нового элемента
@@ -280,4 +281,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Script to run with a specific number parameter."
+    )
+    parser.add_argument("number", type=str, help="The number to be used in the script")
+    args = parser.parse_args()
+
+    asyncio.run(main(args.number))
