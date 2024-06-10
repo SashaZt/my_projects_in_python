@@ -8,14 +8,12 @@ import json
 import socks
 import socket
 import argparse
+import sys
 
-# selenium-wire import
 from seleniumwire import webdriver
 
-# webdriver manager import
 from webdriver_manager.chrome import ChromeDriverManager
 
-# selenium imports
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.chrome.options import Options
@@ -49,7 +47,28 @@ def save_response_json(json_response, number, path):
     print(filename)
 
 
+def load_config():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    filename_config = os.path.join(application_path, "config.json")
+    if not os.path.exists(filename_config):
+        print("Нету файла с прокси-серверами!!!!!!!!!!!!!!!!!!!!!!!!!")
+        sys.exit(1)  # Завершаем выполнение скрипта с кодом ошибки 1
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
+
+        return config
+
+
 def main(number):
+    config = load_config()
+    proxy = config.get("proxy", {})
     should_run_locally = (
         False  # Переменная для выбора режима запуска (локально или удаленно)
     )
@@ -76,23 +95,19 @@ def main(number):
             "auto_config": False,
             "port": 8091,
             "proxy": {
-                "http": "socks5://nzbwhie1s2:VvZWgrP3HpdsBu5S@93.190.141.102:33662",
-                "https": "socks5://nzbwhie1s2:VvZWgrP3HpdsBu5S@93.190.141.102:33662",
+                "http": proxy,
+                "https": proxy,
                 "no_proxy": "localhost,127.0.0.1",  # Блокирует проксирование для локальных адресов
             },
         }
 
         # Опции для Chrome
         chrome_options = Options()
-        chrome_options.page_load_strategy = (
-            "eager"  # Установка стратегии загрузки страницы
-        )
-        chrome_options.add_argument(
-            "--proxy-server=host.docker.internal:8091"
-        )  # Прокси сервер
-        chrome_options.add_argument(
-            "--ignore-certificate-errors"
-        )  # Игнорирование ошибок сертификатов
+        # Установка стратегии загрузки страницы
+        chrome_options.page_load_strategy = "eager"
+        chrome_options.add_argument("--proxy-server=host.docker.internal:8091")
+        # Игнорирование ошибок сертификатов
+        chrome_options.add_argument("--ignore-certificate-errors")
 
         # Отключение загрузки изображений
         prefs = {"profile.managed_default_content_settings.images": 2}
@@ -146,8 +161,6 @@ def main(number):
             ec.presence_of_element_located(locator_numero_de_placa)
         )
         time.sleep(1)
-        # Вставляем текст в найденный элемент
-        # number = "NUE2691"
         input_numero_de_placa.send_keys(number)
 
         # Определяем локатор для нового элемента

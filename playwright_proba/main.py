@@ -26,180 +26,180 @@ async def save_response_json(json_response, url_name):
         await f.write(json.dumps(json_response, ensure_ascii=False, indent=4))
 
 
-async def save_page_content_html(page, file_path):
+# async def save_page_content_html(page, file_path):
 
-    content = await page.content()
-    async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
-        await f.write(content)
+#     content = await page.content()
+#     async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
+#         await f.write(content)
 
 
-async def main():
-    now = datetime.now()
-    time_start = now.strftime("%H:%M:%S")
-    timeout_selector = 60000
+# async def main():
+#     now = datetime.now()
+#     time_start = now.strftime("%H:%M:%S")
+#     timeout_selector = 60000
 
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
-        context = await browser.new_context()
-        page = await context.new_page()
+#     async with async_playwright() as playwright:
+#         browser = await playwright.chromium.launch(headless=False)
+#         context = await browser.new_context()
+#         page = await context.new_page()
 
-        # Читаем данные из JSON файла
-        output_path = os.path.join(current_directory, "all_href.json")
-        with open(output_path, "r", encoding="utf-8") as json_file:
-            all_href = json.load(json_file)
+#         # Читаем данные из JSON файла
+#         output_path = os.path.join(current_directory, "all_href.json")
+#         with open(output_path, "r", encoding="utf-8") as json_file:
+#             all_href = json.load(json_file)
 
-        all_data = []
+#         all_data = []
 
-        # Функция для извлечения текста по селектору
-        def get_text(element):
-            return (
-                element.text().replace(" \n", "").replace("\n", "").strip()
-                if element is not None
-                else None
-            )
+#         # Функция для извлечения текста по селектору
+#         def get_text(element):
+#             return (
+#                 element.text().replace(" \n", "").replace("\n", "").strip()
+#                 if element is not None
+#                 else None
+#             )
 
-        # Функция для добавления значений в словарь
-        def add_to_dict(d, key, value):
-            if key in d:
-                d[key] += f"; {value}"
-            else:
-                d[key] = value
+#         # Функция для добавления значений в словарь
+#         def add_to_dict(d, key, value):
+#             if key in d:
+#                 d[key] += f"; {value}"
+#             else:
+#                 d[key] = value
 
-        for href in all_href:
-            await page.goto(href, wait_until="load", timeout=60000)
-            await asyncio.sleep(1)
-            content = await page.content()
+#         for href in all_href:
+#             await page.goto(href, wait_until="load", timeout=60000)
+#             await asyncio.sleep(1)
+#             content = await page.content()
 
-            parser = HTMLParser(content)
+#             parser = HTMLParser(content)
 
-            # Извлечение всех p-тегов, находящихся в нужных div-блоках
-            paragraphs = parser.css("div > div > div > div > p")
+#             # Извлечение всех p-тегов, находящихся в нужных div-блоках
+#             paragraphs = parser.css("div > div > div > div > p")
 
-            data = [get_text(p) for p in paragraphs]
+#             data = [get_text(p) for p in paragraphs]
 
-            # Создание словаря из данных
-            data_dict = {}
-            name_company_element = parser.css_first("div.page-header.clearfix > h1")
-            name_company = get_text(name_company_element)
+#             # Создание словаря из данных
+#             data_dict = {}
+#             name_company_element = parser.css_first("div.page-header.clearfix > h1")
+#             name_company = get_text(name_company_element)
 
-            if name_company:
-                data_dict["Company Name"] = name_company
+#             if name_company:
+#                 data_dict["Company Name"] = name_company
 
-            for entry in data:
-                if ":" in entry:
-                    key, value = entry.split(":", 1)
-                    key = key.strip()
-                    value = value.strip()
-                elif entry.lower().startswith("ph") or entry.lower().startswith(
-                    "phone"
-                ):
-                    key = "Phone"
-                    value = entry.split(" ", 1)[1].strip()
-                else:
-                    continue
+#             for entry in data:
+#                 if ":" in entry:
+#                     key, value = entry.split(":", 1)
+#                     key = key.strip()
+#                     value = value.strip()
+#                 elif entry.lower().startswith("ph") or entry.lower().startswith(
+#                     "phone"
+#                 ):
+#                     key = "Phone"
+#                     value = entry.split(" ", 1)[1].strip()
+#                 else:
+#                     continue
 
-                add_to_dict(data_dict, key, value)
+#                 add_to_dict(data_dict, key, value)
 
-            all_data.append(data_dict)
+#             all_data.append(data_dict)
 
-        # Запись всех данных в JSON файл
-        output_path = os.path.join(current_directory, "all_data.json")
-        with open(output_path, "w", encoding="utf-8") as json_file:
-            json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+#         # Запись всех данных в JSON файл
+#         output_path = os.path.join(current_directory, "all_data.json")
+#         with open(output_path, "w", encoding="utf-8") as json_file:
+#             json.dump(all_data, json_file, ensure_ascii=False, indent=4)
 
-        # url_row = href.split("/")[-1]
-        # url_name = url_row.replace("-", "_")
-        # if len(url_name) > max_length:
-        #     url_name = url_name[:max_length]
-        # filename = f"{url_name}.html"
-        # file_path = os.path.join(hotel_path, filename)
-        # if not os.path.exists(file_path):
+#         # url_row = href.split("/")[-1]
+#         # url_name = url_row.replace("-", "_")
+#         # if len(url_name) > max_length:
+#         #     url_name = url_name[:max_length]
+#         # filename = f"{url_name}.html"
+#         # file_path = os.path.join(hotel_path, filename)
+#         # if not os.path.exists(file_path):
 
-        #     await asyncio.sleep(1)
-        #     await save_page_content_html(page, file_path)
-        # else:
-        #     filename = f"{url_name}_.html"
-        #     file_path = os.path.join(hotel_path, filename)
-        #     await page.goto(href, wait_until="load", timeout=60000)
+#         #     await asyncio.sleep(1)
+#         #     await save_page_content_html(page, file_path)
+#         # else:
+#         #     filename = f"{url_name}_.html"
+#         #     file_path = os.path.join(hotel_path, filename)
+#         #     await page.goto(href, wait_until="load", timeout=60000)
 
-        #     await save_page_content_html(page, file_path)
+#         #     await save_page_content_html(page, file_path)
 
-        # try:
-        #     await page.wait_for_selector(
-        #         "button#onetrust-accept-btn-handler", timeout=10000
-        #     )
-        #     accept_button = await page.query_selector(
-        #         "button#onetrust-accept-btn-handler"
-        #     )
+#         # try:
+#         #     await page.wait_for_selector(
+#         #         "button#onetrust-accept-btn-handler", timeout=10000
+#         #     )
+#         #     accept_button = await page.query_selector(
+#         #         "button#onetrust-accept-btn-handler"
+#         #     )
 
-        #     if accept_button:
-        #         await accept_button.click()
-        #         await asyncio.sleep(1)
-        #         await save_page_content_html(page, file_path)
-        #     else:
-        #         print("Accept button not found")
-        # except Exception as e:
-        #     print(f"An error occurred: {e}")
+#         #     if accept_button:
+#         #         await accept_button.click()
+#         #         await asyncio.sleep(1)
+#         #         await save_page_content_html(page, file_path)
+#         #     else:
+#         #         print("Accept button not found")
+#         # except Exception as e:
+#         #     print(f"An error occurred: {e}")
 
-        # Для сохранения json файла
-        # handler = create_log_response_with_counter(url_name)
-        # page.on("response", handler)
-        # await asyncio.sleep(1)
-        # await browser.close()
-        # now = datetime.now()
-        # time_now = now.strftime("%H:%M:%S")
-        now = datetime.now()
-        time_stop = now.strftime("%H:%M:%S")
-        print(time_stop)
-    # # Здесь нажимаем кнопку cookies
-    # button_cookies = '//button[@class="r-button r-button--accent r-button--hover r-button--contained r-button--only-text r-button--svg-margin-left r-consent-buttons__button cmpboxbtnyes"]'
-    # await page.wait_for_selector(button_cookies, timeout=timeout_selector)
-    # cookies_button = await page.query_selector(button_cookies)
-    # if cookies_button:
-    #     # Кликаем по кнопке "Следующая", если она найдена
-    #     await cookies_button.click()
+#         # Для сохранения json файла
+#         # handler = create_log_response_with_counter(url_name)
+#         # page.on("response", handler)
+#         # await asyncio.sleep(1)
+#         # await browser.close()
+#         # now = datetime.now()
+#         # time_now = now.strftime("%H:%M:%S")
+#         now = datetime.now()
+#         time_stop = now.strftime("%H:%M:%S")
+#         print(time_stop)
+#     # # Здесь нажимаем кнопку cookies
+#     # button_cookies = '//button[@class="r-button r-button--accent r-button--hover r-button--contained r-button--only-text r-button--svg-margin-left r-consent-buttons__button cmpboxbtnyes"]'
+#     # await page.wait_for_selector(button_cookies, timeout=timeout_selector)
+#     # cookies_button = await page.query_selector(button_cookies)
+#     # if cookies_button:
+#     #     # Кликаем по кнопке "Следующая", если она найдена
+#     #     await cookies_button.click()
 
-    # # Дождитесь загрузки страницы и элементов
-    # await page.wait_for_selector(
-    #     '//button[@class="r-select-button r-select-button-termin"]',
-    #     timeout=timeout_selector,
-    # )
-    # termin_element = '//button[@class="r-select-button r-select-button-termin"]'
-    # # Найдите все элементы по селектору
-    # await page.wait_for_selector(termin_element, timeout=timeout_selector)
-    # element_termin = await page.query_selector(termin_element)
-    # # Проверка наличия элементов перед извлечением текста
-    # # await asyncio.sleep(5)
-    # if element_termin:
-    #     await element_termin.click()
-    # else:
-    #     print("Элементы не найдены")
-    # list_element = '//button[@class="r-tab"]'
-    # # Найдите все элементы по селектору
-    # await page.wait_for_selector(list_element, timeout=timeout_selector)
-    # element_list = await page.query_selector(list_element)
-    # # Проверка наличия элементов перед извлечением текста
-    # # await asyncio.sleep(5)
-    # if element_list:
-    #     await element_list.click()
-    # else:
-    #     print("Элементы не найдены")
-    # try:
-    #     list_item = '//div[@class="kh-terminy-list__item"]'
-    # except:
-    #     list_item = (
-    #         '//div[@class="kh-terminy-list__item kh-terminy-list__item--active"]'
-    #     )
-    # await page.wait_for_selector(list_item, timeout=timeout_selector)
-    # item_list = await page.query_selector_all(list_item)
-    # # Проверка наличия элементов перед извлечением текста
-    # # await asyncio.sleep(5)
-    # if item_list:
-    #     await item_list[0].click()
-    # else:
-    #     print("Элементы не найдены")
+#     # # Дождитесь загрузки страницы и элементов
+#     # await page.wait_for_selector(
+#     #     '//button[@class="r-select-button r-select-button-termin"]',
+#     #     timeout=timeout_selector,
+#     # )
+#     # termin_element = '//button[@class="r-select-button r-select-button-termin"]'
+#     # # Найдите все элементы по селектору
+#     # await page.wait_for_selector(termin_element, timeout=timeout_selector)
+#     # element_termin = await page.query_selector(termin_element)
+#     # # Проверка наличия элементов перед извлечением текста
+#     # # await asyncio.sleep(5)
+#     # if element_termin:
+#     #     await element_termin.click()
+#     # else:
+#     #     print("Элементы не найдены")
+#     # list_element = '//button[@class="r-tab"]'
+#     # # Найдите все элементы по селектору
+#     # await page.wait_for_selector(list_element, timeout=timeout_selector)
+#     # element_list = await page.query_selector(list_element)
+#     # # Проверка наличия элементов перед извлечением текста
+#     # # await asyncio.sleep(5)
+#     # if element_list:
+#     #     await element_list.click()
+#     # else:
+#     #     print("Элементы не найдены")
+#     # try:
+#     #     list_item = '//div[@class="kh-terminy-list__item"]'
+#     # except:
+#     #     list_item = (
+#     #         '//div[@class="kh-terminy-list__item kh-terminy-list__item--active"]'
+#     #     )
+#     # await page.wait_for_selector(list_item, timeout=timeout_selector)
+#     # item_list = await page.query_selector_all(list_item)
+#     # # Проверка наличия элементов перед извлечением текста
+#     # # await asyncio.sleep(5)
+#     # if item_list:
+#     #     await item_list[0].click()
+#     # else:
+#     #     print("Элементы не найдены")
 
-    # # Итерация по страницам
+#     # # Итерация по страницам
 
 
 def parsing_num():
@@ -354,8 +354,42 @@ def remove_duplicates():
         json.dump(unique_data_list, json_file, ensure_ascii=False, indent=4)
 
 
+async def save_page_content_html(page, file_path):
+
+    content = await page.content()
+    async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
+        await f.write(content)
+
+
+async def main(url):
+    timeout_selector = 10000
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True)
+        context = await browser.new_context()
+        page = await context.new_page()
+        await page.goto(url)  # Замените URL на актуальный
+        file_path = os.path.join(hotel_path, "html.html")
+        await asyncio.sleep(5)
+        await save_page_content_html(page, file_path)
+
+
+def parsing_content():
+    file_path = os.path.join(hotel_path, "html.html")
+    with open(file_path, encoding="utf-8") as file:
+        src = file.read()
+
+        parser = HTMLParser(src)
+
+        # Извлечение всех p-тегов, находящихся в нужных div-блоках
+        name_extension = parser.css_first(
+            "#yDmH0d > c-wiz:nth-child(29) > div > div > main > div > section.VWBXhd > section > div.dSsD7e > a > h1"
+        )
+        print(name_extension)
+
+
 if __name__ == "__main__":
     # parsing_num()
     # remove_duplicates()
-    # url = "https://www.lb.lt/en/sfi-financial-market-participants?ff=1&market=1"
-    asyncio.run(main())
+    # url = "https://chromewebstore.google.com/detail/rakuten-get-cash-back-for/chhjbpecpncaggjpdakmflnfcopglcmi"
+    # asyncio.run(main(url))
+    parsing_content()
