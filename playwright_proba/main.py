@@ -8,6 +8,8 @@ import os
 from datetime import datetime
 from selectolax.parser import HTMLParser
 
+import re
+
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
 all_hotels = os.path.join(temp_path, "all_hotels")
@@ -355,22 +357,38 @@ def remove_duplicates():
 
 
 async def save_page_content_html(page, file_path):
-
     content = await page.content()
     async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
         await f.write(content)
 
 
-async def main(url):
-    timeout_selector = 10000
+def extract_product_ids(file_path):
+    product_ids = []
+    with open(file_path, "r") as file:
+        for line in file:
+            url = line.strip()
+            match = re.search(r"ObjectID=(\d+)", url)
+            if match:
+                product_ids.append(match.group(1))
+    return product_ids
+
+
+async def main():
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
-        await page.goto(url)  # Замените URL на актуальный
-        file_path = os.path.join(hotel_path, "html.html")
-        await asyncio.sleep(5)
-        await save_page_content_html(page, file_path)
+        file_path = "url_product.txt"
+        product_ids = extract_product_ids(file_path)
+
+        for product_id in product_ids:
+            url = f"https://catalog.weidmueller.com/catalog/Start.do?localeId=ru&ObjectID={product_id}"
+            await page.goto(url)
+            save_path = os.path.join(all_hotels, f"{product_id}.html")
+            await asyncio.sleep(1)
+            await save_page_content_html(page, save_path)
+
+        await browser.close()
 
 
 def parsing_content():
@@ -390,6 +408,6 @@ def parsing_content():
 if __name__ == "__main__":
     # parsing_num()
     # remove_duplicates()
-    # url = "https://chromewebstore.google.com/detail/rakuten-get-cash-back-for/chhjbpecpncaggjpdakmflnfcopglcmi"
-    # asyncio.run(main(url))
-    parsing_content()
+    url = "https://catalog.weidmueller.com/catalog/Start.do?localeId=ru&ObjectID=1021000000"
+    asyncio.run(main())
+    # parsing_content()
