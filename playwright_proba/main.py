@@ -408,6 +408,6 @@ def parsing_content():
 if __name__ == "__main__":
     # parsing_num()
     # remove_duplicates()
-    url = "https://catalog.weidmueller.com/catalog/Start.do?localeId=ru&ObjectID=1021000000"
-    asyncio.run(main())
+    # url = "https://catalog.weidmueller.com/catalog/Start.do?localeId=ru&ObjectID=1021000000"
+    # asyncio.run(main())
     # parsing_content()
