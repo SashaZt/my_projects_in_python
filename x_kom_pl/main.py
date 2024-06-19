@@ -29,8 +29,9 @@ urls = [
 def get_first_page(driver: Driver, data):
     # Посетить веб-сайт
     for url in urls[:1]:
+        url = "https://www.etsy.com/listing/1694252001/kartiny-na-holste-abstraktnaa-sinaa"
         driver.get(url)
-        time.sleep(5)
+        time.sleep(50)
         # Найти кнопку с точным текстом "W porządku"
         button = driver.get_element_with_exact_text("W porządku", wait=Wait.SHORT)
 
@@ -194,12 +195,12 @@ def json_to_excel(json_file, excel_file):
 
 
 if __name__ == "__main__":
-    # get_first_page()
+    get_first_page()
     # parsing_htmls()
     # scrape_heading_task()
     # parsing_html()
-    parsing_json()
-    json_to_excel("extracted_data.json", "output_data.xlsx")
+    # parsing_json()
+    # json_to_excel("extracted_data.json", "output_data.xlsx")
 
 
 # @request
