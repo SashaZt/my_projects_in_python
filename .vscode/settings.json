@@ -79,5 +79,6 @@
     "editor.formatOnPaste": true,
     "editor.formatOnSave": true,
     "python.analysis.diagnosticMode": "openFilesOnly",
-    "diffEditor.wordWrap": "inherit"
+    "diffEditor.wordWrap": "inherit",
+    "python.REPL.enableREPLSmartSend": false
 }
