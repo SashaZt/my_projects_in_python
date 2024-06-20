@@ -52,13 +52,14 @@ def load_config_headers():
     return config
 
 
-def get_list_products_json(time_sleep):
+def get_list_products_json():
     # Создание директории, если она не существует
     os.makedirs(temp_path, exist_ok=True)
     os.makedirs(list_products, exist_ok=True)
     os.makedirs(product, exist_ok=True)
     config = load_config_headers()
     headers = config["headers"]
+    time_sleep = config["time_sleep"]["time_sleep"]
     all_skus = read_sku_file()
     for one_sku in all_skus:
         params = {
@@ -87,9 +88,10 @@ def get_list_products_json(time_sleep):
             time.sleep(time_sleep)
 
 
-def get_product(time_sleep):
+def get_product():
     config = load_config_headers()
     headers = config["headers"]
+    time_sleep = config["time_sleep"]["time_sleep"]
     folder = os.path.join(list_products, "*.json")
     files_json = glob.glob(folder)
     for item in files_json:
@@ -174,39 +176,43 @@ def delete_old_data():
             print(f"Папка {temp_path} успешно удалена.")
 
 
-while True:
-    time_sleep = int(input("Введите количество сек для паузы: "))
-    # Запрос ввода от пользователя
-    while True:
-        print(
-            "Введите 1 для получения Id и SKU товаров"
-            "\nВведите 2 для загрузки всех товаров"
-            "\nВведите 3 после скачивания всех товаров, получаем отчет"
-            "\nВведите 0 Закрытия программы"
-        )
-        try:
-            user_input = int(
-                input("Выберите действие: ")
-            )  # Сначала получаем ввод как строку
-        except ValueError:  # Если введенные данные нельзя преобразовать в число
-            print("Неверный ввод, пожалуйста, введите корректный номер действия.")
-            continue  # Пропускаем оставшуюся часть цикла и начинаем с новой итерации
-        if user_input == 1:
-            delete_old_data()
-            print("Старые файлы удалены")
-            print("получаем Id и SKU товаров")
-            get_list_products_json(time_sleep)
-            print("Переходим к пункту 2")
-        elif user_input == 2:
-            get_product(time_sleep)
-            print("Переходим к пункту 3")
-        elif user_input == 3:
-            parsing_product()
-            print("Переходим к пункту 0")
-        elif user_input == 0:
-            print("Программа завершена.")
-            time.sleep(2)
-            sys.exit(1)
+if __name__ == "__main__":
+    delete_old_data()
+    print("Старые файлы удалены")
+    print("получаем Id и SKU товаров")
+    get_list_products_json()
+    print("Загружаем все товары")
+    get_product()
+    print("Формируеем отчет")
+    parsing_product()
+# while True:
+#     print(
+#         "Введите 1 ддля загрузки всех товаров"
+#         # "\nВведите 2 для загрузки всех товаров"
+#         # "\nВведите 3 после скачивания всех товаров, получаем отчет"
+#         "\nВведите 0 Закрытия программы"
+#     )
+#     try:
+#         user_input = int(
+#             input("Выберите действие: ")
+#         )  # Сначала получаем ввод как строку
+#     except ValueError:  # Если введенные данные нельзя преобразовать в число
+#         print("Неверный ввод, пожалуйста, введите корректный номер действия.")
+#         continue  # Пропускаем оставшуюся часть цикла и начинаем с новой итерации
+#     if user_input == 1:
+#         delete_old_data()
+#         print("Старые файлы удалены")
+#         print("получаем Id и SKU товаров")
+#         get_list_products_json()
+#         print("Загружаем все товары")
+#         get_product()
+#         print("Формируеем отчет")
+#         parsing_product()
+#         print("Переходим к пункту 0")
+#     elif user_input == 0:
+#         print("Программа завершена.")
+#         time.sleep(2)
+#         sys.exit(1)
 
-        else:
-            print("Неверный ввод, пожалуйста, введите корректный номер действия.")
+#     else:
+#         print("Неверный ввод, пожалуйста, введите корректный номер действия.")
