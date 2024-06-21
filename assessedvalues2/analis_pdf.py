@@ -78,10 +78,11 @@ def anali_pdf_02():
                 90,
             ]
             horizontal_lines_04 = [100, 110, 120, 132, 160, 180]
-            vertical_lines_05 = [18, 50, 200, 600]
+            vertical_lines_05 = [18,50,200, 600]
             horizontal_lines_05 = [
                 216,
-                225,
+                240,
+                300,
             ]
             # Стратегии могут быть: "lines", "text", "explicit"
             table_settings = {
@@ -439,13 +440,13 @@ def extract_text_and_visualize_lines():
 
 if __name__ == "__main__":
     # anali_pdf()
-    # anali_pdf_02()
+    anali_pdf_02()
     # visualize_page_layout()
     # extract_tables_with_camelot()
     # extract_tables_with_tabula()
 
     # perform_ocr_on_image()
-    save_high_resolution_screenshot()
+    # save_high_resolution_screenshot()
     # img_cs2()
     # extract_text_and_visualize_lines()
     # extract_text_with_opencv()

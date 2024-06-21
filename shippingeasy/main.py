@@ -7,6 +7,7 @@ import time
 import datetime
 import pandas as pd
 import shutil
+from headers_cookies import cookies, headers, time_sleep
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
@@ -26,42 +27,48 @@ def read_sku_file():
         return []
 
 
-# Читаем файл config для получения cookies и headers
-def load_config_headers():
-    if getattr(sys, "frozen", False):
-        # Если приложение 'заморожено' с помощью PyInstaller
-        application_path = os.path.dirname(sys.executable)
-    else:
-        # Обычный режим выполнения (например, во время разработки)
-        application_path = os.path.dirname(os.path.abspath(__file__))
+# def load_cookies():
+#     filename = os.path.join(current_directory, "raw_cookies.json")
+#     with open(filename, "r", encoding="utf-8") as file:
+#         cookies = json.load(file)
+#     cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
+#     return cookies_dict
 
-    filename_config = os.path.join(application_path, "config.json")
-    if not os.path.exists(filename_config):
-        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
-        time.sleep(3)
-        sys.exit(1)
-    else:
-        with open(filename_config, "r") as config_file:
-            config = json.load(config_file)
-    headers = config["headers"]
 
-    # Генерация строки кукисов из конфигурации
-    if "cookies" in config:
-        cookies_str = "; ".join([f"{k}={v}" for k, v in config["cookies"].items()])
-        headers["Cookie"] = cookies_str
-    return config
+# # Читаем файл config для получения cookies и headers
+# def load_config_headers():
+#     if getattr(sys, "frozen", False):
+#         # Если приложение 'заморожено' с помощью PyInstaller
+#         application_path = os.path.dirname(sys.executable)
+#     else:
+#         # Обычный режим выполнения (например, во время разработки)
+#         application_path = os.path.dirname(os.path.abspath(__file__))
+
+#     filename_config = os.path.join(application_path, "config.json")
+#     if not os.path.exists(filename_config):
+#         print("Файл config.json конфигурации не найден!")
+#         time.sleep(3)
+#         sys.exit(1)
+#     else:
+#         with open(filename_config, "r", encoding="utf-8") as config_file:
+#             config = json.load(config_file)
+
+#     return config
 
 
 def get_list_products_json():
+    # cookies = load_cookies()
     # Создание директории, если она не существует
     os.makedirs(temp_path, exist_ok=True)
     os.makedirs(list_products, exist_ok=True)
     os.makedirs(product, exist_ok=True)
-    config = load_config_headers()
-    headers = config["headers"]
-    time_sleep = config["time_sleep"]["time_sleep"]
+    # config = load_config_headers()
+    # headers = config["headers"]
+    # cookies = config["cookies"]
+    # time_sleep = config["time_sleep"]["time_sleep"]
     all_skus = read_sku_file()
     for one_sku in all_skus:
+
         params = {
             "filter[keyword]": one_sku,
             "page[number]": "1",
@@ -73,25 +80,39 @@ def get_list_products_json():
             response = requests.get(
                 "https://app1.shippingeasy.com/jsapi/coalesced_products",
                 params=params,
+                cookies=cookies,
                 headers=headers,
             )
-            # Сохранить json
-            json_data = response.json()
-            json_data = json_data["data"][0]
-            id_sku = json_data["id"]
-            sku = json_data["attributes"]["sku"]
-            datas = {"id": id_sku, "sku": sku}
+            if response.status_code == 200:
+                # Сохранить json
+                try:
+                    json_data = response.json()
+                except:
+                    print(f"Нет такого sku {one_sku}")
+                    continue
+                try:
+                    json_data = json_data["data"][0]
+                except:
+                    print(f"Ошибка на {one_sku}")
+                    continue
+                id_sku = json_data["id"]
+                sku = json_data["attributes"]["sku"]
+                datas = {"id": id_sku, "sku": sku}
 
-            with open(filename, "w", encoding="utf-8") as f:
-                json.dump(datas, f, ensure_ascii=False, indent=4)  # Записываем в файл
-            print(f"Сохранил файл {filename}")
-            time.sleep(time_sleep)
+                with open(filename, "w", encoding="utf-8") as f:
+                    json.dump(
+                        datas, f, ensure_ascii=False, indent=4
+                    )  # Записываем в файл
+                print(f"Сохранил файл {filename}")
+                time.sleep(time_sleep)
+            else:
+                print(response.status_code)
 
 
 def get_product():
-    config = load_config_headers()
-    headers = config["headers"]
-    time_sleep = config["time_sleep"]["time_sleep"]
+    # config = load_config_headers()
+    # headers = config["headers"]
+    # time_sleep = config["time_sleep"]["time_sleep"]
     folder = os.path.join(list_products, "*.json")
     files_json = glob.glob(folder)
     for item in files_json:
@@ -177,7 +198,7 @@ def delete_old_data():
 
 
 if __name__ == "__main__":
-    delete_old_data()
+    # delete_old_data()
     print("Старые файлы удалены")
     print("получаем Id и SKU товаров")
     get_list_products_json()

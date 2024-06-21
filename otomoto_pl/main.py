@@ -5,6 +5,7 @@ import time
 import sys
 import os
 import json
+import pandas as pd
 
 current_directory = os.getcwd()
 
@@ -29,7 +30,7 @@ def load_config_headers():
     return config
 
 
-async def main(url, pages):
+async def main(url, pages_start, pages_finish):
     config = load_config_headers()
     proxy_config = config.get("proxy")
     timeout = 3000
@@ -54,7 +55,7 @@ async def main(url, pages):
                 await route.continue_()
 
         await page.route("**/*", block_resource)
-        for ur in range(1, pages + 1):
+        for ur in range(pages_start, pages_finish + 1):
             if ur == 1:
                 await page.goto(url)
             else:
@@ -174,7 +175,7 @@ async def get_ad():
         except:
             pass
 
-        for ex in extracted_data:  # уберите [:2] чтобы обработать все данные
+        for ex in extracted_data:
             id_ad = ex["id"]
             url = ex["url"]
             # Обработка кнопки "Akceptuję"
@@ -193,15 +194,21 @@ async def get_ad():
                 print(f"Ошибка при переходе по URL {url}: {e}")
                 continue  # Пропускаем URL, если произошла ошибка при переходе
 
-            # Получаем номер телефона
-            try:
-                span_element = await page.query_selector(
-                    'span:has-text("Wyświetl numer")'
-                )
-                if span_element:
-                    await span_element.click()
-                    await asyncio.sleep(5)
+            # Цикл ожидания клика по кнопке "Wyświetl numer"
+            for _ in range(3):  # Попробуем три раза
+                try:
+                    span_element = await page.query_selector(
+                        'span:has-text("Wyświetl numer")'
+                    )
+                    if span_element:
+                        await span_element.click()
+                        await asyncio.sleep(5)
+                        break
+                except Exception as e:
+                    print(f"Ошибка при клике на кнопку 'Wyświetl numer': {e}")
+                    await asyncio.sleep(2)  # Подождите 2 секунды и попробуйте снова
 
+            try:
                 seller_info = await page.wait_for_selector(
                     'div[data-testid="aside-seller-info"]', timeout=timeout
                 )
@@ -227,10 +234,37 @@ async def get_ad():
         await browser.close()
 
 
+def get_xlsx():
+    # Загрузка данных из файла data.json
+    with open("data.json", "r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    # Функция для форматирования номера телефона
+    def format_phone_number(phone_number):
+        phone_number = phone_number.replace(" ", "").replace("-", "")
+        if phone_number.startswith("+48"):
+            phone_number = phone_number[3:]
+        return "+48" + phone_number
+
+    # Извлечение и форматирование номеров телефонов, пропуская записи с tel_ad равным null
+    formatted_numbers = []
+    for entry in data:
+        if entry["tel_ad"] is not None:
+            formatted_numbers.append(format_phone_number(entry["tel_ad"]))
+
+    # Создание DataFrame только с номерами телефонов
+    df = pd.DataFrame(formatted_numbers, columns=["tel_ad"])
+
+    # Сохранение в Excel
+    output_file = "phone_numbers.xlsx"
+    df.to_excel(output_file, index=False)
+
+
 while True:
     print(
         "Введите 1 для получения ввсех ссылок на объявления"
         "\nВведите 2 для получения номеров"
+        "\nВведите 3 получить список номеров"
         "\nВведите 0 Закрытия программы"
     )
     try:
@@ -240,10 +274,13 @@ while True:
         continue  # Пропускаем оставшуюся часть цикла и начинаем с новой итерации
     if user_input == 1:
         url = str(input("Вставьте ссылку: "))
-        pages = int(input("Количество страниц которое обойти: "))
-        asyncio.run(main(url, pages))
+        pages_start = int(input("Первая страница: "))
+        pages_finish = int(input("Последняя страница: "))
+        asyncio.run(main(url, pages_start, pages_finish))
     elif user_input == 2:
         asyncio.run(get_ad())
+    elif user_input == 3:
+        get_xlsx()
 
     elif user_input == 0:
         print("Программа завершена.")
