@@ -137,6 +137,19 @@ async def append_to_json(file_path, data):
         await f.write(json.dumps(existing_data, ensure_ascii=False, indent=4))
 
 
+# Функция для ожидания элемента и клика по нему
+async def wait_and_click(page, selector, timeout=3000, retries=3):
+    for _ in range(retries):
+        try:
+            await page.wait_for_selector(selector, timeout=timeout)
+            await page.click(selector)
+            return True
+        except Exception as e:
+            print(f"Ошибка при клике на элемент {selector}: {e}")
+            await asyncio.sleep(2)
+    return False
+
+
 async def get_ad():
     config = load_config_headers()
     proxy_config = config.get("proxy")
@@ -166,7 +179,7 @@ async def get_ad():
         await page.route("**/*", block_resource)
         # Замените URL на актуальный
         await page.goto("https://www.otomoto.pl/", timeout=60000)
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         try:
             await page.wait_for_selector(
                 'button:has-text("Akceptuję")', timeout=timeout
@@ -193,36 +206,50 @@ async def get_ad():
             except Exception as e:
                 print(f"Ошибка при переходе по URL {url}: {e}")
                 continue  # Пропускаем URL, если произошла ошибка при переходе
+            await asyncio.sleep(2)
+            tel_ad = None
+            # Находим элемент //div[@data-testid="aside-seller-info"]
+            seller_info_div = await page.wait_for_selector(
+                '//div[@data-testid="aside-seller-info"]', timeout=60000
+            )
 
-            # Цикл ожидания клика по кнопке "Wyświetl numer"
-            for _ in range(3):  # Попробуем три раза
-                try:
-                    span_element = await page.query_selector(
-                        'span:has-text("Wyświetl numer")'
-                    )
-                    if span_element:
-                        await span_element.click()
-                        await asyncio.sleep(5)
-                        break
-                except Exception as e:
-                    print(f"Ошибка при клике на кнопку 'Wyświetl numer': {e}")
-                    await asyncio.sleep(2)  # Подождите 2 секунды и попробуйте снова
+            # Сначала ищем элемент span с текстом "Wyświetl numer"
+            wyświetl_numer_span = await seller_info_div.query_selector(
+                '//span[contains(@class, "button-text-wrapper") and text()="Wyświetl numer"]'
+            )
 
-            try:
-                seller_info = await page.wait_for_selector(
-                    'div[data-testid="aside-seller-info"]', timeout=timeout
+            if not wyświetl_numer_span:
+                # Если не нашли, ищем элемент span с текстом "Wyświetl numery"
+                wyświetl_numer_span = await seller_info_div.query_selector(
+                    '//span[contains(@class, "button-text-wrapper") and text()="Wyświetl numery"]'
                 )
-                if seller_info:
-                    a_tags = await seller_info.query_selector_all('a[href^="tel:"]')
-                    tel_hrefs = [await a.get_attribute("href") for a in a_tags]
-                    for href in tel_hrefs:
-                        tel_ad = href.replace("tel:", "")
-                else:
-                    continue
 
-            except Exception as e:
-                print(f"Произошла ошибка при извлечении номера на URL {url}: {e}")
-                continue  # Пропускаем URL, если произошла ошибка при извлечении номера
+            if wyświetl_numer_span:
+                # Попробуем три раза найти и кликнуть по элементу
+                for attempt in range(3):
+                    try:
+                        await wyświetl_numer_span.click()
+                        await asyncio.sleep(2)
+
+                        # Ищем все элементы a с href, который начинается на "tel:"
+                        phone_links = await seller_info_div.query_selector_all(
+                            'a[href^="tel:"]'
+                        )
+                        phone_numbers = [
+                            await link.get_attribute("href") for link in phone_links
+                        ]
+                        tel_ad = [
+                            number.replace("tel:", "") for number in phone_numbers
+                        ]
+                        tel_ad = ",".join(tel_ad)
+                        break
+                    except Exception as e:
+                        # print(f"Попытка {attempt + 1} не удалась: {e}")
+                        await asyncio.sleep(1)  # Пауза перед повторной попыткой
+            else:
+                print(
+                    "Не удалось найти элемент 'Wyświetl numer' или 'Wyświetl numery'."
+                )
 
             datas = {"id_ad": id_ad, "tel_ad": tel_ad}
             all_datas.append(datas)
@@ -250,7 +277,22 @@ def get_xlsx():
     formatted_numbers = []
     for entry in data:
         if entry["tel_ad"] is not None:
-            formatted_numbers.append(format_phone_number(entry["tel_ad"]))
+            if isinstance(entry["tel_ad"], str):
+                phone_numbers = entry["tel_ad"].split(
+                    ","
+                )  # Разделяем номера по запятой
+            elif isinstance(entry["tel_ad"], list):
+                phone_numbers = entry["tel_ad"]
+            else:
+                continue
+
+            formatted_phone_numbers = [
+                format_phone_number(phone_number.strip())
+                for phone_number in phone_numbers
+            ]
+            formatted_numbers.append(
+                ", ".join(formatted_phone_numbers)
+            )  # Объединяем номера в одну строку
 
     # Создание DataFrame только с номерами телефонов
     df = pd.DataFrame(formatted_numbers, columns=["tel_ad"])
