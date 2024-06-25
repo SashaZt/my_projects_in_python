@@ -8,16 +8,45 @@ from datetime import datetime
 from selectolax.parser import HTMLParser
 import re
 import json
+import requests
+
+cookies = {
+    "PHPSESSID": "037d6a52e601e895961d319452014b01",
+    "_ms": "28ca1f18-a408-4eb1-bdd5-5edffce28982",
+    "lang": "ua",
+    "biatv-cookie": "{%22firstVisitAt%22:1719206878%2C%22visitsCount%22:3%2C%22currentVisitStartedAt%22:1719310027%2C%22currentVisitLandingPage%22:%22https://artmobile.com.ua/zapchastini-displeyi%22%2C%22currentVisitUpdatedAt%22:1719310030%2C%22currentVisitOpenPages%22:2%2C%22campaignTime%22:1719226494%2C%22campaignCount%22:2%2C%22utmDataCurrent%22:{%22utm_source%22:%22freelancehunt.com%22%2C%22utm_medium%22:%22referral%22%2C%22utm_campaign%22:%22(referral)%22%2C%22utm_content%22:%22/%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1719226494}%2C%22utmDataFirst%22:{%22utm_source%22:%22freelancehunt.com%22%2C%22utm_medium%22:%22referral%22%2C%22utm_campaign%22:%22(referral)%22%2C%22utm_content%22:%22/%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1719206878}}",
+}
+
+headers = {
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
+    "cache-control": "no-cache",
+    # 'cookie': 'PHPSESSID=037d6a52e601e895961d319452014b01; _ms=28ca1f18-a408-4eb1-bdd5-5edffce28982; lang=ua; biatv-cookie={%22firstVisitAt%22:1719206878%2C%22visitsCount%22:3%2C%22currentVisitStartedAt%22:1719310027%2C%22currentVisitLandingPage%22:%22https://artmobile.com.ua/zapchastini-displeyi%22%2C%22currentVisitUpdatedAt%22:1719310030%2C%22currentVisitOpenPages%22:2%2C%22campaignTime%22:1719226494%2C%22campaignCount%22:2%2C%22utmDataCurrent%22:{%22utm_source%22:%22freelancehunt.com%22%2C%22utm_medium%22:%22referral%22%2C%22utm_campaign%22:%22(referral)%22%2C%22utm_content%22:%22/%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1719226494}%2C%22utmDataFirst%22:{%22utm_source%22:%22freelancehunt.com%22%2C%22utm_medium%22:%22referral%22%2C%22utm_campaign%22:%22(referral)%22%2C%22utm_content%22:%22/%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1719206878}}',
+    "dnt": "1",
+    "pragma": "no-cache",
+    "priority": "u=0, i",
+    "sec-ch-ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "none",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+}
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
 all_hotels = os.path.join(temp_path, "all_hotels")
 hotel_path = os.path.join(temp_path, "hotel")
+img_path = os.path.join(temp_path, "img")
 
 # Создание директории, если она не существует
 os.makedirs(temp_path, exist_ok=True)
 os.makedirs(all_hotels, exist_ok=True)
 os.makedirs(hotel_path, exist_ok=True)
+os.makedirs(img_path, exist_ok=True)
 
 
 # Сохранение html файлов
@@ -103,7 +132,7 @@ def parsing_product():
 
     files_html = glob.glob(folder)
     all_datas = []
-    for item_html in files_html:
+    for item_html in files_html[:5]:
         with open(item_html, encoding="utf-8") as file:
             src = file.read()
         parser = HTMLParser(src)
@@ -140,16 +169,7 @@ def parsing_product():
                 price_base = price_base_raw.text(strip=True)
                 price_base = price_base.replace("$", "")
                 break
-        # Находим все элементы a с классом product-gallery-item
-        gallery_items = parser.css("a.product-gallery-item")
 
-        # Извлекаем href из каждого найденного элемента
-        hrefs = [
-            item.attributes.get("href")
-            for item in gallery_items
-            if item.attributes.get("href")
-        ]
-        image = ", ".join(hrefs)
         # Находим все элементы script с типом application/ld+json
         script_tags = parser.css('script[type="application/ld+json"]')
         json_data = None
@@ -179,6 +199,34 @@ def parsing_product():
                 value_divs = item.css("div.characteristics-value div")
                 values = [div.text(strip=True) for div in value_divs]
                 characteristics[title] = ", ".join(values)
+            # Находим все элементы a с классом product-gallery-item
+            gallery_items = parser.css("a.product-gallery-item")
+
+            # Извлекаем href из каждого найденного элемента
+            hrefs = [
+                item.attributes.get("href")
+                for item in gallery_items
+                if item.attributes.get("href")
+            ]
+
+            image_list = []
+            # Скачиваем и сохраняем файлы
+            for index, href in enumerate(hrefs):
+                response = requests.get(href, cookies=cookies, headers=headers)
+                file_name = f"{sku}_{index + 1}.jpg"
+                image_list.append(file_name)
+
+                file_path = os.path.join(img_path, file_name)
+                if not os.path.exists(file_path):
+                    if response.status_code == 200:
+                        with open(file_path, "wb") as file:
+                            file.write(response.content)
+                        print(f"Файл сохранен: {file_path}")
+                    else:
+                        print(response.status_code)
+                else:
+                    print(f"Не удалось скачать файл: {href}")
+            image_list = ", ".join(image_list)
             in_stock = 1
             data_product = {
                 "Категория": breadcrumb,
@@ -190,7 +238,7 @@ def parsing_product():
                 "Заголовок страницы": title_product,
                 "Описание страницы": title_product,
                 "Описание": description,
-                "Изображения": image,
+                "Изображения": image_list,
                 "Рекомендуемый": 0,
                 "Бренд": "",
                 "Вариант": "",
