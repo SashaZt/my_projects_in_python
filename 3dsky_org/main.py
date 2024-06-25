@@ -9,14 +9,25 @@ import shutil
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
 no_img_path = os.path.join(temp_path, "no_img")
-os.makedirs(temp_path, exist_ok=True)
-os.makedirs(no_img_path, exist_ok=True)
 
 
 def get_random_pause(time_pause):
     return random.uniform(time_pause, time_pause * 2)
 
 
+# # Функция для переименования архива
+# def rename_archive_if_needed(file_name, file_name_archive):
+#     if file_name != file_name_archive:
+#         archive_extensions = {".zip", ".rar", ".7z"}
+#         for archive_ext in archive_extensions:
+#             archive_path = os.path.join(temp_path, f"{file_name}{archive_ext}")
+#             if os.path.exists(archive_path):
+#                 new_archive_path = os.path.join(
+#                     temp_path, f"{file_name_archive}{archive_ext}"
+#                 )
+#                 os.rename(archive_path, new_archive_path)
+#                 print(f"Переименован архив {archive_path} -> {new_archive_path}")
+#                 break
 # Функция для переименования архива
 def rename_archive_if_needed(file_name, file_name_archive):
     if file_name != file_name_archive:
@@ -27,6 +38,8 @@ def rename_archive_if_needed(file_name, file_name_archive):
                 new_archive_path = os.path.join(
                     temp_path, f"{file_name_archive}{archive_ext}"
                 )
+                if os.path.exists(new_archive_path):
+                    os.remove(new_archive_path)  # Удаляем файл, если он уже существует
                 os.rename(archive_path, new_archive_path)
                 print(f"Переименован архив {archive_path} -> {new_archive_path}")
                 break
@@ -42,6 +55,9 @@ def move_archive_forcefully(src_path, dst_path):
 
 # Основная функция
 def main(time_pause):
+    os.makedirs(temp_path, exist_ok=True)
+    os.makedirs(no_img_path, exist_ok=True)
+
     start_url = "https://b6.3ddd.ru/media/cache/sky_model_new_big_ang_en/"
     archive_extensions = {".zip", ".rar", ".7z"}
 
@@ -74,6 +90,7 @@ def main(time_pause):
     }
 
     for file_name in file_names:
+        print(file_name)
         # Проверка наличия файлов с изображениями
         image_extensions = {".jpg", ".jpeg", ".png"}
         image_exists = any(

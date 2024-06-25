@@ -25,11 +25,18 @@ def anali_pdf_02(pdf_path, test_page_no=0):
                     76,
                     88,
                 ]
-                vertical_lines_02 = [370, 599]
+                vertical_lines_02 = [390, 505, 510]
                 horizontal_lines_02 = [
                     15,
                     28,
+                ]
+                vertical_lines_02a = [390, 505, 510]
+                horizontal_lines_02a = [
+                    28,
                     40,
+                ]
+                vertical_lines_02b = [370, 440, 490, 599]
+                horizontal_lines_02b = [
                     51,
                     63,
                 ]
@@ -44,7 +51,7 @@ def anali_pdf_02(pdf_path, test_page_no=0):
                     98,
                     110,
                 ]
-                vertical_lines_05 = [20, 80, 110, 158, 318, 368, 415]
+                vertical_lines_05 = [20, 40, 80, 110, 158, 318, 368, 415]
                 horizontal_lines_05 = [
                     120,
                     132,
@@ -146,9 +153,9 @@ def anali_pdf_02(pdf_path, test_page_no=0):
                 # Стратегии могут быть: "lines", "text", "explicit"
                 table_settings = {
                     "vertical_strategy": "explicit",
-                    "explicit_vertical_lines": vertical_lines_07,
+                    "explicit_vertical_lines": vertical_lines_05,
                     "horizontal_strategy": "explicit",
-                    "explicit_horizontal_lines": horizontal_lines_07,
+                    "explicit_horizontal_lines": horizontal_lines_05,
                     "snap_tolerance": 3,  # Толерантность при поиске линий (в пикселях)
                     "join_tolerance": 3,  # Толерантность при объединении линий
                     "edge_min_length": 10,  # Минимальная длина линий
@@ -174,10 +181,12 @@ def write_json(pdf_path, test_page_no=0):
     # Определение всех наборов линий
     lines = {
         1: ([18, 192], [15, 25, 40, 51, 63, 76, 88]),
-        2: ([370, 599], [15, 28, 40, 51, 63]),
+        2: ([390, 505, 510], [15, 28]),
+        2.1: ([390, 505, 510], [28, 40]),
+        2.2: ([370, 440, 490, 599], [51, 63]),
         3: ([25, 580], [62, 75, 90]),
         4: ([20, 80, 100, 143, 165, 186, 207, 228, 250], [98, 110]),
-        5: ([20, 80, 110, 158, 318, 368, 415], [120, 132]),
+        5: ([20, 40, 80, 110, 158, 318, 368, 415], [120, 132]),
         6: ([20, 150, 158], [145, 158]),
         7: ([320, 340, 410, 432, 502, 522, 595], [156, 170]),
         8: ([380, 510], [470, 485]),
@@ -394,7 +403,7 @@ def extract_text_from_image():
 
     # Сохраняем DataFrame в CSV файл с разделителем ;
     df.to_csv("extracted_texts.csv", index=False, sep=";", encoding="utf-8-sig")
-
+    return data
     # # Выводим извлеченный текст из всех областей
     # for i, column_texts in enumerate(all_texts):
     #     print(f"Текст из области {i+1}:")
@@ -403,10 +412,33 @@ def extract_text_from_image():
     #     print()
 
 
+def update_json_with_image_data():
+    json_path = "output.json"
+    # Чтение существующего файла JSON
+    with open(json_path, "r", encoding="utf-8") as json_file:
+        json_data = json.load(json_file)
+
+    # Извлечение новых данных из изображения
+    new_data = extract_text_from_image()
+
+    # Добавление новых данных в существующий JSON
+    page_no = max(json_data.keys(), key=int)  # Получаем последний номер страницы
+    page_no = int(page_no) + 1  # Увеличиваем номер страницы для новых данных
+
+    json_data[page_no] = new_data
+
+    # Сохранение обновленных данных обратно в JSON
+    with open(json_path, "w", encoding="utf-8") as json_file:
+        json.dump(json_data, json_file, ensure_ascii=False, indent=4)
+
+    print(f"Данные успешно добавлены в {json_path}")
+
+
 if __name__ == "__main__":
     pdf_path = "01.pdf"
     # save_high_resolution_screenshot(pdf_path)
     # anali_pdf_02(pdf_path, test_page_no=0)
-    write_json(pdf_path, test_page_no=0)
+    # write_json(pdf_path, test_page_no=0)
 
     # extract_text_from_image()
+    update_json_with_image_data()
