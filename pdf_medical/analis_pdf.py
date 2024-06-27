@@ -21,7 +21,7 @@ def anali_pdf_02(pdf_path, test_page_no=0):
             if page_no == test_page_no:
                 # Настройки для обнаружения таблиц
 
-                vertical_lines_01 = [18, 192]
+                vertical_lines_01 = [18, 193]
                 horizontal_lines_01 = [
                     15,
                     25,
@@ -29,137 +29,276 @@ def anali_pdf_02(pdf_path, test_page_no=0):
                     51,
                     63,
                 ]
-                vertical_lines_02 = [390, 505, 510]
+                vertical_lines_02 = [193, 368]
                 horizontal_lines_02 = [
                     15,
-                    28,
-                ]
-                vertical_lines_02a = [390, 505, 595]
-                horizontal_lines_02a = [
-                    28,
+                    25,
                     40,
-                ]
-                vertical_lines_02b = [370, 440, 490, 599]
-                horizontal_lines_02b = [
                     51,
                     63,
                 ]
-                vertical_lines_03 = [25, 580]
-                horizontal_lines_03 = [
+                vertical_lines_03a = [390, 505, 510]
+                horizontal_lines_03a = [
+                    15,
+                    28,
+                ]
+                vertical_lines_03b = [390, 505, 510]
+                horizontal_lines_03b = [
+                    28,
+                    40,
+                ]
+                vertical_lines_04 = [550, 560, 595]
+                horizontal_lines_04 = [
+                    28,
+                    40,
+                ]
+                vertical_lines_05 = [370, 375, 440]
+                horizontal_lines_05 = [
+                    51,
+                    63,
+                ]
+                vertical_lines_06 = [440, 490, 537]
+                horizontal_lines_06 = [
+                    51,
+                    63,
+                ]
+                vertical_lines_07 = [537, 539, 595]
+                horizontal_lines_07 = [
+                    51,
+                    63,
+                ]
+                vertical_lines_08 = [25, 220]
+                horizontal_lines_08 = [
                     62,
                     75,
-                    90,
+                    88,
                 ]
-                vertical_lines_04 = [20, 80, 100, 143, 165, 186, 207, 228, 250]
-                horizontal_lines_04 = [
+                vertical_lines_09 = [300, 580]
+                horizontal_lines_09 = [
+                    62,
+                    75,
+                    88,
+                ]
+
+                vertical_lines_10 = [18, 76, 80]
+                horizontal_lines_10 = [
                     98,
                     110,
                 ]
-                vertical_lines_05 = [20, 40, 80, 110, 158, 318, 368, 415]
-                horizontal_lines_05 = [
+                vertical_lines_11 = [82, 98, 103]
+                horizontal_lines_11 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_12 = [103, 141, 146]
+                horizontal_lines_12 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_13 = [143, 148, 165]
+                horizontal_lines_13 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_14 = [162, 167, 186]
+                horizontal_lines_14 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_15 = [184, 189, 207]
+                horizontal_lines_15 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_16 = [203, 208, 228]
+                horizontal_lines_16 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_17 = [223, 228, 250]
+                horizontal_lines_17 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_18 = [247, 252, 270]
+                horizontal_lines_18 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_19 = [268, 273, 292]
+                horizontal_lines_19 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_20 = [290, 295, 313]
+                horizontal_lines_20 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_21 = [310, 315, 335]
+                horizontal_lines_21 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_22 = [330, 335, 355]
+                horizontal_lines_22 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_23 = [352, 357, 375]
+                horizontal_lines_23 = [
+                    98,
+                    110,
+                ]
+                vertical_lines_31 = [20, 40, 80]
+                horizontal_lines_31 = [
                     120,
                     132,
                 ]
-                vertical_lines_06 = [
+                vertical_lines_32 = [88, 110, 157]
+                horizontal_lines_32 = [
+                    120,
+                    132,
+                ]
+                vertical_lines_35 = [300, 318, 368, 415]
+                horizontal_lines_35 = [
+                    120,
+                    145,
+                ]
+                vertical_lines_38 = [
                     20,
                     150,
                     158,
                 ]
-                horizontal_lines_06 = [
+                horizontal_lines_38 = [
                     145,
                     158,
                 ]
 
-                vertical_lines_07 = [320, 340, 410, 432, 502, 522, 595]
-                horizontal_lines_07 = [156, 170]
-                vertical_lines_08 = [18, 50, 90, 105, 145, 330, 380, 450, 510]
-                horizontal_lines_08 = [470, 485]
-                vertical_lines_09 = [18, 180, 285, 300, 320, 390, 465, 490, 590]
-                horizontal_lines_09 = [495, 530]
-                vertical_lines_10 = [18, 200, 220, 300, 320, 360, 465, 490, 590]
-                horizontal_lines_10 = [545, 575]
-                vertical_lines_11 = [
-                    18,
-                    70,
-                    80,
-                    120,
-                    138,
-                    185,
-                    195,
-                    230,
-                    250,
-                    295,
-                    305,
-                    350,
-                    362,
-                    410,
-                    420,
-                    465,
-                    475,
-                    525,
-                    532,
-                ]
-                horizontal_lines_11 = [625, 635]
-                vertical_lines_12 = [
-                    18,
-                    70,
-                    80,
-                    120,
-                    138,
-                    185,
-                    195,
-                    230,
-                    250,
-                    295,
-                    305,
-                    350,
-                    362,
-                    410,
-                    420,
-                    465,
-                    475,
-                    525,
-                    532,
-                ]
-                horizontal_lines_12 = [635, 645]
-                vertical_lines_13 = [
-                    45,
-                    95,
-                    130,
-                    180,
-                    230,
-                    278,
-                    342,
+                vertical_lines_39a = [318, 323, 340]
+                horizontal_lines_39a = [156, 205]
+                vertical_lines_39b = [338, 342, 410]
+                horizontal_lines_39b = [156, 205]
+                vertical_lines_40a = [
+                    408,
                     412,
-                    468,
-                    525,
-                    590,
+                    432,
                 ]
-                horizontal_lines_13 = [647, 660]
-                vertical_lines_14 = [
+                horizontal_lines_40a = [156, 205]
+                vertical_lines_40b = [
+                    428,
+                    432,
+                    502,
+                ]
+                horizontal_lines_40b = [156, 205]
+                vertical_lines_41a = [
+                    502,
+                    507,
+                    522,
+                ]
+                horizontal_lines_41a = [156, 205]
+                vertical_lines_41b = [522, 527, 595]
+                horizontal_lines_41b = [156, 205]
+                vertical_lines_23t = [18, 50, 90, 105, 145, 330, 380, 450, 510]
+                horizontal_lines_23t = [470, 485]
+                vertical_lines_50 = [18, 175, 180]
+                horizontal_lines_50 = [495, 530]
+                vertical_lines_51 = [180, 280, 285]
+                horizontal_lines_51 = [495, 530]
+                vertical_lines_52 = [283, 298, 303]
+                horizontal_lines_52 = [495, 530]
+                vertical_lines_53 = [300, 308, 320]
+                horizontal_lines_53 = [495, 530]
+                vertical_lines_54 = [320, 325, 390]
+                horizontal_lines_54 = [495, 530]
+                vertical_lines_55 = [390, 395, 467]
+                horizontal_lines_55 = [495, 530]
+                vertical_lines_56 = [487, 590, 595]
+                horizontal_lines_56 = [482, 495]
+                vertical_lines_57 = [487, 590, 595]
+                horizontal_lines_57 = [495, 530]
+                vertical_lines_58 = [18, 195, 200]
+                horizontal_lines_58 = [542, 575]
+                vertical_lines_59 = [195, 200, 220]
+                horizontal_lines_59 = [542, 575]
+                vertical_lines_60 = [220, 357, 362]
+                horizontal_lines_60 = [542, 575]
+                vertical_lines_66 = [
+                    18,
+                    70,
+                    80,
+                    124,
+                    138,
+                    185,
+                    195,
+                    230,
+                    250,
+                    295,
+                    305,
+                    350,
+                    362,
+                    410,
+                    420,
+                    465,
+                    475,
+                    525,
+                    532,
+                ]
+                horizontal_lines_66 = [625, 635]
+                vertical_lines_67 = [
+                    18,
+                    70,
+                    80,
+                    120,
+                    138,
+                    185,
+                    195,
+                    230,
+                    250,
+                    295,
+                    305,
+                    350,
+                    362,
+                    410,
+                    420,
+                    465,
+                    475,
+                    525,
+                    532,
+                ]
+                horizontal_lines_67 = [635, 645]
+                vertical_lines_69 = [45, 90, 95]
+                horizontal_lines_69 = [647, 660]
+                vertical_lines_76 = [
                     420,
                     500,
-                    532,
+                    505,
                 ]
-                horizontal_lines_14 = [660, 672]
-                vertical_lines_15 = [
-                    380,
+                horizontal_lines_76 = [660, 672]
+                vertical_lines_76L = [
+                    385,
                     490,
-                    580,
+                    495,
                 ]
-                horizontal_lines_15 = [672, 682]
-                vertical_lines_16 = [
+                horizontal_lines_76L = [672, 682]
+                vertical_lines_76F = [
+                    515,
+                    580,
+                    585,
+                ]
+                horizontal_lines_76F = [672, 682]
+                vertical_lines_81 = [
                     200,
                     215,
                     285,
                 ]
-                horizontal_lines_16 = [705, 720]
+                horizontal_lines_81 = [705, 720]
                 # Стратегии могут быть: "lines", "text", "explicit"
                 table_settings = {
                     "vertical_strategy": "explicit",
-                    "explicit_vertical_lines": vertical_lines_08,
+                    "explicit_vertical_lines": vertical_lines_66,
                     "horizontal_strategy": "explicit",
-                    "explicit_horizontal_lines": horizontal_lines_08,
+                    "explicit_horizontal_lines": horizontal_lines_66,
                     "snap_tolerance": 3,  # Толерантность при поиске линий (в пикселях)
                     "join_tolerance": 3,  # Толерантность при объединении линий
                     "edge_min_length": 10,  # Минимальная длина линий
@@ -180,6 +319,7 @@ def anali_pdf_02(pdf_path, test_page_no=0):
                 image.debug_tablefinder(table_settings)
                 filename = os.path.join(temp_path, "analis.png")
                 image.save(filename)
+                break
 
 
 def write_json(pdf_path):
@@ -328,13 +468,13 @@ def write_json(pdf_path):
         json.dump(results, json_file, ensure_ascii=False, indent=4)
 
 
-def save_high_resolution_screenshot(pdf_path, page_no):
+def save_high_resolution_screenshot(pdf_path):
     resolution = 300
-    # page_number = 0  # Номер страницы (начиная с 0)
+    page_number = 15  # Номер страницы (начиная с 0)
     output_image_path = "high_res_screenshot.png"
 
     with pdfplumber.open(pdf_path) as pdf:
-        page = pdf.pages[page_no]
+        page = pdf.pages[page_number]
         # Создаем изображение страницы с указанным разрешением
         image = page.to_image(resolution=resolution).original
 
@@ -360,6 +500,27 @@ def save_high_resolution_screenshot(pdf_path, page_no):
         print(f"Скриншот сохранен: {output_image_path}")
 
 
+# def enhance_image(image):
+#     """
+#     Улучшает качество изображения для улучшения распознавания текста.
+#     """
+#     # Повышаем резкость
+#     image = image.filter(ImageFilter.SHARPEN)
+
+#     # Повышаем контраст
+#     enhancer = ImageEnhance.Contrast(image)
+#     image = enhancer.enhance(2)
+
+#     # Повышаем яркость
+#     enhancer = ImageEnhance.Brightness(image)
+#     image = enhancer.enhance(1.5)
+
+#     # Конвертируем изображение в черно-белое
+#     image = image.convert("L")
+
+#     return image
+
+
 def enhance_image(image):
     """
     Улучшает качество изображения для улучшения распознавания текста.
@@ -378,12 +539,31 @@ def enhance_image(image):
     # Конвертируем изображение в черно-белое
     image = image.convert("L")
 
+    # Применяем адаптивную бинаризацию
+    image = ImageOps.autocontrast(image)
+    image = ImageOps.invert(image)
+    threshold = 150
+    image = image.point(lambda p: p > threshold and 255)
+
     return image
 
 
 def clean_text(text):
     # Убираем все символы, кроме точки
     return re.sub(r"[^A-Za-z0-9.\s]", "", text)
+
+
+def generate_keys():
+    keys = []
+    i = 42
+    while len(keys) < 9:  # Должно совпадать с количеством crop_areas
+        if i == 47:
+            keys.append(f"{i}a")
+            keys.append(f"{i}b")
+        else:
+            keys.append(str(i))
+        i += 1
+    return keys
 
 
 def extract_text_from_image():
@@ -394,11 +574,11 @@ def extract_text_from_image():
     crop_areas = [
         (75, 900, 200, 1900),
         (220, 900, 750, 1900),
-        (945, 900, 1355, 1900),
+        (945, 901, 1355, 1900),
         (1390, 900, 1560, 1900),
         (1730, 900, 1790, 1900),
-        (1850, 900, 2032, 1900),
-        (2035, 900, 2085, 1900),
+        (1850, 901, 2030, 1900),
+        (2032, 901, 2085, 1900),
         (2130, 900, 2385, 1900),
         (2410, 900, 2465, 1900),
     ]
@@ -408,8 +588,8 @@ def extract_text_from_image():
 
     all_texts = {}
 
-    # Генерируем ключи начиная с 44
-    image_keys = [str(42 + i) for i in range(len(crop_areas))]
+    # Генерируем ключи начиная с 42, включая 47a и 47b
+    image_keys = generate_keys()
 
     for i, crop_area in enumerate(crop_areas):
         # Обрезаем изображение до заданной области
@@ -444,7 +624,7 @@ def extract_text_from_image():
         key: column_texts + [""] * (max_rows - len(column_texts))
         for key, column_texts in all_texts.items()
     }
-
+    print(data)
     return data
 
 
@@ -471,10 +651,10 @@ def update_json_with_image_data():
 
 
 if __name__ == "__main__":
-    pdf_path = "01.pdf"
-    write_json(pdf_path)
-    # save_high_resolution_screenshot(pdf_path)
+    pdf_path = "03.pdf"
+    # write_json(pdf_path)
+    save_high_resolution_screenshot(pdf_path)
     # anali_pdf_02(pdf_path, test_page_no=0)
 
-    # extract_text_from_image()
+    extract_text_from_image()
     # update_json_with_image_data()
