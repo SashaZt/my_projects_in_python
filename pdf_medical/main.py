@@ -8,18 +8,19 @@ import os
 import shutil
 import argparse
 import platform
+import time
 
 
-# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-current_directory = os.getcwd()
-temp_path = os.path.join(current_directory, "temp")
 
 
-def save_high_resolution_screenshot(pdf_path, page_no):
+def save_high_resolution_screenshot(pdf_path, page_no, temp_path):
     resolution = 300
     # page_number = 0  # Номер страницы (начиная с 0)
+
     output_image_path = os.path.join(temp_path, "high_res_screenshot.png")
+    os.makedirs(temp_path, exist_ok=True)
     with pdfplumber.open(pdf_path) as pdf:
         page = pdf.pages[page_no]
         # Создаем изображение страницы с указанным разрешением
@@ -86,7 +87,10 @@ def generate_keys():
     return keys
 
 
-def extract_text_from_image():
+def extract_text_from_image(temp_path):
+    # Создаем временную папку с Unix Timestamp
+
+    os.makedirs(temp_path, exist_ok=True)
 
     image_path = os.path.join(temp_path, "high_res_screenshot.png")
 
@@ -146,9 +150,9 @@ def extract_text_from_image():
     return data
 
 
-def write_json(pdf_path, output_path):
-    if os.path.exists(temp_path):
-        shutil.rmtree(temp_path)
+def write_json(pdf_path, output_path, temp_path):
+    # if os.path.exists(temp_path):
+    #     shutil.rmtree(temp_path)
 
     os.makedirs(temp_path, exist_ok=True)
     # Определение всех наборов линий
@@ -267,7 +271,7 @@ def write_json(pdf_path, output_path):
     with pdfplumber.open(pdf_path) as pdf:
         for page_no, page in enumerate(pdf.pages):
             page_data = []
-            save_high_resolution_screenshot(pdf_path, page_no)
+            save_high_resolution_screenshot(pdf_path, page_no, temp_path)
             for line_no, (v_lines, h_lines) in lines.items():
                 # Пропуск пустых списков линий
                 if not v_lines or not h_lines:
@@ -292,7 +296,7 @@ def write_json(pdf_path, output_path):
                         page_data.extend(flattened_table)
 
             # Извлекаем текст из изображения
-            data_table = extract_text_from_image()
+            data_table = extract_text_from_image(temp_path)
 
             # Пример ключей, привязанных к данным PDF (это пример, необходимо настроить под ваш конкретный случай)
             keys = [
@@ -375,18 +379,25 @@ def main():
     parser.add_argument("output_path", help="Full path to the output JSON file")
     args = parser.parse_args()
 
-    # Определяем пути для различных операционных систем
+    # Определяем пути для различных операционных систем и устанавливаем путь к Tesseract
     if platform.system() == "Linux":
         pdf_path = args.pdf_path
         output_path = args.output_path
+        pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
     elif platform.system() == "Windows":
         pdf_path = args.pdf_path
         output_path = args.output_path
+        pytesseract.pytesseract.tesseract_cmd = (
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        )
     else:
         print("Unsupported operating system")
         return
-
-    write_json(pdf_path, output_path)
+    current_directory = os.getcwd()
+    temp_path = os.path.join(current_directory, "temp")
+    timestamp = str(int(time.time()))
+    temp_path = os.path.join("temp", timestamp)
+    write_json(pdf_path, output_path, temp_path)
     print(f"Results saved to {output_path}")
 
 
