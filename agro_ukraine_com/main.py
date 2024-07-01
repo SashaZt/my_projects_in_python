@@ -12,6 +12,18 @@ import aiofiles
 from playwright.async_api import async_playwright
 from databases import Database
 from aiomysql import IntegrityError
+import random
+import time
+import logging
+
+# Настройка базовой конфигурации логирования
+logging.basicConfig(
+    level=logging.DEBUG,  # Уровень логирования
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Формат сообщения
+    handlers=[
+        logging.FileHandler("app.log", encoding="utf-8"),  # Запись в файл
+    ],
+)
 
 
 # Настройки базы данных
@@ -37,12 +49,16 @@ os.makedirs(page_path, exist_ok=True)
 os.makedirs(html_path, exist_ok=True)
 
 
-# Сохранение html файлов
+def get_random_pause(time_pause):
+    return random.uniform(time_pause, time_pause * 2)
+
+
+# Пример асинхронной функции для сохранения содержимого страницы
 async def save_page_content_html(page, file_path):
     content = await page.content()
     async with aiofiles.open(file_path, "w", encoding="utf-8") as f:
         await f.write(content)
-    print(file_path)
+    logging.info(f"Сохранено содержимое страницы в файл: {file_path}")
 
 
 # Функция получения всех страниц
@@ -103,7 +119,7 @@ async def main():
                 except IntegrityError as e:
                     print(f"Duplicate entry for url_id {data['id']}: {e}")
 
-            print(f"Страница {url}")
+            logging.info(f"Страница {url}")
             await asyncio.sleep(10)
 
     # Закрываем соединение с базой данных
@@ -146,19 +162,27 @@ async def get_html():
             ),
         )
         data = await fetch_data()
-        for item in data[:1]:
+        for item in data:
             url = item["href"]
             name_file = f"{item['id']}.html"
             save_path = os.path.join(html_path, name_file)
+            if not os.path.exists(save_path):
 
-            await page.goto(url, wait_until="load", timeout=60000)
-            # Ожидание появления элемента #ad_phone_view
-            await page.wait_for_selector("#ad_phone_view")
+                await page.goto(url, wait_until="load", timeout=60000)
+                # Ожидание появления элемента #ad_phone_view
+                await page.wait_for_selector("#ad_phone_view")
 
-            # Клик по элементу #ad_phone_view
-            await page.click("#ad_phone_view")
-            await asyncio.sleep(2)
-            await save_page_content_html(page, save_path)
+                # Клик по элементу #ad_phone_view
+                try:
+                    await page.click("#ad_phone_view")
+                except Exception as e:
+                    logging.error(
+                        f"Ошибка при клике по элементу для id {item['id']}: {e}"
+                    )
+                await asyncio.sleep(2)
+                await save_page_content_html(page, save_path)
+                random_pause = get_random_pause(5)
+                time.sleep(random_pause)
 
 
 async def parsing_page():
@@ -225,6 +249,7 @@ async def parsing_page():
                 city_end = region_text.index(")", city_start)
                 city = region_text[city_start:city_end].strip()
         region = f"{region}, {city}"
+        region = " ".join(region.replace("\n", " ").split()).strip()
         # Находим элемент с обновлением
         # Находим элементы с обновлением
         updated_div = parser.css_first(
@@ -242,7 +267,58 @@ async def parsing_page():
                 formatted_date = datetime.strptime(date, "%Y-%m-%d").strftime(
                     "%d.%m.%Y"
                 )
+        # Находим элемент с нужным классом
+        description_div = parser.css_first(
+            "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c > div.i_text.bw"
+        )
+        description_text = None
+        if description_div:
+            # Извлекаем весь текст и заменяем переносы строк пробелами
+            description_text = (
+                description_div.text(separator=" ")
+                .strip()
+                .replace("\n", " ")
+                .replace("\r", " ")
+            )
+            # Удаляем множественные пробелы
+            description_text = " ".join(description_text.split())
+        # Извлекаем имя
+        user_name_div = parser.css_first("div.sprite_box_7_1.ct_user_box_7_1")
+        user_name = None
+        if user_name_div:
+            user_name = user_name_div.text(separator=" ").split("/")[0].strip()
 
+        # Извлекаем номер телефона
+        phone_div = parser.css_first("div.sprite_box_7_1.ct_phone_box_7_1")
+        phone_numbers = []
+        if phone_div:
+            phone_links = phone_div.css("a[href^='tel:']")
+            for phone_link in phone_links:
+                phone_number = phone_link.attributes.get("href").replace("tel:", "")
+                phone_numbers.append(phone_number)
+        phone_numbers = "; ".join(phone_numbers)
+        # Извлекаем ссылки Telegram, Viber, WhatsApp и сайт компании
+        telegram_link = None
+        telegram_td = parser.css_first("td > a[href^='https://t.me/']")
+        if telegram_td:
+            telegram_link = telegram_td.attributes.get("href")
+
+        viber_link = None
+        viber_td = parser.css_first("td > a[href^='https://viber.click/']")
+        if viber_td:
+            viber_link = viber_td.attributes.get("href")
+
+        whatsapp_link = None
+        whatsapp_td = parser.css_first("td > a[href^='https://wa.me/']")
+        if whatsapp_td:
+            whatsapp_link = whatsapp_td.attributes.get("href")
+
+        company_link = None
+        company_td = parser.css_first(
+            "td > a[href^='https://agro-ukraine.com/ru/goto-url/']"
+        )
+        if company_td:
+            company_link = company_td.text(strip=True)
         data = {
             "title": title,
             "purpose_of_grain": purpose_of_grain,
@@ -251,6 +327,13 @@ async def parsing_page():
             "region": region,
             "updated_data": formatted_date,
             "updated_time": time,
+            "description_text": description_text,
+            "user_name": user_name,
+            "phone_number": phone_numbers,
+            "telegram": telegram_link,
+            "viber": viber_link,
+            "whatsapp": whatsapp_link,
+            "company_link": company_link,
         }
         print(data)
 
@@ -292,8 +375,8 @@ async def parsing_page():
 
 if __name__ == "__main__":
     # asyncio.run(main())
-    # asyncio.run(get_html())
-    asyncio.run(parsing_page())
+    asyncio.run(get_html())
+    # asyncio.run(parsing_page())
 
     # category_group = str(input("Введите категорию:  "))
     # get_sell_min_price_path(category_group)
