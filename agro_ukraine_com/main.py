@@ -21,7 +21,7 @@ logging.basicConfig(
     level=logging.DEBUG,  # Уровень логирования
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Формат сообщения
     handlers=[
-        logging.FileHandler("app.log", encoding="utf-8"),  # Запись в файл
+        logging.FileHandler("info.log", encoding="utf-8"),  # Запись в файл
     ],
 )
 
@@ -145,13 +145,39 @@ async def fetch_data():
     return data_list
 
 
+def load_proxies():
+    filename = "proxi.json"
+    with open(filename, "r") as f:
+        return json.load(f)
+
+
+def proxy_generator(proxies):
+    num_proxies = len(proxies)
+    index = 0
+    while True:
+        proxy = proxies[index]
+        yield proxy
+        index = (index + 1) % num_proxies
+
+
 # Функция получения всех страниц
 async def get_html():
     # Открываем соединение с базой данных
-    await database.connect()
-
+    # await database.connect()
+    data = await fetch_data()
+    # with open("proxi.json", "r") as f:
+    #     proxies = json.load(f)
+    proxies = load_proxies()
+    proxy_gen = proxy_generator(proxies)
+    count = 0
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
+        proxy = next(proxy_gen)
+        proxy_server = {
+            "server": f"http://{proxy[0]}:{proxy[1]}",
+            "username": proxy[2],
+            "password": proxy[3],
+        }
+        browser = await playwright.chromium.launch(headless=False, proxy=proxy_server)
         context = await browser.new_context()
         page = await context.new_page()
         # Отключение загрузки изображений
@@ -161,28 +187,65 @@ async def get_html():
                 route.continue_() if request.resource_type != "image" else route.abort()
             ),
         )
-        data = await fetch_data()
+
         for item in data:
             url = item["href"]
             name_file = f"{item['id']}.html"
             save_path = os.path.join(html_path, name_file)
             if not os.path.exists(save_path):
-
-                await page.goto(url, wait_until="load", timeout=60000)
-                # Ожидание появления элемента #ad_phone_view
-                await page.wait_for_selector("#ad_phone_view")
-
-                # Клик по элементу #ad_phone_view
                 try:
-                    await page.click("#ad_phone_view")
+                    await page.goto(url, wait_until="load", timeout=60000)
+                    # Ожидание появления элемента #ad_phone_view
+                    try:
+                        await page.wait_for_selector("#ad_phone_view", timeout=1000)
+                    except:
+                        await save_page_content_html(page, save_path)
+                        continue
+                    # Клик по элементу #ad_phone_view
+                    try:
+                        await page.click("#ad_phone_view")
+                    except Exception as e:
+                        logging.error(
+                            f"Ошибка при клике по элементу для id {item['id']}: {e}"
+                        )
+                    await asyncio.sleep(1)
+                    await save_page_content_html(page, save_path)
                 except Exception as e:
-                    logging.error(
-                        f"Ошибка при клике по элементу для id {item['id']}: {e}"
+                    logging.error(f"Ошибка при обработке URL {url}: {e}")
+
+                count += 1
+                if count == 50:
+                    await context.close()
+                    await browser.close()
+                    proxy = next(proxy_gen)
+                    proxy_server = {
+                        "server": f"http://{proxy[0]}:{proxy[1]}",
+                        "username": proxy[2],
+                        "password": proxy[3],
+                    }
+                    browser = await playwright.chromium.launch(
+                        headless=False, proxy=proxy_server
                     )
-                await asyncio.sleep(2)
-                await save_page_content_html(page, save_path)
-                random_pause = get_random_pause(5)
-                time.sleep(random_pause)
+                    context = await browser.new_context()
+                    page = await context.new_page()
+                    # Отключение загрузки изображений
+                    await context.route(
+                        "**/*",
+                        lambda route, request: (
+                            route.continue_()
+                            if request.resource_type != "image"
+                            else route.abort()
+                        ),
+                    )
+                    count = 0  # Сброс счетчика после смены прокси
+
+        await context.close()
+        await browser.close()
+
+    return None
+
+
+# Функция для извлечения данных по ключевым словам
 
 
 async def parsing_page():
@@ -191,12 +254,26 @@ async def parsing_page():
     files_html = glob.glob(folder)
     all_datas = []
     for item_html in files_html:
+        # print(item_html)
         with open(item_html, encoding="utf-8") as file:
             src = file.read()
         parser = HTMLParser(src)
-        title = parser.css_first(
+        # Пытаемся найти элемент по первому пути
+        title_element = parser.css_first(
             "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c > div.h1_desktop_c > div:nth-child(2) > span"
-        ).text(strip=True)
+        )
+
+        # Если элемент не найден, пробуем второй путь
+        if title_element:
+            title = title_element.text(strip=True)
+        else:
+            h1_element = parser.css_first(
+                "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c > div.h1_desktop_c > div:nth-child(2) > h1"
+            )
+            if h1_element:
+                title = h1_element.text(strip=True)
+            else:
+                title = None
         # Находим элемент div:nth-child(8) внутри div.i3_grid_main_c
         grid_main_c = parser.css_first(
             "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c"
@@ -225,48 +302,62 @@ async def parsing_page():
                     .strip()
                 )
                 quantity = quantity_text if quantity_text else None
-        price = parser.css_first(
-            "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c > div:nth-child(3) > div > span.sprite_7_1.value > span > span:nth-child(1)"
-        ).text(strip=True)
-        # Находим элемент с регионом
-        region_div = parser.css_first(
-            "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c > div:nth-child(4)"
-        )
 
-        region = None
-        city = None
-        if region_div:
-            # Извлекаем весь текст из region_div в одну строку
-            region_text = region_div.text(separator=" ").strip()
-            # Ищем в тексте значение региона
-            if "Регион:" in region_text:
-                region_start = region_text.index("Регион:") + len("Регион:")
-                region_end = region_text.index("(", region_start)
-                region = region_text[region_start:region_end].strip()
-            # Ищем в тексте значение города
-            if "(" in region_text and ")" in region_text:
-                city_start = region_text.index("(") + 1
-                city_end = region_text.index(")", city_start)
-                city = region_text[city_start:city_end].strip()
-        region = f"{region}, {city}"
-        region = " ".join(region.replace("\n", " ").split()).strip()
-        # Находим элемент с обновлением
-        # Находим элементы с обновлением
-        updated_div = parser.css_first(
-            "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c > div:nth-child(5)"
-        )
+        try:
+            price_row = parser.css_first(
+                "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c > div:nth-child(3) > div > span.sprite_7_1.value > span > span:nth-child(1)"
+            )
+            price = price_row.text(strip=True)
+        except:
+            price = None
 
-        formatted_date = None
-        if updated_div:
-            time_tag = updated_div.css_first("time")
-            if time_tag:
-                datetime_attr = time_tag.attributes.get("datetime")
-                date, time = datetime_attr.split("T")
+        # # Извлекаем дату и время обновления
+        # updated_date, updated_time = None, None
+        # try:
+        #     result = extract_info_by_keyword("Обновлено:")
+        #     if result:
+        #         updated_date, updated_time = result
+        # except Exception as e:
+        #     print(item_html)
+        #     break
+        def extract_info_by_keyword(keyword):
+            elements = parser.css("span.descr")
+            for element in elements:
+                if keyword in element.text():
+                    parent_div = element.parent
+                    if keyword == "Обновлено:":
+                        time_tag = parent_div.css_first("time")
+                        if time_tag:
+                            datetime_attr = time_tag.attributes.get("datetime")
+                            if datetime_attr:
+                                return datetime_attr
+                    else:
+                        return (
+                            parent_div.text(strip=True)
+                            .replace("\n", " ")
+                            .replace("\r", " ")
+                            .replace("\xa0", " ")
+                        )
 
-                # Преобразуем дату в формат dd.mm.yyyy
-                formatted_date = datetime.strptime(date, "%Y-%m-%d").strftime(
-                    "%d.%m.%Y"
-                )
+        # Извлекаем данные по ключевым словам
+        region_text = extract_info_by_keyword("Регион:")
+        if region_text is not None:
+            region_text = region_text.replace("Регион:", "").strip()
+        updated_datetime = extract_info_by_keyword("Обновлено:")
+        try:
+            date, updated_time = updated_datetime.split("T")
+            updated_date = datetime.strptime(date, "%Y-%m-%d").strftime("%d.%m.%Y")
+        except:
+            updated_date = None
+            updated_time = None
+
+        purpose_of_grain = extract_info_by_keyword("Назначение зерна:")
+        if purpose_of_grain is not None:
+            purpose_of_grain = purpose_of_grain.replace("Назначение зерна:", "").strip()
+        quantity = extract_info_by_keyword("Количество:")
+        if quantity is not None:
+            quantity = quantity.replace("Количество:", "").strip()
+
         # Находим элемент с нужным классом
         description_div = parser.css_first(
             "body > div.container > div.item_container > div.i3_grid_c > div.i3_grid_main_c > div.i_text.bw"
@@ -324,9 +415,9 @@ async def parsing_page():
             "purpose_of_grain": purpose_of_grain,
             "quantity": quantity,
             "price": price,
-            "region": region,
-            "updated_data": formatted_date,
-            "updated_time": time,
+            "region": region_text,
+            "updated_data": updated_date,
+            "updated_time": updated_time,
             "description_text": description_text,
             "user_name": user_name,
             "phone_number": phone_numbers,
@@ -335,7 +426,13 @@ async def parsing_page():
             "whatsapp": whatsapp_link,
             "company_link": company_link,
         }
-        print(data)
+        all_datas.append(data)
+    # Преобразование списка словарей в DataFrame
+    df = pd.DataFrame(all_datas)
+
+    # Запись DataFrame в Excel
+    output_file = "output_sell_min_price.xlsx"
+    df.to_excel(output_file, index=False)
 
 
 #     # Находим элемент с id="items_list"
@@ -375,8 +472,8 @@ async def parsing_page():
 
 if __name__ == "__main__":
     # asyncio.run(main())
-    asyncio.run(get_html())
-    # asyncio.run(parsing_page())
+    # asyncio.run(get_html())
+    asyncio.run(parsing_page())
 
     # category_group = str(input("Введите категорию:  "))
     # get_sell_min_price_path(category_group)
