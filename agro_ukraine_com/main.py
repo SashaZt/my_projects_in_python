@@ -102,10 +102,10 @@ async def main():
                                 all_datas.append(data)
                                 # print(data)  # Для проверки, выводим полученные данные
 
-                                # Вставляем данные в таблицу agro_ukraine_com_url
-                                query = """
-                                INSERT INTO agro_ukraine_com_url (url_id, url) VALUES (:url_id, :url)
-                                """
+                                # # Вставляем данные в таблицу agro_ukraine_com_url
+                                # query = """
+                                # INSERT INTO agro_ukraine_com_url (url_id, url) VALUES (:url_id, :url)
+                                # """
                                 # for data in all_datas:
             # Вставляем данные в таблицу agro_ukraine_com_url
             query = """
@@ -143,6 +143,78 @@ async def fetch_data():
         data_list.append(data)
 
     return data_list
+
+
+# Функция получения всех страниц
+async def update_ads():
+    data_bd = await fetch_data()
+
+    # Открываем соединение с базой данных
+    await database.connect()
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=False)
+        context = await browser.new_context()
+        page = await context.new_page()
+        # Отключение загрузки изображений
+        await context.route(
+            "**/*",
+            lambda route, request: (
+                route.continue_() if request.resource_type != "image" else route.abort()
+            ),
+        )
+
+        all_datas = []
+        has_new_data = True
+        max_pages_to_check = 2
+
+        try:
+            for page_number in range(1, max_pages_to_check + 1):
+                url_start = f"https://agro-ukraine.com/ru/trade/r-5/p-{page_number}/"
+                await page.goto(url_start, wait_until="load", timeout=60000)
+                content = await page.content()
+                parser = HTMLParser(content)
+                # Находим элемент с id="items_list"
+                items_list = parser.css_first("#items_list")
+                if items_list:
+                    # Находим все div, у которых класс содержит i_l_i_c_mode3
+                    divs = items_list.css("div")
+                    for div in divs:
+                        if "i_l_i_c_mode3" in div.attributes.get("class", ""):
+                            div_id = div.attributes.get("id", "")
+                            # Находим div с классом i_title внутри текущего div
+                            title_div = div.css_first("div.i_title")
+                            if title_div:
+                                # Находим тег a внутри div с классом i_title
+                                a_tag = title_div.css_first("a")
+                                if a_tag:
+                                    href = a_tag.attributes.get("href", "")
+                                    data = {"id": div_id, "href": href}
+                                    all_datas.append(data)
+
+            # Проверка на совпадения с данными из базы данных
+            if any(data in data_bd for data in all_datas):
+                has_new_data = False
+
+        finally:
+            # Закрываем контекст и браузер
+            try:
+                await context.close()
+            except Exception as e:
+                print(f"Error closing context: {e}")
+
+            try:
+                await browser.close()
+            except Exception as e:
+                print(f"Error closing browser: {e}")
+
+    # Сохранение новых данных в файл new_url.json
+    if has_new_data:
+        with open("new_url.json", "w", encoding="utf-8") as f:
+            json.dump(all_datas, f, ensure_ascii=False, indent=4)
+
+    # Закрываем соединение с базой данных
+    await database.disconnect()
 
 
 def load_proxies():
@@ -249,14 +321,14 @@ async def get_html():
 
 
 async def parsing_page():
-
+    await database.connect()
     folder = os.path.join(html_path, "*.html")
     files_html = glob.glob(folder)
     all_datas = []
     for item_html in files_html:
-        # print(item_html)
         with open(item_html, encoding="utf-8") as file:
             src = file.read()
+        id_add = item_html.split("\\")[-1].replace(".html", "")
         parser = HTMLParser(src)
         # Пытаемся найти элемент по первому пути
         title_element = parser.css_first(
@@ -411,69 +483,68 @@ async def parsing_page():
         if company_td:
             company_link = company_td.text(strip=True)
         data = {
+            "id_add": id_add,
             "title": title,
             "purpose_of_grain": purpose_of_grain,
             "quantity": quantity,
             "price": price,
             "region": region_text,
-            "updated_data": updated_date,
+            "updated_date": convert_date_format(updated_date),
             "updated_time": updated_time,
             "description_text": description_text,
             "user_name": user_name,
-            "phone_number": phone_numbers,
-            "telegram": telegram_link,
-            "viber": viber_link,
-            "whatsapp": whatsapp_link,
+            "phone_numbers": phone_numbers,
+            "telegram_link": telegram_link,
+            "viber_link": viber_link,
+            "whatsapp_link": whatsapp_link,
             "company_link": company_link,
         }
         all_datas.append(data)
-    # Преобразование списка словарей в DataFrame
-    df = pd.DataFrame(all_datas)
+    await load_data_to_db(database, all_datas)
+    await database.disconnect()
 
-    # Запись DataFrame в Excel
-    output_file = "output_sell_min_price.xlsx"
-    df.to_excel(output_file, index=False)
+    # # Преобразование списка словарей в DataFrame
+    # df = pd.DataFrame(all_datas)
+
+    # # Запись DataFrame в Excel
+    # output_file = "output_sell_min_price.xlsx"
+    # df.to_excel(output_file, index=False)
 
 
-#     # Находим элемент с id="items_list"
-#     items_list = parser.css_first("#items_list")
-#     if items_list:
-#         # Находим все div, у которых класс содержит i_l_i_c_mode3
-#         divs = items_list.css("div")
-#         for div in divs:
-#             if "i_l_i_c_mode3" in div.attributes.get("class", ""):
-#                 div_id = div.attributes.get("id", "")
-#                 # Находим div с классом i_title внутри текущего div
-#                 title_div = div.css_first("div.i_title")
-#                 if title_div:
-#                     # Находим тег a внутри div с классом i_title
-#                     a_tag = title_div.css_first("a")
-#                     if a_tag:
-#                         href = a_tag.attributes.get("href", "")
-#                         data = {"id": div_id, "href": href}
-#                         all_datas.append(data)
-#                         print(data)  # Для проверки, выводим полученные данные
+async def load_data_to_db(database, data):
+    query = """
+INSERT INTO agro_ukraine_com_ua_ads (
+    id_add, title, purpose_of_grain, quantity, price,
+    region_text, updated_date, updated_time, description_text,
+    user_name, phone_numbers, telegram_link, viber_link,
+    whatsapp_link, company_link
+) VALUES (
+    :id_add, :title, :purpose_of_grain, :quantity, :price,
+    :region, :updated_date, :updated_time, :description_text,
+    :user_name, :phone_numbers, :telegram_link, :viber_link,
+    :whatsapp_link, :company_link
+)
+"""
+    await database.execute_many(query, data)
 
-# # Открываем соединение с базой данных
-# await database.connect()
 
-# # Вставляем данные в таблицу agro_ukraine_com_url
-# query = """
-# INSERT INTO agro_ukraine_com_url (url_id, url) VALUES (:url_id, :url)
-# """
-# for data in all_datas:
-#     await database.execute(
-#         query, values={"url_id": data["id"], "url": data["href"]}
-#     )
-
-# # Закрываем соединение с базой данных
-# await database.disconnect()
+# Преобразование формата даты
+def convert_date_format(date_str):
+    if date_str is None:
+        return None
+    try:
+        return datetime.strptime(date_str, "%d.%m.%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        # Обработка неправильного формата даты
+        print(f"Incorrect date format: {date_str}")
+        return None
 
 
 if __name__ == "__main__":
     # asyncio.run(main())
+    asyncio.run(update_ads())
     # asyncio.run(get_html())
-    asyncio.run(parsing_page())
+    # asyncio.run(parsing_page())
 
     # category_group = str(input("Введите категорию:  "))
     # get_sell_min_price_path(category_group)
