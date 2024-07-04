@@ -15,6 +15,10 @@ from aiomysql import IntegrityError
 import random
 import time
 import logging
+from oauth2client.service_account import ServiceAccountCredentials
+import gspread
+from googleapiclient.discovery import build
+from google.oauth2.service_account import Credentials
 
 # Настройка базовой конфигурации логирования
 logging.basicConfig(
@@ -43,10 +47,109 @@ temp_path = os.path.join(current_directory, "temp")
 page_path = os.path.join(temp_path, "page")
 html_path = os.path.join(temp_path, "html")
 
+
 # Создание директории, если она не существует
 os.makedirs(temp_path, exist_ok=True)
 os.makedirs(page_path, exist_ok=True)
 os.makedirs(html_path, exist_ok=True)
+
+
+# Функция для подключения к Google Sheets
+def get_google():
+    current_directory = os.getcwd()
+    scope = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    creds_file = os.path.join(
+        current_directory, "calm-analog-428315-h9-7e51eabd0ab7.json"
+    )
+    creds = Credentials.from_service_account_file(creds_file, scopes=scope)
+    client = gspread.authorize(creds)
+    return client
+
+
+# Колонки таблицы
+column_names = [
+    "title",
+    "purpose_of_grain",
+    "quantity",
+    "price",
+    "region_text",
+    "updated_date",
+    "updated_time",
+    "description_text",
+    "user_name",
+    "phone_numbers",
+    "telegram_link",
+    "viber_link",
+    "whatsapp_link",
+    "company_link",
+]
+
+
+# Функция для выборки данных из базы данных
+async def fetch_data_from_db():
+    query = "SELECT * FROM agro_ukraine_com_ua_ads"
+    await database.connect()
+    rows = await database.fetch_all(query)
+    await database.disconnect()
+
+    data_list = []
+    for row in rows:
+        data = {
+            "Название": row["title"],
+            "Товар": row["purpose_of_grain"],
+            "Количество": row["quantity"],
+            "Прайс": row["price"],
+            "Регион": row["region_text"],
+            "Дата резмещения": (
+                row["updated_date"].strftime("%Y-%m-%d")
+                if row["updated_date"]
+                else None
+            ),
+            "Время размещения": str(row["updated_time"]),
+            "Текст": row["description_text"],
+            "Контактная особа": row["user_name"],
+            "Номер телефона": row["phone_numbers"],
+            "Telegram": row["telegram_link"],
+            "Viber": row["viber_link"],
+            "Whatsapp": row["whatsapp_link"],
+            "Company_link": row["company_link"],
+        }
+        data_list.append(data)
+
+    # Преобразование данных в DataFrame
+    df = pd.DataFrame(data_list)
+
+    return df
+
+
+# Функция для загрузки данных в Google Sheets
+async def upload_data_to_google_sheets():
+    df = await fetch_data_from_db()
+    client = get_google()
+    spreadsheet_id = "1FP344GQ9q4w3zprtyXDHCsTBbzDVkUaOt5a0IJ5fFHU"
+    sheet_name = "agro_ukraine"
+
+    # Открытие Google Sheet
+    sheet = client.open_by_key(spreadsheet_id)
+
+    # Получение листа
+    try:
+        worksheet = sheet.worksheet(sheet_name)
+    except gspread.WorksheetNotFound:
+        # Если лист не найден, создаем новый
+        worksheet = sheet.add_worksheet(title=sheet_name, rows="1000", cols="20")
+
+    # Очистка существующих данных
+    worksheet.clear()
+
+    # Подготовка данных для загрузки
+    data = [df.columns.values.tolist()] + df.values.tolist()
+
+    # Загрузка данных в Google Sheet
+    worksheet.update(data)
 
 
 def get_random_pause(time_pause):
@@ -148,12 +251,19 @@ async def fetch_data():
 # Функция получения всех страниц
 async def update_ads():
     data_bd = await fetch_data()
-
+    proxies = load_proxies()
+    proxy_gen = proxy_generator(proxies)
     # Открываем соединение с базой данных
     await database.connect()
 
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
+        proxy = next(proxy_gen)
+        proxy_server = {
+            "server": f"http://{proxy[0]}:{proxy[1]}",
+            "username": proxy[2],
+            "password": proxy[3],
+        }
+        browser = await playwright.chromium.launch(headless=False, proxy=proxy_server)
         context = await browser.new_context()
         page = await context.new_page()
         # Отключение загрузки изображений
@@ -166,7 +276,8 @@ async def update_ads():
 
         all_datas = []
         has_new_data = True
-        max_pages_to_check = 2
+        # Максимальное количество страниц для проверки
+        max_pages_to_check = 10
 
         try:
             for page_number in range(1, max_pages_to_check + 1):
@@ -208,10 +319,11 @@ async def update_ads():
             except Exception as e:
                 print(f"Error closing browser: {e}")
 
-    # Сохранение новых данных в файл new_url.json
+    # Сохранение новых данных если присутсвуют в файл new_url.json
     if has_new_data:
         with open("new_url.json", "w", encoding="utf-8") as f:
             json.dump(all_datas, f, ensure_ascii=False, indent=4)
+        print(f"Файл сохранил new_url.json")
 
     # Закрываем соединение с базой данных
     await database.disconnect()
@@ -500,15 +612,15 @@ async def parsing_page():
             "company_link": company_link,
         }
         all_datas.append(data)
-    await load_data_to_db(database, all_datas)
+    # await load_data_to_db(database, all_datas)
     await database.disconnect()
+    print(len(all_datas))
+    # Преобразование списка словарей в DataFrame
+    df = pd.DataFrame(all_datas)
 
-    # # Преобразование списка словарей в DataFrame
-    # df = pd.DataFrame(all_datas)
-
-    # # Запись DataFrame в Excel
-    # output_file = "output_sell_min_price.xlsx"
-    # df.to_excel(output_file, index=False)
+    # Запись DataFrame в Excel
+    output_file = "output_sell_min_price.xlsx"
+    df.to_excel(output_file, index=False)
 
 
 async def load_data_to_db(database, data):
@@ -542,9 +654,10 @@ def convert_date_format(date_str):
 
 if __name__ == "__main__":
     # asyncio.run(main())
-    asyncio.run(update_ads())
+    # asyncio.run(update_ads())
     # asyncio.run(get_html())
     # asyncio.run(parsing_page())
+    asyncio.run(upload_data_to_google_sheets())
 
     # category_group = str(input("Введите категорию:  "))
     # get_sell_min_price_path(category_group)

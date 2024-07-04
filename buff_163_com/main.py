@@ -11,6 +11,7 @@ import time
 import logging
 import asyncio
 import aiofiles
+import sys
 from playwright.async_api import async_playwright
 
 
@@ -23,7 +24,7 @@ logging.basicConfig(
     ],
 )
 
-
+# Создание временных папок
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
 sell_min_price_path = os.path.join(temp_path, "sell_min_price")
@@ -35,6 +36,84 @@ os.makedirs(sell_min_price_path, exist_ok=True)
 os.makedirs(price_path, exist_ok=True)
 
 
+def load_config_cookies():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    filename_config = os.path.join(application_path, "cookies.json")
+    if not os.path.exists(filename_config):
+        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        time.sleep(3)
+        sys.exit(1)
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
+    # headers = config["headers"]
+    # cookies = config["cookies"]
+
+    # # Генерация строки кукисов из конфигурации
+    # if "cookies" in config:
+    #     cookies_str = "; ".join([f"{k}={v}" for k, v in config["cookies"].items()])
+    #     headers["Cookie"] = cookies_str
+    return config
+
+
+def load_config_01():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    filename_config = os.path.join(application_path, "config_01.json")
+    if not os.path.exists(filename_config):
+        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        time.sleep(3)
+        sys.exit(1)
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
+    # headers = config["headers"]
+    # cookies = config["cookies"]
+
+    # # Генерация строки кукисов из конфигурации
+    # if "cookies" in config:
+    #     cookies_str = "; ".join([f"{k}={v}" for k, v in config["cookies"].items()])
+    #     headers["Cookie"] = cookies_str
+    return config
+
+
+def load_config_02():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    filename_config = os.path.join(application_path, "config_02.json")
+    if not os.path.exists(filename_config):
+        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        time.sleep(3)
+        sys.exit(1)
+    else:
+        with open(filename_config, "r") as config_file:
+            config = json.load(config_file)
+    # headers = config["headers"]
+    # cookies = config["cookies"]
+
+    # # Генерация строки кукисов из конфигурации
+    # if "cookies" in config:
+    #     cookies_str = "; ".join([f"{k}={v}" for k, v in config["cookies"].items()])
+    #     headers["Cookie"] = cookies_str
+    return config
+
+
 # Функция сохранения куки
 async def save_cookies(context, file_path):
     cookies = await context.cookies()
@@ -42,10 +121,33 @@ async def save_cookies(context, file_path):
         json.dump(cookies, f)
 
 
+def load_proxies():
+    filename = "proxi.json"
+    with open(filename, "r") as f:
+        return json.load(f)
+
+
+def proxy_generator(proxies):
+    num_proxies = len(proxies)
+    index = 0
+    while True:
+        proxy = proxies[index]
+        yield proxy
+        index = (index + 1) % num_proxies
+
+
 # Функция получения куки
 async def get_cookies():
+    proxies = load_proxies()
+    proxy_gen = proxy_generator(proxies)
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
+        proxy = next(proxy_gen)
+        proxy_server = {
+            "server": f"http://{proxy[0]}:{proxy[1]}",
+            "username": proxy[2],
+            "password": proxy[3],
+        }
+        browser = await playwright.chromium.launch(headless=False, proxy=proxy_server)
         context = await browser.new_context()
         page = await context.new_page()
         # Отключение загрузки изображений
@@ -56,15 +158,10 @@ async def get_cookies():
             ),
         )
         await page.goto("https://buff.163.com", wait_until="networkidle", timeout=60000)
-
-        # Здесь выполните действия по авторизации
-        # Например, введите логин и пароль и нажмите кнопку входа
-
         await asyncio.sleep(60)  # Дождитесь завершения авторизации
-
         # Сохранение куки
         await save_cookies(context, "cookies.json")
-
+        # Закрываем браузер
         await browser.close()
 
 
@@ -79,74 +176,11 @@ def extract_category_group(url):
     return category_group
 
 
-async def save_response_json_sell_min_price_path(json_response, category_group):
-    """Асинхронно сохраняет JSON-данные в файл."""
-    filename = os.path.join(sell_min_price_path, f"{category_group}.json")
-    async with aiofiles.open(filename, mode="w", encoding="utf-8") as f:
-        await f.write(json.dumps(json_response, ensure_ascii=False, indent=4))
-
-
-async def save_response_json_price(json_response, filename):
-    """Асинхронно сохраняет JSON-данные в файл."""
-    # filename = os.path.join(price_path, f"{category_group}.json")
-    async with aiofiles.open(filename, mode="w", encoding="utf-8") as f:
-        await f.write(json.dumps(json_response, ensure_ascii=False, indent=4))
-
-
+# Функция загрузки куки
 async def load_cookies(page, file_path):
     with open(file_path, "r") as f:
         cookies = json.load(f)
         await page.context.add_cookies(cookies)
-
-
-# async def get_sell_min_price_path(url):
-
-#     async with async_playwright() as playwright:
-#         browser = await playwright.chromium.launch(headless=False)
-#         context = await browser.new_context()
-#         page = await context.new_page()
-
-#         # Устанавливаем обработчик для сбора и сохранения данных ответов
-#         def create_log_response_with_counter(category_group):
-#             async def log_response(response):
-#                 api_url = "https://buff.163.com/api/market/goods/all"
-#                 request = response.request
-#                 if (
-#                     request.method == "GET" and api_url in request.url
-#                 ):  # Подставьте актуальное условие URL
-#                     try:
-#                         json_response = await response.json()
-#                         await save_response_json_sell_min_price_path(
-#                             json_response, category_group
-#                         )
-
-#                     except Exception as e:
-#                         print(
-#                             f"Ошибка при получении JSON из ответа {response.url}: {e}"
-#                         )
-
-#             return log_response
-
-#         category_group = extract_category_group(url)
-#         await load_cookies(page, "cookies.json")
-#         handler = create_log_response_with_counter(category_group)
-#         page.on("response", handler)
-#         await page.goto(url)
-#         # Итерация по страницам
-
-#         await asyncio.sleep(10)
-#         await browser.close()
-
-
-def extract_max_paintwear(url):
-    # Разбираем URL
-    parsed_url = urlparse(url)
-    # Извлекаем параметры из фрагмента
-    fragment = parsed_url.fragment
-    fragment_params = parse_qs(fragment)
-    # Получаем значение параметра max_paintwear
-    max_paintwear = fragment_params.get("max_paintwear", [None])[0]
-    return max_paintwear
 
 
 # Функция для проверки наличия более одного значения в колонке
@@ -154,16 +188,36 @@ def has_multiple_values(cell):
     return len(str(cell).split("/")) > 1
 
 
+def load_proxies():
+    filename = "proxi.json"
+    with open(filename, "r") as f:
+        return json.load(f)
+
+
+def proxy_generator(proxies):
+    num_proxies = len(proxies)
+    index = 0
+    while True:
+        proxy = proxies[index]
+        yield proxy
+        index = (index + 1) % num_proxies
+
+
+# Функция для второго скрипта
 async def get_price():
+
+    config = load_config_cookies()
+    # cookies_data = config["cookies"]
+    # headers = config["headers"]
     cny_usd = 0.1375
-    filename_cookies = os.path.join(current_directory, "cookies.json")
-    with open(filename_cookies, "r") as f:
-        cookies_data = json.load(f)
+    # filename_cookies = os.path.join(current_directory, "cookies.json")
+    # with open(filename_cookies, "r") as f:
+    #     cookies_data = json.load(f)
 
     # Преобразование куки в формат, подходящий для requests
     cookies = {
         cookie["name"]: cookie["value"]
-        for cookie in cookies_data
+        for cookie in config
         if cookie["name"]
         in [
             "Device-Id",
@@ -175,15 +229,7 @@ async def get_price():
             "csrf_token",
         ]
     }
-    cookies = {
-        "Device-Id": "bHJpA8wwPJKOJj3HrabQ",
-        "Locale-Supported": "ru",
-        "game": "csgo",
-        "session": "1-Csc8USFmUznZrrAvsYcmXkrkhUdg3fFxSAnlYGz4qIGp2028358427",
-        "client_id": "VaCQbsNDqdwhGIqoTziolw",
-        "display_appids_v2": '"[730\\054 570]"',
-        "csrf_token": "ImJkODY2NDZkYzc1YzdiOGU4ZmFmZjk1YzZhMTRiN2JiOTIxYjFjM2Mi.GWSUIg.HzlzKJWy5U8P9ml0CV4ecaF-YMI",
-    }
+
     headers = {
         "Accept": "*/*",
         "Accept-Language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
@@ -201,12 +247,15 @@ async def get_price():
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
     }
-    json_file = "config_02.json"
-    with open(json_file, "r", encoding="utf-8") as file:
-        data_config_02 = json.load(file)
+
+    # json_file = "config_02.json"
+    # with open(json_file, "r", encoding="utf-8") as file:
+    #     data_config_02 = json.load(file)
+    data_config_02 = load_config_02()
     params = data_config_02["params"][0]
+    time_sleep = int(data_config_02["pause"][0]["sleep"])
     # Загрузка данных из Excel файла
-    file_path = "script_02.xlsx"
+    file_path = "output_sell_min_price.xlsx"
     df = pd.read_excel(file_path)
     df = pd.read_excel(
         file_path, dtype={"sell_min_price": str}
@@ -240,21 +289,39 @@ async def get_price():
 
             params["max_paintwear"] = product_float  # Обновление max_paintwear
             params["goods_id"] = str(product_id)
+            proxies = load_proxies()
+            proxy_gen = proxy_generator(proxies)
+            proxy_server = next(proxy_gen)
+            # Создание строки для аутентификации
+            proxy_auth = f"{proxy_server[2]}:{proxy_server[3]}@{proxy_server[0]}:{proxy_server[1]}"
 
+            # Настройка прокси для HTTP и HTTPS
+            proxies = {"http": f"http://{proxy_auth}", "https": f"https://{proxy_auth}"}
             response = requests.get(
                 "https://buff.163.com/api/market/goods/sell_order",
                 params=params,
                 cookies=cookies,
                 headers=headers,
+                proxies=proxies,
             )
             if response.status_code == 200:
                 json_data = response.json()
-                datas_json = json_data["data"]["items"][0]
+                try:
+                    datas_json = json_data["data"]["items"][0]
+                except:
+                    datas_json = json_data["error"]
+                    print(datas_json)
+                    continue
+
+                datas_json = json_data["data"]["items"]
+
                 price = float(datas_json["price"])
-                price = round(price / cny_usd, 1)
+                price = round(price * cny_usd, 1)
 
                 # Добавление цены к sell_min_price
                 sell_min_price += f"/{price}"
+            time.sleep(time_sleep)
+            print(time_sleep)
 
         # Обновление sell_min_price в data_list
         dl["sell_min_price"] = sell_min_price
@@ -264,7 +331,7 @@ async def get_price():
         df.at[dl["index"], "sell_min_price"] = dl["sell_min_price"]
 
     # Сохранение обновленного DataFrame обратно в Excel файл
-    updated_file_path = "script_02_updated.xlsx"
+    updated_file_path = "output_sell_min_price_updated.xlsx"
     df.to_excel(updated_file_path, index=False)
 
     print(f"Обновленные данные сохранены в файл: {updated_file_path}")
@@ -290,69 +357,73 @@ def save_product_urls(product_urls):
         json.dump(product_urls, file, indent=4, ensure_ascii=False)
 
 
-# Функция для извлечения product_id и product_float из пути
-def extract_product_details(item):
-    pattern = r".*\\(\d+)_([\d.]+)\.json"
-    match = re.match(pattern, item)
-    if match:
-        product_id = match.group(1)
-        product_float = match.group(2)
-        return product_id, product_float
-    else:
-        return None, None
+# # Функция для извлечения product_id и product_float из пути
+# def extract_product_details(item):
+#     pattern = r".*\\(\d+)_([\d.]+)\.json"
+#     match = re.match(pattern, item)
+#     if match:
+#         product_id = match.group(1)
+#         product_float = match.group(2)
+#         return product_id, product_float
+#     else:
+#         return None, None
 
 
-def parsing_products_price():
-    cny_usd = 0.1375
+# def parsing_products_price():
+#     cny_usd = 0.1375
 
-    # Загрузка данных из output_sell_min_price.json
-    with open("output_sell_min_price.json", "r", encoding="utf-8") as f:
-        output_data = json.load(f)
-    folder = os.path.join(price_path, "*.json")
+#     # Загрузка данных из output_sell_min_price.json
+#     with open("output_sell_min_price.json", "r", encoding="utf-8") as f:
+#         output_data = json.load(f)
+#     folder = os.path.join(price_path, "*.json")
 
-    files_json = glob.glob(folder)
+#     files_json = glob.glob(folder)
 
-    for item in files_json:
-        product_id, product_float = extract_product_details(item)
+#     for item in files_json:
+#         product_id, product_float = extract_product_details(item)
 
-        if product_id is not None and product_float is not None:
-            with open(item, "r", encoding="utf-8") as f:
-                json_data = json.load(f)
-            datas_json = json_data["data"]["items"][0]
-            price = float(datas_json["price"])
-            price = round(price / cny_usd, 1)
-            # Поиск и обновление данных в output_data
-            for product in output_data:
-                if product["product_id"] == int(product_id):
-                    product["float"] = f'{product["float"]} / {product_float}'
-                    product["sell_min_price"] = f'{product["sell_min_price"]} / {price}'
-                    # Удаление поля "url"
-                    if "url" in product:
-                        del product["url"]
+#         if product_id is not None and product_float is not None:
+#             with open(item, "r", encoding="utf-8") as f:
+#                 json_data = json.load(f)
+#             datas_json = json_data["data"]["items"][0]
+#             price = float(datas_json["price"])
+#             price = round(price / cny_usd, 1)
+#             # Поиск и обновление данных в output_data
+#             for product in output_data:
+#                 if product["product_id"] == int(product_id):
+#                     product["float"] = f'{product["float"]} / {product_float}'
+#                     product["sell_min_price"] = f'{product["sell_min_price"]} / {price}'
+#                     # Удаление поля "url"
+#                     if "url" in product:
+#                         del product["url"]
 
-    # Сохранение обновленных данных
-    with open("output_sell_min_price_.json", "w", encoding="utf-8") as f:
-        json.dump(output_data, f, indent=4, ensure_ascii=False)
+#     # Сохранение обновленных данных
+#     with open("output_sell_min_price_.json", "w", encoding="utf-8") as f:
+#         json.dump(output_data, f, indent=4, ensure_ascii=False)
 
-    excel_file = "output_sell_min_price.xlsx"
+#     excel_file = "output_sell_min_price.xlsx"
 
-    df = pd.DataFrame(output_data)
-    df.to_excel(excel_file, index=False)
+#     df = pd.DataFrame(output_data)
+#     df.to_excel(excel_file, index=False)
 
 
+# Функция первого скрипта
 def get_sell_min_price_path():
-    json_file = "config_01.json"
-    with open(json_file, "r", encoding="utf-8") as file:
-        data_config_01 = json.load(file)
+    # json_file = "config_01.json"
+    # with open(json_file, "r", encoding="utf-8") as file:
+    #     data_config_01 = json.load(file)
+    data_config_01 = load_config_01()
     params = data_config_01["params"][0]
     category_group = data_config_01["params"][0]["category_group"]
     total_pages = data_config_01["total_pages"][0]["pages"]
-    filename_cookies = os.path.join(current_directory, "cookies.json")
+    time_sleep = int(data_config_01["pause"][0]["sleep"])
+    # filename_cookies = os.path.join(current_directory, "cookies.json")
     # Чтение куки из файла
 
-    with open(filename_cookies, "r") as f:
-        cookies_data = json.load(f)
-
+    # with open(filename_cookies, "r") as f:
+    #     cookies_data = json.load(f)
+    config = load_config_cookies()
+    cookies_data = config["cookies"]
     # Преобразование куки в формат, подходящий для requests
     cookies = {
         cookie["name"]: cookie["value"]
@@ -392,8 +463,23 @@ def get_sell_min_price_path():
         url = "https://buff.163.com/api/market/goods/all"
         # print(params, cookies, headers)
         # exit()
+        proxies = load_proxies()
+        proxy_gen = proxy_generator(proxies)
+        proxy_server = next(proxy_gen)
+        # Создание строки для аутентификации
+        proxy_auth = (
+            f"{proxy_server[2]}:{proxy_server[3]}@{proxy_server[0]}:{proxy_server[1]}"
+        )
+
+        # Настройка прокси для HTTP и HTTPS
+        proxies = {"http": f"http://{proxy_auth}", "https": f"https://{proxy_auth}"}
         response = requests.get(
-            url, params=params, cookies=cookies, headers=headers, verify=False
+            url,
+            params=params,
+            cookies=cookies,
+            headers=headers,
+            proxies=proxies,
+            verify=False,
         )
         category_group_path = os.path.join(sell_min_price_path, category_group)
         os.makedirs(category_group_path, exist_ok=True)
@@ -404,7 +490,7 @@ def get_sell_min_price_path():
             with open(filename, "w", encoding="utf-8") as file:
                 json.dump(json_data, file, indent=4, ensure_ascii=False)
             logging.info(f"Файл сохранен {filename}")
-            time.sleep(5)
+            time.sleep(time_sleep)
         else:
             print(response.status_code)
 
@@ -470,13 +556,16 @@ def get_sell_min_price_path():
 #     with open(filename, "w", encoding="utf-8") as file:
 #         json.dump(all_datas, file, indent=4, ensure_ascii=False)
 
-    # # Преобразование списка словарей в DataFrame
-    # df = pd.DataFrame(all_datas)
+# # Преобразование списка словарей в DataFrame
+# df = pd.DataFrame(all_datas)
 
 
-    # # Запись DataFrame в Excel
-    # output_file = "output_sell_min_price.xlsx"
-    # df.to_excel(output_file, index=False)
+# # Запись DataFrame в Excel
+# output_file = "output_sell_min_price.xlsx"
+# df.to_excel(output_file, index=False)
+
+
+# Функция формирование ексель файла
 def parsing_products_sell_min_price_path():
     float_default = {
         "(Factory New)": 0.07,
@@ -499,12 +588,16 @@ def parsing_products_sell_min_price_path():
         with open(json_file, "r", encoding="utf-8") as f:
             json_data = json.load(f)
 
-        datas_json = json_data["data"]["items"]
+        try:
+            datas_json = json_data["data"]["items"]
+        except:
+            datas_json = json_data["error"]
+            print(datas_json)
         for data_json in datas_json:
             product_id = data_json["id"]
             sell_min_price = float(data_json["sell_min_price"])
             product_name = data_json["name"]
-            sell_min_price = round(sell_min_price / cny_usd, 1)
+            sell_min_price = round(sell_min_price * cny_usd, 1)
             # Поиск состояния в названии продукта
             product_float = None
             for condition in float_default:
@@ -532,29 +625,26 @@ def parsing_products_sell_min_price_path():
     df.to_excel(output_file, index=False)
 
 
-if __name__ == "__main__":
-    # asyncio.run(get_cookies())
-    # get_sell_min_price_path()
-    # parsing_products_sell_min_price_path()
-    asyncio.run(get_price())
+# if __name__ == "__main__":
+#     asyncio.run(get_cookies())
+#     get_sell_min_price_path()
+#     parsing_products_sell_min_price_path()
+#     asyncio.run(get_price())
 
 
 # #     parsing_products_price()
-# while True:
-#     print(
-#         "Введите 1 для получения куки"
-#         "\nВведите 2 для запуска первого скрипта"
-#         "\nВведите 3 для запуска второго скрипта"
-#         "\nВведите 0 для закрытия программы"
-#     )
-#     user_input = int(input("Выберите действие: "))
-#     if user_input == 1:
-#         asyncio.run(get_cookies())
-#     elif user_input == 2:
-#         # url = str((input("Вставьте ссылку на срипт 1: ")))
-#         # asyncio.run(get_sell_min_price_path(url))
-#         slices = 1
-#         parsing_products_sell_min_price_path()
-#     elif user_input == 3:
-#         asyncio.run(get_price())
-#         parsing_products_price()
+while True:
+    print(
+        "Введите 1 для получения куки"
+        "\nВведите 2 для запуска первого скрипта"
+        "\nВведите 3 для запуска второго скрипта"
+        # "\nВведите 0 для закрытия программы"
+    )
+    user_input = int(input("Выберите действие: "))
+    if user_input == 1:
+        asyncio.run(get_cookies())
+    elif user_input == 2:
+        get_sell_min_price_path()
+        parsing_products_sell_min_price_path()
+    elif user_input == 3:
+        asyncio.run(get_price())
