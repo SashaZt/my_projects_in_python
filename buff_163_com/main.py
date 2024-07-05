@@ -158,7 +158,7 @@ async def get_cookies():
             ),
         )
         await page.goto("https://buff.163.com", wait_until="networkidle", timeout=60000)
-        await asyncio.sleep(60)  # Дождитесь завершения авторизации
+        await asyncio.sleep(100)  # Дождитесь завершения авторизации
         # Сохранение куки
         await save_cookies(context, "cookies.json")
         # Закрываем браузер
@@ -296,30 +296,38 @@ async def get_price():
             proxy_auth = f"{proxy_server[2]}:{proxy_server[3]}@{proxy_server[0]}:{proxy_server[1]}"
 
             # Настройка прокси для HTTP и HTTPS
-            proxies = {"http": f"http://{proxy_auth}", "https": f"https://{proxy_auth}"}
-            response = requests.get(
-                "https://buff.163.com/api/market/goods/sell_order",
-                params=params,
-                cookies=cookies,
-                headers=headers,
-                proxies=proxies,
-            )
-            if response.status_code == 200:
-                json_data = response.json()
-                try:
-                    datas_json = json_data["data"]["items"][0]
-                except:
-                    datas_json = json_data["error"]
-                    print(datas_json)
-                    continue
+            proxies = {
+                "http": f"socks5://{proxy_auth}",
+                "https": f"socks5://{proxy_auth}",
+            }
 
-                datas_json = json_data["data"]["items"]
+            if check_proxy(proxies):
+                response = requests.get(
+                    "https://buff.163.com/api/market/goods/sell_order",
+                    params=params,
+                    cookies=cookies,
+                    headers=headers,
+                    proxies=proxies,
+                )
+                if response.status_code == 200:
+                    json_data = response.json()
+                    try:
+                        datas_json = json_data["data"]["items"][0]
+                    except:
+                        datas_json = json_data["error"]
+                        print(datas_json)
+                        continue
 
-                price = float(datas_json["price"])
-                price = round(price * cny_usd, 1)
+                    datas_json = json_data["data"]["items"]
 
-                # Добавление цены к sell_min_price
-                sell_min_price += f"/{price}"
+                    price = float(datas_json["price"])
+                    price = round(price * cny_usd, 1)
+
+                    # Добавление цены к sell_min_price
+                    sell_min_price += f"/{price}"
+            else:
+                print("Прокси-сервер недоступен. Пожалуйста, попробуйте другой прокси.")
+
             time.sleep(time_sleep)
             print(time_sleep)
 
@@ -403,8 +411,23 @@ def save_product_urls(product_urls):
 
 #     excel_file = "output_sell_min_price.xlsx"
 
+
 #     df = pd.DataFrame(output_data)
 #     df.to_excel(excel_file, index=False)
+def check_proxy(proxy):
+    try:
+        test_url = "http://httpbin.org/ip"
+        response = requests.get(test_url, proxies=proxy, timeout=10)
+        if response.status_code == 200:
+            ip = response.json().get("origin")
+            print(f"Прокси-сервер доступен. Ваш IP: {ip}")
+            return True
+        else:
+            print("Не удалось получить IP-адрес через прокси.")
+            return False
+    except requests.RequestException as e:
+        print(f"Ошибка при проверке прокси: {e}")
+        return False
 
 
 # Функция первого скрипта
@@ -423,11 +446,11 @@ def get_sell_min_price_path():
     # with open(filename_cookies, "r") as f:
     #     cookies_data = json.load(f)
     config = load_config_cookies()
-    cookies_data = config["cookies"]
+    # cookies_data = config["cookies"]
     # Преобразование куки в формат, подходящий для requests
     cookies = {
         cookie["name"]: cookie["value"]
-        for cookie in cookies_data
+        for cookie in config
         if cookie["name"]
         in [
             "Device-Id",
@@ -471,16 +494,22 @@ def get_sell_min_price_path():
             f"{proxy_server[2]}:{proxy_server[3]}@{proxy_server[0]}:{proxy_server[1]}"
         )
 
-        # Настройка прокси для HTTP и HTTPS
-        proxies = {"http": f"http://{proxy_auth}", "https": f"https://{proxy_auth}"}
-        response = requests.get(
-            url,
-            params=params,
-            cookies=cookies,
-            headers=headers,
-            proxies=proxies,
-            verify=False,
-        )
+        proxies = {"http": f"socks5://{proxy_auth}", "https": f"socks5://{proxy_auth}"}
+        if check_proxy(proxies):
+            try:
+                response = requests.get(
+                    url,
+                    params=params,
+                    cookies=cookies,
+                    headers=headers,
+                    # proxies=proxies,
+                    verify=False,
+                )
+                # Обработка ответа
+            except requests.RequestException as e:
+                print(f"Ошибка при выполнении запроса: {e}")
+        else:
+            print("Прокси-сервер недоступен. Пожалуйста, попробуйте другой прокси.")
         category_group_path = os.path.join(sell_min_price_path, category_group)
         os.makedirs(category_group_path, exist_ok=True)
         filename = os.path.join(category_group_path, f"{page_num}.json")

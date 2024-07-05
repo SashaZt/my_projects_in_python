@@ -654,10 +654,10 @@ def convert_date_format(date_str):
 
 if __name__ == "__main__":
     # asyncio.run(main())
-    # asyncio.run(update_ads())
+    asyncio.run(update_ads())
     # asyncio.run(get_html())
     # asyncio.run(parsing_page())
-    asyncio.run(upload_data_to_google_sheets())
+    # asyncio.run(upload_data_to_google_sheets())
 
     # category_group = str(input("Введите категорию:  "))
     # get_sell_min_price_path(category_group)
