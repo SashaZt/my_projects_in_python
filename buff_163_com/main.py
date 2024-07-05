@@ -267,18 +267,13 @@ async def get_price():
         "sec-ch-ua-platform": '"Windows"',
     }
 
-    # json_file = "config_02.json"
-    # with open(json_file, "r", encoding="utf-8") as file:
-    #     data_config_02 = json.load(file)
     data_config_02 = load_config_02()
     params = data_config_02["params"][0]
     time_sleep = int(data_config_02["pause"][0]["sleep"])
     # Загрузка данных из Excel файла
     file_path = "output_sell_min_price.xlsx"
     df = pd.read_excel(file_path)
-    df = pd.read_excel(
-        file_path, dtype={"sell_min_price": str}
-    )  # Преобразование столбца в строковый тип
+    df = pd.read_excel(file_path, dtype={"sell_min_price": str})
 
     # Фильтрация строк
     filtered_df = df[df["float"].apply(has_multiple_values)]
@@ -451,23 +446,14 @@ def check_proxy(proxy):
 
 # Функция первого скрипта
 def get_sell_min_price_path():
-    # json_file = "config_01.json"
-    # with open(json_file, "r", encoding="utf-8") as file:
-    #     data_config_01 = json.load(file)
+
     data_config_01 = load_config_01()
     print(data_config_01)
     params = data_config_01["params"][0]
     category_group = data_config_01["params"][0]["category_group"]
     total_pages = data_config_01["total_pages"][0]["pages"]
     time_sleep = int(data_config_01["pause"][0]["sleep"])
-    # filename_cookies = os.path.join(current_directory, "cookies.json")
-    # Чтение куки из файла
-
-    # with open(filename_cookies, "r") as f:
-    #     cookies_data = json.load(f)
     config = load_config_cookies()
-    # cookies_data = config["cookies"]
-    # Преобразование куки в формат, подходящий для requests
     cookies = {
         cookie["name"]: cookie["value"]
         for cookie in config
@@ -616,6 +602,21 @@ def get_sell_min_price_path():
 
 # Функция формирование ексель файла
 def parsing_products_sell_min_price_path():
+    # Загрузка данных из Excel файла
+    file_path = "output_sell_min_price.xlsx"
+
+    # Проверка наличия файла
+    if os.path.exists(file_path):
+        # Загрузка данных из Excel файла
+        df_start = pd.read_excel(file_path, dtype={"sell_min_price": str})
+
+        # Установка 'product_id' в качестве индекса
+        df_start.set_index("product_id", inplace=True)
+    else:
+        # Если файла нет, выводим сообщение
+        print(f"Файл {file_path} не найден.")
+        df_start = None
+
     float_default = {
         "(Factory New)": 0.07,
         "(Minimal Wear)": 0.15,
@@ -661,24 +662,31 @@ def parsing_products_sell_min_price_path():
                 "sell_min_price": sell_min_price,
             }
             all_datas.append(all_data)
-    current_directory = os.getcwd()  # Получение текущей директории
+    current_directory = os.getcwd()
     filename = os.path.join(current_directory, "output_sell_min_price.json")
     with open(filename, "w", encoding="utf-8") as file:
         json.dump(all_datas, file, indent=4, ensure_ascii=False)
 
     # Преобразование списка словарей в DataFrame
-    df = pd.DataFrame(all_datas)
+    df_finish = pd.DataFrame(all_datas)
 
-    # Запись DataFrame в Excel
-    output_file = "output_sell_min_price.xlsx"
-    df.to_excel(output_file, index=False)
+    # Установка 'product_id' в качестве индекса для df_finish
+    df_finish.set_index("product_id", inplace=True)
 
+    if df_start is None:
+        # Если df_start не существует, просто сохраняем df_finish в файл
+        df_finish.reset_index(inplace=True)
+        df_finish.to_excel(file_path, index=False)
+    else:
+        # Обновление df_start данными из df_finish по product_id и добавление новых данных
+        for product_id in df_finish.index:
+            df_start.loc[product_id] = df_finish.loc[product_id]
 
-# if __name__ == "__main__":
-#     asyncio.run(get_cookies())
-#     get_sell_min_price_path()
-#     parsing_products_sell_min_price_path()
-#     asyncio.run(get_price())
+        # Сброс индекса для df_start (если необходимо)
+        df_start.reset_index(inplace=True)
+
+        # Сохранение обновленного DataFrame обратно в Excel файл
+        df_start.to_excel(file_path, index=False)
 
 
 # #     parsing_products_price()
@@ -686,7 +694,8 @@ while True:
     print(
         "Введите 1 для получения куки"
         "\nВведите 2 для запуска первого скрипта"
-        "\nВведите 3 для запуска второго скрипта"
+        "\nВведите 3 для запуска формирования xlsx файла"
+        "\nВведите 4 для запуска второго скрипта"
         # "\nВведите 0 для закрытия программы"
     )
     user_input = int(input("Выберите действие: "))
@@ -694,6 +703,7 @@ while True:
         asyncio.run(get_cookies())
     elif user_input == 2:
         get_sell_min_price_path()
-        parsing_products_sell_min_price_path()
     elif user_input == 3:
+        parsing_products_sell_min_price_path()
+    elif user_input == 4:
         asyncio.run(get_price())
