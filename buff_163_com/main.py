@@ -136,7 +136,6 @@ def proxy_generator(proxies):
         index = (index + 1) % num_proxies
 
 
-# Функция получения куки
 async def get_cookies():
     proxies = load_proxies()
     proxy_gen = proxy_generator(proxies)
@@ -148,8 +147,10 @@ async def get_cookies():
             "password": proxy[3],
         }
         browser = await playwright.chromium.launch(headless=False, proxy=proxy_server)
+        # browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
+
         # Отключение загрузки изображений
         await context.route(
             "**/*",
@@ -157,10 +158,28 @@ async def get_cookies():
                 route.continue_() if request.resource_type != "image" else route.abort()
             ),
         )
-        await page.goto("https://buff.163.com", wait_until="networkidle", timeout=60000)
+
+        # Логирование сетевых событий
+        page.on("request", lambda request: print(f"Запрос: {request.url}"))
+        page.on(
+            "response",
+            lambda response: print(f"Ответ: {response.url} - {response.status}"),
+        )
+
+        try:
+            await page.goto(
+                "https://buff.163.com", wait_until="networkidle", timeout=1200000
+            )  # Увеличен тайм-аут до 20 минут
+        except Exception as e:
+            print(f"Ошибка при переходе на сайт: {e}")
+            await browser.close()
+            return
+
         await asyncio.sleep(100)  # Дождитесь завершения авторизации
+
         # Сохранение куки
         await save_cookies(context, "cookies.json")
+
         # Закрываем браузер
         await browser.close()
 
@@ -301,32 +320,32 @@ async def get_price():
                 "https": f"socks5://{proxy_auth}",
             }
 
-            if check_proxy(proxies):
-                response = requests.get(
-                    "https://buff.163.com/api/market/goods/sell_order",
-                    params=params,
-                    cookies=cookies,
-                    headers=headers,
-                    proxies=proxies,
-                )
-                if response.status_code == 200:
-                    json_data = response.json()
-                    try:
-                        datas_json = json_data["data"]["items"][0]
-                    except:
-                        datas_json = json_data["error"]
-                        print(datas_json)
-                        continue
+            # if check_proxy(proxies):
+            response = requests.get(
+                "https://buff.163.com/api/market/goods/sell_order",
+                params=params,
+                cookies=cookies,
+                headers=headers,
+                proxies=proxies,
+            )
+            if response.status_code == 200:
+                json_data = response.json()
+                try:
+                    datas_json = json_data["data"]["items"][0]
+                except:
+                    datas_json = json_data["error"]
+                    print(datas_json)
+                    continue
 
-                    datas_json = json_data["data"]["items"]
+                datas_json = json_data["data"]["items"]
 
-                    price = float(datas_json["price"])
-                    price = round(price * cny_usd, 1)
+                price = float(datas_json["price"])
+                price = round(price * cny_usd, 1)
 
-                    # Добавление цены к sell_min_price
-                    sell_min_price += f"/{price}"
-            else:
-                print("Прокси-сервер недоступен. Пожалуйста, попробуйте другой прокси.")
+                # Добавление цены к sell_min_price
+                sell_min_price += f"/{price}"
+            # else:
+            #     print("Прокси-сервер недоступен. Пожалуйста, попробуйте другой прокси.")
 
             time.sleep(time_sleep)
             print(time_sleep)
@@ -436,6 +455,7 @@ def get_sell_min_price_path():
     # with open(json_file, "r", encoding="utf-8") as file:
     #     data_config_01 = json.load(file)
     data_config_01 = load_config_01()
+    print(data_config_01)
     params = data_config_01["params"][0]
     category_group = data_config_01["params"][0]["category_group"]
     total_pages = data_config_01["total_pages"][0]["pages"]
@@ -495,33 +515,33 @@ def get_sell_min_price_path():
         )
 
         proxies = {"http": f"socks5://{proxy_auth}", "https": f"socks5://{proxy_auth}"}
-        if check_proxy(proxies):
-            try:
-                response = requests.get(
-                    url,
-                    params=params,
-                    cookies=cookies,
-                    headers=headers,
-                    # proxies=proxies,
-                    verify=False,
-                )
-                # Обработка ответа
-            except requests.RequestException as e:
-                print(f"Ошибка при выполнении запроса: {e}")
-        else:
-            print("Прокси-сервер недоступен. Пожалуйста, попробуйте другой прокси.")
-        category_group_path = os.path.join(sell_min_price_path, category_group)
-        os.makedirs(category_group_path, exist_ok=True)
-        filename = os.path.join(category_group_path, f"{page_num}.json")
-        if response.status_code == 200:
-            json_data = response.json()
+        # if check_proxy(proxies):
+        try:
+            response = requests.get(
+                url,
+                params=params,
+                cookies=cookies,
+                headers=headers,
+                # proxies=proxies,
+                verify=False,
+            )
+            category_group_path = os.path.join(sell_min_price_path, category_group)
+            os.makedirs(category_group_path, exist_ok=True)
+            filename = os.path.join(category_group_path, f"{page_num}.json")
+            if response.status_code == 200:
+                json_data = response.json()
 
-            with open(filename, "w", encoding="utf-8") as file:
-                json.dump(json_data, file, indent=4, ensure_ascii=False)
-            logging.info(f"Файл сохранен {filename}")
-            time.sleep(time_sleep)
-        else:
-            print(response.status_code)
+                with open(filename, "w", encoding="utf-8") as file:
+                    json.dump(json_data, file, indent=4, ensure_ascii=False)
+                logging.info(f"Файл сохранен {filename}")
+                time.sleep(time_sleep)
+            else:
+                print(response.status_code)
+            # Обработка ответа
+        except requests.RequestException as e:
+            print(f"Ошибка при выполнении запроса: {e}")
+        # else:
+        #     print("Прокси-сервер недоступен. Пожалуйста, попробуйте другой прокси.")
 
 
 # РАБОЧИЙ
