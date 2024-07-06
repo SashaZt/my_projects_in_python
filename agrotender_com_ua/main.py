@@ -4,7 +4,7 @@ import pandas as pd
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
 from selectolax.parser import HTMLParser
 import asyncio
@@ -325,7 +325,7 @@ async def fetch_data():
     return data_list
 
 
-# Функция получения всех страниц
+# Функция для обновлении всех категорий
 async def update_ads():
     data_bd = await fetch_data_url()
     proxies = load_proxies()
@@ -365,15 +365,19 @@ async def update_ads():
             ),
         )
         all_datas = []
-        for category in all_category[:1]:
-            await page.goto(category, wait_until="networkidle", timeout=60000)
+        for category in all_category:
+            try:
+                await page.goto(category, wait_until="load", timeout=60000)
+            except:
+                print(proxy_server)
+                break
             content = await page.content()
             parser = HTMLParser(content)
             # Извлекаем все элементы <a> внутри <h3> с указанным классом
 
             has_new_data = True
             # Максимальное количество страниц для проверки
-            max_pages_to_check = 1
+            max_pages_to_check = 2
 
             for pg in range(1, max_pages_to_check + 1):
 
@@ -387,7 +391,6 @@ async def update_ads():
                 for link in links:
                     url = f'https://agrotender.com.ua{link.attributes.get("href")}'
                     all_datas.append(url)
-        print(all_datas)
         # Проверка на совпадения с данными из базы данных
         if any(data in data_bd for data in all_datas):
             has_new_data = False
@@ -398,8 +401,9 @@ async def update_ads():
             json.dump(all_datas, f, ensure_ascii=False, indent=4)
         print(f"Файл сохранил new_url.json")
 
-    # Закрываем соединение с базой данных
-    # await database.disconnect()
+    print(
+        f"Проверили наличие новых объявлений \n  {datetime.now().strftime('%H:%M %d-%m-%Y')}"
+    )
 
 
 # Функция парсинга данных из html
@@ -571,9 +575,19 @@ async def load_data_to_db(database, data):
     await database.execute_many(query, data)
 
 
+# Функция для паузы
+async def main_sleep():
+    while True:
+        await update_ads()
+        next_run_time = datetime.now() + timedelta(hours=3)
+        print(f"Следующий запуск в {next_run_time.strftime('%H:%M %d-%m-%Y')}")
+        await asyncio.sleep(3 * 60 * 60)  # Задержка на 3 часа
+
+
 if __name__ == "__main__":
+    asyncio.run(main_sleep())
     # asyncio.run(get_category())
     # asyncio.run(get_html())
     # asyncio.run(update_ads())
-    asyncio.run(parsing_page())
-    asyncio.run(upload_data_to_google_sheets())
+    # asyncio.run(parsing_page())
+    # asyncio.run(upload_data_to_google_sheets())

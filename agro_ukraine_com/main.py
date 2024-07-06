@@ -4,7 +4,6 @@ import pandas as pd
 import json
 import os
 import re
-from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 from selectolax.parser import HTMLParser
 import asyncio
@@ -13,7 +12,7 @@ from playwright.async_api import async_playwright
 from databases import Database
 from aiomysql import IntegrityError
 import random
-import time
+from datetime import datetime, timedelta
 import logging
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
@@ -203,13 +202,6 @@ async def main():
                                 href = a_tag.attributes.get("href", "")
                                 data = {"id": div_id, "href": href}
                                 all_datas.append(data)
-                                # print(data)  # Для проверки, выводим полученные данные
-
-                                # # Вставляем данные в таблицу agro_ukraine_com_url
-                                # query = """
-                                # INSERT INTO agro_ukraine_com_url (url_id, url) VALUES (:url_id, :url)
-                                # """
-                                # for data in all_datas:
             # Вставляем данные в таблицу agro_ukraine_com_url
             query = """
             INSERT INTO agro_ukraine_com_url (url_id, url) VALUES (:url_id, :url)
@@ -228,12 +220,8 @@ async def main():
     # Закрываем соединение с базой данных
     await database.disconnect()
 
-    # save_path = os.path.join(page_path, f"{url_name}.html")
-    # await asyncio.sleep(1)
-    # await save_page_content_html(page, save_path)
-    # await browser.close()
 
-
+# Функция для получения данных из БД
 async def fetch_data():
     query = "SELECT url_id AS id, url AS href FROM agro_ukraine_com_url"
     await database.connect()
@@ -248,7 +236,7 @@ async def fetch_data():
     return data_list
 
 
-# Функция получения всех страниц
+# Функция для обновление всех страниц
 async def update_ads():
     data_bd = await fetch_data()
     proxies = load_proxies()
@@ -327,6 +315,9 @@ async def update_ads():
 
     # Закрываем соединение с базой данных
     await database.disconnect()
+    print(
+        f"Проверили наличие новых объявлений \n  {datetime.now().strftime('%H:%M %d-%m-%Y')}"
+    )
 
 
 def load_proxies():
@@ -429,9 +420,7 @@ async def get_html():
     return None
 
 
-# Функция для извлечения данных по ключевым словам
-
-
+# Функция для извлечения данных из html  файлов
 async def parsing_page():
     await database.connect()
     folder = os.path.join(html_path, "*.html")
@@ -495,15 +484,6 @@ async def parsing_page():
         except:
             price = None
 
-        # # Извлекаем дату и время обновления
-        # updated_date, updated_time = None, None
-        # try:
-        #     result = extract_info_by_keyword("Обновлено:")
-        #     if result:
-        #         updated_date, updated_time = result
-        # except Exception as e:
-        #     print(item_html)
-        #     break
         def extract_info_by_keyword(keyword):
             elements = parser.css("span.descr")
             for element in elements:
@@ -614,15 +594,16 @@ async def parsing_page():
         all_datas.append(data)
     # await load_data_to_db(database, all_datas)
     await database.disconnect()
-    print(len(all_datas))
+    # print(len(all_datas))
     # Преобразование списка словарей в DataFrame
     df = pd.DataFrame(all_datas)
 
     # Запись DataFrame в Excel
-    output_file = "output_sell_min_price.xlsx"
+    output_file = "output.xlsx"
     df.to_excel(output_file, index=False)
 
 
+# Функция для загрузки в БД
 async def load_data_to_db(database, data):
     query = """
 INSERT INTO agro_ukraine_com_ua_ads (
@@ -652,11 +633,21 @@ def convert_date_format(date_str):
         return None
 
 
+# Функция для паузы
+async def main_sleep():
+    while True:
+        await update_ads()
+        next_run_time = datetime.now() + timedelta(hours=3)
+        print(f"Следующий запуск в {next_run_time.strftime('%H:%M %d-%m-%Y')}")
+        await asyncio.sleep(3 * 60 * 60)  # Задержка на 3 часа
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
-    asyncio.run(update_ads())
+    # asyncio.run(main())
+    asyncio.run(main_sleep())
+    # asyncio.run(update_ads())
     # asyncio.run(get_html())
-    asyncio.run(parsing_page())
+    # asyncio.run(parsing_page())
     # asyncio.run(upload_data_to_google_sheets())
 
     # category_group = str(input("Введите категорию:  "))
