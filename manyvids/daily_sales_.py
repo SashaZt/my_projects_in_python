@@ -757,8 +757,13 @@ def get_sql_data_day():
     for item in files_json:
         with open(item, "r", encoding="utf-8") as f:
             raw_json_str = f.read()
-            data_json = json.loads(raw_json_str)
-            data_json = json.loads(data_json)
+            try:
+                data_json = json.loads(raw_json_str)
+                data_json = json.loads(data_json)
+            except:
+                data_json = None
+                print(item)
+                continue
         try:
             dayItems = data_json["dayItems"]
         except:
@@ -999,10 +1004,7 @@ def get_table_01_to_google():
         """
         )
         results = cursor.fetchall()
-        # Обработка результатов запроса здесь
-        # Например, вывод результатов:
-        # for row in results:
-        #     print(row)
+
     except mysql.connector.Error as e:
         log_message(f"Произошла ошибка при выполнении запроса к базе данных: {e}")
     finally:
@@ -1500,6 +1502,7 @@ def get_table_04_to_google():
 
 
 def get_asio():
+
     import glob
     import asyncio
     import json
@@ -1753,9 +1756,9 @@ def get_asio():
             await f.write(json.dumps(data_json, ensure_ascii=False, indent=4))
 
     async def run(playwright):
+
         # Попытка входа и повтор в случае необходимости
         max_attempts = 5  # Максимальное количество попыток
-        attempts = 0  # Счетчик попыток
         now = datetime.now()
         month = str(now.month)
         filterYear = str(now.year)
@@ -1768,9 +1771,8 @@ def get_asio():
 
                 attempts = 0
                 while attempts < max_attempts and not successful_login:
-                    proxy = (
-                        await proxy_random()
-                    )  # Получение нового прокси при каждой попытке
+                    # Получение нового прокси при каждой попытке
+                    proxy = await proxy_random()
                     browser = await playwright.chromium.launch(
                         headless=False, proxy=proxy
                     )
@@ -1784,8 +1786,6 @@ def get_asio():
                             wait_until="load",
                             timeout=timeout_ancet,
                         )
-                        # await asyncio.sleep(60)
-                        # Ожидаем появления заголовка с текстом "Sign in to ManyVids" на странице
                         await page.wait_for_selector(
                             'text="Sign in to ManyVids"', timeout=timeout_ancet
                         )
@@ -1844,6 +1844,11 @@ def get_asio():
                         )
                         attempts += 1
                         await browser.close()  # Закрыть браузер при ошибке
+
+                    # finally:
+                    #     if not successful_login:
+                    #         await browser.close()  # Закрываем браузер и перезапускаем его в следующей итерации
+                    #         print("Restarting browser for a new login attempt.")
 
                 if successful_login:
                     # Продолжаем использовать текущий браузер и прокси
@@ -1922,8 +1927,10 @@ def get_asio():
                         f"Не удалось войти для {item['login']} после {max_attempts} попыток."
                     )
 
-                """Закрываем"""
-            await browser.close()
+                """
+                Закрываем
+                """
+            # await browser.close()
 
     async def main():
         async with async_playwright() as playwright:
@@ -1948,7 +1955,7 @@ def job():
     # Ваши функции здесь
     # get_requests(month, filterYear)
 
-    get_asio()
+    # get_asio()
 
     get_sql_data_day()
 
@@ -1964,7 +1971,7 @@ def job():
     get_pending_to_google()
     unique_users_to_sql()
 
-    log_message(f"Все выполнено, ждем 30мин")
+    log_message("Все выполнено, ждем 30мин")
     delete_all_files()
 
 
