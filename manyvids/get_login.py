@@ -28,8 +28,8 @@ def get_login_pass_to_sql():
             csv_reader = csv.reader(csv_file, delimiter=";")
             next(csv_reader)  # Пропускаем заголовок, если он есть
             for c in csv_reader:
-                values = (c[0], c[1], c[2])
-                insert_query = f"INSERT INTO `{use_table_login_pass}` (identifier, login, `pass`) VALUES (%s, %s, %s)"
+                values = (c[0], c[1], c[2], c[3])
+                insert_query = f"INSERT INTO `{use_table_login_pass}` (model_id, identifier, login, `pass`) VALUES (%s, %s, %s, %s)"
                 cursor.execute(insert_query, values)
             cnx.commit()
     except Error as err:
@@ -39,7 +39,7 @@ def get_login_pass_to_sql():
             cursor.close()
             cnx.close()
         print("Данные обновлены в БД")
-        time.sleep(50)
+        time.sleep(1)
 
 
 if __name__ == "__main__":

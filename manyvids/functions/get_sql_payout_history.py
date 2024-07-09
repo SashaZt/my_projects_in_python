@@ -7,7 +7,7 @@ from config import (
     db_config,
     use_table_payout_history,
 )
-from functions.get_id_models_from_sql import get_id_models_from_sql
+from functions.get_id_models_from_sql import get_id_models
 from functions.check_payout_history import check_payout_history
 
 current_directory = os.getcwd()
@@ -28,7 +28,7 @@ def get_sql_payout_history():
     cursor = cnx.cursor()
     folder = os.path.join(payout_history_path, "*.json")
     files_json = glob.glob(folder)
-    id_models = get_id_models_from_sql()
+    id_models = get_id_models()
     for item in files_json:
         with open(item, "r", encoding="utf-8") as f:
             raw_json_str = f.read()

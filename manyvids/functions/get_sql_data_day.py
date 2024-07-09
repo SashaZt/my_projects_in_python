@@ -1,10 +1,11 @@
 import mysql.connector
 from datetime import datetime, timedelta
 import os
+from loguru import logger
 import logging
 import glob
 import json
-from functions.get_id_models_from_sql import get_id_models_from_sql
+from functions.get_id_models_from_sql import get_id_models
 from functions.check_data_day import check_data_day
 from config import (
     db_config,
@@ -17,12 +18,13 @@ temp_path = os.path.join(current_directory, temp_directory)
 daily_sales_path = os.path.join(temp_path, "daily_sales")
 
 # Настройка базовой конфигурации логирования
-logging.basicConfig(
-    level=logging.DEBUG,  # Уровень логирования
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Формат сообщения
-    handlers=[
-        logging.FileHandler("info.log", encoding="utf-8"),  # Запись в файл
-    ],
+logger.remove()  # Удаляем все ранее добавленные обработчики
+logger.add(
+    "info.log",
+    format="{time:YYYY-MM-DD HH:mm:ss} - {name} - {level} - {message}",  # Формат сообщения
+    level="DEBUG",  # Уровень логирования
+    encoding="utf-8",  # Кодировка
+    mode="w",  # Перезапись файла при каждом запуске
 )
 
 
@@ -44,7 +46,7 @@ def get_sql_data_day():
 
     folder = os.path.join(daily_sales_path, "*.json")
     files_json = glob.glob(folder)
-    models_fms = get_id_models_from_sql()
+    models_fms = get_id_models()
 
     for item in files_json:
         with open(item, "r", encoding="utf-8") as f:
@@ -97,7 +99,7 @@ def get_sql_data_day():
                     sales_time,
                     seller_commission_price,
                     model_id,
-                    mvtoken,
+                    # mvtoken,
                     model_fm,
                 ]
 
@@ -127,8 +129,8 @@ def get_sql_data_day():
                     # SQL-запрос для вставки данных
                     insert_query = f"""
                     INSERT INTO {use_table_daily_sales} (buyer_username, buyer_stage_name, buyer_user_id, title, type_content, sales_date, sales_time,
-                              seller_commission_price, model_id, mvtoken,model_fm)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                              seller_commission_price, model_id, model_fm)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
                     cursor.execute(insert_query, values)
                     cnx.commit()  # Подтверждение изменений

@@ -11,7 +11,7 @@ import pandas as pd
 import logging
 from datetime import datetime
 from functions.get_google import get_google
-from functions.get_id_models_from_sql import get_id_models_from_sql
+from functions.get_id_models_from_sql import get_id_models
 import gspread
 import time
 import os
@@ -128,7 +128,7 @@ def get_pending_to_google():
 
     folder = os.path.join(pending_custom_path, "*.html")
     files_html = glob.glob(folder)
-    id_models = get_id_models_from_sql()
+    id_models = get_id_models()
     for item in files_html:
 
         with open(item, encoding="utf-8") as file:

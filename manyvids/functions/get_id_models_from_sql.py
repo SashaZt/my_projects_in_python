@@ -5,16 +5,13 @@ from config import (
 )
 
 
-def get_id_models_from_sql():
-    """
-    Функция для получения данных с Mysql
-    """
+def get_id_models():
     # Подключение к базе данных
     cnx = mysql.connector.connect(**db_config)
     cursor = cnx.cursor()
 
     # Выполнение запроса для получения уникальных значений
-    cursor.execute(f"SELECT DISTINCT model_fm, model_id FROM {database}.daily_sales")
+    cursor.execute("SELECT identifier, model_id FROM manyvids.login_pass;")
 
     dict_models = {}
     # Получение и вывод результатов

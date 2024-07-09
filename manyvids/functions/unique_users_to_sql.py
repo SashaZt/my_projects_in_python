@@ -4,7 +4,7 @@ from config import (
     db_config,
 )
 import pandas as pd
-from functions.get_id_models_from_sql import get_id_models_from_sql
+from functions.get_id_models_from_sql import get_id_models
 
 import pandas as pd
 
@@ -75,7 +75,7 @@ def unique_users_to_sql():
     df = pd.read_csv("monthly_new_unique_users.csv")
 
     # Загрузка словаря id_models
-    id_models = get_id_models_from_sql()  # {'FM05': '1007686262', ...}
+    id_models = get_id_models()  # {'FM05': '1007686262', ...}
 
     df["sender_id"] = df["sender_id"].astype(
         str

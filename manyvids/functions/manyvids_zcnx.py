@@ -4,7 +4,7 @@ import os
 import logging
 import glob
 import json
-from functions.get_id_models_from_sql import get_id_models_from_sql
+from functions.get_id_models_from_sql import get_id_models
 from functions.check_data_day_zcnx import check_data_day_zcnx
 import psycopg2
 from psycopg2 import sql
@@ -36,7 +36,7 @@ def insert_data_to_postgres():
     logging.info("Соединение с PostgreSQL установлено")
     folder = os.path.join(daily_sales_path, "*.json")
     files_json = glob.glob(folder)
-    models_fms = get_id_models_from_sql()
+    models_fms = get_id_models()
 
     for item in files_json:
         with open(item, "r", encoding="utf-8") as f:

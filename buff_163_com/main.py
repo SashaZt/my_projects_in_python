@@ -16,15 +16,17 @@ from playwright.async_api import async_playwright
 from natsort import natsorted
 import shutil
 
+# from loguru import logger
 
-# Настройка базовой конфигурации логирования
-logging.basicConfig(
-    level=logging.DEBUG,  # Уровень логирования
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Формат сообщения
-    handlers=[
-        logging.FileHandler("info.log", encoding="utf-8"),  # Запись в файл
-    ],
-)
+
+# logger.remove()  # Удаляем все ранее добавленные обработчики
+# logger.add(
+#     "info.log",
+#     format="{time:YYYY-MM-DD HH:mm:ss} - {level} - {message}",  # Формат сообщения
+#     level="DEBUG",  # Уровень логирования
+#     encoding="utf-8",  # Кодировка
+#     mode="w",  # Перезапись файла при каждом запуске
+# )
 
 # Создание временных папок
 current_directory = os.getcwd()
@@ -597,7 +599,7 @@ def parsing_products_sell_min_price_path():
                         "sell_min_price": new_sell_min_price,
                     }
                     all_datas.append(all_data)
-
+                    logging.info(f"{all_data}")
             except json.JSONDecodeError as e:
                 logging.info(f"JSONDecodeError in file {json_file}: {e}")
             except Exception as e:
@@ -625,14 +627,12 @@ def parsing_products_sell_min_price_path():
                     if len(parts) > 1
                     else str(df_finish.at[product_id, "sell_min_price"])
                 )
-                logging.info(
-                    f"{product_id}, {existing_sell_min_price}, {new_sell_min_price}"
-                )
+
                 df_start.at[product_id, "sell_min_price"] = new_sell_min_price
                 df_start.at[product_id, "product_name"] = df_finish.at[
                     product_id, "product_name"
                 ]
-                df_start.at[product_id, "float"] = df_finish.at[product_id, "float"]
+
             else:
                 df_start.loc[product_id] = df_finish.loc[product_id]
 

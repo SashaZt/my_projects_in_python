@@ -8,7 +8,7 @@ from config import (
     db_config,
     use_table_chat,
 )
-from functions.get_id_models_from_sql import get_id_models_from_sql
+from functions.get_id_models_from_sql import get_id_models
 from functions.check_chat import check_chat
 from functions.get_latest_chat_date import get_latest_chat_date
 
@@ -38,7 +38,7 @@ def get_sql_chat():
     latest_date = get_latest_chat_date()
     folder = os.path.join(chat_path, "*.json")
     files_json = glob.glob(folder)
-    models_fms = get_id_models_from_sql()
+    models_fms = get_id_models()
 
     for item in files_json:
         with open(item, "r", encoding="utf-8") as f:

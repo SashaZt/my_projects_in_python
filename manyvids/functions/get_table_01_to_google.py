@@ -10,14 +10,15 @@ from functions.get_google import get_google
 import gspread
 import time
 import os
+from loguru import logger
 
 # Настройка базовой конфигурации логирования
-logging.basicConfig(
-    level=logging.DEBUG,  # Уровень логирования
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",  # Формат сообщения
-    handlers=[
-        logging.FileHandler("info.log", encoding="utf-8"),  # Запись в файл
-    ],
+logger.add(
+    "info.log",
+    format="{time:YYYY-MM-DD HH:mm:ss} - {name} - {level} - {message}",  # Формат сообщения
+    level="DEBUG",  # Уровень логирования
+    encoding="utf-8",  # Кодировка
+    mode="w",  # Перезапись файла при каждом запуске
 )
 
 
@@ -45,7 +46,7 @@ def get_table_01_to_google():
         # for row in results:
         #     print(row)
     except mysql.connector.Error as e:
-        logging.info(f"Произошла ошибка при выполнении запроса к базе данных: {e}")
+        logger.error(f"Произошла ошибка при выполнении запроса к базе данных: {e}")
     finally:
         if "cnx" in locals() and cnx.is_connected():
             cursor.close()
@@ -103,10 +104,10 @@ def get_table_01_to_google():
             )
             break  # Если успешно, выходим из цикла
         except gspread.exceptions.APIError as e:
-            print(f"Произошла ошибка: {e}")
+            logger.error(f"Произошла ошибка: {e}")
             attempts += 1
             time.sleep(5)  # Ожидание перед следующей попыткой
             if attempts == max_attempts:
-                print("Не удалось обновить данные после нескольких попыток.")
+                logger.error("Не удалось обновить данные после нескольких попыток.")
     if os.path.exists(filename):
         os.remove(filename)
