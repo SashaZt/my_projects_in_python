@@ -41,6 +41,7 @@ def get_table_01_to_google():
         """
         )
         results = cursor.fetchall()
+        
         # Обработка результатов запроса здесь
         # Например, вывод результатов:
         # for row in results:

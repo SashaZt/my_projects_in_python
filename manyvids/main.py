@@ -61,17 +61,17 @@ def job():
     logger.info(
         f"[{currentTime}] Запуск задачи для месяца {month} и года {filterYear}."
     )
-    # get_asio()
-    # get_sql_data_day()
-    # insert_data_to_postgres()
-    # get_sql_payout_history()
-    # get_sql_chat()
+    get_asio()
+    get_sql_data_day()
+    insert_data_to_postgres()
+    get_sql_payout_history()
+    get_sql_chat()
     get_table_01_to_google()
-    # get_table_03_to_google()
-    # get_table_04_to_google()
-    # get_pending_to_google()
-    # unique_users_to_sql()
-    # delete_all_files()
+    get_table_03_to_google()
+    get_table_04_to_google()
+    get_pending_to_google()
+    unique_users_to_sql()
+    delete_all_files()
 
     logger.info(f"Все выполнено, ждем 30мин")
 
