@@ -1,6 +1,6 @@
 @echo off
+chcp 65001 >nul
 setlocal
-
 :: Определение текущей директории
 set "CURRENT_DIR=%~dp0"
 

@@ -589,5 +589,5 @@ if __name__ == "__main__":
     # asyncio.run(get_category())
     # asyncio.run(get_html())
     # asyncio.run(update_ads())
-    # asyncio.run(parsing_page())
+    asyncio.run(parsing_page())
     # asyncio.run(upload_data_to_google_sheets())

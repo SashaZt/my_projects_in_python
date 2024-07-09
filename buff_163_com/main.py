@@ -13,6 +13,8 @@ import asyncio
 import aiofiles
 import sys
 from playwright.async_api import async_playwright
+from natsort import natsorted
+import shutil
 
 
 # Настройка базовой конфигурации логирования
@@ -146,6 +148,7 @@ async def get_cookies():
             "username": proxy[2],
             "password": proxy[3],
         }
+        print(proxy_server)
         browser = await playwright.chromium.launch(headless=False, proxy=proxy_server)
         # browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
@@ -226,13 +229,7 @@ def proxy_generator(proxies):
 async def get_price():
 
     config = load_config_cookies()
-    # cookies_data = config["cookies"]
-    # headers = config["headers"]
     cny_usd = 0.1375
-    # filename_cookies = os.path.join(current_directory, "cookies.json")
-    # with open(filename_cookies, "r") as f:
-    #     cookies_data = json.load(f)
-
     # Преобразование куки в формат, подходящий для requests
     cookies = {
         cookie["name"]: cookie["value"]
@@ -310,18 +307,21 @@ async def get_price():
             proxy_auth = f"{proxy_server[2]}:{proxy_server[3]}@{proxy_server[0]}:{proxy_server[1]}"
 
             # Настройка прокси для HTTP и HTTPS
-            proxies = {
+            proxies_socks5 = {
                 "http": f"socks5://{proxy_auth}",
                 "https": f"socks5://{proxy_auth}",
             }
-
+            proxies_http = {
+                "http": f"http://{proxy_auth}",
+                "https": f"http://{proxy_auth}",
+            }
             # if check_proxy(proxies):
             response = requests.get(
                 "https://buff.163.com/api/market/goods/sell_order",
                 params=params,
                 cookies=cookies,
                 headers=headers,
-                proxies=proxies,
+                proxies=proxies_http,
             )
             if response.status_code == 200:
                 json_data = response.json()
@@ -343,7 +343,6 @@ async def get_price():
             #     print("Прокси-сервер недоступен. Пожалуйста, попробуйте другой прокси.")
 
             time.sleep(time_sleep)
-            print(time_sleep)
 
         # Обновление sell_min_price в data_list
         dl["sell_min_price"] = sell_min_price
@@ -379,55 +378,6 @@ def save_product_urls(product_urls):
         json.dump(product_urls, file, indent=4, ensure_ascii=False)
 
 
-# # Функция для извлечения product_id и product_float из пути
-# def extract_product_details(item):
-#     pattern = r".*\\(\d+)_([\d.]+)\.json"
-#     match = re.match(pattern, item)
-#     if match:
-#         product_id = match.group(1)
-#         product_float = match.group(2)
-#         return product_id, product_float
-#     else:
-#         return None, None
-
-
-# def parsing_products_price():
-#     cny_usd = 0.1375
-
-#     # Загрузка данных из output_sell_min_price.json
-#     with open("output_sell_min_price.json", "r", encoding="utf-8") as f:
-#         output_data = json.load(f)
-#     folder = os.path.join(price_path, "*.json")
-
-#     files_json = glob.glob(folder)
-
-#     for item in files_json:
-#         product_id, product_float = extract_product_details(item)
-
-#         if product_id is not None and product_float is not None:
-#             with open(item, "r", encoding="utf-8") as f:
-#                 json_data = json.load(f)
-#             datas_json = json_data["data"]["items"][0]
-#             price = float(datas_json["price"])
-#             price = round(price / cny_usd, 1)
-#             # Поиск и обновление данных в output_data
-#             for product in output_data:
-#                 if product["product_id"] == int(product_id):
-#                     product["float"] = f'{product["float"]} / {product_float}'
-#                     product["sell_min_price"] = f'{product["sell_min_price"]} / {price}'
-#                     # Удаление поля "url"
-#                     if "url" in product:
-#                         del product["url"]
-
-#     # Сохранение обновленных данных
-#     with open("output_sell_min_price_.json", "w", encoding="utf-8") as f:
-#         json.dump(output_data, f, indent=4, ensure_ascii=False)
-
-#     excel_file = "output_sell_min_price.xlsx"
-
-
-#     df = pd.DataFrame(output_data)
-#     df.to_excel(excel_file, index=False)
 def check_proxy(proxy):
     try:
         test_url = "http://httpbin.org/ip"
@@ -448,12 +398,12 @@ def check_proxy(proxy):
 def get_sell_min_price_path():
 
     data_config_01 = load_config_01()
-    print(data_config_01)
     params = data_config_01["params"][0]
     category_group = data_config_01["params"][0]["category_group"]
     total_pages = data_config_01["total_pages"][0]["pages"]
     time_sleep = int(data_config_01["pause"][0]["sleep"])
     config = load_config_cookies()
+    # Фильтрация куки по заданным именам
     cookies = {
         cookie["name"]: cookie["value"]
         for cookie in config
@@ -476,7 +426,6 @@ def get_sell_min_price_path():
         "Connection": "keep-alive",
         "DNT": "1",
         "Pragma": "no-cache",
-        "Referer": "https://buff.163.com/market/buy_order/to_create?game=csgo&category_group=knife&exterior=wearcategory2",
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
@@ -500,7 +449,11 @@ def get_sell_min_price_path():
             f"{proxy_server[2]}:{proxy_server[3]}@{proxy_server[0]}:{proxy_server[1]}"
         )
 
-        proxies = {"http": f"socks5://{proxy_auth}", "https": f"socks5://{proxy_auth}"}
+        proxies_socks5 = {
+            "http": f"socks5://{proxy_auth}",
+            "https": f"socks5://{proxy_auth}",
+        }
+        proxies_http = {"http": f"http://{proxy_auth}", "https": f"http://{proxy_auth}"}
         # if check_proxy(proxies):
         try:
             response = requests.get(
@@ -508,12 +461,12 @@ def get_sell_min_price_path():
                 params=params,
                 cookies=cookies,
                 headers=headers,
-                # proxies=proxies,
+                proxies=proxies_http,
                 verify=False,
             )
             category_group_path = os.path.join(sell_min_price_path, category_group)
             os.makedirs(category_group_path, exist_ok=True)
-            filename = os.path.join(category_group_path, f"{page_num}.json")
+            filename = os.path.join(category_group_path, f"0{page_num}.json")
             if response.status_code == 200:
                 json_data = response.json()
 
@@ -530,74 +483,22 @@ def get_sell_min_price_path():
         #     print("Прокси-сервер недоступен. Пожалуйста, попробуйте другой прокси.")
 
 
-# РАБОЧИЙ
-# def parsing_products_sell_min_price_path():
-#     slices = 2
-#     float_default = {
-#         "(Factory New)": 0.07,
-#         "(Minimal Wear)": 0.15,
-#         "(Field-Tested)": 0.38,
-#         "(Well-Worn)": 0.45,
-#         "(Battle-Scarred)": 1.00,
-#     }
-#     cny_usd = 0.1375
-#     folder = os.path.join(sell_min_price_path, "*.json")
-
-#     current_directory = os.getcwd()  # Получение текущей директории
-
-#     files_json = glob.glob(folder)
-#     all_datas = []
-#     for item in files_json:
-#         with open(item, "r", encoding="utf-8") as f:
-#             json_data = json.load(f)
-
-#         datas_json = json_data["data"]["items"]
-#         for data_json in datas_json:
-#             product_id = data_json["id"]
-#             sell_min_price = float(data_json["sell_min_price"])
-#             product_name = data_json["name"]
-#             sell_min_price = round(sell_min_price / cny_usd, 1)
-#             # Поиск состояния в названии продукта
-#             product_float = None
-#             for condition in float_default:
-#                 if condition in product_name:
-#                     product_float = float_default[condition]
-
-#             # Формирование URL с различными диапазонами min_paintwear и max_paintwear
-#             base_url = (
-#                 f"https://buff.163.com/goods/{product_id}?from=market#tab=selling"
-#             )
-#             all_urls_slice = []
-#             min_paintwear = 0.15
-#             max_paintwear = 0.18
-#             for slice in range(1, slices + 1):
-#                 all_urls_slice.append(
-#                     f"{base_url}&min_paintwear={min_paintwear}&max_paintwear={max_paintwear}&page_num=1"
-#                 )
-#                 min_paintwear = max_paintwear
-#                 max_paintwear = round(min_paintwear + 0.03, 2)
-
-#             url = ";".join(all_urls_slice)
-#             all_data = {
-#                 "product_id": product_id,
-#                 "product_name": product_name,
-#                 "float": product_float,
-#                 "sell_min_price": sell_min_price,
-#                 "url": url,
-#             }
-#             all_datas.append(all_data)
-
-#     filename = os.path.join(current_directory, "output_sell_min_price.json")
-#     with open(filename, "w", encoding="utf-8") as file:
-#         json.dump(all_datas, file, indent=4, ensure_ascii=False)
-
-# # Преобразование списка словарей в DataFrame
-# df = pd.DataFrame(all_datas)
+# Функция для получения даты создания папки
+def get_creation_time(path):
+    return os.path.getctime(path)
 
 
-# # Запись DataFrame в Excel
-# output_file = "output_sell_min_price.xlsx"
-# df.to_excel(output_file, index=False)
+def delete_all_in_directory():
+    """
+    Удаляет все подкаталоги и файлы в указанной папке без подтверждения.
+    """
+    for root, dirs, files in os.walk(sell_min_price_path):
+        for name in files:
+            file_path = os.path.join(root, name)
+            os.remove(file_path)
+        for name in dirs:
+            dir_path = os.path.join(root, name)
+            shutil.rmtree(dir_path)
 
 
 # Функция формирование ексель файла
@@ -615,7 +516,10 @@ def parsing_products_sell_min_price_path():
     else:
         # Если файла нет, выводим сообщение
         print(f"Файл {file_path} не найден.")
-        df_start = None
+        df_start = pd.DataFrame(
+            columns=["product_id", "product_name", "float", "sell_min_price"]
+        )
+        df_start.set_index("product_id", inplace=True)
 
     float_default = {
         "(Factory New)": 0.07,
@@ -626,46 +530,78 @@ def parsing_products_sell_min_price_path():
     }
     cny_usd = 0.1375
 
+    # Список для хранения всех найденных JSON файлов
     all_json_files = []
-    # Проход по всем подкаталогам
-    for root, dirs, files in os.walk(sell_min_price_path):
-        # Использование glob для поиска всех JSON файлов в текущем каталоге
-        json_files = glob.glob(os.path.join(root, "*.json"))
-        all_json_files.extend(json_files)
+
+    # Получаем список всех подкаталогов
+    subdirs = [
+        os.path.join(sell_min_price_path, d)
+        for d in os.listdir(sell_min_price_path)
+        if os.path.isdir(os.path.join(sell_min_price_path, d))
+    ]
+
+    # Сортируем подкаталоги по дате создания
+    subdirs.sort(key=get_creation_time)
+
     all_datas = []
-    # Вывод всех найденных JSON файлов
-    for json_file in all_json_files:
-        with open(json_file, "r", encoding="utf-8") as f:
-            json_data = json.load(f)
 
-        try:
-            datas_json = json_data["data"]["items"]
-        except:
-            datas_json = json_data["error"]
-            print(datas_json)
-        for data_json in datas_json:
-            product_id = data_json["id"]
-            sell_min_price = float(data_json["sell_min_price"])
-            product_name = data_json["name"]
-            sell_min_price = round(sell_min_price * cny_usd, 1)
-            # Поиск состояния в названии продукта
-            product_float = None
-            for condition in float_default:
-                if condition in product_name:
-                    product_float = float_default[condition]
+    # Проход по всем подкаталогам в порядке их создания
+    for subdir in subdirs:
+        logging.info(subdir)
+        # Использование glob для поиска всех JSON файлов в текущем каталоге
+        json_files = glob.glob(os.path.join(subdir, "*.json"))
+        json_files = natsorted(json_files)
 
-            # Формирование URL с различными диапазонами min_paintwear и max_paintwear
-            all_data = {
-                "product_id": product_id,
-                "product_name": product_name,
-                "float": product_float,
-                "sell_min_price": sell_min_price,
-            }
-            all_datas.append(all_data)
-    current_directory = os.getcwd()
-    filename = os.path.join(current_directory, "output_sell_min_price.json")
-    with open(filename, "w", encoding="utf-8") as file:
-        json.dump(all_datas, file, indent=4, ensure_ascii=False)
+        # Обработка всех найденных JSON файлов
+        for json_file in json_files:
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    json_data = json.load(f)
+                logging.info(f"Processing file: {json_file}")
+
+                datas_json = json_data.get("data", {}).get("items", [])
+                if not datas_json:
+                    datas_json = json_data.get("error", [])
+                    print(f"Error in file {json_file}: {datas_json}")
+
+                for data_json in datas_json:
+                    product_id = data_json["id"]
+                    sell_min_price = float(data_json["sell_min_price"])
+                    product_name = data_json["name"]
+                    sell_min_price = round(sell_min_price * cny_usd, 1)
+
+                    # Поиск состояния в названии продукта
+                    product_float = None
+                    for condition in float_default:
+                        if condition in product_name:
+                            product_float = float_default[condition]
+                            break  # Выход из цикла, если состояние найдено
+
+                    # Формирование данных для записи
+                    if product_id in df_start.index:
+                        existing_sell_min_price = df_start.loc[
+                            product_id, "sell_min_price"
+                        ]
+                        parts = existing_sell_min_price.split("/", 1)
+                        new_sell_min_price = (
+                            f"{sell_min_price}/{parts[1]}"
+                            if len(parts) > 1
+                            else str(sell_min_price)
+                        )
+                    else:
+                        new_sell_min_price = str(sell_min_price)
+                    all_data = {
+                        "product_id": product_id,
+                        "product_name": product_name,
+                        "float": product_float,
+                        "sell_min_price": new_sell_min_price,
+                    }
+                    all_datas.append(all_data)
+
+            except json.JSONDecodeError as e:
+                logging.info(f"JSONDecodeError in file {json_file}: {e}")
+            except Exception as e:
+                logging.info(f"Error processing file {json_file}: {e}")
 
     # Преобразование списка словарей в DataFrame
     df_finish = pd.DataFrame(all_datas)
@@ -673,14 +609,32 @@ def parsing_products_sell_min_price_path():
     # Установка 'product_id' в качестве индекса для df_finish
     df_finish.set_index("product_id", inplace=True)
 
-    if df_start is None:
-        # Если df_start не существует, просто сохраняем df_finish в файл
+    if df_start.empty:
+        # Если df_start пустой, просто сохраняем df_finish в файл
         df_finish.reset_index(inplace=True)
         df_finish.to_excel(file_path, index=False)
     else:
         # Обновление df_start данными из df_finish по product_id и добавление новых данных
         for product_id in df_finish.index:
-            df_start.loc[product_id] = df_finish.loc[product_id]
+            if product_id in df_start.index:
+                existing_sell_min_price = df_start.loc[product_id, "sell_min_price"]
+                parts = existing_sell_min_price.split("/", 1)
+                # Заменяем только первую часть строки
+                new_sell_min_price = (
+                    f"{df_finish.at[product_id, 'sell_min_price']}"
+                    if len(parts) > 1
+                    else str(df_finish.at[product_id, "sell_min_price"])
+                )
+                logging.info(
+                    f"{product_id}, {existing_sell_min_price}, {new_sell_min_price}"
+                )
+                df_start.at[product_id, "sell_min_price"] = new_sell_min_price
+                df_start.at[product_id, "product_name"] = df_finish.at[
+                    product_id, "product_name"
+                ]
+                df_start.at[product_id, "float"] = df_finish.at[product_id, "float"]
+            else:
+                df_start.loc[product_id] = df_finish.loc[product_id]
 
         # Сброс индекса для df_start (если необходимо)
         df_start.reset_index(inplace=True)
@@ -696,7 +650,7 @@ while True:
         "\nВведите 2 для запуска первого скрипта"
         "\nВведите 3 для запуска формирования xlsx файла"
         "\nВведите 4 для запуска второго скрипта"
-        # "\nВведите 0 для закрытия программы"
+        "\nВведите 5 удалить временные файлы"
     )
     user_input = int(input("Выберите действие: "))
     if user_input == 1:
@@ -707,3 +661,5 @@ while True:
         parsing_products_sell_min_price_path()
     elif user_input == 4:
         asyncio.run(get_price())
+    elif user_input == 5:
+        delete_all_in_directory()
