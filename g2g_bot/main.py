@@ -13,8 +13,8 @@ import random
 from loguru import logger
 from datetime import datetime, timedelta
 import csv
-from playwright.async_api import async_playwright
-import asyncio
+import threading
+from functions.authorization import start_file_check
 
 
 # Создание временных папок
@@ -30,7 +30,7 @@ os.makedirs(json_list, exist_ok=True)
 
 logger.add(
     "info.log",
-    format="{time:YYYY-MM-DD HH:mm:ss} - {name} - {level} - {message}",  # Формат сообщения
+    format="{time:YYYY-MM-DD HH:mm:ss} - {level} - {message}",  # Формат сообщения
     level="DEBUG",  # Уровень логирования
     encoding="utf-8",  # Кодировка
     mode="w",  # Перезапись файла при каждом запуске
@@ -45,10 +45,22 @@ def get_config():
         config_data = json.load(file)
 
     # Получение данных из загруженного JSON
-    authorization = config_data["headers"]["authorization"]
     price_range_from = config_data["price_range"]["price_range_from"]
     price_range_to = config_data["price_range"]["price_range_to"]
-    return authorization, price_range_from, price_range_to
+    return price_range_from, price_range_to
+
+
+# Загрузка конфига
+def get_authorization():
+    start_file_check()
+    # Загрузка данных из файла authorization.json
+    destination_file_path = os.path.join(os.getcwd(), "authorization.json")
+    with open(destination_file_path, "r") as file:
+        config_data = json.load(file)
+
+    # Получение данных из загруженного JSON
+    authorization = config_data["Authorization"]
+    return authorization
 
 
 # Получение списка offer_id
@@ -64,32 +76,30 @@ def get_offer_id():
 
 # Получение товаров
 def get_product(list_offer_id):
-    authorization, price_range_from, price_range_to = get_config()
-    # list_offer_id = get_offer_id()
-    # list_offer_id = ["G1712365749453ZN", "G1711459979838ZA"]
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "accept-language": "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
-        "authorization": authorization,
-        "origin": "https://www.g2g.com",
-        "priority": "u=1, i",
-        "referer": "https://www.g2g.com/",
-        "sec-ch-ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
-    }
-
-    params = {
-        "currency": "USD",
-        "country": "UA",
-        "include_out_of_stock": "1",
-        "include_inactive": "1",
-    }
     for offer_id in list_offer_id:
+        authorization = get_authorization()
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+            "authorization": authorization,
+            "origin": "https://www.g2g.com",
+            "priority": "u=1, i",
+            "referer": "https://www.g2g.com/",
+            "sec-ch-ua": '"Not/A)Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        }
+
+        params = {
+            "currency": "USD",
+            "country": "UA",
+            "include_out_of_stock": "1",
+            "include_inactive": "1",
+        }
         url = "https://sls.g2g.com/offer/"
         filename_to_check = os.path.join(json_product, f"{offer_id}_params.json")
         data_json = None
@@ -98,17 +108,17 @@ def get_product(list_offer_id):
         data_json = None
 
         # Проверка наличия файла
-        if not os.path.exists(filename_to_check):
-            response = requests.get(f"{url}{offer_id}", params=params, headers=headers)
-            data_json = response.json()
-            filename_all_data, filename_params = receiving_data(data_json)
-            # time.sleep(1)
-        else:
-            filename_params = filename_to_check
+        # if not os.path.exists(filename_to_check):
+        response = requests.get(f"{url}{offer_id}", params=params, headers=headers)
+        data_json = response.json()
+        filename_all_data, filename_params = receiving_data(data_json)
+        # time.sleep(1)
+        # else:
+        #     filename_params = filename_to_check
 
         # Выполняем оставшиеся функции в любом случае
         filename_list = get_list_product(filename_params)
-        price_study(filename_list)
+        price_study(filename_list, authorization)
 
 
 # Парсинг json продуктов
@@ -155,12 +165,12 @@ def receiving_data(data):
 
 # Получение списка конкурентов
 def get_list_product(filename_params):
-    authorization, price_range_from, price_range_to = get_config()
+    # authorization = get_authorization()
 
     headers = {
         "accept": "application/json, text/plain, */*",
         "accept-language": "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
-        "authorization": authorization,
+        # "authorization": authorization,
         "origin": "https://www.g2g.com",
         "priority": "u=1, i",
         "referer": "https://www.g2g.com/",
@@ -200,21 +210,41 @@ def get_list_product(filename_params):
 
 # Случайная цена
 def get_random_price_range():
-    authorization, price_range_from, price_range_to = get_config()
-    # price_range_from = 0.005
-    # price_range_to = 0.001
+    price_range_from, price_range_to = get_config()
     price_rang = random.uniform(price_range_to, price_range_from)
-    price_rang = round(price_rang, 3)
+    price_rang = round(price_rang, 6)
     return price_rang
 
 
 # Проверка цены конкурентов
-def price_study(filename_list):
+def price_study(filename_list, authorization):
     filename = filename_list.split("\\")[-1]  # Получаем последнюю часть пути
     identifier = filename.split("_")[0]  # Разделяем по '_' и берем первую часть
     with open(filename_list, encoding="utf-8") as f:
         data = json.load(f)
-    json_data = data["payload"]["results"][0]
+
+    try:
+        with open(filename_list, encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Используем метод get с указанием значений по умолчанию
+        payload = data.get("payload", {})
+        results = payload.get("results", [])
+
+        if results:
+            json_data = results[0]
+        else:
+            json_data = None
+
+    except FileNotFoundError:
+        logger.info(f"Файл {filename_list} не найден.")
+        json_data = None
+    except json.JSONDecodeError:
+        logger.info("Ошибка декодирования JSON.")
+        json_data = None
+    except Exception as e:
+        logger.info(f"Произошла ошибка: {e}")
+        json_data = None
     username = json_data["username"]
     title = json_data["title"]
     if username != "Allbestfory":
@@ -222,16 +252,16 @@ def price_study(filename_list):
 
         price_rang = get_random_price_range()
         new_price = unit_price - price_rang
-        new_price = round(new_price, 3)
+        new_price = round(new_price, 6)
         logger.info(f"Цена {unit_price} конкурента {username}на товар {title}")
-        price_change_request(identifier, new_price)
+        price_change_request(identifier, new_price, authorization)
     else:
         logger.info(f"Allbestfory первый в списке товара {identifier}")
 
 
 # Изменение цены
-def price_change_request(identifier, new_price):
-    authorization, price_range_from, price_range_to = get_config()
+def price_change_request(identifier, new_price, authorization):
+    # authorization = get_authorization()
     headers = {
         "accept": "application/json, text/plain, */*",
         "accept-language": "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -255,85 +285,11 @@ def price_change_request(identifier, new_price):
     if response.status_code == 200:
 
         logger.info(f"Установили новую цену {new_price} на товар {identifier}")
-        # time.sleep(30)
     else:
         now = datetime.now()
         logger.critical(f"Проверь товар {identifier}")
         logger.critical(f"{response.status_code}  в {formatted_datetime}")
         logger.critical("ОБНОВИ authorization !!!!!")
-
-
-async def main_get_cookies():
-    url = "https://www.g2g.com/login"
-    timeout_selector = 10000
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
-        context = await browser.new_context()
-        page = await context.new_page()
-        # Отключение загрузки изображений
-        await context.route(
-            "**/*",
-            lambda route, request: (
-                route.continue_() if request.resource_type != "image" else route.abort()
-            ),
-        )
-
-        # Логирование сетевых событий
-        page.on("request", lambda request: print(f"Запрос: {request.url}"))
-        page.on(
-            "response",
-            lambda response: print(f"Ответ: {response.url} - {response.status}"),
-        )
-
-        # Устанавливаем обработчик для сбора и сохранения данных ответов
-        def create_log_response_with_counter():
-            async def log_response(response):
-                api_url = "ttps://sls.g2g.com/offer/search_result_count"
-                request = response.request
-                print(request)
-                if (
-                    request.method == "GET" and api_url in request.url
-                ):  # Подставьте актуальное условие URL
-                    try:
-                        json_response = await response.json()
-                        # await save_response_json(json_response, url_name)
-
-                    except Exception as e:
-                        print(
-                            f"Ошибка при получении JSON из ответа {response.url}: {e}"
-                        )
-
-            return log_response
-
-        await page.goto(url)  # Замените URL на актуальный
-        await asyncio.sleep(1)
-        # Ввод данных в поле username
-        await page.fill("input[data-attr='username-input']", "palpatin031@gmail.com")
-
-        # Ввод данных в поле password
-        await page.fill("input[type='password']", "Gaetepke29)1")
-
-        # Нажатие на кнопку Login
-        login_button = page.locator(
-            "span.q-btn__content.text-center.col.items-center.q-anchor--skip.justify-center.row:has-text('Login')"
-        )
-        await login_button.click()
-        await asyncio.sleep(45)
-        # Сохранение куки
-        await save_cookies(context, "cookies.json")
-        # Итерация по страницам
-        handler = create_log_response_with_counter()
-        page.on("response", handler)
-        await asyncio.sleep(1)
-        await browser.close()
-
-
-# if __name__ == "__main__":
-#     asyncio.run(main())
-#     get_offer_id()
-#     get_product()
-#     get_list_product()
-#     price_study()
 
 
 if __name__ == "__main__":
