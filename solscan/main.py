@@ -19,14 +19,12 @@ os.makedirs(json_path, exist_ok=True)
 def get_jsons():
 
     cookies = {
-        "cf_clearance": "b8n0m3wfRg8.Grp8P8sFMNluKkMDUuh3pjCdzV_gL9Y-1720417336-1.0.1.1-FR8708pseb97.uQG.E.Lzs4y3BmzGOOA4A4qSye9DEQ4tk0KuMThiJO.ft3XFGGp6we0rMSjryo_g8x3g5GQMw",
+        "cf_clearance": "aLnB.AOkSeez21DWlIW7KyJV1zUS.RrpaFjqNTfoBM0-1720533465-1.0.1.1-_KvQdOv0B3D0nVafkDuNG.uGNzttGv22IPMu9ihqqLCJT2FCJC8ep3aLETAdA1Kq5AS1am2AN3nQUlxDc2_YxQ",
     }
 
     headers = {
         "accept": "application/json, text/plain, */*",
         "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-        # 'cookie': 'cf_clearance=b8n0m3wfRg8.Grp8P8sFMNluKkMDUuh3pjCdzV_gL9Y-1720417336-1.0.1.1-FR8708pseb97.uQG.E.Lzs4y3BmzGOOA4A4qSye9DEQ4tk0KuMThiJO.ft3XFGGp6we0rMSjryo_g8x3g5GQMw',
-        "dnt": "1",
         "origin": "https://solscan.io",
         "priority": "u=1, i",
         "referer": "https://solscan.io/",
@@ -36,17 +34,16 @@ def get_jsons():
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-site",
-        "sol-aut": "B9dls0fKBm=1x0mByg7gjF9RY2NFKh6SA=miZ=R7",
+        "sol-aut": "TdUBfj4Nn=mxGEiB9dls0fKJuLxsZE5CWl5XJwY5",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
     }
-    for page in range(1, 101):
+    for page in range(1, 13):
         params = {
-            "address": "urJq11QoCV4Zk4ivxaKXeJAfvHBHqDhYfJMm4yZLUUS",
+            "address": "878ki1YAVGTW5HM4qLog9PCGM5dogGdVVkTwAkm83xRe",
             "page": page,
             "page_size": "100",
             "remove_spam": "false",
             "exclude_amount_zero": "false",
-            "token": "So11111111111111111111111111111111111111111",
         }
 
         response = requests.get(
@@ -82,6 +79,7 @@ def parsing_json():
                         "from_address": record.get("from_address", ""),
                         "token_address": record.get("token_address", ""),
                         "token_decimals": record.get("token_decimals", ""),
+                        "flow": record.get("flow", ""),
                         "amount": str(
                             record.get("amount", "")
                         ),  # Преобразование amount в строку
@@ -100,5 +98,5 @@ def parsing_json():
 
 
 if __name__ == "__main__":
-    # get_jsons()
+    get_jsons()
     parsing_json()
