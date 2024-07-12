@@ -5,7 +5,6 @@ import time
 from loguru import logger
 from functions.get_asio import get_asio
 from functions.get_sql_data_day import get_sql_data_day
-from functions.manyvids_zcnx import insert_data_to_postgres
 from functions.get_sql_payout_history import get_sql_payout_history
 from functions.get_sql_chat import get_sql_chat
 from functions.get_table_01_to_google import get_table_01_to_google
@@ -15,6 +14,7 @@ from functions.get_pending_to_google import get_pending_to_google
 from functions.unique_users_to_sql import unique_users_to_sql
 from functions.delete_all_files import delete_all_files
 from functions.directories import create_temp_directories
+from functions.data_exchange import main_exchange
 
 
 current_directory = os.getcwd()
@@ -63,7 +63,6 @@ def job():
     )
     get_asio()
     get_sql_data_day()
-    insert_data_to_postgres()
     get_sql_payout_history()
     get_sql_chat()
     get_table_01_to_google()
@@ -72,6 +71,7 @@ def job():
     get_pending_to_google()
     unique_users_to_sql()
     delete_all_files()
+    main_exchange()
 
     logger.info(f"Все выполнено, ждем 30мин")
 

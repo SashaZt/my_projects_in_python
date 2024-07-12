@@ -262,7 +262,7 @@ def get_asio():
         data_login_pass = await login_pass()
         timeout_ancet = 100000
         async with aiohttp.ClientSession() as session:
-            for item in data_login_pass[:1]:
+            for item in data_login_pass:
                 successful_login = False
 
                 attempts = 0
