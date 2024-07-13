@@ -3,6 +3,8 @@ import psycopg2
 from loguru import logger
 from pg_config import postgres_config, use_table_transactions
 from config import db_config, use_table_daily_sales
+import schedule
+import time
 
 # Настройка логирования
 logger.add("data_transfer.log", format="{time} {level} {message}", level="DEBUG")
@@ -138,3 +140,12 @@ def main_exchange():
         logger.info("Подключения к базам данных закрыты")
     except Exception as e:
         logger.error(f"Ошибка при закрытии подключений к базам данных: {e}")
+
+
+main_exchange()
+
+schedule.every(30).minutes.do(main_exchange)
+
+while True:
+    schedule.run_pending()
+    time.sleep(1)

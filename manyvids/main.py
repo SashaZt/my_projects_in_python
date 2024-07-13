@@ -71,7 +71,7 @@ def job():
     get_pending_to_google()
     unique_users_to_sql()
     delete_all_files()
-    main_exchange()
+    # main_exchange()
 
     logger.info(f"Все выполнено, ждем 30мин")
 

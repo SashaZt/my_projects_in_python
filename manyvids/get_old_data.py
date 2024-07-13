@@ -304,5 +304,9 @@ if __name__ == "__main__":
     # month = input()
     # print("Введите год")
     # filterYear = input()
-    # get_requests(month, filterYear)
+    # months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    # filterYears = [2023, 2024]
+    # for month in months:
+    #     for filterYear in filterYears:
+    #         get_requests(month, filterYear)
     get_sql_data_day()

@@ -25,20 +25,22 @@ def delete_all_files():
     for path in all_path:
         # Проверяем, является ли путь директорией
         if os.path.isdir(path):
-            print(f"Удаление содержимого из директории: {path}")
+            # print(f"Удаление содержимого из директории: {path}")
             # Выводим содержимое директории перед удалением
             for root, dirs, files in os.walk(path):
                 for name in files:
-                    print(f"Файл для удаления: {os.path.join(root, name)}")
+                    pass
+                    # print(f"Файл для удаления: {os.path.join(root, name)}")
                 for name in dirs:
-                    print(f"Поддиректория для удаления: {os.path.join(root, name)}")
+                    # print(f"Поддиректория для удаления: {os.path.join(root, name)}")
+                    pass
 
             # Удаляем все содержимое директории
             shutil.rmtree(path)
             # Пересоздаем пустую директорию
             os.makedirs(path)
-            print(
-                f"Все файлы и директории в {path} были удалены и директория пересоздана."
-            )
-        else:
-            print(f"Директория не найдена: {path}")
+            # print(
+            #     f"Все файлы и директории в {path} были удалены и директория пересоздана."
+            # )
+        # else:
+        #     print(f"Директория не найдена: {path}")

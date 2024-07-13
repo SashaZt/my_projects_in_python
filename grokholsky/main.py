@@ -97,21 +97,23 @@ async def parsing_page():
             src = file.read()
 
         parser = HTMLParser(src)
-        # Пытаемся найти элемент по первому пути
-        title_element = parser.css_first('h1[itemprop="name"]')
-        title = title_element.text(strip=True) if title_element else None
-        price = None
-        # Если элемент не найден, пробуем второй путь
-        price_element = parser.css_first("span.b-prod-price__new-col2 span")
-        price = (
-            price_element.attributes.get("data-num-animate") if price_element else None
-        )
 
-        data = {
-            "title": title,
-            "price": price,
-        }
-        all_datas.append(data)
+        script_element = parser.css_first('script[type="application/ld+json"]')
+        if script_element:
+            try:
+                json_content = script_element.text(strip=True)
+                json_data = json.loads(json_content)
+                price = json_data["@graph"][6]["offers"]["price"]
+                title = json_data["@graph"][4]["itemListElement"][2]["item"]["name"]
+                data = {
+                    "title": title,
+                    "price": price,
+                }
+                all_datas.append(data)
+            # Пытаемся найти элемент по первому пути
+            except json.JSONDecodeError as e:
+                print(f"Ошибка при парсинге JSON в файле {item_html}: {e}")
+
     # Преобразование списка словарей в DataFrame
     df = pd.DataFrame(all_datas)
 
@@ -121,5 +123,5 @@ async def parsing_page():
 
 
 if __name__ == "__main__":
-    asyncio.run(get_html())
-    # asyncio.run(parsing_page())
+    # asyncio.run(get_html())
+    asyncio.run(parsing_page())

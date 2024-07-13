@@ -28,13 +28,18 @@ os.makedirs(temp_path, exist_ok=True)
 os.makedirs(json_product, exist_ok=True)
 os.makedirs(json_list, exist_ok=True)
 
+# Получение текущей рабочей директории
+log_directory = os.getcwd()
+log_file_path = os.path.join(log_directory, "info.log")
+
 logger.add(
-    "info.log",
-    format="{time:YYYY-MM-DD HH:mm:ss} - {level} - {message}",  # Формат сообщения
-    level="DEBUG",  # Уровень логирования
-    encoding="utf-8",  # Кодировка
-    mode="w",  # Перезапись файла при каждом запуске
+    log_file_path,
+    format="{time:YYYY-MM-DD HH:mm:ss} - {level} - {message}",
+    level="DEBUG",
+    encoding="utf-8",
 )
+
+logger.info("Логирование настроено и работает корректно.")
 
 
 # Загрузка конфига
@@ -112,6 +117,9 @@ def get_product(list_offer_id):
         response = requests.get(f"{url}{offer_id}", params=params, headers=headers)
         data_json = response.json()
         filename_all_data, filename_params = receiving_data(data_json)
+        if filename_params is None:
+            print(f"ПРОВЕРИТЬ {offer_id}!!!")
+            continue
         # time.sleep(1)
         # else:
         #     filename_params = filename_to_check
@@ -123,44 +131,51 @@ def get_product(list_offer_id):
 
 # Парсинг json продуктов
 def receiving_data(data):
-    json_data = data["payload"]
-    offer_id = json_data["offer_id"]
-    unit_price = json_data["unit_price"]
-    title = json_data["title"]
-    pattern = r"\*([^*]+)\*"
-    matches = re.findall(pattern, title)
-    q = matches[0]
-    service_id = json_data["service_id"]
-    brand_id = json_data["brand_id"]
-    seo_term = None
-    if brand_id == "lgc_game_29076":
-        seo_term = "wow-classic-item"
-    elif brand_id == "lgc_game_27816":
-        seo_term = "wow-classic-era-item"
-    region_id = json_data["region_id"]
-    filter_attr_row = json_data["offer_attributes"][1]
-    collection_id = filter_attr_row["collection_id"]
-    dataset_id = filter_attr_row["dataset_id"]
-    filter_attr = f"{collection_id}:{dataset_id}"
-    all_data = {
-        "offer_id": offer_id,
-        "unit_price": unit_price,
-    }
-    params = {
-        "seo_term": seo_term,
-        "region_id": region_id,
-        "q": q,
-        "filter_attr": filter_attr,
-    }
-    filename_all_data = os.path.join(json_product, f"{offer_id}_all_data.json")
-    with open(filename_all_data, "w", encoding="utf-8") as f:
-        json.dump(all_data, f, ensure_ascii=False, indent=4)
+    try:
+        json_data = data["payload"]
+        offer_id = json_data["offer_id"]
+        unit_price = json_data["unit_price"]
+        title = json_data["title"]
+        pattern = r"\*([^*]+)\*"
+        matches = re.findall(pattern, title)
+        q = matches[0]
+        service_id = json_data["service_id"]
+        brand_id = json_data["brand_id"]
+        seo_term = None
+        if brand_id == "lgc_game_29076":
+            seo_term = "wow-classic-item"
+        elif brand_id == "lgc_game_27816":
+            seo_term = "wow-classic-era-item"
+        region_id = json_data["region_id"]
+        filter_attr_row = json_data["offer_attributes"][1]
+        collection_id = filter_attr_row["collection_id"]
+        dataset_id = filter_attr_row["dataset_id"]
+        filter_attr = f"{collection_id}:{dataset_id}"
+        all_data = {
+            "offer_id": offer_id,
+            "unit_price": unit_price,
+        }
+        params = {
+            "seo_term": seo_term,
+            "region_id": region_id,
+            "q": q,
+            "filter_attr": filter_attr,
+        }
+        filename_all_data = os.path.join(json_product, f"{offer_id}_all_data.json")
+        with open(filename_all_data, "w", encoding="utf-8") as f:
+            json.dump(all_data, f, ensure_ascii=False, indent=4)
 
-    filename_params = os.path.join(json_product, f"{offer_id}_params.json")
-    with open(filename_params, "w", encoding="utf-8") as f:
-        json.dump(params, f, ensure_ascii=False, indent=4)
-    # logger.info(f"Сохранил данные товара {offer_id}")
-    return filename_all_data, filename_params
+        filename_params = os.path.join(json_product, f"{offer_id}_params.json")
+        with open(filename_params, "w", encoding="utf-8") as f:
+            json.dump(params, f, ensure_ascii=False, indent=4)
+        # logger.info(f"Сохранил данные товара {offer_id}")
+        return filename_all_data, filename_params
+    except KeyError as e:
+        logger.critical(f"Проверь товар: отсутствует ключ {e}")
+        return None, None
+    except Exception as e:
+        logger.critical(f"Произошла ошибка: {e}")
+        return None, None
 
 
 # Получение списка конкурентов
@@ -249,6 +264,8 @@ def price_study(filename_list, authorization):
     title = json_data["title"]
     if username != "Allbestfory":
         unit_price = float(json_data["unit_price"])
+        if unit_price > 999:
+            unit_price = float(json_data["display_price"])
 
         price_rang = get_random_price_range()
         new_price = unit_price - price_rang

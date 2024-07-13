@@ -78,10 +78,10 @@ async def get_html():
     }
     # Устанавливаем ограничение на количество одновременно выполняемых задач
     sem = asyncio.Semaphore(10)  # Ограничение на 100 одновременно выполняемых задач
-    csv_file_path = "urls.csv"
+    csv_file_path = "hrefs.csv"
     # Чтение CSV файла
     urls_df = pd.read_csv(csv_file_path)
-    for count, url in enumerate(urls_df["url"], start=1):
+    for count, url in enumerate(urls_df["href"], start=1):
         proxy = proxies[count % proxy_count]
         tasks.append(fetch_url(url, proxy, headers, sem, count))
 
@@ -98,14 +98,12 @@ async def parsing_page():
 
         parser = HTMLParser(src)
         # Пытаемся найти элемент по первому пути
-        title_element = parser.css_first('h1[itemprop="name"]')
+        title_element = parser.css_first("div.top-product-info > h1")
         title = title_element.text(strip=True) if title_element else None
         price = None
         # Если элемент не найден, пробуем второй путь
-        price_element = parser.css_first("span.b-prod-price__new-col2 span")
-        price = (
-            price_element.attributes.get("data-num-animate") if price_element else None
-        )
+        price_element = parser.css_first("div.product-info__price-new > span")
+        price = price_element.text(strip=True) if price_element else None
 
         data = {
             "title": title,
@@ -121,5 +119,5 @@ async def parsing_page():
 
 
 if __name__ == "__main__":
-    asyncio.run(get_html())
-    # asyncio.run(parsing_page())
+    # asyncio.run(get_html())
+    asyncio.run(parsing_page())
