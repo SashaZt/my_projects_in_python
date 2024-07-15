@@ -54,6 +54,7 @@ Thumbs.db
 *.xml
 *.html
 *.ico
+*.session-journal
 # Здесь мы игнорируем все .txt файлы...
 *.txt
 # ...но затем добавляем исключение для requirements.txt
