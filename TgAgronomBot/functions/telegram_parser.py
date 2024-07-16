@@ -198,6 +198,11 @@ class TelegramParse:
                 async def handle_new_message(event):
                     message_text = event.message.message.lower().strip()
                     sender = await event.get_sender()
+
+                    if sender is None:
+                        logger.error("Sender is None, cannot process message.")
+                        return
+
                     sender_id = sender.id
                     sender_name = (
                         sender.username
@@ -247,9 +252,16 @@ class TelegramParse:
         print(parsed_result)
 
     async def save_message(self, message, sender_name, sender_id, sender_phone):
+        logger.info("Entering save_message function")
+        logger.info(
+            f"Received message: {message}, sender_name: {sender_name}, sender_id: {sender_id}, sender_phone: {sender_phone}"
+        )
+
         parsed_result = parse_message(
             message, self.product_keywords, self.region_keywords
         )
+        logger.info(f"Parsed result: {parsed_result}")
+
         message_record_template = {
             "sender_name": sender_name,
             "sender_id": sender_id,
@@ -270,6 +282,7 @@ class TelegramParse:
         logger.info(f"is_buy: {is_buy}, is_sell: {is_sell}, message: {message}")
 
         if is_buy:
+            logger.info("Detected 'buy' message")
             await self.save_to_db(
                 message, sender_name, sender_id, sender_phone, parsed_result, "buy"
             )
@@ -282,6 +295,7 @@ class TelegramParse:
                 "messages_buy.txt",
             )
         if is_sell:
+            logger.info("Detected 'sell' message")
             await self.save_to_db(
                 message, sender_name, sender_id, sender_phone, parsed_result, "sell"
             )
@@ -345,28 +359,32 @@ class TelegramParse:
     async def save_to_db(
         self, message, sender_name, sender_id, sender_phone, parsed_result, trade_type
     ):
+        logger.info("Entering save_to_db function")
+        logger.info(
+            f"Received data: message={message}, sender_name={sender_name}, sender_id={sender_id}, sender_phone={sender_phone}, parsed_result={parsed_result}, trade_type={trade_type}"
+        )
+
         query = """
         INSERT INTO corn.messages_tg (sender_name, sender_id, sender_phone, Phones, Raw_Materials, Regions, Messages, trade, data_time)
         VALUES (:sender_name, :sender_id, :sender_phone, :Phones, :Raw_Materials, :Regions, :Messages, :trade, NOW())
         """
-        for raw_material in parsed_result["Raw Materials"]:
-            for region in parsed_result["Regions"]:
-                values = {
-                    "sender_name": sender_name,
-                    "sender_id": sender_id,
-                    "sender_phone": sender_phone,
-                    "Phones": json.dumps(parsed_result["Phones"], ensure_ascii=False),
-                    "Raw_Materials": json.dumps([raw_material], ensure_ascii=False),
-                    "Regions": json.dumps([region], ensure_ascii=False),
-                    "Messages": json.dumps(
-                        parsed_result["Messages"], ensure_ascii=False
-                    ),
-                    "trade": trade_type,
-                }
-                try:
-                    logger.info(f"Saving to DB with values: {values}")
-                    await self.database.execute(query=query, values=values)
-                    logger.info("Successfully saved to DB")
-                except Exception as e:
-                    logger.error(f"Error saving to DB: {e}")
-                    logger.error(f"Failed values: {values}")
+        logger.info(f"Query: {query}")
+
+        values = {
+            "sender_name": sender_name,
+            "sender_id": sender_id,
+            "sender_phone": sender_phone,
+            "Phones": parsed_result["Phones"],
+            "Raw_Materials": parsed_result["Raw Materials"],
+            "Regions": parsed_result["Regions"],
+            "Messages": parsed_result["Messages"],
+            "trade": trade_type,
+        }
+
+        try:
+            logger.info(f"Preparing to save to DB with values: {values}")
+            result = await self.database.execute(query=query, values=values)
+            logger.info(f"Successfully saved to DB, result: {result}")
+        except Exception as e:
+            logger.error(f"Error saving to DB: {e}")
+            logger.error(f"Failed values: {values}")

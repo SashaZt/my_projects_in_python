@@ -13,18 +13,21 @@ def parse_message(message, product_keywords, region_keywords):
         "".join(re.findall(r"\+?\d+", phone))
         for phone in phone_pattern.findall(message)
     ]
+    phones = ", ".join(phones) if phones else None
 
     # Найти ключевые слова для сырья в сообщении
     raw_materials = []
     for material, keywords in product_keywords.items():
         if any(keyword.lower() in message.lower() for keyword in keywords):
             raw_materials.append(material)
+    raw_materials = ", ".join(raw_materials) if raw_materials else None
 
     # Найти ключевые слова для регионов в сообщении
     regions = []
     for region, keywords in region_keywords.items():
         if any(keyword.lower() in message.lower() for keyword in keywords):
             regions.append(region)
+    regions = ", ".join(regions) if regions else None
 
     # Объединение строк сообщений в полные сообщения
     log_data = message.split("\n")
@@ -53,6 +56,8 @@ def parse_message(message, product_keywords, region_keywords):
             r"\s+", " ", combined_message
         )  # Удаление всех переводов строки
         combined_messages.append(combined_message)
+
+    combined_messages = ", ".join(combined_messages) if combined_messages else None
 
     # Подготовка результатов
     results = {
