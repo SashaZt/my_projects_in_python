@@ -9,25 +9,12 @@ from config import api_id, api_hash, TOKEN
 from loguru import logger
 import os
 import json
-from databases import Database
-
-# Настройки базы данных
-db_type = "mysql"
-username = "python_mysql"
-password = "python_mysql"
-host = "45.137.155.18"  # или "localhost"
-port = "3306"
-db_name = "corn"
-database_url = f"{db_type}://{username}:{password}@{host}:{port}/{db_name}"
-
-# Инициализация базы данных
-database = Database(database_url)
+from config import database  # Импортируйте объект базы данных
 
 
 class TelegramParse:
     def __init__(
         self,
-        database_url,
         products_file,
         regions_file,
         chat_id,
@@ -40,7 +27,7 @@ class TelegramParse:
         keywords_regions_file="keywords_regions.json",
         check_interval=10,  # интервал проверки файла (в секундах)
     ):
-        self.database = databases.Database(database_url)
+        self.database = database
         self.products_file = products_file
         self.regions_file = regions_file
         self.groups_file = groups_file
