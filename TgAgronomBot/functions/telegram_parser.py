@@ -311,9 +311,22 @@ class TelegramParse:
     def save_to_file(
         self, message, sender_name, sender_id, sender_phone, parsed_result, filename
     ):
-        # Дублирование сообщений для каждого ключевого слова продукта и региона
-        for raw_material in parsed_result["Raw Materials"]:
-            for region in parsed_result["Regions"]:
+        raw_materials = (
+            parsed_result["Raw Materials"].split(", ")
+            if parsed_result["Raw Materials"]
+            else []
+        )
+        regions = (
+            parsed_result["Regions"].split(", ") if parsed_result["Regions"] else []
+        )
+
+        if not raw_materials:
+            raw_materials = ["Unknown"]
+        if not regions:
+            regions = ["Unknown"]
+
+        for raw_material in raw_materials:
+            for region in regions:
                 message_record = {
                     "sender_name": sender_name,
                     "sender_id": sender_id,
@@ -370,21 +383,33 @@ class TelegramParse:
         """
         logger.info(f"Query: {query}")
 
-        values = {
-            "sender_name": sender_name,
-            "sender_id": sender_id,
-            "sender_phone": sender_phone,
-            "Phones": parsed_result["Phones"],
-            "Raw_Materials": parsed_result["Raw Materials"],
-            "Regions": parsed_result["Regions"],
-            "Messages": parsed_result["Messages"],
-            "trade": trade_type,
-        }
+        raw_materials = (
+            parsed_result["Raw Materials"].split(", ")
+            if parsed_result["Raw Materials"]
+            else ["Unknown"]
+        )
+        regions = (
+            parsed_result["Regions"].split(", ")
+            if parsed_result["Regions"]
+            else ["Unknown"]
+        )
 
-        try:
-            logger.info(f"Preparing to save to DB with values: {values}")
-            result = await self.database.execute(query=query, values=values)
-            logger.info(f"Successfully saved to DB, result: {result}")
-        except Exception as e:
-            logger.error(f"Error saving to DB: {e}")
-            logger.error(f"Failed values: {values}")
+        for raw_material in raw_materials:
+            for region in regions:
+                values = {
+                    "sender_name": sender_name,
+                    "sender_id": sender_id,
+                    "sender_phone": sender_phone,
+                    "Phones": parsed_result["Phones"],
+                    "Raw_Materials": raw_material,
+                    "Regions": region,
+                    "Messages": parsed_result["Messages"],
+                    "trade": trade_type,
+                }
+                try:
+                    logger.info(f"Preparing to save to DB with values: {values}")
+                    result = await self.database.execute(query=query, values=values)
+                    logger.info(f"Successfully saved to DB, result: {result}")
+                except Exception as e:
+                    logger.error(f"Error saving to DB: {e}")
+                    logger.error(f"Failed values: {values}")
