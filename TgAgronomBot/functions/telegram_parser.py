@@ -10,11 +10,13 @@ from loguru import logger
 import os
 import json
 from config import database  # Импортируйте объект базы данных
+from databases import Database
 
 
 class TelegramParse:
     def __init__(
         self,
+        database_url,
         products_file,
         regions_file,
         chat_id,
@@ -27,7 +29,7 @@ class TelegramParse:
         keywords_regions_file="keywords_regions.json",
         check_interval=10,  # интервал проверки файла (в секундах)
     ):
-        self.database = database
+        self.database = Database(database_url)
         self.products_file = products_file
         self.regions_file = regions_file
         self.groups_file = groups_file
@@ -265,6 +267,8 @@ class TelegramParse:
         is_buy = any(keyword in message for keyword in self.keywords_buy)
         is_sell = any(keyword in message for keyword in self.keywords_sell)
 
+        logger.info(f"is_buy: {is_buy}, is_sell: {is_sell}, message: {message}")
+
         if is_buy:
             await self.save_to_db(
                 message, sender_name, sender_id, sender_phone, parsed_result, "buy"
@@ -310,6 +314,34 @@ class TelegramParse:
                 with open(filename, "a", encoding="utf-8") as file:
                     file.write(json.dumps(message_record, ensure_ascii=False) + "\n")
 
+    # async def save_to_db(
+    #     self, message, sender_name, sender_id, sender_phone, parsed_result, trade_type
+    # ):
+    #     query = """
+    #     INSERT INTO corn.messages_tg (sender_name, sender_id, sender_phone, Phones, Raw_Materials, Regions, Messages, trade, data_time)
+    #     VALUES (:sender_name, :sender_id, :sender_phone, :Phones, :Raw_Materials, :Regions, :Messages, :trade, NOW())
+    #     """
+    #     for raw_material in parsed_result["Raw Materials"]:
+    #         for region in parsed_result["Regions"]:
+    #             values = {
+    #                 "sender_name": sender_name,
+    #                 "sender_id": sender_id,
+    #                 "sender_phone": sender_phone,
+    #                 "Phones": json.dumps(parsed_result["Phones"], ensure_ascii=False),
+    #                 "Raw_Materials": json.dumps([raw_material], ensure_ascii=False),
+    #                 "Regions": json.dumps([region], ensure_ascii=False),
+    #                 "Messages": json.dumps(
+    #                     parsed_result["Messages"], ensure_ascii=False
+    #                 ),
+    #                 "trade": trade_type,
+    #             }
+    #             try:
+    #                 logger.info(f"Saving to DB with values: {values}")
+    #                 await self.database.execute(query=query, values=values)
+    #                 logger.info("Successfully saved to DB")
+    #             except Exception as e:
+    #                 logger.error(f"Error saving to DB: {e}")
+    #                 logger.error(f"Failed values: {values}")
     async def save_to_db(
         self, message, sender_name, sender_id, sender_phone, parsed_result, trade_type
     ):
@@ -331,4 +363,10 @@ class TelegramParse:
                     ),
                     "trade": trade_type,
                 }
-                await self.database.execute(query=query, values=values)
+                try:
+                    logger.info(f"Saving to DB with values: {values}")
+                    await self.database.execute(query=query, values=values)
+                    logger.info("Successfully saved to DB")
+                except Exception as e:
+                    logger.error(f"Error saving to DB: {e}")
+                    logger.error(f"Failed values: {values}")

@@ -2,6 +2,7 @@ import asyncio
 from functions.telegram_parser import TelegramParse
 from config import CHANNEL_USERNAME
 import functions.logger_setup  # Импорт настройки логирования, чтобы инициализировать логирование
+from config import database_url
 
 
 def main():
@@ -9,7 +10,7 @@ def main():
     regions_file = "regions.txt"
     chat_id = CHANNEL_USERNAME
 
-    parser = TelegramParse(products_file, regions_file, chat_id)
+    parser = TelegramParse(database_url, products_file, regions_file, chat_id)
 
     async def start_parser():
         await parser.start()
