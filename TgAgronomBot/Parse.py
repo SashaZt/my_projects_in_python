@@ -6,6 +6,9 @@ from config import api_id, api_hash, TOKEN, CHANNEL_USERNAME
 import asyncio
 import os
 from loguru import logger
+import re
+import os
+import pandas as pd
 
 current_directory = os.getcwd()
 temp_directory = "temp"
@@ -236,6 +239,51 @@ class TelegramParse:
         logger.info(
             f"Получено сообщение от {sender_name} (ID: {sender_id}, Телефон: {sender_phone}): {message}"
         )
+        parsed_result = parse_message(message)
+        print(parsed_result)
+
+
+def parse_message(message):
+    # Improved pattern for phone numbers
+    phone_pattern = re.compile(
+        r"\+?\d{1,3}?[-.\s]?\(?\d{2,3}\)?[-.\s]?\d{2,3}[-.\s]?\d{2,3}[-.\s]?\d{2,4}"
+    )
+    raw_materials_pattern = re.compile(
+        r"\b(?:сырье|raw materials|material)\b", re.IGNORECASE
+    )
+    region_pattern = re.compile(r"\b(?:region|регион)\s*\d+\b", re.IGNORECASE)
+
+    # Extracting data
+    phones = phone_pattern.findall(message)
+    raw_materials = raw_materials_pattern.findall(message)
+    regions = region_pattern.findall(message)
+
+    # Combine message lines into complete messages
+    log_data = message.split("\n")
+    combined_messages = []
+    current_message = []
+    for line in log_data:
+        line = line.strip()
+        if not line:
+            continue
+        if re.match(r"\d{4}-\d{2}-\d{2}", line):
+            if current_message:
+                combined_messages.append(" ".join(current_message))
+            current_message = [line]
+        else:
+            current_message.append(line)
+    if current_message:
+        combined_messages.append(" ".join(current_message))
+
+    # Prepare results
+    results = {
+        "Phones": phones,
+        "Raw Materials": raw_materials,
+        "Regions": regions,
+        "Messages": combined_messages,
+    }
+
+    return results
 
 
 # Пример использования класса
