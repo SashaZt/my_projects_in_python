@@ -7,7 +7,8 @@ from config import TOKEN, CHANNEL_USERNAME, ADMIN_IDS, MODERATION_GROUP_ID
 from loguru import logger
 import os
 import asyncio
-from Parse import TelegramParse
+
+# from Parse import TelegramParse
 
 bot = telebot.TeleBot(TOKEN)
 db = Database()
@@ -519,9 +520,9 @@ def handle_pagination(call):
 
 
 # Отправка сообщений с выбранными продуктами и регионами
-async def send_selected_messages(chat_id, products, regions):
-    parser = TelegramParse(products, regions, chat_id, False, True)
-    await parser.start()
+# async def send_selected_messages(chat_id, products, regions):
+#     parser = TelegramParse(products, regions, chat_id, False, True)
+#     await parser.start()
 
 
 # Проверка подписки на канал
