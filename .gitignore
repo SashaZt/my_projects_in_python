@@ -53,6 +53,7 @@ Thumbs.db
 *.jpg
 *.xml
 *.html
+*.mp4
 *.ico
 *.session-journal
 # Здесь мы игнорируем все .txt файлы...

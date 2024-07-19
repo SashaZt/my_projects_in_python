@@ -46,7 +46,6 @@ def get_traders():
     cursor = connection.cursor()
     cursor.execute(query)
     traders = cursor.fetchall()
-    logger.info(traders)
     cursor.close()
     connection.close()
     return traders
@@ -71,7 +70,8 @@ def get_new_messages(trader, check_time):
     messages = cursor.fetchall()
     cursor.close()
     connection.close()
-    logger.info(f"New messages for user {user_id}: {messages}")
+    if messages:
+        logger.info(f"New messages for user {user_id}: {messages}")
     return messages
 
 

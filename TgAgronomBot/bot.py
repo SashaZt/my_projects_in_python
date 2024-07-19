@@ -70,7 +70,7 @@ def start_markup():
 def trial_markup():
     markup = types.InlineKeyboardMarkup(row_width=True)
     register_button = types.InlineKeyboardButton(
-        text="Отримати пробний період на 2 дні 🕒", callback_data="register"
+        text="🚀Отримати 2 дні безкоштовно 🚀", callback_data="register"
     )
     markup.add(register_button)
 
@@ -168,6 +168,7 @@ def start(message):
     user_id = message.from_user.id
     chat_id = message.chat.id
 
+    # Проверка роли пользователя
     if user_id in ADMIN_IDS:
         bot.send_message(
             chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
@@ -185,11 +186,15 @@ def start(message):
             "regions": [],
             "state": "initial",
         }
-        bot.send_message(
-            chat_id,
-            "🌟 Спробуйте наш телеграм-бот на два дні безкоштовно! 🌟",
-            reply_markup=trial_markup(),
-        )
+        # Отправка видео с текстом
+        with open("video.mp4", "rb") as video:
+            bot.send_video(
+                chat_id,
+                video,
+                caption="🚀<b>ОТРИМАЙТЕ 2 ДНІ БЕЗКОШТОВНОГО ВИКОРИСТАННЯ</b>\n\n‼️Дивіться відео інструкцію‼️\n\n🌽Отримуйте прямі пропозиції на продаж зернових та інших культур без посередників. Щодня отримуйте свіжі заявки з контактами продавців🌻",
+                parse_mode="HTML",
+                reply_markup=trial_markup(),
+            )
     else:
         signup_time = db.get_signup_time(user_id)
         trial_duration = db.get_trial_duration(user_id)
@@ -224,8 +229,8 @@ def start(message):
 @bot.callback_query_handler(func=lambda call: call.data == "register")
 def callback_register(call):
     chat_id = call.message.chat.id
-    # Удаление текущего сообщения
-    bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+    # # Удаление текущего сообщения
+    # bot.delete_message(chat_id=chat_id, message_id=call.message.id)
     # Отправка сообщения о необходимости подписки
     bot.send_message(
         chat_id,
@@ -300,6 +305,7 @@ def activity_selection(call):
     bot.delete_message(chat_id=chat_id, message_id=call.message.id)
     role = "farmer" if call.data == "farmer" else "trader"
     user_data[chat_id]["role"] = role
+
     bot.send_message(
         chat_id,
         f"Ви вибрали: {'🌾 Я фермер, хочу продавати' if role == 'farmer' else '📈 Я трейдер, хочу купити'}",
@@ -486,7 +492,12 @@ def register_user(chat_id):
             else:
                 logger.error(f"Region ID not found for region: {region}")
 
-        bot.send_message(chat_id, "Ваша регистрация завершена! 🎉")
+        bot.send_message(
+            chat_id,
+            "🎉 Вашу пробну версію активовано!\n\nВи отримали 2 дні безкоштовного використання.\n\n <b>Як тільки з'являться пропозиції на ринку, ви одразу їх отримаєте</b>🚀",
+            parse_mode="HTML",
+        )
+
     else:
         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
         bot.send_message(
