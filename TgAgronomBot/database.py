@@ -56,6 +56,12 @@ class Database:
                 material_name VARCHAR(255)
             );"""
         )
+        cursor.execute(
+            """CREATE TABLE IF NOT EXISTS last_check (
+                    user_id BIGINT PRIMARY KEY,
+                    last_check_time TIMESTAMP
+            );"""
+        )
 
         cursor.execute(
             """CREATE TABLE IF NOT EXISTS regions (

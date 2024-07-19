@@ -204,15 +204,20 @@ def start(message):
             if trial_duration is None:
                 trial_duration = 0
 
-            if current_time < signup_time + timedelta(seconds=trial_duration):
-                trial_days = trial_duration // (24 * 60 * 60)
+            # Вычисление оставшегося времени тестового периода
+            trial_end_time = signup_time + timedelta(seconds=trial_duration)
+            remaining_time = trial_end_time - current_time
+
+            if remaining_time.total_seconds() > 0:
+                trial_days = remaining_time.days
+                trial_hours = remaining_time.seconds // 3600
                 bot.send_message(
                     chat_id,
-                    f"Ви вже підписані і ваш тестовий період активний {trial_days} днів.\n Виберіть свою діяльність:",
-                    reply_markup=activity_markup(),
+                    f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
                 )
+                return  # Завершение выполнения обработчика, чтобы не отправлять другие сообщения
             else:
-                bot.send_message(chat_id, "Ваша підписка завершилась!")
+                bot.send_message(chat_id, "Ваш тестовий період завершився!")
 
 
 # Обработчик нажатия кнопки "register" для получения пробного периода
@@ -304,48 +309,48 @@ def activity_selection(call):
         bot.send_photo(chat_id, photo, reply_markup=product_buttons)
 
 
-# Функция для запроса продукта у пользователя
-def ask_product(chat_id):
-    msg = bot.send_message(
-        chat_id, "Що продаєте? (наприклад, пшениця, ячмінь, горох і т.д.) 🌾"
-    )
-    bot.register_next_step_handler(msg, process_product)
+# # Функция для запроса продукта у пользователя
+# def ask_product(chat_id):
+#     msg = bot.send_message(
+#         chat_id, "Що продаєте? (наприклад, пшениця, ячмінь, горох і т.д.) 🌾"
+#     )
+#     bot.register_next_step_handler(msg, process_product)
 
 
-# Обработка введенного продукта
-def process_product(message):
-    chat_id = message.chat.id
-    product = message.text
-    user_data[chat_id]["product"] = product
-    ask_region(chat_id)
+# # Обработка введенного продукта
+# def process_product(message):
+#     chat_id = message.chat.id
+#     product = message.text
+#     user_data[chat_id]["product"] = product
+#     ask_region(chat_id)
 
 
-# Функция для запроса региона у пользователя
-def ask_region(chat_id):
-    msg = bot.send_message(chat_id, "Де знаходиться склад? (вкажіть регіон) 🌍")
-    bot.register_next_step_handler(msg, process_region)
+# # Функция для запроса региона у пользователя
+# def ask_region(chat_id):
+#     msg = bot.send_message(chat_id, "Де знаходиться склад? (вкажіть регіон) 🌍")
+#     bot.register_next_step_handler(msg, process_region)
 
 
-# Обработка введенного региона
-def process_region(message):
-    chat_id = message.chat.id
-    region = message.text
-    user_data[chat_id]["region"] = region
-    ask_contact(chat_id)
+# # Обработка введенного региона
+# def process_region(message):
+#     chat_id = message.chat.id
+#     region = message.text
+#     user_data[chat_id]["region"] = region
+#     ask_contact(chat_id)
 
 
-# Функция для запроса контакта у пользователя
-def ask_contact(chat_id):
-    msg = bot.send_message(chat_id, "Вкажіть номер телефону для зв'язку 📞")
-    bot.register_next_step_handler(msg, process_contact)
+# # Функция для запроса контакта у пользователя
+# def ask_contact(chat_id):
+#     msg = bot.send_message(chat_id, "Вкажіть номер телефону для зв'язку 📞")
+#     bot.register_next_step_handler(msg, process_contact)
 
 
-# Обработка введенного контакта
-def process_contact(message):
-    chat_id = message.chat.id
-    contact = message.text
-    user_data[chat_id]["contact"] = contact
-    send_application_to_moderation(chat_id)
+# # Обработка введенного контакта
+# def process_contact(message):
+#     chat_id = message.chat.id
+#     contact = message.text
+#     user_data[chat_id]["contact"] = contact
+#     send_application_to_moderation(chat_id)
 
 
 # Отправка заявки на модерацию
@@ -616,7 +621,7 @@ def handle_pagination(call):
 #     await parser.start()
 
 
-# # Проверка подписки на канал
+# Проверка подписки на канал
 # def is_subscribed(user_id):
 #     """
 #     Проверяет, подписан ли пользователь на канал.
