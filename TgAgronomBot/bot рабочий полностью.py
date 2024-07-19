@@ -15,10 +15,10 @@ db = Database()
 db.initialize_db()
 USERS_PER_PAGE = 10
 user_data = {}
+
 # Определение продуктов и регионов
 products = [
-    # ("Пшениця (2,3,4кл)", "product_wheat234"),
-    ("Пшениця", "product_wheat"),
+    ("Пшениця (2,3,4кл)", "product_wheat234"),
     ("Соняшник", "product_sunflower"),
     ("Соя", "product_soy"),
     ("Ріпак", "product_rapeseed"),
@@ -172,24 +172,14 @@ def start(message):
         bot.send_message(
             chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
         )
+
     elif not db.user_exists(user_id):
-        nickname = message.from_user.username
-        signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        trial_duration = 172800  # 48 часов в секундах
-        user_data[chat_id] = {
-            "nickname": nickname,
-            "signup_time": signup_time,
-            "trial_duration": trial_duration,
-            "role": None,
-            "products": [],
-            "regions": [],
-            "state": "initial",
-        }
         bot.send_message(
             chat_id,
             "🌟 Спробуйте наш телеграм-бот на два дні безкоштовно! 🌟",
             reply_markup=trial_markup(),
         )
+
     else:
         signup_time = db.get_signup_time(user_id)
         trial_duration = db.get_trial_duration(user_id)
@@ -199,10 +189,6 @@ def start(message):
             # Убедитесь, что signup_time является объектом datetime
             if isinstance(signup_time, str):
                 signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
-
-            # Проверка на None и задание значения по умолчанию
-            if trial_duration is None:
-                trial_duration = 0
 
             if current_time < signup_time + timedelta(seconds=trial_duration):
                 trial_days = trial_duration // (24 * 60 * 60)
@@ -234,22 +220,14 @@ def callback_register(call):
 def callback_check_subscription(call):
     user_id = call.from_user.id
     chat_id = call.message.chat.id
-    nickname = call.from_user.username  # Получение ника пользователя
-
     # Удаление текущего сообщения
     bot.delete_message(chat_id=chat_id, message_id=call.message.id)
 
     if is_subscribed(user_id):
         if not db.user_exists(user_id):
+            nickname = call.from_user.username
             signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            user_data[chat_id] = {
-                "nickname": nickname,
-                "signup_time": signup_time,
-                "role": None,
-                "products": [],
-                "regions": [],
-                "state": "initial",
-            }
+            db.add_user(user_id, nickname, signup_time)
             bot.answer_callback_query(call.id, "Ваша підписка розпочалась! 🎉")
             bot.send_message(
                 chat_id,
@@ -292,16 +270,30 @@ def activity_selection(call):
     chat_id = call.message.chat.id
     current_directory = os.getcwd()
     photo_path = os.path.join(current_directory, "img/crops.png")
-    bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-    role = "farmer" if call.data == "farmer" else "trader"
-    user_data[chat_id]["role"] = role
-    bot.send_message(
-        chat_id,
-        f"Ви вибрали: {'🌾 Я фермер, хочу продавати' if role == 'farmer' else '📈 Я трейдер, хочу купити'}",
-    )
-    product_buttons = product_markup(user_data[chat_id]["products"])
-    with open(photo_path, "rb") as photo:
-        bot.send_photo(chat_id, photo, reply_markup=product_buttons)
+
+    if call.data == "farmer":
+        bot.send_message(chat_id, "Ви вибрали: 🌾 Я фермер, хочу продавати")
+        user_data[chat_id] = {
+            "role": "farmer",
+            "products": [],
+            "regions": [],
+            "state": "product_selection",
+        }
+        product_buttons = product_markup(user_data[chat_id]["products"])
+        with open(photo_path, "rb") as photo:
+            bot.send_photo(chat_id, photo, reply_markup=product_buttons)
+
+    elif call.data == "trader":
+        bot.send_message(chat_id, "Ви вибрали: 📈 Я трейдер, хочу купити")
+        user_data[chat_id] = {
+            "role": "trader",
+            "products": [],
+            "regions": [],
+            "state": "product_selection",
+        }
+        product_buttons = product_markup(user_data[chat_id]["products"])
+        with open(photo_path, "rb") as photo:
+            bot.send_photo(chat_id, photo, reply_markup=product_buttons)
 
 
 # Функция для запроса продукта у пользователя
@@ -362,7 +354,6 @@ def send_application_to_moderation(chat_id):
     try:
         bot.send_message(moderation_group_id, application_text)
         bot.send_message(chat_id, "Ваша заявка була відправлена на модерацію. Дякуємо!")
-
     except Exception as e:
         logger.error(f"Ошибка при отправке сообщения в группу модерации: {e}")
         bot.send_message(
@@ -371,65 +362,7 @@ def send_application_to_moderation(chat_id):
         )
 
 
-def register_user(chat_id):
-    logger.info(f"Attempting to register user {chat_id}")
-
-    user_info = user_data.get(chat_id, {})
-    logger.info(f"user_data for {chat_id}: {user_info}")
-
-    if not user_info:
-        logger.error(f"No user data found for chat_id {chat_id}")
-        bot.send_message(chat_id, "Ошибка регистрации. Попробуйте снова.")
-        return
-
-    nickname = user_info.get("nickname", "")
-    signup_time = user_info.get("signup_time", "")
-    role = user_info.get("role", "")
-    products = user_info.get("products", [])
-    regions = user_info.get("regions", [])
-
-    logger.info(
-        f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
-    )
-
-    if products and regions and role:
-        if not db.user_exists(chat_id):
-            db.add_user(chat_id, nickname, signup_time, role)
-            db.set_trial_duration(chat_id, user_info.get("trial_duration", 172800))
-            logger.info(
-                f"User {chat_id} added with signup_time {signup_time} and role {role}"
-            )
-        else:
-            logger.info(f"User {chat_id} already exists")
-
-        for product in products:
-            product_id = db.get_product_id_by_name(product)
-            if product_id is not None:
-                db.add_user_raw_material(chat_id, product_id)
-                logger.info(
-                    f"Product {product} with ID {product_id} added for user {chat_id}"
-                )
-            else:
-                logger.error(f"Product ID not found for product: {product}")
-
-        for region in regions:
-            region_id = db.get_region_id_by_name(region)
-            if region_id is not None:
-                db.add_user_region(chat_id, region_id)
-                logger.info(
-                    f"Region {region} with ID {region_id} added for user {chat_id}"
-                )
-            else:
-                logger.error(f"Region ID not found for region: {region}")
-
-        bot.send_message(chat_id, "Ваша регистрация завершена! 🎉")
-    else:
-        logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
-        bot.send_message(
-            chat_id, "Пожалуйста, выберите все необходимые данные для регистрации."
-        )
-
-
+# Обработчик выбора продукта
 @bot.callback_query_handler(
     func=lambda call: call.data.startswith("product_")
     or call.data in ["select_all_products", "finish_product_selection"]
@@ -437,29 +370,31 @@ def register_user(chat_id):
 def product_selection(call):
     chat_id = call.message.chat.id
     if call.data == "select_all_products":
-        if len(user_data[chat_id]["products"]) == len(products):
-            user_data[chat_id]["products"] = []
-        else:
-            user_data[chat_id]["products"] = [product[0] for product in products]
+        if chat_id in user_data:
+            if len(user_data[chat_id]["products"]) == len(products):
+                user_data[chat_id]["products"] = []
+            else:
+                user_data[chat_id]["products"] = [product[0] for product in products]
     elif call.data == "finish_product_selection":
-        user_data[chat_id]["state"] = "region_selection"
-        bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-        photo_path = "img/region.png"
-        region_buttons = region_markup(user_data[chat_id]["regions"])
-        with open(photo_path, "rb") as photo:
-            bot.send_photo(chat_id, photo, reply_markup=region_buttons)
+        if chat_id in user_data:
+            user_data[chat_id]["state"] = "region_selection"
+
+            bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+
+            photo_path = "img/region.png"
+            region_buttons = region_markup(user_data[chat_id]["regions"])
+            with open(photo_path, "rb") as photo:
+                bot.send_photo(chat_id, photo, reply_markup=region_buttons)
         return
     else:
         product = call.data
         product_name = next((prod[0] for prod in products if prod[1] == product), None)
-        if product_name:
+        if chat_id in user_data and product_name:
             if product_name in user_data[chat_id]["products"]:
                 user_data[chat_id]["products"].remove(product_name)
             else:
                 user_data[chat_id]["products"].append(product_name)
-
     selected_products = user_data[chat_id]["products"]
-    logger.info(f"Selected products for user {chat_id}: {selected_products}")
     bot.edit_message_reply_markup(
         chat_id=chat_id,
         message_id=call.message.id,
@@ -467,6 +402,7 @@ def product_selection(call):
     )
 
 
+# Обработчик выбора региона
 @bot.callback_query_handler(
     func=lambda call: call.data.startswith("region_")
     or call.data in ["select_all_regions", "finish_region_selection"]
@@ -474,25 +410,28 @@ def product_selection(call):
 def region_selection(call):
     chat_id = call.message.chat.id
     if call.data == "select_all_regions":
-        if len(user_data[chat_id]["regions"]) == len(regions):
-            user_data[chat_id]["regions"] = []
-        else:
-            user_data[chat_id]["regions"] = [region[0] for region in regions]
+        if chat_id in user_data:
+            if len(user_data[chat_id]["regions"]) == len(regions):
+                user_data[chat_id]["regions"] = []
+            else:
+                user_data[chat_id]["regions"] = [region[0] for region in regions]
     elif call.data == "finish_region_selection":
-        register_user(chat_id)
+        # asyncio.run(
+        #     send_selected_messages(
+        #         chat_id, user_data[chat_id]["products"], user_data[chat_id]["regions"]
+        #     )
+        # )
         bot.delete_message(chat_id=chat_id, message_id=call.message.id)
         return
     else:
         region = call.data
         region_name = next((reg[0] for reg in regions if reg[1] == region), None)
-        if region_name:
+        if chat_id in user_data and region_name:
             if region_name in user_data[chat_id]["regions"]:
                 user_data[chat_id]["regions"].remove(region_name)
             else:
                 user_data[chat_id]["regions"].append(region_name)
-
     selected_regions = user_data[chat_id]["regions"]
-    logger.info(f"Selected regions for user {chat_id}: {selected_regions}")
     bot.edit_message_reply_markup(
         chat_id=chat_id,
         message_id=call.message.id,

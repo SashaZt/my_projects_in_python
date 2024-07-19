@@ -45,9 +45,7 @@ class Database:
             user_id BIGINT PRIMARY KEY,
             nickname VARCHAR(255),
             signup TIMESTAMP,
-            trial_duration INT,
-            role VARCHAR(255)
-        )"""
+            trial_duration INT)"""
         )
 
         cursor.execute(
@@ -145,7 +143,8 @@ class Database:
             logger.info("Regions already exist in database")
 
         self.connection.commit()
-        cursor.close()
+        # self.cursor.close()
+        # self.connection.close()
         logger.info(
             "Таблицы users_tg_bot, raw_materials, regions созданы или уже существует."
         )
@@ -164,22 +163,22 @@ class Database:
             cursor.close()
             connection.close()
 
-    def add_user(self, user_id, nickname, signup_time, role):
+    def add_user(self, user_id, nickname, signup_time):
         connection = self.create_connection()
         cursor = connection.cursor()
         try:
             logger.info(
-                f"Adding user {user_id} with nickname {nickname}, signup_time {signup_time}, and role {role}"
+                f"Adding user {user_id} with nickname {nickname} and signup_time {signup_time}"
             )
             cursor.execute(
-                """INSERT INTO users_tg_bot (user_id, nickname, signup, trial_duration, role)
-                VALUES (%s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE nickname = VALUES(nickname), signup = VALUES(signup), trial_duration = VALUES(trial_duration), role = VALUES(role)""",
-                (user_id, nickname, signup_time, 172800, role),
+                """INSERT INTO users_tg_bot (user_id, nickname, signup)
+                VALUES (%s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                nickname = VALUES(nickname), signup = VALUES(signup)""",
+                (user_id, nickname, signup_time),
             )
-            logger.info(f"{role}!!!!!!!!!!!")
             connection.commit()
-            logger.info(f"User {user_id} added to users_tg_bot with role {role}")
+            logger.info(f"User {user_id} added to users_tg_bot")
         except mysql.connector.Error as err:
             logger.error(f"Ошибка при добавлении пользователя: {err}")
         finally:
@@ -190,9 +189,7 @@ class Database:
         connection = self.create_connection()
         cursor = connection.cursor()
         try:
-            logger.info(
-                f"Preparing to add raw material {material_id} for user {user_id}"
-            )
+            logger.info(f"Adding raw material {material_id} for user {user_id}")
             cursor.execute(
                 """INSERT INTO user_raw_materials (user_id, material_id)
                 VALUES (%s, %s)
@@ -213,7 +210,7 @@ class Database:
         connection = self.create_connection()
         cursor = connection.cursor()
         try:
-            logger.info(f"Preparing to add region {region_id} for user {user_id}")
+            logger.info(f"Adding region {region_id} for user {user_id}")
             cursor.execute(
                 """INSERT INTO user_regions (user_id, region_id)
                 VALUES (%s, %s)
