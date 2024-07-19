@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 # Настройка бота
 bot = telebot.TeleBot(TOKEN)
 
+# Словарь для хранения временных меток последней проверки
+last_check_time = {}
+
 
 def create_connection():
     return mysql.connector.connect(**DB_CONFIG)
@@ -74,24 +77,25 @@ def get_new_messages(trader, check_time):
 
 def send_messages_to_traders():
     traders = get_traders()
+    current_time = datetime.now()
     for trader in traders:
         user_id, role, signup, trial_duration, region, material = trader
         signup_time = signup  # signup уже является datetime объектом
         end_trial_time = signup_time + timedelta(seconds=trial_duration)
-        current_time = datetime.now()
 
         if current_time > end_trial_time:
             message = "Ваше пробне время закінчилось, для отримання повідомлень оформіть підписку."
             bot.send_message(user_id, message)
             logger.info(f"Sent trial period ended message to user {user_id}")
         else:
-            check_time = max(
-                signup_time, current_time - timedelta(seconds=30)
-            )  # используем текущую дату проверки
+            check_time = last_check_time.get(user_id, signup_time)
             messages = get_new_messages(trader, check_time)
             for message in messages:
                 bot.send_message(user_id, message[0])
                 logger.info(f"Sent message to user {user_id}: {message[0]}")
+            last_check_time[user_id] = (
+                current_time  # Обновляем время последней проверки
+            )
 
 
 if __name__ == "__main__":
