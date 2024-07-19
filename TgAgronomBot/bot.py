@@ -376,6 +376,65 @@ def send_application_to_moderation(chat_id):
         )
 
 
+# # Рабочий код для одного значения регион и / или продукта
+# def register_user(chat_id):
+#     logger.info(f"Attempting to register user {chat_id}")
+
+#     user_info = user_data.get(chat_id, {})
+#     logger.info(f"user_data for {chat_id}: {user_info}")
+
+#     if not user_info:
+#         logger.error(f"No user data found for chat_id {chat_id}")
+#         bot.send_message(chat_id, "Ошибка регистрации. Попробуйте снова.")
+#         return
+
+#     nickname = user_info.get("nickname", "")
+#     signup_time = user_info.get("signup_time", "")
+#     role = user_info.get("role", "")
+#     products = user_info.get("products", [])
+#     regions = user_info.get("regions", [])
+
+#     logger.info(
+#         f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
+#     )
+
+#     if products and regions and role:
+#         if not db.user_exists(chat_id):
+#             db.add_user(chat_id, nickname, signup_time, role)
+#             db.set_trial_duration(chat_id, user_info.get("trial_duration", 172800))
+#             logger.info(
+#                 f"User {chat_id} added with signup_time {signup_time} and role {role}"
+#             )
+#         else:
+#             logger.info(f"User {chat_id} already exists")
+
+#         for product in products:
+#             product_id = db.get_product_id_by_name(product)
+#             if product_id is not None:
+#                 db.add_user_raw_material(chat_id, product_id)
+#                 logger.info(
+#                     f"Product {product} with ID {product_id} added for user {chat_id}"
+#                 )
+#             else:
+#                 logger.error(f"Product ID not found for product: {product}")
+
+#         for region in regions:
+#             region_id = db.get_region_id_by_name(region)
+#             if region_id is not None:
+#                 db.add_user_region(chat_id, region_id)
+#                 logger.info(
+#                     f"Region {region} with ID {region_id} added for user {chat_id}"
+#                 )
+#             else:
+#                 logger.error(f"Region ID not found for region: {region}")
+
+
+#         bot.send_message(chat_id, "Ваша регистрация завершена! 🎉")
+#     else:
+#         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
+#         bot.send_message(
+#             chat_id, "Пожалуйста, выберите все необходимые данные для регистрации."
+#         )
 def register_user(chat_id):
     logger.info(f"Attempting to register user {chat_id}")
 
