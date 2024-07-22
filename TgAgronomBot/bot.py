@@ -50,6 +50,8 @@ regions = [
     ("Рівненська", "region_rivne"),
 ]
 
+user_messages = {}
+
 
 # Разметка для кнопок подписки и проверки
 def start_markup():
@@ -157,8 +159,8 @@ def admin_markup():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("Добавить время пользователю"))
     markup.add(types.KeyboardButton("Список пользователей"))
-    markup.add(types.KeyboardButton("Добавить группу"))
-    markup.add(types.KeyboardButton("Начать парсинг"))
+    # markup.add(types.KeyboardButton("Добавить группу"))
+    # markup.add(types.KeyboardButton("Начать парсинг"))
     return markup
 
 
@@ -228,9 +230,10 @@ def start(message):
 # Обработчик нажатия кнопки "register" для получения пробного периода
 @bot.callback_query_handler(func=lambda call: call.data == "register")
 def callback_register(call):
+
     chat_id = call.message.chat.id
-    # # Удаление текущего сообщения
-    # bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+    # Удаление текущего сообщения
+    bot.delete_message(chat_id=chat_id, message_id=call.message.id)
     # Отправка сообщения о необходимости подписки
     bot.send_message(
         chat_id,
@@ -261,27 +264,36 @@ def callback_check_subscription(call):
                 "state": "initial",
             }
             bot.answer_callback_query(call.id, "Ваша підписка розпочалась! 🎉")
-            bot.send_message(
+            sent_message = bot.send_message(
                 chat_id,
                 "Ваша підписка розпочалась! 🎉",
             )
+            user_messages[chat_id] = [sent_message.message_id]
         else:
             bot.answer_callback_query(call.id, "Ваша підписка вже активована! 🌟.")
 
-        bot.send_message(
-            chat_id, "Дякуємо за підписку на канал! 🎉 Залишайтеся з нами! 🚀"
-        )
-        bot.send_message(
+        if chat_id in user_messages:
+            for message_id in user_messages[chat_id]:
+                bot.delete_message(chat_id=chat_id, message_id=message_id)
+
+        # sent_message_1 = bot.send_message(
+        #     chat_id, "Дякуємо за підписку на канал! 🎉 Залишайтеся з нами! 🚀"
+        # )
+        sent_message_2 = bot.send_message(
             chat_id,
             "Виберіть свою діяльність:",
             reply_markup=activity_markup(),
         )
+
+        user_messages[chat_id] = sent_message_2.message_id
+
     else:
-        bot.send_message(
+        sent_message = bot.send_message(
             chat_id,
             "Щоб користуватися ботом, необхідно підписатися на канал!",
             reply_markup=start_markup(),
         )
+        user_messages[chat_id] = [sent_message.message_id]
 
 
 # Функция проверки подписки
@@ -306,13 +318,14 @@ def activity_selection(call):
     role = "farmer" if call.data == "farmer" else "trader"
     user_data[chat_id]["role"] = role
 
-    bot.send_message(
-        chat_id,
-        f"Ви вибрали: {'🌾 Я фермер, хочу продавати' if role == 'farmer' else '📈 Я трейдер, хочу купити'}",
-    )
     product_buttons = product_markup(user_data[chat_id]["products"])
     with open(photo_path, "rb") as photo:
-        bot.send_photo(chat_id, photo, reply_markup=product_buttons)
+        bot.send_photo(
+            chat_id,
+            photo,
+            caption="🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
+            reply_markup=product_buttons,
+        )
 
 
 # # Функция для запроса продукта у пользователя
@@ -462,7 +475,24 @@ def register_user(chat_id):
         f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
     )
 
-    if products and regions and role:
+    # Проверка на пустые списки продуктов и регионов
+    if not products:
+        bot.send_message(
+            chat_id,
+            "Ви не вибрали жодного продукту. Будь ласка, виберіть хоча б один продукт:",
+            reply_markup=product_markup(user_data[chat_id]["products"]),
+        )
+        return
+
+    if not regions:
+        bot.send_message(
+            chat_id,
+            "Ви не вибрали жодного регіону. Будь ласка, виберіть хоча б один регіон:",
+            reply_markup=region_markup(user_data[chat_id]["regions"]),
+        )
+        return
+
+    if role and products and regions:
         if not db.user_exists(chat_id):
             db.add_user(chat_id, nickname, signup_time, role)
             db.set_trial_duration(chat_id, user_info.get("trial_duration", 172800))
@@ -501,7 +531,7 @@ def register_user(chat_id):
     else:
         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
         bot.send_message(
-            chat_id, "Пожалуйста, выберите все необходимые данные для регистрации."
+            chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
         )
 
 
@@ -522,7 +552,12 @@ def product_selection(call):
         photo_path = "img/region.png"
         region_buttons = region_markup(user_data[chat_id]["regions"])
         with open(photo_path, "rb") as photo:
-            bot.send_photo(chat_id, photo, reply_markup=region_buttons)
+            bot.send_photo(
+                chat_id,
+                photo,
+                caption="🇺🇦Виберіть область, яка вас цікавить, можете вибрати кілька регіонів та натисніть «завершити вибір»",
+                reply_markup=region_buttons,
+            )
         return
     else:
         product = call.data
