@@ -1,4 +1,6 @@
-from telebot.async_telebot import AsyncTeleBot  # Изменить импорт на асинхронный
+from telebot.async_telebot import AsyncTeleBot
+import telebot.apihelper as apihelper
+
 from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime, timedelta, time as dtime
@@ -129,7 +131,7 @@ async def send_trial_end_message(user_id):
         last_check_time[user_id] = datetime.now()
         daily_message_count[user_id] = daily_message_count.get(user_id, 0) + 1
         user_messages[user_id] = [sent_message.message_id]
-    except telebot.apihelper.ApiException as e:
+    except apihelper.ApiException as e:
         logger.error(f"Failed to send message to user {user_id}: {e}")
 
 
@@ -206,7 +208,6 @@ async def get_traders():
 
 
 async def check_and_send_trial_end_messages():
-    from send_messages_asio import get_traders
 
     logger.info("Запуск проверки и отправки сообщений о завершении пробного периода")
     traders = await get_traders()
@@ -758,6 +759,9 @@ async def main():
     asyncio.create_task(run_scheduler())  # Запуск планировщика из send_messages_asio.py
     schedule.every(30).seconds.do(
         lambda: asyncio.create_task(send_messages_to_traders())
+    )
+    schedule.every(60).seconds.do(
+        lambda: asyncio.create_task(check_and_send_trial_end_messages())
     )
 
     # asyncio.create_task(
