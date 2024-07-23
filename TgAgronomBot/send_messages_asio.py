@@ -3,6 +3,7 @@ import asyncio
 from telebot.async_telebot import AsyncTeleBot
 from datetime import datetime, timedelta
 import logging
+import schedule
 from config import DB_CONFIG, TOKEN
 
 # Настройка логирования
@@ -18,8 +19,8 @@ last_check_time = {}
 sent_messages = {}
 
 
+# Подключение к БД
 async def create_connection():
-    # logger.info("Создание подключения к базе данных")
     return await aiomysql.connect(
         host=DB_CONFIG["host"],
         port=3306,  # Укажите порт, если он отличается
@@ -29,8 +30,9 @@ async def create_connection():
     )
 
 
+#
 async def get_traders():
-    logger.info("Получение списка трейдеров")
+    # logger.info("Получение списка трейдеров")
     query = """
     SELECT 
         u.user_id,
@@ -58,7 +60,6 @@ async def get_traders():
             await cursor.execute(query)
             traders = await cursor.fetchall()
         conn.close()
-        # logger.info(f"Трейдеры получены: {traders}")
         return traders
     except aiomysql.Error as err:
         logger.error(f"Ошибка при получении трейдеров: {err}")
@@ -67,7 +68,6 @@ async def get_traders():
 
 async def get_new_messages(trader, check_time):
     user_id, role, signup, trial_duration, region, material = trader
-    # logger.info(f"Получение новых сообщений для трейдера {user_id}")
     query = """
     SELECT
         id, Messages, data_time
@@ -86,10 +86,8 @@ async def get_new_messages(trader, check_time):
             messages = await cursor.fetchall()
         conn.close()
         if messages:
-            logger.info(f"Новые сообщения для {user_id}: {messages}")
-        else:
-            pass
-            # logger.info(f"Нету новых сообщений для {user_id}")
+            logger.info(f"Новые сообщения для {user_id}")
+            # logger.info(f"Новые сообщения для {user_id}: {messages}")
         return messages
     except aiomysql.Error as err:
         logger.error(f"Ошибка при получении новых сообщений для {user_id}: {err}")
@@ -97,7 +95,7 @@ async def get_new_messages(trader, check_time):
 
 
 async def send_message(user_id, message_text):
-    logger.info(f"Отправка сообщения пользователю {user_id}: {message_text}")
+    # logger.info(f"Отправка сообщения пользователю {user_id}: {message_text}")
     try:
         await bot.send_message(user_id, message_text)
         logger.info(f"Сообщение пользователю {user_id} отправлено успешно")
@@ -106,9 +104,8 @@ async def send_message(user_id, message_text):
 
 
 async def send_messages_to_traders():
-    logger.info("Отправка сообщений трейдерам")
+    # logger.info("Отправка сообщений трейдерам")
     traders = await get_traders()
-    # logger.info(f"Список трейдеров: {traders}")
     current_time = datetime.now()
     check_time_threshold = current_time - timedelta(seconds=30)
 
@@ -117,44 +114,37 @@ async def send_messages_to_traders():
         signup_time = signup  # signup уже является datetime объектом
         end_trial_time = signup_time + timedelta(seconds=trial_duration)
 
-        # logger.info(f"Текущий трейдер: {trader}")
-
         if current_time <= end_trial_time:
             check_time = last_check_time.get(user_id, signup_time)
             if check_time < check_time_threshold:
                 check_time = check_time_threshold
 
             messages = await get_new_messages(trader, check_time)
-            # logger.info(f"Сообщения для трейдера {user_id}: {messages}")
             if messages:
                 for message in messages:
                     message_id, message_text, message_time = message
                     if message_id not in sent_messages.get(user_id, set()):
                         await send_message(user_id, message_text)
-                        logger.info(
-                            f"Отправлено сообщение пользователю {user_id}: {message_text}"
-                        )
-                        # Добавляем ID сообщения в список отправленных
                         if user_id not in sent_messages:
                             sent_messages[user_id] = set()
                         sent_messages[user_id].add(message_id)
-                        # Обновляем время последней проверки на время последнего сообщения
                         last_check_time[user_id] = max(
                             last_check_time.get(user_id, signup_time), message_time
                         )
-            last_check_time[user_id] = (
-                current_time  # Обновляем время проверки даже если нет новых сообщений
-            )
+            last_check_time[user_id] = current_time
 
 
 async def run_scheduler():
     while True:
-        logger.info("Запуск планировщика")
-        await send_messages_to_traders()
-        await asyncio.sleep(5)
+        schedule.run_pending()
+        await asyncio.sleep(1)
 
 
 def main():
+    schedule.every(30).seconds.do(
+        lambda: asyncio.create_task(send_messages_to_traders())
+    )
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.create_task(run_scheduler())

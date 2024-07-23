@@ -22,13 +22,17 @@ def main():
     schedule.every(30).seconds.do(
         lambda: asyncio.create_task(send_messages_to_traders())
     )
-    schedule.every().day.at("08:00").do(
-        lambda: asyncio.create_task(check_and_send_trial_end_messages())
-    )
-    schedule.every().day.at("12:00").do(
-        lambda: asyncio.create_task(check_and_send_trial_end_messages())
-    )
-    schedule.every().day.at("16:00").do(
+    # schedule.every().day.at("08:00").do(
+    #     lambda: asyncio.create_task(check_and_send_trial_end_messages())
+    # )
+    # schedule.every().day.at("12:00").do(
+    #     lambda: asyncio.create_task(check_and_send_trial_end_messages())
+    # )
+    # schedule.every().day.at("16:00").do(
+    #     lambda: asyncio.create_task(check_and_send_trial_end_messages())
+    # )
+    # Проверки каждые 5 минут для теста
+    schedule.every(1).minutes.do(
         lambda: asyncio.create_task(check_and_send_trial_end_messages())
     )
 

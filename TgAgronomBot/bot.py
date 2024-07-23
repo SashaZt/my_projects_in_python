@@ -164,6 +164,12 @@ def admin_markup():
     return markup
 
 
+def technical_support():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("📨Зв'язатися з підтримкою📨"))
+    return markup
+
+
 # Обработчик команды /start
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -176,6 +182,7 @@ def start(message):
             chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
         )
     elif not db.user_exists(user_id):
+
         nickname = message.from_user.username
         signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         trial_duration = 172800  # 48 часов в секундах
@@ -198,6 +205,11 @@ def start(message):
                 reply_markup=trial_markup(),
             )
     else:
+        # bot.send_message(
+        #     chat_id,
+        #     "📨Зв'язатися з підтримкою📨",
+        #     reply_markup=technical_support(),
+        # )
         signup_time = db.get_signup_time(user_id)
         trial_duration = db.get_trial_duration(user_id)
         current_time = datetime.now()
@@ -326,6 +338,113 @@ def activity_selection(call):
             caption="🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
             reply_markup=product_buttons,
         )
+
+
+# # Словарь для хранения временных меток последней проверки
+# last_check_time = {}
+# # Словарь для хранения количества отправленных сообщений за день
+# daily_message_count = {}
+
+
+# def can_send_message(user_id):
+#     """Проверка, может ли быть отправлено сообщение"""
+#     now = datetime.now()
+#     if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
+#         return False
+
+#     last_sent = last_check_time.get(user_id)
+#     if last_sent and now - last_sent < timedelta(
+#         minutes=5
+#     ):  # Уменьшите интервал до 5 минут
+#         return False
+
+#     count = daily_message_count.get(user_id, 0)
+#     if count >= 20:  # Увеличьте разрешенное количество сообщений до 20 в день
+#         return False
+
+#     return True
+
+
+# def send_trial_end_message(user_id):
+#     """Отправка сообщения о завершении пробного периода"""
+#     message = (
+#         "Ваше пробне время закінчилось, для отримання повідомлень оформіть підписку."
+#     )
+#     try:
+#         sent_message = bot.send_message(user_id, message, reply_markup=tarif_markup())
+#         logger.info(f"Sent trial period ended message to user {user_id}")
+#         last_check_time[user_id] = datetime.now()
+#         daily_message_count[user_id] = daily_message_count.get(user_id, 0) + 1
+#         user_messages[user_id] = [sent_message.message_id]
+#     except telebot.apihelper.ApiException as e:
+#         logger.error(f"Failed to send message to user {user_id}: {e}")
+
+
+# async def check_and_send_trial_end_messages():
+#     logger.info("Проверка и отправка сообщений о завершении пробного периода")
+#     traders = await get_traders()
+#     current_time = datetime.now()
+
+#     for trader in traders:
+#         user_id, role, signup, trial_duration, region, material = trader
+#         signup_time = signup  # signup уже является datetime объектом
+#         end_trial_time = signup_time + timedelta(seconds=trial_duration)
+
+#         logger.info(f"Проверка трейдера {user_id} на окончание пробного периода")
+
+#         if (
+#             current_time > end_trial_time - timedelta(days=1)
+#             and current_time <= end_trial_time
+#             and can_send_message(user_id)
+#         ):
+#             send_trial_end_message(user_id)
+
+
+# def tarif_markup():
+#     markup = types.InlineKeyboardMarkup(row_width=True)
+#     basic_button = types.InlineKeyboardButton(
+#         text="Базовый", callback_data="tarif_basic"
+#     )
+#     standard_button = types.InlineKeyboardButton(
+#         text="Стандартный", callback_data="tarif_standard"
+#     )
+#     extra_button = types.InlineKeyboardButton(
+#         text="Экстра", callback_data="tarif_extra"
+#     )
+#     markup.add(basic_button, standard_button, extra_button)
+#     return markup
+
+
+# @bot.message_handler(commands=["tarif"])
+# def send_tarif_options(message):
+#     chat_id = message.chat.id
+#     if chat_id in user_messages:
+#         for message_id in user_messages[chat_id]:
+#             bot.delete_message(chat_id=chat_id, message_id=message_id)
+#         del user_messages[chat_id]
+
+#     tarif_message = bot.send_message(
+#         chat_id,
+#         "Ваше пробне время закінчилось, для отримання повідомлень оформіть підписку.",
+#         reply_markup=tarif_markup(),
+#     )
+#     user_messages[chat_id] = [tarif_message.message_id]
+
+
+# @bot.callback_query_handler(func=lambda call: call.data.startswith("tarif_"))
+# def tarif_selection(call):
+#     chat_id = call.message.chat.id
+#     tarif_type = call.data.split("_")[1]
+
+#     tarif_descriptions = {
+#         "basic": "Базовый тариф: Описание тарифа",
+#         "standard": "Стандартный тариф: Описание тарифа",
+#         "extra": "Экстра тариф: Описание тарифа",
+#     }
+
+#     bot.send_message(
+#         chat_id, tarif_descriptions.get(tarif_type, "Выбран неизвестный тариф")
+#     )
 
 
 # # Функция для запроса продукта у пользователя

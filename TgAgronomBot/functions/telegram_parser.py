@@ -260,7 +260,7 @@ class TelegramParse:
         parsed_result = parse_message(
             message, self.product_keywords, self.region_keywords
         )
-        logger.info(f"Parsed result: {parsed_result}")
+        # logger.info(f"Parsed result: {parsed_result}")
 
         message_record_template = {
             "sender_name": sender_name,
@@ -279,10 +279,10 @@ class TelegramParse:
         is_buy = any(keyword in message for keyword in self.keywords_buy)
         is_sell = any(keyword in message for keyword in self.keywords_sell)
 
-        logger.info(f"is_buy: {is_buy}, is_sell: {is_sell}, message: {message}")
+        # logger.info(f"is_buy: {is_buy}, is_sell: {is_sell}, message: {message}")
 
         if is_buy:
-            logger.info("Detected 'buy' message")
+            # logger.info("Detected 'buy' message")
             await self.save_to_db(
                 message, sender_name, sender_id, sender_phone, parsed_result, "buy"
             )
@@ -372,16 +372,20 @@ class TelegramParse:
     async def save_to_db(
         self, message, sender_name, sender_id, sender_phone, parsed_result, trade_type
     ):
-        logger.info("Entering save_to_db function")
-        logger.info(
-            f"Received data: message={message}, sender_name={sender_name}, sender_id={sender_id}, sender_phone={sender_phone}, parsed_result={parsed_result}, trade_type={trade_type}"
-        )
+        # logger.info("Entering save_to_db function")
+        # logger.info(
+        #     f"Received data: message={message}, sender_name={sender_name}, sender_id={sender_id}, sender_phone={sender_phone}, parsed_result={parsed_result}, trade_type={trade_type}"
+        # )
 
-        query = """
+        check_query = """
+        SELECT COUNT(*) FROM corn.messages_tg 
+        WHERE Messages = :Messages AND data_time >= NOW() - INTERVAL 15 MINUTE
+        """
+
+        insert_query = """
         INSERT INTO corn.messages_tg (sender_name, sender_id, sender_phone, Phones, Raw_Materials, Regions, Messages, trade, data_time)
         VALUES (:sender_name, :sender_id, :sender_phone, :Phones, :Raw_Materials, :Regions, :Messages, :trade, NOW())
         """
-        logger.info(f"Query: {query}")
 
         raw_materials = (
             parsed_result["Raw Materials"].split(", ")
@@ -407,9 +411,26 @@ class TelegramParse:
                     "trade": trade_type,
                 }
                 try:
-                    logger.info(f"Preparing to save to DB with values: {values}")
-                    result = await self.database.execute(query=query, values=values)
-                    logger.info(f"Successfully saved to DB, result: {result}")
+                    logger.info(
+                        f"Preparing to check for duplicates with values: {values}"
+                    )
+                    duplicate_check_result = await self.database.fetch_one(
+                        query=check_query,
+                        values={"Messages": parsed_result["Messages"]},
+                    )
+
+                    if duplicate_check_result[0] == 0:
+                        logger.info(
+                            f"No duplicate found. Preparing to save to DB with values: {values}"
+                        )
+                        result = await self.database.execute(
+                            query=insert_query, values=values
+                        )
+                        logger.info(f"Successfully saved to DB, result: {result}")
+                    else:
+                        logger.info(
+                            f"Duplicate found. Skipping save to DB for values: {values}"
+                        )
                 except Exception as e:
                     logger.error(f"Error saving to DB: {e}")
                     logger.error(f"Failed values: {values}")
