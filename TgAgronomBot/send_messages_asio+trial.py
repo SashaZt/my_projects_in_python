@@ -287,8 +287,8 @@ async def main():
     schedule.every(30).seconds.do(
         lambda: asyncio.create_task(send_messages_to_traders())
     )
-    # asyncio.create_task(check_and_send_trial_end_messages())
-    # await bot.infinity_polling()
+    asyncio.create_task(check_and_send_trial_end_messages())
+    await bot.infinity_polling()
 
 
 if __name__ == "__main__":

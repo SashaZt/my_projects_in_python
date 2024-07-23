@@ -46,7 +46,7 @@ def anali_pdf():
 
 def anali_pdf_02():
     # enhance_pdf()
-    pdf_path = "pdf1.pdf"
+    pdf_path = "June+2024+MR+UB04s+for+NS-1 (1).pdf"
     # pdf_path = "enhanced_pdf1.pdf"
     with pdfplumber.open(pdf_path) as pdf:
         for page_no, page in enumerate(pdf.pages):
@@ -78,11 +78,10 @@ def anali_pdf_02():
                 90,
             ]
             horizontal_lines_04 = [100, 110, 120, 132, 160, 180]
-            vertical_lines_05 = [18,50,200, 600]
+            vertical_lines_05 = [18, 50, 200, 600]
             horizontal_lines_05 = [
-                216,
-                240,
-                300,
+                50,
+                100,
             ]
             # Стратегии могут быть: "lines", "text", "explicit"
             table_settings = {

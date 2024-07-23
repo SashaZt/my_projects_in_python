@@ -1,9 +1,10 @@
 import telebot
-import asyncio
 from datetime import datetime, timedelta, time as dtime
 import logging
 import schedule
 from config import TOKEN
+import time
+import asyncio
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -84,60 +85,13 @@ def send_trial_end_message(user_id):
         logger.error(f"Failed to send message to user {user_id}: {e}")
 
 
-@bot.callback_query_handler(func=lambda call: True)
-def callback_query(call):
-    if call.data == "tarif_basic":
-        message_basic = (
-            "Ви обрали:\n"
-            "🌾БАЗОВИЙ ПЛАН\n"
-            "- Доступ до інформації про 1 культуру\n"
-            "- Доступ до пропозицій з 1 регіону\n"
-            "- Щоденні оновлення\n"
-            "💰780 грн. /місяць\n\n"
-            "Реквізити для оплати тарифів:\n"
-            "💳 Приват Банк\n"
-            "5457 0822 5614 6379\n"
-            "Одержувач: Стеценко Данило\n"
-            "Після оплати написати з чеком: @AgroHelper_supp"
-        )
-        bot.send_message(call.message.chat.id, message_basic)
-    elif call.data == "tarif_standard":
-        message_standard = (
-            "Ви обрали:\n"
-            "🌽СТАНДАРТ (Найпопулярніший)\n"
-            "- Доступ до інформації про 5 культур\n"
-            "- Доступ до пропозицій з 3 регіону\n"
-            "- Щоденні оновлення\n"
-            "💰1985 грн. /місяць\n\n"
-            "Реквізити для оплати тарифів:\n"
-            "💳 Приват Банк\n"
-            "5457 0822 5614 6379\n"
-            "Одержувач: Стеценко Данило\n"
-            "Після оплати написати з чеком: @AgroHelper_supp"
-        )
-        bot.send_message(call.message.chat.id, message_standard)
-    elif call.data == "tarif_extra":
-        message_extra = (
-            "Ви обрали:\n"
-            "🌱ЕКСТРА\n"
-            "- Доступ до інформації про необмежену кількість культур\n"
-            "- Доступ до пропозицій з необмеженої кількості регіонів\n"
-            "- Щоденні оновлення\n"
-            "💰3890 грн. /місяць\n\n"
-            "Реквізити для оплати тарифів:\n"
-            "💳 Приват Банк\n"
-            "5457 0822 5614 6379\n"
-            "Одержувач: Стеценко Данило\n"
-            "Після оплати написати з чеком: @AgroHelper_supp"
-        )
-        bot.send_message(call.message.chat.id, message_extra)
-
-
-async def check_and_send_trial_end_messages():
+def check_and_send_trial_end_messages():
     from send_messages_asio import get_traders
 
     logger.info("Запуск проверки и отправки сообщений о завершении пробного периода")
-    traders = await get_traders()
+    # traders = get_traders()
+    traders = asyncio.run(get_traders())
+
     current_time = datetime.now()
 
     for trader in traders:
@@ -156,25 +110,72 @@ async def check_and_send_trial_end_messages():
             send_trial_end_message(user_id)
 
 
-async def run_scheduler():
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    logger.info(f"Обработка callback: {call.data}")
+    if call.data == "tarif_basic":
+        message_basic = (
+            "Ви обрали:\n"
+            "🌾БАЗОВИЙ ПЛАН\n"
+            "- Доступ до інформації про 1 культуру\n"
+            "- Доступ до пропозицій з 1 регіону\n"
+            "- Щоденні оновлення\n"
+            "💰780 грн. /місяць\n\n"
+            "Реквізити для оплати тарифів:\n"
+            "💳 Приват Банк\n"
+            "5457 0822 5614 6379\n"
+            "Одержувач: Стеценко Данило\n"
+            "Після оплати написати з чеком: @AgroHelper_supp"
+        )
+        bot.send_message(call.message.chat.id, message_basic)
+        logger.info(f"Отправлено сообщение: {message_basic}")
+    elif call.data == "tarif_standard":
+        message_standard = (
+            "Ви обрали:\n"
+            "🌽СТАНДАРТ (Найпопулярніший)\n"
+            "- Доступ до інформації про 5 культур\n"
+            "- Доступ до пропозицій з 3 регіону\n"
+            "- Щоденні оновлення\n"
+            "💰1985 грн. /місяць\n\n"
+            "Реквізити для оплати тарифів:\n"
+            "💳 Приват Банк\n"
+            "5457 0822 5614 6379\n"
+            "Одержувач: Стеценко Данило\n"
+            "Після оплати написати з чеком: @AgroHelper_supp"
+        )
+        bot.send_message(call.message.chat.id, message_standard)
+        logger.info(f"Отправлено сообщение: {message_standard}")
+    elif call.data == "tarif_extra":
+        message_extra = (
+            "Ви обрали:\n"
+            "🌱ЕКСТРА\n"
+            "- Доступ до інформації про необмежену кількість культур\n"
+            "- Доступ до пропозицій з необмеженої кількості регіонів\n"
+            "- Щоденні оновлення\n"
+            "💰3890 грн. /місяць\n\n"
+            "Реквізити для оплати тарифів:\n"
+            "💳 Приват Банк\n"
+            "5457 0822 5614 6379\n"
+            "Одержувач: Стеценко Данило\n"
+            "Після оплати написати з чеком: @AgroHelper_supp"
+        )
+        bot.send_message(call.message.chat.id, message_extra)
+        logger.info(f"Отправлено сообщение: {message_extra}")
+
+
+def run_scheduler():
     while True:
         schedule.run_pending()
-        await asyncio.sleep(1)
+        time.sleep(1)
 
 
 def main():
-    logger.info(f"Запускаем main")
-    schedule.every(1).minute.do(
-        lambda: asyncio.create_task(check_and_send_trial_end_messages())
-    )
+    logger.info("Запускаем main")
+    schedule.every(1).minute.do(check_and_send_trial_end_messages)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.create_task(run_scheduler())
-    loop.run_forever()
+    run_scheduler()
 
 
 if __name__ == "__main__":
-    logger.info(f"Запускаем main")
     main()
-    bot.polling()  # Добавляем запуск polling для обработки inline-кнопок
+    bot.polling(none_stop=True)
