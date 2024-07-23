@@ -124,15 +124,9 @@ async def send_trial_end_message(user_id):
         "👇👇ОБЕРІТЬ👇👇"
     )
     try:
-        markup = types.InlineKeyboardMarkup()
-        markup.add(
-            types.InlineKeyboardButton("Базовый", callback_data="trial_tarif_basic"),
-            types.InlineKeyboardButton(
-                "Стандартный", callback_data="trial_tarif_standard"
-            ),
-            types.InlineKeyboardButton("Экстра", callback_data="trial_tarif_extra"),
+        sent_message = await bot.send_message(
+            user_id, message, reply_markup=tarif_markup_to_2days()
         )
-        sent_message = await bot.send_message(user_id, message, reply_markup=markup)
         logger.info(f"Sent trial period ended message to user {user_id}")
         last_check_time[user_id] = datetime.now()
         daily_message_count[user_id] = daily_message_count.get(user_id, 0) + 1
@@ -206,148 +200,48 @@ async def get_traders():
         async with conn.cursor() as cursor:
             await cursor.execute(query)
             traders = await cursor.fetchall()
+        conn.close()
         return traders
     except aiomysql.Error as err:
         logger.error(f"Ошибка при получении трейдеров: {err}")
         return []
-    finally:
-        conn.close()
-
-
-async def get_traders_trial():
-    query = """
-    SELECT 
-        user_id,
-        role,
-        signup,
-        trial_duration,
-        temporary_status
-    FROM 
-        users_tg_bot
-    WHERE
-        role = 'trader';
-    """
-    try:
-        conn = await create_connection()
-        async with conn.cursor() as cursor:
-            await cursor.execute(query)
-            traders = await cursor.fetchall()
-        return traders
-    except aiomysql.Error as err:
-        logger.error(f"Ошибка при получении трейдеров: {err}")
-        return []
-    finally:
-        conn.close()
 
 
 async def check_and_send_trial_end_messages():
     logger.info("Запуск проверки и отправки сообщений о завершении пробного периода")
-    traders = await get_traders_trial()
 
     current_time = datetime.now()
-    logger.info(f"Сейчас {current_time} ")
-
+    traders = await get_traders()
     for trader in traders:
-        user_id, role, signup, trial_duration, temporary_status = trader
-        if temporary_status != 1:
-            continue
-
+        user_id, role, signup, trial_duration, region, material = trader
         signup_time = signup
         end_trial_time = signup_time + timedelta(seconds=trial_duration)
-        remaining_time = end_trial_time - current_time
 
-        logger.info(f"Окончание {end_trial_time} для пользователя {user_id}")
         logger.info(f"Проверка трейдера {user_id} на окончание пробного периода")
 
-        # Проверка, что времени осталось меньше суток
-        if remaining_time <= timedelta(days=1) and remaining_time > timedelta(0):
-            logger.info(
-                f"Осталось времени: {remaining_time} для пользователя {user_id}"
-            )
-
-            # Проверка временного статуса и времени отправки
-            can_send = await can_send_message(user_id)
-            if can_send:
-                logger.info(f"Отправка сообщения трейдеру {user_id}")
-                await send_trial_end_message(user_id)
-            else:
-                logger.info(
-                    f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
-                )
-        else:
-            logger.info(
-                f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
-            )
+        if (
+            current_time > end_trial_time - timedelta(days=1)
+            and current_time <= end_trial_time
+            and await can_send_message(user_id)
+        ):
+            logger.info(f"Отправка сообщения трейдеру {user_id}")
+            await send_trial_end_message(user_id)
 
 
-# #Рабачая, убрать потом
-# async def can_send_message(user_id):
-#     """Проверка, может ли быть отправлено сообщение"""
-#     now = datetime.now()
-#     if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
-#         logger.info(
-#             f"Сообщения могут быть отправлены только с 8:00 до 20:00. Сейчас: {now.time()}"
-#         )
-#         return False
-
-#     last_sent = last_check_time.get(user_id)
-#     if last_sent:
-#         logger.info(f"Последняя отправка {last_sent}")
-#     else:
-#         logger.info(
-#             f"Для пользователя {user_id} нет записей о последней отправке сообщений"
-#         )
-
-#     if last_sent and now - last_sent < timedelta(minutes=1):
-#         logger.info(
-#             f"Сообщение пользователю {user_id} было отправлено менее минуты назад."
-#         )
-#         return False
-
-#     count = daily_message_count.get(user_id, 0)
-#     logger.info(
-#         f"Количество сообщений, отправленных пользователю {user_id} за сегодня: {count}"
-#     )
-
-#     if count >= 20:
-#         logger.info(f"Достигнут лимит в 20 сообщений в день для пользователя {user_id}")
-#         return False
-
-
-#     return True
 async def can_send_message(user_id):
-    """Проверка, может ли быть отправлено сообщение (временная версия для тестирования)"""
+    """Проверка, может ли быть отправлено сообщение"""
     now = datetime.now()
-
-    # Убрать проверку на временные рамки отправки сообщений
-    # if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
-    #     logger.info(f"Сообщения могут быть отправлены только с 8:00 до 20:00. Сейчас: {now.time()}")
-    #     return False
+    if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
+        return False
 
     last_sent = last_check_time.get(user_id)
-    if last_sent:
-        logger.info(f"Последняя отправка {last_sent}")
-    else:
-        logger.info(
-            f"Для пользователя {user_id} нет записей о последней отправке сообщений"
-        )
-
-    # Убрать проверку на интервал времени между отправками
-    # if last_sent and now - last_sent < timedelta(minutes=1):
-    #     logger.info(f"Сообщение пользователю {user_id} было отправлено менее минуты назад.")
-    #     return False
+    if last_sent and now - last_sent < timedelta(minutes=1):
+        return False
 
     count = daily_message_count.get(user_id, 0)
-    logger.info(
-        f"Количество сообщений, отправленных пользователю {user_id} за сегодня: {count}"
-    )
-
-    # Убрать проверку на лимит сообщений в день
-    # if count >= 20:
-    #     logger.info(f"Достигнут лимит в 20 сообщений в день для пользователя {user_id}")
-    #     return False
-
-    return True  # Всегда возвращаем True для тестирования
+    if count >= 20:
+        return False
+    return True
 
 
 async def send_message(user_id, message_text):
@@ -388,10 +282,10 @@ async def send_messages_to_traders():
             last_check_time[user_id] = current_time
 
 
-@bot.callback_query_handler(func=lambda call: call.data.startswith("trial_"))
-async def trial_callback_query(call):
+@bot.callback_query_handler(func=lambda call: True)
+async def callback_query(call):
     logger.info(f"Обработка callback: {call.data}")
-    if call.data == "trial_tarif_basic":
+    if call.data == "tarif_basic":
         message_basic = (
             "Ви обрали:\n"
             "🌾БАЗОВИЙ ПЛАН\n"
@@ -407,7 +301,7 @@ async def trial_callback_query(call):
         )
         await bot.send_message(call.message.chat.id, message_basic)
         logger.info(f"Отправлено сообщение: {message_basic}")
-    elif call.data == "trial_tarif_standard":
+    elif call.data == "tarif_standard":
         message_standard = (
             "Ви обрали:\n"
             "🌽СТАНДАРТ (Найпопулярніший)\n"
@@ -423,7 +317,7 @@ async def trial_callback_query(call):
         )
         await bot.send_message(call.message.chat.id, message_standard)
         logger.info(f"Отправлено сообщение: {message_standard}")
-    elif call.data == "trial_tarif_extra":
+    elif call.data == "tarif_extra":
         message_extra = (
             "Ви обрали:\n"
             "🌱ЕКСТРА\n"
@@ -857,19 +751,15 @@ async def run_scheduler():
         await asyncio.sleep(1)
 
 
-# Запуск асинхронного бота
 async def main():
-    asyncio.create_task(run_scheduler())  # Запуск планировщика из send_messages_asio.py
-    schedule.every(30).seconds.do(
-        lambda: asyncio.create_task(send_messages_to_traders())
-    )
-    schedule.every(60).seconds.do(
-        lambda: asyncio.create_task(check_and_send_trial_end_messages())
-    )
+    # schedule.every(30).seconds.do(
+    #     lambda: asyncio.create_task(send_messages_to_traders())
+    # )
+    # schedule.every(60).seconds.do(
+    #     lambda: asyncio.create_task(check_and_send_trial_end_messages())
+    # )
 
-    # asyncio.create_task(
-    #     check_and_send_trial_end_messages()
-    # )  # Запуск проверки и отправки сообщений
+    # asyncio.create_task(run_scheduler())  # Запуск планировщика из send_messages_asio.py
     await bot.infinity_polling()
 
 

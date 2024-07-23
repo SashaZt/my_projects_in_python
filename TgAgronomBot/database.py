@@ -42,12 +42,13 @@ class Database:
         cursor = self.connection.cursor()
         cursor.execute(
             """CREATE TABLE IF NOT EXISTS users_tg_bot (
-            user_id BIGINT PRIMARY KEY,
-            nickname VARCHAR(255),
-            signup TIMESTAMP,
-            trial_duration INT,
-            role VARCHAR(255)
-        )"""
+                user_id BIGINT PRIMARY KEY,
+                nickname VARCHAR(255),
+                signup TIMESTAMP,
+                trial_duration INT,
+                role VARCHAR(255),
+                temporary_status BOOLEAN DEFAULT TRUE
+            )"""
         )
 
         cursor.execute(
