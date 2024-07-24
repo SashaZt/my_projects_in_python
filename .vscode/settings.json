@@ -72,7 +72,7 @@
     "editor.renderWhitespace": "all",
     "editor.wordWrap": "on",
     "security.workspace.trust.banner": "never",
-    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.typeCheckingMode": "basic",
     "python.analysis.autoImportCompletions": true,
     "editor.hover.enabled": true,
     "editor.mouseWheelZoom": true,
