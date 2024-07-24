@@ -5,7 +5,7 @@ from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime, timedelta, time as dtime
 from database import Database
-from config import (
+from TgAgronomBot.configuration.config import (
     TOKEN,
     CHANNEL_USERNAME,
     ADMIN_IDS,

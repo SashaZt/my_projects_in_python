@@ -1,6 +1,6 @@
 import mysql.connector
 from mysql.connector import Error
-from config import DB_CONFIG
+from configuration.config import DB_CONFIG
 from loguru import logger
 import os
 

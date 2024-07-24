@@ -2,7 +2,7 @@ import telebot
 from telethon.sync import TelegramClient, events
 from telethon.sessions import SQLiteSession
 from telethon.errors import SessionPasswordNeededError
-from config import api_id, api_hash, TOKEN, CHANNEL_USERNAME
+from configuration.config import api_id, api_hash, TOKEN, CHANNEL_USERNAME
 import asyncio
 import os
 from loguru import logger

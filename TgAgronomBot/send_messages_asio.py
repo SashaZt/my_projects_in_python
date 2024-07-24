@@ -4,7 +4,7 @@ from telebot.async_telebot import AsyncTeleBot
 from datetime import datetime, timedelta, time as dtime
 import logging
 import schedule
-from config import DB_CONFIG, TOKEN
+from TgAgronomBot.configuration.config import DB_CONFIG, TOKEN
 import telebot  # Импортируем telebot для доступа к типам
 
 # Настройка логирования

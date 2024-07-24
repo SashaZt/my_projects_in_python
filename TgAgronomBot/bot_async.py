@@ -6,7 +6,7 @@ from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime, timedelta, time as dtime
 from database import Database
-from config import (
+from configuration.config import (
     TOKEN,
     CHANNEL_USERNAME,
     ADMIN_IDS,
@@ -14,7 +14,9 @@ from config import (
     NAME_CHANNEL,
     DB_CONFIG,
 )
-from loguru import logger
+
+# from loguru import logger
+from configuration.logger_setup import logger
 import os
 import asyncio
 import aiomysql

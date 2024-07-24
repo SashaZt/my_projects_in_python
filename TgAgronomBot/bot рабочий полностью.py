@@ -3,7 +3,7 @@ from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime, timedelta
 from database import Database
-from config import TOKEN, CHANNEL_USERNAME, ADMIN_IDS, MODERATION_GROUP_ID, NAME_CHANNEL
+from TgAgronomBot.configuration.config import TOKEN, CHANNEL_USERNAME, ADMIN_IDS, MODERATION_GROUP_ID, NAME_CHANNEL
 from loguru import logger
 import os
 import asyncio

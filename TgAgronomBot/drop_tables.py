@@ -1,5 +1,5 @@
 import mysql.connector
-from config import DB_CONFIG
+from configuration.config import DB_CONFIG
 import logging
 
 # Настройка логирования

@@ -2,7 +2,7 @@ import telebot
 from datetime import datetime, timedelta, time as dtime
 import logging
 import schedule
-from config import TOKEN
+from TgAgronomBot.configuration.config import TOKEN
 import time
 import asyncio
 

@@ -2,7 +2,7 @@ import mysql.connector
 import telebot
 from datetime import datetime, timedelta
 import logging
-from config import DB_CONFIG, TOKEN
+from configuration.config import DB_CONFIG, TOKEN
 import time
 
 # Настройка логирования

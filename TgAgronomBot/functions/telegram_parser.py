@@ -5,12 +5,21 @@ from telethon.errors import SessionPasswordNeededError
 import asyncio
 from functions.helpers import read_keywords, read_list_from_file
 from functions.parse_message import parse_message
-from config import api_id, api_hash, TOKEN
-from loguru import logger
+from configuration.config import api_id, api_hash, TOKEN
+from configuration.logger_setup import logger
 import os
 import json
-from config import database  # Импортируйте объект базы данных
+from configuration.config import database  # Импортируйте объект базы данных
 from databases import Database
+
+current_directory = os.getcwd()
+logging_directory = "logging"
+logging_path = os.path.join(current_directory, logging_directory)
+os.makedirs(logging_path, exist_ok=True)
+
+messages_all_path = os.path.join(logging_path, "messages_all.txt")
+messages_buy_path = os.path.join(logging_path, "messages_buy.txt")
+messages_sell_path = os.path.join(logging_path, "messages_sell.txt")
 
 
 class TelegramParse:
@@ -30,13 +39,13 @@ class TelegramParse:
         check_interval=10,  # интервал проверки файла (в секундах)
     ):
         self.database = Database(database_url)
-        self.products_file = products_file
-        self.regions_file = regions_file
-        self.groups_file = groups_file
-        self.keywords_buy_file = keywords_buy_file
-        self.keywords_sell_file = keywords_sell_file
-        self.keywords_products_file = keywords_products_file
-        self.keywords_regions_file = keywords_regions_file
+        self.products_file = os.path.join("keywords", products_file)
+        self.regions_file = os.path.join("keywords", regions_file)
+        self.groups_file = os.path.join("keywords", groups_file)
+        self.keywords_buy_file = os.path.join("keywords", keywords_buy_file)
+        self.keywords_sell_file = os.path.join("keywords", keywords_sell_file)
+        self.keywords_products_file = os.path.join("keywords", keywords_products_file)
+        self.keywords_regions_file = os.path.join("keywords", keywords_regions_file)
 
         self.selected_products = [
             product.lower() for product in read_list_from_file(self.products_file)
@@ -270,7 +279,7 @@ class TelegramParse:
         }
 
         # Запись всех сообщений
-        with open("messages_all.txt", "a", encoding="utf-8") as file_all:
+        with open(messages_all_path, "a", encoding="utf-8") as file_all:
             file_all.write(
                 json.dumps(message_record_template, ensure_ascii=False) + "\n"
             )
@@ -292,7 +301,7 @@ class TelegramParse:
                 sender_id,
                 sender_phone,
                 parsed_result,
-                "messages_buy.txt",
+                messages_buy_path,
             )
         if is_sell:
             logger.info("Detected 'sell' message")
@@ -305,7 +314,7 @@ class TelegramParse:
                 sender_id,
                 sender_phone,
                 parsed_result,
-                "messages_sell.txt",
+                messages_sell_path,
             )
 
     def save_to_file(

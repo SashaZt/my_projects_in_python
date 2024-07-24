@@ -1,5 +1,5 @@
 import telebot
-from config import TOKEN
+from configuration.config import TOKEN
 
 # Замените на ваш токен
 bot = telebot.TeleBot(TOKEN)
