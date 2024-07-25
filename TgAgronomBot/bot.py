@@ -3,7 +3,13 @@ from telebot import types
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime, timedelta
 from database import Database
-from configuration.config import TOKEN, CHANNEL_USERNAME, ADMIN_IDS, MODERATION_GROUP_ID, NAME_CHANNEL
+from configuration.config import (
+    TOKEN,
+    CHANNEL_USERNAME,
+    ADMIN_IDS,
+    MODERATION_GROUP_ID,
+    NAME_CHANNEL,
+)
 from loguru import logger
 import os
 import asyncio
@@ -48,6 +54,16 @@ regions = [
     ("Житомирська", "region_zhytomyr"),
     ("Черкаська", "region_cherkasy"),
     ("Рівненська", "region_rivne"),
+    ("Івано-Франківська", "region_ivano_frankivsk"),
+    ("Волинська", "region_volyn"),
+    ("Тернопільська", "region_ternopil"),
+    ("Хмельницька", "region_khmelnytskyi"),
+    ("Кіровоградська", "region_kirovohrad"),
+    ("Луганська", "region_luhansk"),
+    ("Донецька", "region_donetsk"),
+    ("Закарпатська", "region_zakarpattia"),
+    ("Чернівецька", "region_chernivtsi"),
+    ("Херсонська", "region_kherson"),
 ]
 
 user_messages = {}

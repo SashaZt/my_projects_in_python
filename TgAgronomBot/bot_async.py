@@ -72,6 +72,16 @@ regions = [
     ("Житомирська", "region_zhytomyr"),
     ("Черкаська", "region_cherkasy"),
     ("Рівненська", "region_rivne"),
+    ("Івано-Франківська", "region_ivano_frankivsk"),
+    ("Волинська", "region_volyn"),
+    ("Тернопільська", "region_ternopil"),
+    ("Хмельницька", "region_khmelnytskyi"),
+    ("Кіровоградська", "region_kirovohrad"),
+    ("Луганська", "region_luhansk"),
+    ("Донецька", "region_donetsk"),
+    ("Закарпатська", "region_zakarpattia"),
+    ("Чернівецька", "region_chernivtsi"),
+    ("Херсонська", "region_kherson"),
 ]
 
 user_messages = {}
@@ -880,6 +890,88 @@ async def region_selection(call):
     )
 
 
+# # РАБОЧАЯ!!!!
+# async def register_user(chat_id):
+#     logger.info(f"Attempting to register user {chat_id}")
+
+#     user_info = user_data.get(chat_id, {})
+#     logger.info(f"user_data for {chat_id}: {user_info}")
+
+#     if not user_info:
+#         logger.error(f"No user data found for chat_id {chat_id}")
+#         await bot.send_message(chat_id, "Ошибка регистрации. Попробуйте снова.")
+#         return
+
+#     nickname = user_info.get("nickname", "")
+#     signup_time = user_info.get("signup_time", "")
+#     role = user_info.get("role", "")
+#     products = user_info.get("products", [])
+#     regions = user_info.get("regions", [])
+
+#     logger.info(
+#         f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
+#     )
+
+#     # Проверка на пустые списки продуктов и регионов
+#     if not products:
+#         await bot.send_message(
+#             chat_id,
+#             "Ви не вибрали жодного продукту. Будь ласка, виберіть хоча б один продукт:",
+#             reply_markup=product_markup(user_data[chat_id]["products"]),
+#         )
+#         return
+
+#     if not regions:
+#         await bot.send_message(
+#             chat_id,
+#             "Ви не вибрали жодного регіону. Будь ласка, виберіть хоча б один регіон:",
+#             reply_markup=region_markup(user_data[chat_id]["regions"]),
+#         )
+#         return
+
+#     if role and products and regions:
+#         if not db.user_exists(chat_id):
+#             db.add_user(chat_id, nickname, signup_time, role)
+#             db.set_trial_duration(chat_id, user_info.get("trial_duration", 172800))
+#             logger.info(
+#                 f"User {chat_id} added with signup_time {signup_time} and role {role}"
+#             )
+#         else:
+#             logger.info(f"User {chat_id} already exists")
+
+#         for product in products:
+#             product_id = db.get_product_id_by_name(product)
+#             if product_id is not None:
+#                 db.add_user_raw_material(chat_id, product_id)
+#                 logger.info(
+#                     f"Product {product} with ID {product_id} added for user {chat_id}"
+#                 )
+#             else:
+#                 logger.error(f"Product ID not found for product: {product}")
+
+#         for region in regions:
+#             region_id = db.get_region_id_by_name(region)
+#             if region_id is not None:
+#                 db.add_user_region(chat_id, region_id)
+#                 logger.info(
+#                     f"Region {region} with ID {region_id} added for user {chat_id}"
+#                 )
+#             else:
+#                 logger.error(f"Region ID not found for region: {region}")
+
+#         await bot.send_message(
+#             chat_id,
+#             "🎉 Вашу пробну версію активовано!\n\nВи отримали 2 дні безкоштовного використання.\n\n <b>Як тільки з'являться пропозиції на ринку, ви одразу їх отримаєте</b>🚀",
+#             parse_mode="HTML",
+#         )
+
+#     else:
+#         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
+#         await bot.send_message(
+#             chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
+#         )
+
+
 async def register_user(chat_id):
     logger.info(f"Attempting to register user {chat_id}")
 
@@ -954,6 +1046,10 @@ async def register_user(chat_id):
             parse_mode="HTML",
         )
 
+        # Запрос контактных данных
+        await bot.send_message(chat_id, "Будь ласка, введіть ваші контактні дані:")
+        user_data[chat_id]["state"] = "awaiting_contact"
+
     else:
         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
         await bot.send_message(
@@ -982,6 +1078,43 @@ def schedule_messages():
             schedule.every().day.at(send_time.strftime("%H:%M")).do(
                 lambda: asyncio.create_task(check_and_send_trial_end_messages())
             )
+
+
+# Обработка введенного контакта
+@bot.message_handler(
+    func=lambda message: user_data.get(message.chat.id, {}).get("state")
+    == "awaiting_contact"
+)
+async def process_contact(message):
+    chat_id = message.chat.id
+    contact = message.text
+    user_data[chat_id]["contact"] = contact
+    user_data[chat_id]["state"] = None
+    await send_application_to_moderation(chat_id)
+
+
+# Отправка заявки на модерацию
+async def send_application_to_moderation(chat_id):
+    data = user_data[chat_id]
+    date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    application_text = (
+        f"НОВА ЗАЯВКА ({date})\n\n"
+        f"Сырье: {data['products']}\n"
+        f"Регион: {data['regions']}\n"
+        f"Контакты: {data['contact']}"
+    )
+    moderation_group_id = MODERATION_GROUP_ID  # Замените на ID вашей группы модерации
+    try:
+        await bot.send_message(moderation_group_id, application_text)
+        await bot.send_message(
+            chat_id, "Ваша заявка була відправлена на модерацію. Дякуємо!"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения в группу модерации: {e}")
+        await bot.send_message(
+            chat_id,
+            "Возникла ошибка при отправке заявки на модерацию. Пожалуйста, попробуйте позже.",
+        )
 
 
 async def run_scheduler():

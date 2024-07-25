@@ -1,7 +1,6 @@
 import asyncio
 from functions.telegram_parser import TelegramParse
 from configuration.config import CHANNEL_USERNAME, database_url
-import configuration.logger_setup  # Импорт настройки логирования, чтобы инициализировать логирование
 
 
 def main():
