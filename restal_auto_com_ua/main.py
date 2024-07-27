@@ -20,12 +20,14 @@ current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
 page_path = os.path.join(temp_path, "page")
 html_path = os.path.join(temp_path, "html")
+img_path = os.path.join(temp_path, "img")
 
 
 # Создание директории, если она не существует
 os.makedirs(temp_path, exist_ok=True)
 os.makedirs(page_path, exist_ok=True)
 os.makedirs(html_path, exist_ok=True)
+os.makedirs(img_path, exist_ok=True)
 
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -144,7 +146,7 @@ async def parsing_page():
     folder = os.path.join(html_path, "*.html")
     files_html = glob.glob(folder)
     all_datas = []
-    for item_html in files_html[1700:1720]:
+    for item_html in files_html:
         with open(item_html, encoding="utf-8") as file:
             src = file.read()
 
@@ -226,14 +228,21 @@ async def parsing_page():
             if col_num == df.columns.get_loc("image_product") + 1:
                 image_url = cell_value
                 try:
-                    print(f"Загрузка изображения: {image_url}")  # Отладочное сообщение
-                    proxy = random_proxy(proxies_list)
-                    image_data = requests.get(
-                        image_url,
-                        headers=headers,
-                        proxies={"http": proxy, "https": proxy},
-                    ).content
-                    image = Image(BytesIO(image_data))
+                    image_filename = os.path.join(img_path, f"{row_num}.jpg")
+                    if not os.path.exists(image_filename):
+                        print(
+                            f"Загрузка изображения: {image_url}"
+                        )  # Отладочное сообщение
+                        proxy = random_proxy(proxies_list)
+                        image_data = requests.get(
+                            image_url,
+                            headers=headers,
+                            proxies={"http": proxy, "https": proxy},
+                        ).content
+
+                        with open(image_filename, "wb") as img_file:
+                            img_file.write(image_data)
+                    image = Image(image_filename)
                     image.width = 250  # Ширина изображения
                     image.height = 250  # Высота изображения
                     ws.add_image(image, cell.coordinate)

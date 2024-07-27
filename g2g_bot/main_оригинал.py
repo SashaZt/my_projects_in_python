@@ -30,18 +30,13 @@ os.makedirs(json_list, exist_ok=True)
 
 # Получение текущей рабочей директории
 log_directory = os.getcwd()
-log_file_path = os.path.join(log_directory, "info_{time:YYYY-MM-DD_HH-mm-ss}.log")
+log_file_path = os.path.join(log_directory, "info.log")
 
 logger.add(
     log_file_path,
     format="{time:YYYY-MM-DD HH:mm:ss} - {level} - {message}",
     level="DEBUG",
     encoding="utf-8",
-    rotation="1 hour",  # Ротация каждый час
-    retention="7 days",  # Сохранять логи в течение 7 дней
-    compression="zip",  # Архивация старых логов
-    enqueue=True,  # Безопасная очередь для ротации
-    backtrace=True,  # Включение трассировки для подробных логов
 )
 
 logger.info("Логирование настроено и работает корректно.")
@@ -265,14 +260,8 @@ def price_study(filename_list, authorization):
     except Exception as e:
         logger.info(f"Произошла ошибка: {e}")
         json_data = None
-    try:
-        username = json_data["username"]
-    except:
-        return
-    try:
-        title = json_data["title"]
-    except:
-        return
+    username = json_data["username"]
+    title = json_data["title"]
     if username != "Allbestfory":
         unit_price = float(json_data["unit_price"])
         if unit_price > 999:

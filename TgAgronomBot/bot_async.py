@@ -3,7 +3,7 @@ import telebot.apihelper as apihelper
 import random
 
 from telebot import types
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import BotCommand
 from datetime import datetime, timedelta, time as dtime
 from database import Database
 from configuration.config import (
@@ -25,8 +25,8 @@ import schedule
 
 bot = AsyncTeleBot(TOKEN)  # Изменить инициализацию бота
 
-db = Database()
-db.initialize_db()
+# db =  Database()
+# db.initialize_db()
 USERS_PER_PAGE = 10
 user_data = {}
 
@@ -84,7 +84,220 @@ regions = [
     ("Херсонська", "region_kherson"),
 ]
 
+
 user_messages = {}
+
+
+# # Создаем постоянное меню
+# def create_menu():
+#     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
+#     markup.add(KeyboardButton("/tarif"))
+#     markup.add(KeyboardButton("/id"))
+#     markup.add(KeyboardButton("/support"))
+#     markup.add(KeyboardButton("/balance"))
+#     return markup
+
+
+# Устанавливаем команды бота
+async def set_commands():
+    commands = [
+        BotCommand(command="/start", description="Запустит / Перезапустити"),
+        BotCommand(command="/tarif", description="обрати тариф, котрий вам підходить"),
+        BotCommand(command="/id", description="покаже ваш ID"),
+        BotCommand(command="/support", description="звʼязатися з підтримкою"),
+        BotCommand(command="/balance", description="дізнайтеся, скільки діє ваш тариф"),
+    ]
+    await bot.set_my_commands(commands)
+
+
+# Обработчик команды /start
+@bot.message_handler(commands=["start"])
+async def start(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    nickname = message.from_user.username
+
+    # Проверка роли пользователя
+    if user_id in ADMIN_IDS:
+        await bot.send_message(
+            chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
+        )
+    else:
+        # Проверка подписки на канал
+        if not await is_subscribed(user_id):
+            await bot.send_message(
+                chat_id,
+                "Будь ласка, підпишіться на канал, щоб продовжити.",
+                reply_markup=trial_markup(),
+            )
+            return
+
+        if not await db.user_exists(user_id):
+            await db.add_user_start(user_id, nickname)
+
+            signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            trial_duration = 172800  # 48 часов в секундах
+            user_data[chat_id] = {
+                "nickname": nickname,
+                "signup_time": signup_time,
+                "trial_duration": trial_duration,
+                "role": None,
+                "products": [],
+                "regions": [],
+                "state": "initial",
+            }
+            message_text = (
+                "👋Привіт! Я — бот Agro Helper, який автоматизує пошук вигідних пропозицій на ринку зерна.\n\n"
+                "👀Бот замість вас 24/7 стежить за пропозиціями у всьому інтернеті фільтрує та сортує їх за вашим запитом\n<b></b>\n"
+                "<a href='https://www.youtube.com/shorts/OBtCzSeYfVM'>‼️ДИВІТЬСЯ ВІДЕО ІНСТРУКЦІЮ</a>\n\n"
+                "🚀Отримайте 2 дні безкоштовного користування.🚀"
+            )
+
+            await bot.send_message(
+                chat_id,
+                message_text,
+                parse_mode="HTML",
+                reply_markup=trial_markup(),
+                disable_web_page_preview=True,
+            )
+
+        else:
+            signup_time = await db.get_signup_time(user_id)
+            trial_duration = await db.get_trial_duration(user_id)
+            current_time = datetime.now()
+
+            if signup_time:
+                if isinstance(signup_time, str):
+                    signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
+
+                if trial_duration is None:
+                    trial_duration = 0
+
+                trial_end_time = signup_time + timedelta(seconds=trial_duration)
+                remaining_time = trial_end_time - current_time
+
+                if remaining_time.total_seconds() > 0:
+                    trial_days = remaining_time.days
+                    trial_hours = remaining_time.seconds // 3600
+                    await bot.send_message(
+                        chat_id,
+                        f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
+                    )
+
+                    return
+                else:
+                    await bot.send_message(chat_id, "Ваш тестовий період завершився!")
+
+
+@bot.message_handler(commands=["tarif"])
+async def send_tarif_message(message):
+    logger.info(f"Обработка команды: {message.text}")
+    response_message = (
+        "Ваш пробний час закінчився. Оформіть підписку для отримання повідомлень.\n"
+        "🌾БАЗОВИЙ ПЛАН\n"
+        "- Доступ до інформації про 1 культуру\n"
+        "- Доступ до пропозицій з 1 регіону\n"
+        "- Щоденні оновлення\n"
+        "💰780 грн. /місяць\n\n"
+        "🌽СТАНДАРТ (Найпопулярніший)\н"
+        "- Доступ до інформації про 5 культур\n"
+        "- Доступ до пропозицій з 3 регіону\n"
+        "- Щоденні оновлення\n"
+        "💰1985 грн. /місяць\n\n"
+        "🌱ЕКСТРА\n"
+        "- Доступ до інформації про необмежену кількість культур\n"
+        "- Доступ до пропозицій з необмеженої кількості регіонів\n"
+        "- Щоденні оновлення\n"
+        "💰3890 грн. /місяць\n\n"
+        "Який з тарифів підходить під ваши потреби?\н"
+        "👇👇ОБЕРІТЬ👇👇"
+    )
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton("Базовый", callback_data="trial_tarif_basic"),
+        types.InlineKeyboardButton("Стандартный", callback_data="trial_tarif_standard"),
+        types.InlineKeyboardButton("Экстра", callback_data="trial_tarif_extra"),
+    )
+
+    await bot.send_message(message.chat.id, response_message, reply_markup=markup)
+    logger.info(f"Отправлено сообщение с тарифами: {response_message}")
+
+
+# Обработчик для кнопки "📨Зв'язатися з підтримкою📨"
+@bot.message_handler(commands=["support"])
+async def contact_support(message):
+    await bot.send_message(
+        message.chat.id,
+        "Зв'яжіться з нашою підтримкою: @AgroHelper_supp",
+        # reply_markup=support(),
+    )
+
+
+# Обработчик команды /id
+@bot.message_handler(commands=["id"])
+async def handle_id(message):
+    await bot.send_message(message.chat.id, f"Ваш ID: {message.from_user.id}")
+
+
+# Обработчик команды /balance
+@bot.message_handler(commands=["balance"])
+async def handle_balance(message):
+    user_id = message.from_user.id
+    chat_id = message.chat.id
+    signup_time = await db.get_signup_time(user_id)
+    trial_duration = await db.get_trial_duration(user_id)
+    current_time = datetime.now()
+
+    if signup_time:
+        if isinstance(signup_time, str):
+            signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
+
+        if trial_duration is None:
+            trial_duration = 0
+
+        trial_end_time = signup_time + timedelta(seconds=trial_duration)
+        remaining_time = trial_end_time - current_time
+
+        if remaining_time.total_seconds() > 0:
+            trial_days = remaining_time.days
+            trial_hours = remaining_time.seconds // 3600
+            await bot.send_message(
+                chat_id,
+                f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
+            )
+    else:
+        await bot.send_message(chat_id, "Ваш тестовий період завершився!")
+    # Проверка, что времени осталось меньше суток
+    if timedelta(0) < remaining_time <= timedelta(days=1):
+        logger.info(f"Осталось времени: {remaining_time} для пользователя {user_id}")
+
+        # # Проверка временного статуса и времени отправки
+        # can_send = await can_send_message(user_id)
+        # if can_send:
+        #     logger.info(f"Отправка сообщения трейдеру {user_id}")
+        await send_trial_end_message(user_id)
+        # else:
+        #     logger.info(
+        #         f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
+        #     )
+    elif remaining_time <= timedelta(0):
+        # Действия, если время закончилось или меньше нуля
+        logger.info(
+            f"Время закончилось или меньше нуля для пользователя {user_id}. Осталось времени: {remaining_time}"
+        )
+        # Ваш код для обработки случая, когда время закончилось
+        await send_trial_end_message(user_id)
+    else:
+        logger.info(
+            f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
+        )
+
+
+def support():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("📨Зв'язатися з підтримкою📨"))
+    return markup
 
 
 # Разметка для кнопки пробного периода
@@ -117,7 +330,7 @@ def tarif_markup_to_2days():
 async def send_trial_end_message(user_id):
     """Отправка сообщения о завершении пробного периода"""
     message = (
-        "Ваше пробне время закінчилось, для отримання повідомлень оформіть підписку| /tarif |.\n"
+        "Ваш пробний час закінчився. Оформіть підписку для отримання повідомлень:| /tarif |.\n"
         "🌾БАЗОВИЙ ПЛАН\n"
         "🌽СТАНДАРТ (Найпопулярніший)\n"
         "🌱ЕКСТРА\n"
@@ -145,7 +358,7 @@ async def create_connection():
         port=3306,  # Укажите порт, если он отличается
         user=DB_CONFIG["user"],
         password=DB_CONFIG["password"],
-        db=DB_CONFIG["database"],
+        db=DB_CONFIG["db"],
     )
 
 
@@ -257,7 +470,7 @@ async def check_and_send_trial_end_messages():
         logger.info(f"Проверка трейдера {user_id} на окончание пробного периода")
 
         # Проверка, что времени осталось меньше суток
-        if remaining_time <= timedelta(days=1) and remaining_time > timedelta(0):
+        if timedelta(0) < remaining_time <= timedelta(days=1):
             logger.info(
                 f"Осталось времени: {remaining_time} для пользователя {user_id}"
             )
@@ -271,6 +484,13 @@ async def check_and_send_trial_end_messages():
                 logger.info(
                     f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
                 )
+        elif remaining_time <= timedelta(0):
+            # Действия, если время закончилось или меньше нуля
+            logger.info(
+                f"Время закончилось или меньше нуля для пользователя {user_id}. Осталось времени: {remaining_time}"
+            )
+            # Ваш код для обработки случая, когда время закончилось
+            await send_trial_end_message(user_id)
         else:
             logger.info(
                 f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
@@ -421,39 +641,56 @@ async def send_messages_to_traders():
             last_check_time[user_id] = current_time
 
 
-@bot.message_handler(commands=["tarif"])
-async def send_tarif_message(message):
-    logger.info(f"Обработка команды: {message.text}")
-    response_message = (
-        "Ваш пробний час закінчився. Оформіть підписку для отримання повідомлень.\n"
-        "🌾БАЗОВИЙ ПЛАН\n"
-        "- Доступ до інформації про 1 культуру\n"
-        "- Доступ до пропозицій з 1 регіону\n"
-        "- Щоденні оновлення\n"
-        "💰780 грн. /місяць\n\n"
-        "🌽СТАНДАРТ (Найпопулярніший)\н"
-        "- Доступ до інформації про 5 культур\n"
-        "- Доступ до пропозицій з 3 регіону\n"
-        "- Щоденні оновлення\n"
-        "💰1985 грн. /місяць\n\n"
-        "🌱ЕКСТРА\n"
-        "- Доступ до інформації про необмежену кількість культур\n"
-        "- Доступ до пропозицій з необмеженої кількості регіонів\n"
-        "- Щоденні оновлення\n"
-        "💰3890 грн. /місяць\n\n"
-        "Який з тарифів підходить під ваши потреби?\н"
-        "👇👇ОБЕРІТЬ👇👇"
-    )
+# Админская команда для вывода списка пользователей
+@bot.message_handler(
+    func=lambda message: message.text == "Список пользователей"
+    and message.from_user.id in ADMIN_IDS
+)
+async def list_users(message):
+    await show_users_page(message.chat.id, 0)
 
-    markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton("Базовый", callback_data="trial_tarif_basic"),
-        types.InlineKeyboardButton("Стандартный", callback_data="trial_tarif_standard"),
-        types.InlineKeyboardButton("Экстра", callback_data="trial_tarif_extra"),
-    )
 
-    await bot.send_message(message.chat.id, response_message, reply_markup=markup)
-    logger.info(f"Отправлено сообщение с тарифами: {response_message}")
+# Показ страницы со списком пользователей
+async def show_users_page(chat_id, page):
+    try:
+        connection = await create_connection()
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "SELECT user_id, nickname, signup, trial_duration FROM users_tg_bot"
+            )
+            users = await cursor.fetchall()
+            total_pages = (len(users) - 1) // USERS_PER_PAGE + 1
+            start_index = page * USERS_PER_PAGE
+            end_index = start_index + USERS_PER_PAGE
+            users_on_page = users[start_index:end_index]
+
+            response = f"Список пользователей (Страница {page + 1} из {total_pages}):\n"
+            for user in users_on_page:
+                trial_days = user[3] // (24 * 60 * 60)
+                response += f"\nID: {user[0]}, Никнейм: {user[1]}, Дата регистрации: {user[2]}, Тестовый період: {trial_days} днів\n"
+
+            keyboard = types.InlineKeyboardMarkup()
+            if page > 0:
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        "⬅️ Назад", callback_data=f"prev_page_{page - 1}"
+                    )
+                )
+            if page < total_pages - 1:
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        "Вперед ➡️", callback_data=f"next_page_{page + 1}"
+                    )
+                )
+
+            await bot.send_message(chat_id, response, reply_markup=keyboard)
+        connection.close()
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка пользователей: {e}")
+        await bot.send_message(
+            chat_id,
+            "Возникла ошибка при получении списка пользователей. Пожалуйста, попробуйте позже.",
+        )
 
 
 @bot.callback_query_handler(func=lambda call: call.data == "tarif")
@@ -575,7 +812,6 @@ def admin_markup():
 def start_markup():
     markup = types.InlineKeyboardMarkup(row_width=True)
     link_keyboard = types.InlineKeyboardButton(
-        # text="Підписатися👉", url=f"https://t.me/{CHANNEL_USERNAME}"
         text="Підписатися👉",
         url=f"https://t.me/{NAME_CHANNEL}",
     )
@@ -589,13 +825,24 @@ def start_markup():
 # Функция проверки подписки
 async def is_subscribed(user_id):
     try:
-        # Используем ID канала напрямую
-        channel_chat_id = CHANNEL_USERNAME  # Должен быть числовым ID канала
+        channel_chat_id = f"@{NAME_CHANNEL}"
         member = await bot.get_chat_member(channel_chat_id, user_id)
         return member.status in ["member", "administrator", "creator"]
     except Exception as e:
         logger.error(f"Ошибка при проверке подписки: {e}")
         return False
+
+
+# # Функция проверки подписки РАБОЧИЙ
+# async def is_subscribed(user_id):
+#     try:
+#         # Используем ID канала напрямую
+#         channel_chat_id = CHANNEL_USERNAME  # Должен быть числовым ID канала
+#         member = await bot.get_chat_member(channel_chat_id, user_id)
+#         return member.status in ["member", "administrator", "creator"]
+#     except Exception as e:
+#         logger.error(f"Ошибка при проверке подписки: {e}")
+#         return False
 
 
 # Разметка для выбора активности
@@ -673,64 +920,179 @@ def product_markup(selected_products):
     return markup
 
 
-# Обработчик команды /start
-@bot.message_handler(commands=["start"])
-async def start(message):
-    user_id = message.from_user.id
-    chat_id = message.chat.id
+# Обработчик команды /start РАБОЧИЙ
+# @bot.message_handler(commands=["start"])
+# async def start(message):
+#     user_id = message.from_user.id
+#     chat_id = message.chat.id
 
-    # Проверка роли пользователя
-    if user_id in ADMIN_IDS:
-        await bot.send_message(
-            chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
-        )
-    elif not db.user_exists(user_id):
-        nickname = message.from_user.username
-        signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        trial_duration = 172800  # 48 часов в секундах
-        user_data[chat_id] = {
-            "nickname": nickname,
-            "signup_time": signup_time,
-            "trial_duration": trial_duration,
-            "role": None,
-            "products": [],
-            "regions": [],
-            "state": "initial",
-        }
-        # Отправка видео с текстом
-        with open("video.mp4", "rb") as video:
-            await bot.send_video(
-                chat_id,
-                video,
-                caption="🚀<b>ОТРИМАЙТЕ 2 ДНІ БЕЗКОШТОВНОГО ВИКОРИСТАННЯ</b>\n\n‼️Дивіться відео інструкцію‼️\n\n🌽Отримуйте прямі пропозиції на продаж зернових та інших культур без посередників. Щодня отримуйте свіжі заявки з контактами продавців🌻",
-                parse_mode="HTML",
-                reply_markup=trial_markup(),
-            )
-    else:
-        signup_time = db.get_signup_time(user_id)
-        trial_duration = db.get_trial_duration(user_id)
-        current_time = datetime.now()
+#     # Проверка роли пользователя
+#     if user_id in ADMIN_IDS:
+#         await bot.send_message(
+#             chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
+#         )
+#     elif not db.user_exists(user_id):
+#         nickname = message.from_user.username
+#         signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+#         trial_duration = 172800  # 48 часов в секундах
+#         user_data[chat_id] = {
+#             "nickname": nickname,
+#             "signup_time": signup_time,
+#             "trial_duration": trial_duration,
+#             "role": None,
+#             "products": [],
+#             "regions": [],
+#             "state": "initial",
+#         }
+#         message = "👋Привіт! Я — бот Agro Helper, який автоматизує пошук вигідних пропозицій на ринку зерна.\n\n👀Я цілодобово моніторю джерела, збираю, фільтрую та сортуваю пропозиції згідно з вашими потребами. Вам залишається лише обирати найкращі варіанти, зв'язуватися з продавцями та укладати угоди. Економте час і гроші з Agro Helper! 🌾\n<b></b>\n<a href='https://www.youtube.com/shorts/OBtCzSeYfVM'>‼️ДИВІТЬСЯ ВІДЕО ІНСТРУКЦІЮ</a>\n\n🚀Отримайте 2 дні безкоштовного користування.🚀"
 
-        if signup_time:
-            if isinstance(signup_time, str):
-                signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
+#         await bot.send_message(
+#             chat_id,
+#             message,
+#             parse_mode="HTML",
+#             reply_markup=trial_markup(),
+#             disable_web_page_preview=True,
+#         )
 
-            if trial_duration is None:
-                trial_duration = 0
+#     else:
+#         signup_time = db.get_signup_time(user_id)
+#         trial_duration = db.get_trial_duration(user_id)
+#         current_time = datetime.now()
 
-            trial_end_time = signup_time + timedelta(seconds=trial_duration)
-            remaining_time = trial_end_time - current_time
+#         if signup_time:
+#             if isinstance(signup_time, str):
+#                 signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
 
-            if remaining_time.total_seconds() > 0:
-                trial_days = remaining_time.days
-                trial_hours = remaining_time.seconds // 3600
-                await bot.send_message(
-                    chat_id,
-                    f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
-                )
-                return
-            else:
-                await bot.send_message(chat_id, "Ваш тестовий період завершився!")
+#             if trial_duration is None:
+#                 trial_duration = 0
+
+#             trial_end_time = signup_time + timedelta(seconds=trial_duration)
+#             remaining_time = trial_end_time - current_time
+
+
+#             if remaining_time.total_seconds() > 0:
+#                 trial_days = remaining_time.days
+#                 trial_hours = remaining_time.seconds // 3600
+#                 await bot.send_message(
+#                     chat_id,
+#                     f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
+#                 )
+#                 await bot.send_message(
+#                     chat_id,
+#                     "📨Зв'язатися з підтримкою📨",
+#                     reply_markup=technical_support(),
+#                 )
+#                 return
+#             else:
+#                 await bot.send_message(chat_id, "Ваш тестовий період завершився!")
+#                 await bot.send_message(
+#                     chat_id,
+#                     "📨Зв'язатися з підтримкою📨",
+#                     reply_markup=technical_support(),
+#                 )
+#         else:
+#             await bot.send_message(
+#                 chat_id,
+#                 "📨Зв'язатися з підтримкою📨",
+#                 reply_markup=technical_support(),
+#             )
+
+# # Обработчик команды /start
+# @bot.message_handler(commands=["start"])
+# async def start(message):
+#     user_id = message.from_user.id
+#     chat_id = message.chat.id
+
+#     # Проверка роли пользователя
+#     if user_id in ADMIN_IDS:
+#         await bot.send_message(
+#             chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
+#         )
+#     else:
+#         # Проверка подписки на канал
+#         chat_member = await bot.get_chat_member(
+#             chat_id=f"@{NAME_CHANNEL}", user_id=user_id
+#         )
+#         if chat_member.status not in ["member", "administrator", "creator"]:
+#             await bot.send_message(
+#                 chat_id,
+#                 "Будь ласка, підпишіться на канал, щоб продовжити.",
+#                 reply_markup=trial_markup(),
+#             )
+#             return
+
+#         if not db.user_exists(user_id):
+#             nickname = message.from_user.username
+#             signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+#             trial_duration = 172800  # 48 часов в секундах
+#             user_data[chat_id] = {
+#                 "nickname": nickname,
+#                 "signup_time": signup_time,
+#                 "trial_duration": trial_duration,
+#                 "role": None,
+#                 "products": [],
+#                 "regions": [],
+#                 "state": "initial",
+#             }
+#             message_text = (
+#                 "👋Привіт! Я — бот Agro Helper, який автоматизує пошук вигідних пропозицій на ринку зерна.\n\n"
+#                 "👀Я цілодобово моніторю джерела, збираю, фільтрую та сортуваю пропозиції згідно з вашими потребами. "
+#                 "Вам залишається лише обирати найкращі варіанти, зв'язуватися з продавцями та укладати угоди. "
+#                 "Економте час і гроші з Agro Helper! 🌾\n<b></b>\n"
+#                 "<a href='https://www.youtube.com/shorts/OBtCzSeYfVM'>‼️ДИВІТЬСЯ ВІДЕО ІНСТРУКЦІЮ</a>\n\n"
+#                 "🚀Отримайте 2 дні безкоштовного користування.🚀"
+#             )
+
+#             await bot.send_message(
+#                 chat_id,
+#                 message_text,
+#                 parse_mode="HTML",
+#                 reply_markup=trial_markup(),
+#                 disable_web_page_preview=True,
+#             )
+
+#         else:
+#             signup_time = db.get_signup_time(user_id)
+#             trial_duration = db.get_trial_duration(user_id)
+#             current_time = datetime.now()
+
+#             if signup_time:
+#                 if isinstance(signup_time, str):
+#                     signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
+
+#                 if trial_duration is None:
+#                     trial_duration = 0
+
+#                 trial_end_time = signup_time + timedelta(seconds=trial_duration)
+#                 remaining_time = trial_end_time - current_time
+
+
+#                 if remaining_time.total_seconds() > 0:
+#                     trial_days = remaining_time.days
+#                     trial_hours = remaining_time.seconds // 3600
+#                     await bot.send_message(
+#                         chat_id,
+#                         f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
+#                     )
+#                     await bot.send_message(
+#                         chat_id,
+#                         "📨Зв'язатися з підтримкою📨",
+#                         reply_markup=technical_support(),
+#                     )
+#                     return
+#                 else:
+#                     await bot.send_message(chat_id, "Ваш тестовий період завершився!")
+#                     await bot.send_message(
+#                         chat_id,
+#                         "📨Зв'язатися з підтримкою📨",
+#                         reply_markup=technical_support(),
+#                     )
+#             else:
+#                 await bot.send_message(
+#                     chat_id,
+#                     "📨Зв'язатися з підтримкою📨",
+#                     reply_markup=technical_support(),
+#                 )
 
 
 # Обработчик нажатия кнопки "register" для получения пробного периода
@@ -745,6 +1107,55 @@ async def callback_register(call):
     )
 
 
+# # Обработчик нажатия кнопки "check" для проверки подписки и регистрации пользователя РАБОЧИЙ
+# @bot.callback_query_handler(func=lambda call: call.data == "check")
+# async def callback_check_subscription(call):
+#     user_id = call.from_user.id
+#     chat_id = call.message.chat.id
+#     nickname = call.from_user.username
+
+#     await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+
+#     if is_subscribed(user_id):
+#         if not db.user_exists(user_id):
+#             signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+#             user_data[chat_id] = {
+#                 "nickname": nickname,
+#                 "signup_time": signup_time,
+#                 "role": None,
+#                 "products": [],
+#                 "regions": [],
+#                 "state": "initial",
+#             }
+#             await bot.answer_callback_query(call.id, "Ваша підписка розпочалась! 🎉")
+#             sent_message = await bot.send_message(
+#                 chat_id,
+#                 "Ваша підписка розпочалась! 🎉",
+#             )
+#             user_messages[chat_id] = [sent_message.message_id]
+#         else:
+#             await bot.answer_callback_query(
+#                 call.id, "Ваша підписка вже активована! 🌟."
+#             )
+
+#         if chat_id in user_messages:
+#             for message_id in user_messages[chat_id]:
+#                 await bot.delete_message(chat_id=chat_id, message_id=message_id)
+
+
+#         sent_message_2 = await bot.send_message(
+#             chat_id,
+#             "Виберіть свою діяльність:",
+#             reply_markup=activity_markup(),
+#         )
+#         user_messages[chat_id] = sent_message_2.message_id
+#     else:
+#         sent_message = await bot.send_message(
+#             chat_id,
+#             "Щоб користуватися ботом, необхідно підписатися на канал!",
+#             reply_markup=start_markup(),
+#         )
+#         user_messages[chat_id] = [sent_message.message_id]
 # Обработчик нажатия кнопки "check" для проверки подписки и регистрации пользователя
 @bot.callback_query_handler(func=lambda call: call.data == "check")
 async def callback_check_subscription(call):
@@ -754,8 +1165,8 @@ async def callback_check_subscription(call):
 
     await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
 
-    if is_subscribed(user_id):
-        if not db.user_exists(user_id):
+    if await is_subscribed(user_id):
+        if not await db.user_exists(user_id):
             signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             user_data[chat_id] = {
                 "nickname": nickname,
@@ -785,12 +1196,12 @@ async def callback_check_subscription(call):
             "Виберіть свою діяльність:",
             reply_markup=activity_markup(),
         )
-        user_messages[chat_id] = sent_message_2.message_id
+        user_messages[chat_id] = [sent_message_2.message_id]
     else:
         sent_message = await bot.send_message(
             chat_id,
             "Щоб користуватися ботом, необхідно підписатися на канал!",
-            reply_markup=start_markup(),
+            reply_markup=trial_markup(),
         )
         user_messages[chat_id] = [sent_message.message_id]
 
@@ -972,6 +1383,61 @@ async def region_selection(call):
 #         )
 
 
+async def user_exists(user_id):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            "SELECT COUNT(*) FROM users_tg_bot WHERE user_id = %s", (user_id,)
+        )
+        result = await cursor.fetchone()
+    connection.close()
+    return result[0] > 0
+
+
+async def set_trial_duration(user_id, duration):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            "UPDATE users_tg_bot SET trial_duration = %s WHERE user_id = %s",
+            (duration, user_id),
+        )
+        await connection.commit()
+    connection.close()
+
+
+# Админская команда для добавления времени пользователю
+@bot.message_handler(
+    func=lambda message: message.text == "Добавить время пользователю"
+    and message.from_user.id in ADMIN_IDS
+)
+async def add_time_to_user(message):
+    await bot.send_message(
+        message.chat.id,
+        "Введите ID пользователя и количество секунд через пробел (например, 123456789 30):",
+    )
+
+
+@bot.message_handler(func=lambda message: message.from_user.id in ADMIN_IDS)
+async def process_add_time(message):
+    try:
+        user_id, duration = map(int, message.text.split())
+        if await user_exists(user_id):
+            await set_trial_duration(user_id, duration)
+            await bot.send_message(
+                message.chat.id,
+                f"Тестовый период для пользователя {user_id} установлен на {duration} секунд.",
+            )
+        else:
+            await bot.send_message(
+                message.chat.id, "Пользователь с таким ID не найден."
+            )
+    except (IndexError, ValueError):
+        await bot.send_message(
+            message.chat.id,
+            "Неверный формат. Пожалуйста, введите ID пользователя и количество секунд через пробел.",
+        )
+
+
 async def register_user(chat_id):
     logger.info(f"Attempting to register user {chat_id}")
 
@@ -1011,9 +1477,11 @@ async def register_user(chat_id):
         return
 
     if role and products and regions:
-        if not db.user_exists(chat_id):
-            db.add_user(chat_id, nickname, signup_time, role)
-            db.set_trial_duration(chat_id, user_info.get("trial_duration", 172800))
+        if await db.user_exists(chat_id):
+            await db.add_user(chat_id, nickname, signup_time, role)
+            await db.set_trial_duration(
+                chat_id, user_info.get("trial_duration", 172800)
+            )
             logger.info(
                 f"User {chat_id} added with signup_time {signup_time} and role {role}"
             )
@@ -1021,9 +1489,9 @@ async def register_user(chat_id):
             logger.info(f"User {chat_id} already exists")
 
         for product in products:
-            product_id = db.get_product_id_by_name(product)
+            product_id = await db.get_product_id_by_name(product)
             if product_id is not None:
-                db.add_user_raw_material(chat_id, product_id)
+                await db.add_user_raw_material(chat_id, product_id)
                 logger.info(
                     f"Product {product} with ID {product_id} added for user {chat_id}"
                 )
@@ -1031,9 +1499,9 @@ async def register_user(chat_id):
                 logger.error(f"Product ID not found for product: {product}")
 
         for region in regions:
-            region_id = db.get_region_id_by_name(region)
+            region_id = await db.get_region_id_by_name(region)
             if region_id is not None:
-                db.add_user_region(chat_id, region_id)
+                await db.add_user_region(chat_id, region_id)
                 logger.info(
                     f"Region {region} with ID {region_id} added for user {chat_id}"
                 )
@@ -1046,9 +1514,10 @@ async def register_user(chat_id):
             parse_mode="HTML",
         )
 
-        # Запрос контактных данных
-        await bot.send_message(chat_id, "Будь ласка, введіть ваші контактні дані:")
-        user_data[chat_id]["state"] = "awaiting_contact"
+        # Запрос контактных данных, если роль - "farmer"
+        if role == "farmer":
+            await bot.send_message(chat_id, "Будь ласка, введіть ваші контактні дані:")
+            user_data[chat_id]["state"] = "awaiting_contact"
 
     else:
         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
@@ -1124,11 +1593,18 @@ async def run_scheduler():
 
 
 async def main():
+    global db
+
+    loop = asyncio.get_running_loop()
+    db = Database(loop)
+    await db.create_connection()
+    await db.initialize_db()
     asyncio.create_task(run_scheduler())  # Запуск планировщика из send_messages_asio.py
     schedule.every(30).seconds.do(
         lambda: asyncio.create_task(send_messages_to_traders())
     )
     schedule_messages()
+    await set_commands()  # Устанавливаем команды перед запуском бота
     await bot.infinity_polling()
 
 
