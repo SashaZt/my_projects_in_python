@@ -41,6 +41,7 @@ class Database:
         Инициализация базы данных: создание таблицы users_tg_bot, если она не существует.
         """
         async with self.connection.cursor() as cursor:
+            # Создание таблицы пользоватлей
             await cursor.execute(
                 """CREATE TABLE IF NOT EXISTS users_tg_bot (
                     user_id BIGINT PRIMARY KEY,
@@ -52,7 +53,7 @@ class Database:
                     start_status BOOLEAN DEFAULT TRUE
                 )"""
             )
-
+            # Создание таблицы материалов
             await cursor.execute(
                 """CREATE TABLE IF NOT EXISTS raw_materials (
                     material_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -65,14 +66,37 @@ class Database:
                         last_check_time TIMESTAMP
                 );"""
             )
-
+            # Создание таблицы регионов
             await cursor.execute(
                 """CREATE TABLE IF NOT EXISTS regions (
                     region_id INT AUTO_INCREMENT PRIMARY KEY,
                     region_name VARCHAR(255)
                 );"""
             )
-
+            # Создание таблицы тарифов
+            await cursor.execute(
+                """CREATE TABLE IF NOT EXISTS rates_user_tg_bot (
+                    rates_id INT AUTO_INCREMENT PRIMARY KEY,
+                    rates_name VARCHAR(255),
+                    number_of_regions VARCHAR(255),
+                    number_of_materials VARCHAR(255)
+                );"""
+            )
+            await cursor.executemany(
+                """INSERT INTO rates_user_tg_bot (rates_name, number_of_regions, number_of_materials) 
+                   VALUES (%s, %s, %s)""",
+                [("basic", "1", "1"), ("standard", "3", "5"), ("extra", "0", "0")],
+            )
+            # Создание таблицы тарифов пользователей
+            await cursor.execute(
+                """CREATE TABLE IF NOT EXISTS user_rates (
+                    user_id BIGINT,
+                    rates_id INT,
+                    FOREIGN KEY (user_id) REFERENCES users_tg_bot(user_id),
+                    FOREIGN KEY (rates_id) REFERENCES rates_user_tg_bot(rates_id)
+                );"""
+            )
+            # Создание таблицы объединения пользоватлей и материалов
             await cursor.execute(
                 """CREATE TABLE IF NOT EXISTS user_raw_materials (
                     user_id BIGINT,
@@ -81,7 +105,7 @@ class Database:
                     FOREIGN KEY (material_id) REFERENCES raw_materials(material_id)
                 );"""
             )
-
+            # Создание таблицы объединения пользоватлей и Регионов
             await cursor.execute(
                 """CREATE TABLE IF NOT EXISTS user_regions (
                     user_id BIGINT,
@@ -169,20 +193,7 @@ class Database:
             "Таблицы users_tg_bot, raw_materials, regions созданы или уже существуют."
         )
 
-    # async def user_exists(self, user_id):
-    #     connection = await self.create_connection()
-    #     async with connection.cursor() as cursor:
-    #         try:
-    #             await cursor.execute(
-    #                 "SELECT * FROM users_tg_bot WHERE user_id = %s", (user_id,)
-    #             )
-    #             exists = await cursor.fetchone() is not None
-    #             logger.info(f"User exists check for user_id {user_id}: {exists}")
-    #             return exists
-    #         except Exception as err:
-    #             logger.error(f"Ошибка при проверке существования пользователя: {err}")
-    #         finally:
-    #             connection.close()
+    # Проерка существует ли пользователь в БД
     async def user_exists(self, user_id):
         connection = await self.create_connection()
         async with connection.cursor() as cursor:
@@ -199,6 +210,7 @@ class Database:
             finally:
                 connection.close()
 
+    # Добавление пользователя в БД на первом этапе
     async def add_user_start(self, user_id, nickname):
         connection = await self.create_connection()
         async with connection.cursor() as cursor:
@@ -223,6 +235,7 @@ class Database:
             finally:
                 connection.close()
 
+    # Добавление пользователя в БД на втором этапе
     async def add_user(self, user_id, nickname, signup_time, role):
         connection = await self.create_connection()
         async with connection.cursor() as cursor:

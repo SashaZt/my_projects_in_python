@@ -23,7 +23,7 @@ import aiomysql
 import schedule
 
 
-bot = AsyncTeleBot(TOKEN)  # Изменить инициализацию бота
+bot = AsyncTeleBot(TOKEN)  # инициализацию бота
 
 # db =  Database()
 # db.initialize_db()
@@ -88,14 +88,15 @@ regions = [
 user_messages = {}
 
 
-# # Создаем постоянное меню
-# def create_menu():
-#     markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=False)
-#     markup.add(KeyboardButton("/tarif"))
-#     markup.add(KeyboardButton("/id"))
-#     markup.add(KeyboardButton("/support"))
-#     markup.add(KeyboardButton("/balance"))
-#     return markup
+# Подключение к БД
+async def create_connection():
+    return await aiomysql.connect(
+        host=DB_CONFIG["host"],
+        port=3306,  # Укажите порт, если он отличается
+        user=DB_CONFIG["user"],
+        password=DB_CONFIG["password"],
+        db=DB_CONFIG["db"],
+    )
 
 
 # Устанавливаем команды бота
@@ -108,6 +109,20 @@ async def set_commands():
         BotCommand(command="/balance", description="дізнайтеся, скільки діє ваш тариф"),
     ]
     await bot.set_my_commands(commands)
+
+
+# Разметка для кнопок подписки и проверки
+def start_markup():
+    markup = types.InlineKeyboardMarkup(row_width=True)
+    link_keyboard = types.InlineKeyboardButton(
+        text="Підписатися👉",
+        url=f"https://t.me/{NAME_CHANNEL}",
+    )
+    check_keyboard = types.InlineKeyboardButton(
+        text="Перевірити підписку✅", callback_data="check"
+    )
+    markup.add(link_keyboard, check_keyboard)
+    return markup
 
 
 # Обработчик команды /start
@@ -213,6 +228,7 @@ async def start(message):
         )
 
 
+# Обработчик команды /tarif
 @bot.message_handler(commands=["tarif"])
 async def send_tarif_message(message):
     logger.info(f"Обработка команды: {message.text}")
@@ -240,6 +256,36 @@ async def send_tarif_message(message):
     logger.info(f"Отправлено сообщение с тарифами: {response_message}")
 
 
+@bot.callback_query_handler(func=lambda call: call.data == "tarif")
+async def all_tarif_callback_query(call):
+    logger.info(f"Обработка callback: {call.data}")
+    current_directory = os.getcwd()
+    message_all_tarif = (
+        "Ваш пробний час закінчився\\.\\ Оформіть підписку для отримання повідомлень\\.\\\n"  # Экранирование .
+        "*🌾БАЗОВИЙ ПЛАН* \n"  # Жирный текст
+        "1 культура\\,\\ 1 регіон\\,\\ щоденні оновлення \\-\\ 780 грн\\.\\/міс\\."  # Экранирование . - ,
+        "*🌽СТАНДАРТ* \\(_Найпопулярніший_\)\\ \n"  # кусивом _Найпопулярніший_
+        "5 культур\\,\\ 3 регіони\\,\\ щоденні оновлення \\-\\ 1985 грн\\.\\/міс\\. \n"
+        "*🌱ЕКСТРА* \n"
+        "Необмежені культури та регіони\\,\\ щоденні оновлення \\-\\ 3890 грн\\.\\/міс\\."
+        "Який з тарифів підходить під ваши потреби?👇👇👇👇\n"
+    )
+
+    markup = types.InlineKeyboardMarkup()
+    markup.add(
+        types.InlineKeyboardButton("Базовый", callback_data="trial_tarif_basic"),
+        types.InlineKeyboardButton("Стандартный", callback_data="trial_tarif_standard"),
+        types.InlineKeyboardButton("Экстра", callback_data="trial_tarif_extra"),
+    )
+    await bot.send_message(
+        call.message.chat.id,
+        message_all_tarif,
+        reply_markup=markup,
+        parse_mode="MarkdownV2",
+    )
+    logger.info(f"Отправлено сообщение с тарифами: {message_all_tarif}")
+
+
 # Обработчик для кнопки "📨Зв'язатися з підтримкою📨"
 @bot.message_handler(commands=["support"])
 async def contact_support(message):
@@ -247,6 +293,213 @@ async def contact_support(message):
         message.chat.id,
         "Зв'яжіться з нашою підтримкою: @AgroHelper_supp",
         # reply_markup=support(),
+    )
+
+
+def support():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("📨Зв'язатися з підтримкою📨"))
+    return markup
+
+
+# Обработчик нажатия кнопки "register" для получения пробного периода
+@bot.callback_query_handler(func=lambda call: call.data == "register")
+async def callback_register(call):
+    chat_id = call.message.chat.id
+    await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+    await bot.send_message(
+        chat_id,
+        "Щоб користуватися ботом, необхідно підписатися на канал 📢😉. Не пропусти новини та оновлення!",
+        reply_markup=start_markup(),
+    )
+
+
+# Обработчик нажатия кнопки "check" для проверки подписки и регистрации пользователя
+@bot.callback_query_handler(func=lambda call: call.data == "check")
+async def callback_check_subscription(call):
+    user_id = call.from_user.id
+    chat_id = call.message.chat.id
+    nickname = call.from_user.username
+
+    await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+
+    if await is_subscribed(user_id):
+        if not await db.user_exists(user_id):
+            signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            user_data[chat_id] = {
+                "nickname": nickname,
+                "signup_time": signup_time,
+                "role": None,
+                "products": [],
+                "regions": [],
+                "state": "initial",
+            }
+            await bot.answer_callback_query(call.id, "Ваша підписка розпочалась! 🎉")
+            sent_message = await bot.send_message(
+                chat_id,
+                "Ваша підписка розпочалась! 🎉",
+            )
+            user_messages[chat_id] = [sent_message.message_id]
+        else:
+            await bot.answer_callback_query(
+                call.id, "Ваша підписка вже активована! 🌟."
+            )
+
+        if chat_id in user_messages:
+            for message_id in user_messages[chat_id]:
+                await bot.delete_message(chat_id=chat_id, message_id=message_id)
+
+        sent_message_2 = await bot.send_message(
+            chat_id,
+            "Виберіть свою діяльність:",
+            reply_markup=activity_markup(),
+        )
+        user_messages[chat_id] = [sent_message_2.message_id]
+    else:
+        sent_message = await bot.send_message(
+            chat_id,
+            "Щоб користуватися ботом, необхідно підписатися на канал!",
+            reply_markup=trial_markup(),
+        )
+        user_messages[chat_id] = [sent_message.message_id]
+
+
+# Обработчик выбора активности "farmer" или "trader"
+@bot.callback_query_handler(func=lambda call: call.data in ["farmer", "trader"])
+async def activity_selection(call):
+    chat_id = call.message.chat.id
+    current_directory = os.getcwd()
+    photo_path = os.path.join(current_directory, "img/crops.png")
+    await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+    role = "farmer" if call.data == "farmer" else "trader"
+    user_data[chat_id]["role"] = role
+
+    product_buttons = product_markup(user_data[chat_id]["products"])
+    with open(photo_path, "rb") as photo:
+        await bot.send_photo(
+            chat_id,
+            photo,
+            caption="🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
+            reply_markup=product_buttons,
+        )
+
+
+# Разметка для выбора активности
+def activity_markup():
+    markup = types.InlineKeyboardMarkup(row_width=True)
+    farmer_button = types.InlineKeyboardButton(
+        text="🌾 Я фермер, хочу продавати", callback_data="farmer"
+    )
+    trader_button = types.InlineKeyboardButton(
+        text="📈 Я трейдер, хочу купити", callback_data="trader"
+    )
+    markup.add(farmer_button, trader_button)
+    return markup
+
+
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("product_")
+    or call.data in ["select_all_products", "finish_product_selection"]
+)
+async def product_selection(call):
+    chat_id = call.message.chat.id
+    if call.data == "select_all_products":
+        if len(user_data[chat_id]["products"]) == len(products):
+            user_data[chat_id]["products"] = []
+        else:
+            user_data[chat_id]["products"] = [product[0] for product in products]
+    elif call.data == "finish_product_selection":
+        user_data[chat_id]["state"] = "region_selection"
+        await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+        photo_path = "img/region.png"
+        region_buttons = region_markup(user_data[chat_id]["regions"])
+        with open(photo_path, "rb") as photo:
+            await bot.send_photo(
+                chat_id,
+                photo,
+                caption="🇺🇦Виберіть область, яка вас цікавить, можете вибрати кілька регіонів та натисніть «завершити вибір»",
+                reply_markup=region_buttons,
+            )
+        return
+    else:
+        product = call.data
+        product_name = next((prod[0] for prod in products if prod[1] == product), None)
+        if product_name:
+            if product_name in user_data[chat_id]["products"]:
+                user_data[chat_id]["products"].remove(product_name)
+            else:
+                user_data[chat_id]["products"].append(product_name)
+
+    selected_products = user_data[chat_id]["products"]
+    logger.info(f"Selected products for user {chat_id}: {selected_products}")
+    await bot.edit_message_reply_markup(
+        chat_id=chat_id,
+        message_id=call.message.id,
+        reply_markup=product_markup(selected_products),
+    )
+
+
+# Разметка для выбора продуктов
+def product_markup(selected_products):
+    markup = types.InlineKeyboardMarkup()
+    buttons = []
+    for product in products:
+        text = product[0]
+        if product[0] in selected_products:
+            text = "✅ " + text
+        buttons.append(types.InlineKeyboardButton(text=text, callback_data=product[1]))
+
+    # Группируем кнопки по две в строке
+    for i in range(0, len(buttons), 2):
+        markup.add(*buttons[i : i + 2])
+
+    select_all_text = (
+        "Скасувати всі" if len(selected_products) == len(products) else "Обрати всі"
+    )
+    markup.add(
+        types.InlineKeyboardButton(
+            text=select_all_text, callback_data="select_all_products"
+        )
+    )
+    markup.add(
+        types.InlineKeyboardButton(
+            text="Завершити вибір", callback_data="finish_product_selection"
+        )
+    )
+
+    return markup
+
+
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("region_")
+    or call.data in ["select_all_regions", "finish_region_selection"]
+)
+async def region_selection(call):
+    chat_id = call.message.chat.id
+    if call.data == "select_all_regions":
+        if len(user_data[chat_id]["regions"]) == len(regions):
+            user_data[chat_id]["regions"] = []
+        else:
+            user_data[chat_id]["regions"] = [region[0] for region in regions]
+    elif call.data == "finish_region_selection":
+        await register_user(chat_id)  # Используем await для вызова асинхронной функции
+        await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+        return
+    else:
+        region = call.data
+        region_name = next((reg[0] for reg in regions if reg[1] == region), None)
+        if region_name:
+            if region_name in user_data[chat_id]["regions"]:
+                user_data[chat_id]["regions"].remove(region_name)
+            else:
+                user_data[chat_id]["regions"].append(region_name)
+
+    selected_regions = user_data[chat_id]["regions"]
+    logger.info(f"Selected regions for user {chat_id}: {selected_regions}")
+    await bot.edit_message_reply_markup(
+        chat_id=chat_id,
+        message_id=call.message.id,
+        reply_markup=region_markup(selected_regions),
     )
 
 
@@ -310,12 +563,6 @@ async def handle_balance(message):
         )
 
 
-def support():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton("📨Зв'язатися з підтримкою📨"))
-    return markup
-
-
 # Разметка для кнопки пробного периода
 def trial_markup():
     markup = types.InlineKeyboardMarkup(row_width=True)
@@ -375,17 +622,6 @@ async def send_trial_end_message(user_id):
         user_messages[user_id] = [sent_message.message_id]
     except apihelper.ApiException as e:
         logger.error(f"Failed to send message to user {user_id}: {e}")
-
-
-# Подключение к БД
-async def create_connection():
-    return await aiomysql.connect(
-        host=DB_CONFIG["host"],
-        port=3306,  # Укажите порт, если он отличается
-        user=DB_CONFIG["user"],
-        password=DB_CONFIG["password"],
-        db=DB_CONFIG["db"],
-    )
 
 
 async def get_new_messages(trader, check_time):
@@ -523,74 +759,209 @@ async def check_and_send_trial_end_messages():
             )
 
 
-# #Рабачая, убрать потом
-# async def can_send_message(user_id):
-#     """Проверка, может ли быть отправлено сообщение"""
-#     now = datetime.now()
-#     if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
-#         logger.info(
-#             f"Сообщения могут быть отправлены только с 8:00 до 20:00. Сейчас: {now.time()}"
-#         )
-#         return False
-
-#     last_sent = last_check_time.get(user_id)
-#     if last_sent:
-#         logger.info(f"Последняя отправка {last_sent}")
-#     else:
-#         logger.info(
-#             f"Для пользователя {user_id} нет записей о последней отправке сообщений"
-#         )
-
-#     if last_sent and now - last_sent < timedelta(minutes=1):
-#         logger.info(
-#             f"Сообщение пользователю {user_id} было отправлено менее минуты назад."
-#         )
-#         return False
-
-#     count = daily_message_count.get(user_id, 0)
-#     logger.info(
-#         f"Количество сообщений, отправленных пользователю {user_id} за сегодня: {count}"
-#     )
-
-#     if count >= 20:
-#         logger.info(f"Достигнут лимит в 20 сообщений в день для пользователя {user_id}")
-#         return False
+# Проверка существует ли пользователь в БД
+async def user_exists(user_id):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            "SELECT COUNT(*) FROM users_tg_bot WHERE user_id = %s", (user_id,)
+        )
+        result = await cursor.fetchone()
+    connection.close()
+    return result[0] > 0
 
 
-#     return True
-# async def can_send_message(user_id):
-#     """Проверка, может ли быть отправлено сообщение (временная версия для тестирования)"""
-#     now = datetime.now()
+async def set_trial_duration(user_id, duration):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            "UPDATE users_tg_bot SET trial_duration = %s WHERE user_id = %s",
+            (duration, user_id),
+        )
+        await connection.commit()
+    connection.close()
 
-#     # Убрать проверку на временные рамки отправки сообщений
-#     # if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
-#     #     logger.info(f"Сообщения могут быть отправлены только с 8:00 до 20:00. Сейчас: {now.time()}")
-#     #     return False
 
-#     last_sent = last_check_time.get(user_id)
-#     if last_sent:
-#         logger.info(f"Последняя отправка {last_sent}")
-#     else:
-#         logger.info(
-#             f"Для пользователя {user_id} нет записей о последней отправке сообщений"
-#         )
+# Админская команда для добавления времени пользователю
+@bot.message_handler(
+    func=lambda message: message.text == "Добавить время пользователю"
+    and message.from_user.id in ADMIN_IDS
+)
+async def add_time_to_user(message):
+    await bot.send_message(
+        message.chat.id,
+        "Введите ID пользователя и количество секунд через пробел (например, 123456789 30):",
+    )
 
-#     # Убрать проверку на интервал времени между отправками
-#     # if last_sent and now - last_sent < timedelta(minutes=1):
-#     #     logger.info(f"Сообщение пользователю {user_id} было отправлено менее минуты назад.")
-#     #     return False
 
-#     count = daily_message_count.get(user_id, 0)
-#     logger.info(
-#         f"Количество сообщений, отправленных пользователю {user_id} за сегодня: {count}"
-#     )
+@bot.message_handler(func=lambda message: message.from_user.id in ADMIN_IDS)
+async def process_add_time(message):
+    try:
+        user_id, duration = map(int, message.text.split())
+        if await user_exists(user_id):
+            await set_trial_duration(user_id, duration)
+            await bot.send_message(
+                message.chat.id,
+                f"Тестовый период для пользователя {user_id} установлен на {duration} секунд.",
+            )
+        else:
+            await bot.send_message(
+                message.chat.id, "Пользователь с таким ID не найден."
+            )
+    except (IndexError, ValueError):
+        await bot.send_message(
+            message.chat.id,
+            "Неверный формат. Пожалуйста, введите ID пользователя и количество секунд через пробел.",
+        )
 
-#     # Убрать проверку на лимит сообщений в день
-#     # if count >= 20:
-#     #     logger.info(f"Достигнут лимит в 20 сообщений в день для пользователя {user_id}")
-#     #     return False
 
-#     return True  # Всегда возвращаем True для тестирования
+# Регистрация пользователя
+async def register_user(chat_id):
+    logger.info(f"Attempting to register user {chat_id}")
+
+    user_info = user_data.get(chat_id, {})
+    logger.info(f"user_data for {chat_id}: {user_info}")
+
+    if not user_info:
+        logger.error(f"No user data found for chat_id {chat_id}")
+        await bot.send_message(chat_id, "Ошибка регистрации. Попробуйте снова.")
+        return
+
+    nickname = user_info.get("nickname", "")
+    signup_time = user_info.get("signup_time", "")
+    role = user_info.get("role", "")
+    products = user_info.get("products", [])
+    regions = user_info.get("regions", [])
+
+    logger.info(
+        f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
+    )
+
+    # Проверка на пустые списки продуктов и регионов
+    if not products:
+        await bot.send_message(
+            chat_id,
+            "Ви не вибрали жодного продукту. Будь ласка, виберіть хоча б один продукт:",
+            reply_markup=product_markup(user_data[chat_id]["products"]),
+        )
+        return
+
+    if not regions:
+        await bot.send_message(
+            chat_id,
+            "Ви не вибрали жодного регіону. Будь ласка, виберіть хоча б один регіон:",
+            reply_markup=region_markup(user_data[chat_id]["regions"]),
+        )
+        return
+
+    if role and products and regions:
+        if await db.user_exists(chat_id):
+            await db.add_user(chat_id, nickname, signup_time, role)
+            await db.set_trial_duration(
+                chat_id, user_info.get("trial_duration", 172800)
+            )
+            logger.info(
+                f"User {chat_id} added with signup_time {signup_time} and role {role}"
+            )
+        else:
+            logger.info(f"User {chat_id} already exists")
+
+        for product in products:
+            product_id = await db.get_product_id_by_name(product)
+            if product_id is not None:
+                await db.add_user_raw_material(chat_id, product_id)
+                logger.info(
+                    f"Product {product} with ID {product_id} added for user {chat_id}"
+                )
+            else:
+                logger.error(f"Product ID not found for product: {product}")
+
+        for region in regions:
+            region_id = await db.get_region_id_by_name(region)
+            if region_id is not None:
+                await db.add_user_region(chat_id, region_id)
+                logger.info(
+                    f"Region {region} with ID {region_id} added for user {chat_id}"
+                )
+            else:
+                logger.error(f"Region ID not found for region: {region}")
+
+        await bot.send_message(
+            chat_id,
+            "🎉 Вашу пробну версію активовано!\n\nВи отримали 2 дні безкоштовного використання.\n\n <b>Як тільки з'являться пропозиції на ринку, ви одразу їх отримаєте</b>🚀",
+            parse_mode="HTML",
+        )
+
+        # Запрос контактных данных, если роль - "farmer"
+        if role == "farmer":
+            await bot.send_message(chat_id, "Будь ласка, введіть ваші контактні дані:")
+            user_data[chat_id]["state"] = "awaiting_contact"
+
+    else:
+        logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
+        await bot.send_message(
+            chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
+        )
+
+
+def schedule_messages():
+    start_time = dtime(8, 0)
+    end_time = dtime(20, 0)
+    intervals = 3
+
+    now = datetime.now()
+    first_send = now.replace(hour=8, minute=0, second=0, microsecond=0)
+    last_send = now.replace(hour=20, minute=0, second=0, microsecond=0)
+
+    time_deltas = [
+        (last_send - first_send) / intervals * i
+        + timedelta(minutes=random.randint(0, 59))
+        for i in range(1, intervals + 1)
+    ]
+
+    for delta in time_deltas:
+        send_time = first_send + delta
+        if send_time > now:
+            schedule.every().day.at(send_time.strftime("%H:%M")).do(
+                lambda: asyncio.create_task(check_and_send_trial_end_messages())
+            )
+
+
+# Обработка введенного контакта
+@bot.message_handler(
+    func=lambda message: user_data.get(message.chat.id, {}).get("state")
+    == "awaiting_contact"
+)
+async def process_contact(message):
+    chat_id = message.chat.id
+    contact = message.text
+    user_data[chat_id]["contact"] = contact
+    user_data[chat_id]["state"] = None
+    await send_application_to_moderation(chat_id)
+
+
+# Отправка заявки на модерацию
+async def send_application_to_moderation(chat_id):
+    data = user_data[chat_id]
+    date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    application_text = (
+        f"НОВА ЗАЯВКА ({date})\n\n"
+        f"Сырье: {data['products']}\n"
+        f"Регион: {data['regions']}\n"
+        f"Контакты: {data['contact']}"
+    )
+    moderation_group_id = MODERATION_GROUP_ID  # Замените на ID вашей группы модерации
+    try:
+        await bot.send_message(moderation_group_id, application_text)
+        await bot.send_message(
+            chat_id, "Ваша заявка була відправлена на модерацію. Дякуємо!"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения в группу модерации: {e}")
+        await bot.send_message(
+            chat_id,
+            "Возникла ошибка при отправке заявки на модерацию. Пожалуйста, попробуйте позже.",
+        )
 
 
 async def can_send_message(user_id):
@@ -672,6 +1043,14 @@ async def send_messages_to_traders():
     func=lambda message: message.text == "Список пользователей"
     and message.from_user.id in ADMIN_IDS
 )
+# Разметка для админов
+def admin_markup():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("Добавить время пользователю"))
+    markup.add(types.KeyboardButton("Список пользователей"))
+    return markup
+
+
 async def list_users(message):
     await show_users_page(message.chat.id, 0)
 
@@ -717,36 +1096,6 @@ async def show_users_page(chat_id, page):
             chat_id,
             "Возникла ошибка при получении списка пользователей. Пожалуйста, попробуйте позже.",
         )
-
-
-@bot.callback_query_handler(func=lambda call: call.data == "tarif")
-async def all_tarif_callback_query(call):
-    logger.info(f"Обработка callback: {call.data}")
-    current_directory = os.getcwd()
-    message_all_tarif = (
-        "Ваш пробний час закінчився\\.\\ Оформіть підписку для отримання повідомлень\\.\\\n"  # Экранирование .
-        "*🌾БАЗОВИЙ ПЛАН* \n"  # Жирный текст
-        "1 культура\\,\\ 1 регіон\\,\\ щоденні оновлення \\-\\ 780 грн\\.\\/міс\\."  # Экранирование . - ,
-        "*🌽СТАНДАРТ* \\(_Найпопулярніший_\)\\ \n"  # кусивом _Найпопулярніший_
-        "5 культур\\,\\ 3 регіони\\,\\ щоденні оновлення \\-\\ 1985 грн\\.\\/міс\\. \n"
-        "*🌱ЕКСТРА* \n"
-        "Необмежені культури та регіони\\,\\ щоденні оновлення \\-\\ 3890 грн\\.\\/міс\\."
-        "Який з тарифів підходить під ваши потреби?👇👇👇👇\n"
-    )
-
-    markup = types.InlineKeyboardMarkup()
-    markup.add(
-        types.InlineKeyboardButton("Базовый", callback_data="trial_tarif_basic"),
-        types.InlineKeyboardButton("Стандартный", callback_data="trial_tarif_standard"),
-        types.InlineKeyboardButton("Экстра", callback_data="trial_tarif_extra"),
-    )
-    await bot.send_message(
-        call.message.chat.id,
-        message_all_tarif,
-        reply_markup=markup,
-        parse_mode="MarkdownV2",
-    )
-    logger.info(f"Отправлено сообщение с тарифами: {message_all_tarif}")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("trial_"))
@@ -824,30 +1173,6 @@ async def trial_callback_query(call):
         logger.info(f"Отправлено сообщение: {message_extra}")
 
 
-# Разметка для админов
-def admin_markup():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton("Добавить время пользователю"))
-    markup.add(types.KeyboardButton("Список пользователей"))
-    # markup.add(types.KeyboardButton("Добавить группу"))
-    # markup.add(types.KeyboardButton("Начать парсинг"))
-    return markup
-
-
-# Разметка для кнопок подписки и проверки
-def start_markup():
-    markup = types.InlineKeyboardMarkup(row_width=True)
-    link_keyboard = types.InlineKeyboardButton(
-        text="Підписатися👉",
-        url=f"https://t.me/{NAME_CHANNEL}",
-    )
-    check_keyboard = types.InlineKeyboardButton(
-        text="Перевірити підписку✅", callback_data="check"
-    )
-    markup.add(link_keyboard, check_keyboard)
-    return markup
-
-
 # Функция проверки подписки
 async def is_subscribed(user_id):
     try:
@@ -857,31 +1182,6 @@ async def is_subscribed(user_id):
     except Exception as e:
         logger.error(f"Ошибка при проверке подписки: {e}")
         return False
-
-
-# # Функция проверки подписки РАБОЧИЙ
-# async def is_subscribed(user_id):
-#     try:
-#         # Используем ID канала напрямую
-#         channel_chat_id = CHANNEL_USERNAME  # Должен быть числовым ID канала
-#         member = await bot.get_chat_member(channel_chat_id, user_id)
-#         return member.status in ["member", "administrator", "creator"]
-#     except Exception as e:
-#         logger.error(f"Ошибка при проверке подписки: {e}")
-#         return False
-
-
-# Разметка для выбора активности
-def activity_markup():
-    markup = types.InlineKeyboardMarkup(row_width=True)
-    farmer_button = types.InlineKeyboardButton(
-        text="🌾 Я фермер, хочу продавати", callback_data="farmer"
-    )
-    trader_button = types.InlineKeyboardButton(
-        text="📈 Я трейдер, хочу купити", callback_data="trader"
-    )
-    markup.add(farmer_button, trader_button)
-    return markup
 
 
 # Разметка для выбора регионов
@@ -915,35 +1215,86 @@ def region_markup(selected_regions):
     return markup
 
 
-# Разметка для выбора продуктов
-def product_markup(selected_products):
-    markup = types.InlineKeyboardMarkup()
-    buttons = []
-    for product in products:
-        text = product[0]
-        if product[0] in selected_products:
-            text = "✅ " + text
-        buttons.append(types.InlineKeyboardButton(text=text, callback_data=product[1]))
+# #Рабачая, убрать потом
+# async def can_send_message(user_id):
+#     """Проверка, может ли быть отправлено сообщение"""
+#     now = datetime.now()
+#     if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
+#         logger.info(
+#             f"Сообщения могут быть отправлены только с 8:00 до 20:00. Сейчас: {now.time()}"
+#         )
+#         return False
 
-    # Группируем кнопки по две в строке
-    for i in range(0, len(buttons), 2):
-        markup.add(*buttons[i : i + 2])
+#     last_sent = last_check_time.get(user_id)
+#     if last_sent:
+#         logger.info(f"Последняя отправка {last_sent}")
+#     else:
+#         logger.info(
+#             f"Для пользователя {user_id} нет записей о последней отправке сообщений"
+#         )
 
-    select_all_text = (
-        "Скасувати всі" if len(selected_products) == len(products) else "Обрати всі"
-    )
-    markup.add(
-        types.InlineKeyboardButton(
-            text=select_all_text, callback_data="select_all_products"
-        )
-    )
-    markup.add(
-        types.InlineKeyboardButton(
-            text="Завершити вибір", callback_data="finish_product_selection"
-        )
-    )
+#     if last_sent and now - last_sent < timedelta(minutes=1):
+#         logger.info(
+#             f"Сообщение пользователю {user_id} было отправлено менее минуты назад."
+#         )
+#         return False
 
-    return markup
+#     count = daily_message_count.get(user_id, 0)
+#     logger.info(
+#         f"Количество сообщений, отправленных пользователю {user_id} за сегодня: {count}"
+#     )
+
+#     if count >= 20:
+#         logger.info(f"Достигнут лимит в 20 сообщений в день для пользователя {user_id}")
+#         return False
+
+
+#     return True
+# async def can_send_message(user_id):
+#     """Проверка, может ли быть отправлено сообщение (временная версия для тестирования)"""
+#     now = datetime.now()
+
+#     # Убрать проверку на временные рамки отправки сообщений
+#     # if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
+#     #     logger.info(f"Сообщения могут быть отправлены только с 8:00 до 20:00. Сейчас: {now.time()}")
+#     #     return False
+
+#     last_sent = last_check_time.get(user_id)
+#     if last_sent:
+#         logger.info(f"Последняя отправка {last_sent}")
+#     else:
+#         logger.info(
+#             f"Для пользователя {user_id} нет записей о последней отправке сообщений"
+#         )
+
+#     # Убрать проверку на интервал времени между отправками
+#     # if last_sent and now - last_sent < timedelta(minutes=1):
+#     #     logger.info(f"Сообщение пользователю {user_id} было отправлено менее минуты назад.")
+#     #     return False
+
+#     count = daily_message_count.get(user_id, 0)
+#     logger.info(
+#         f"Количество сообщений, отправленных пользователю {user_id} за сегодня: {count}"
+#     )
+
+#     # Убрать проверку на лимит сообщений в день
+#     # if count >= 20:
+#     #     logger.info(f"Достигнут лимит в 20 сообщений в день для пользователя {user_id}")
+#     #     return False
+
+#     return True  # Всегда возвращаем True для тестирования
+
+
+# # Функция проверки подписки РАБОЧИЙ
+# async def is_subscribed(user_id):
+#     try:
+#         # Используем ID канала напрямую
+#         channel_chat_id = CHANNEL_USERNAME  # Должен быть числовым ID канала
+#         member = await bot.get_chat_member(channel_chat_id, user_id)
+#         return member.status in ["member", "administrator", "creator"]
+#     except Exception as e:
+#         logger.error(f"Ошибка при проверке подписки: {e}")
+#         return False
 
 
 # Обработчик команды /start РАБОЧИЙ
@@ -1121,18 +1472,6 @@ def product_markup(selected_products):
 #                 )
 
 
-# Обработчик нажатия кнопки "register" для получения пробного периода
-@bot.callback_query_handler(func=lambda call: call.data == "register")
-async def callback_register(call):
-    chat_id = call.message.chat.id
-    await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-    await bot.send_message(
-        chat_id,
-        "Щоб користуватися ботом, необхідно підписатися на канал 📢😉. Не пропусти новини та оновлення!",
-        reply_markup=start_markup(),
-    )
-
-
 # # Обработчик нажатия кнопки "check" для проверки подписки и регистрации пользователя РАБОЧИЙ
 # @bot.callback_query_handler(func=lambda call: call.data == "check")
 # async def callback_check_subscription(call):
@@ -1182,149 +1521,6 @@ async def callback_register(call):
 #             reply_markup=start_markup(),
 #         )
 #         user_messages[chat_id] = [sent_message.message_id]
-# Обработчик нажатия кнопки "check" для проверки подписки и регистрации пользователя
-@bot.callback_query_handler(func=lambda call: call.data == "check")
-async def callback_check_subscription(call):
-    user_id = call.from_user.id
-    chat_id = call.message.chat.id
-    nickname = call.from_user.username
-
-    await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-
-    if await is_subscribed(user_id):
-        if not await db.user_exists(user_id):
-            signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            user_data[chat_id] = {
-                "nickname": nickname,
-                "signup_time": signup_time,
-                "role": None,
-                "products": [],
-                "regions": [],
-                "state": "initial",
-            }
-            await bot.answer_callback_query(call.id, "Ваша підписка розпочалась! 🎉")
-            sent_message = await bot.send_message(
-                chat_id,
-                "Ваша підписка розпочалась! 🎉",
-            )
-            user_messages[chat_id] = [sent_message.message_id]
-        else:
-            await bot.answer_callback_query(
-                call.id, "Ваша підписка вже активована! 🌟."
-            )
-
-        if chat_id in user_messages:
-            for message_id in user_messages[chat_id]:
-                await bot.delete_message(chat_id=chat_id, message_id=message_id)
-
-        sent_message_2 = await bot.send_message(
-            chat_id,
-            "Виберіть свою діяльність:",
-            reply_markup=activity_markup(),
-        )
-        user_messages[chat_id] = [sent_message_2.message_id]
-    else:
-        sent_message = await bot.send_message(
-            chat_id,
-            "Щоб користуватися ботом, необхідно підписатися на канал!",
-            reply_markup=trial_markup(),
-        )
-        user_messages[chat_id] = [sent_message.message_id]
-
-
-# Обработчик выбора активности "farmer" или "trader"
-@bot.callback_query_handler(func=lambda call: call.data in ["farmer", "trader"])
-async def activity_selection(call):
-    chat_id = call.message.chat.id
-    current_directory = os.getcwd()
-    photo_path = os.path.join(current_directory, "img/crops.png")
-    await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-    role = "farmer" if call.data == "farmer" else "trader"
-    user_data[chat_id]["role"] = role
-
-    product_buttons = product_markup(user_data[chat_id]["products"])
-    with open(photo_path, "rb") as photo:
-        await bot.send_photo(
-            chat_id,
-            photo,
-            caption="🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
-            reply_markup=product_buttons,
-        )
-
-
-@bot.callback_query_handler(
-    func=lambda call: call.data.startswith("product_")
-    or call.data in ["select_all_products", "finish_product_selection"]
-)
-async def product_selection(call):
-    chat_id = call.message.chat.id
-    if call.data == "select_all_products":
-        if len(user_data[chat_id]["products"]) == len(products):
-            user_data[chat_id]["products"] = []
-        else:
-            user_data[chat_id]["products"] = [product[0] for product in products]
-    elif call.data == "finish_product_selection":
-        user_data[chat_id]["state"] = "region_selection"
-        await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-        photo_path = "img/region.png"
-        region_buttons = region_markup(user_data[chat_id]["regions"])
-        with open(photo_path, "rb") as photo:
-            await bot.send_photo(
-                chat_id,
-                photo,
-                caption="🇺🇦Виберіть область, яка вас цікавить, можете вибрати кілька регіонів та натисніть «завершити вибір»",
-                reply_markup=region_buttons,
-            )
-        return
-    else:
-        product = call.data
-        product_name = next((prod[0] for prod in products if prod[1] == product), None)
-        if product_name:
-            if product_name in user_data[chat_id]["products"]:
-                user_data[chat_id]["products"].remove(product_name)
-            else:
-                user_data[chat_id]["products"].append(product_name)
-
-    selected_products = user_data[chat_id]["products"]
-    logger.info(f"Selected products for user {chat_id}: {selected_products}")
-    await bot.edit_message_reply_markup(
-        chat_id=chat_id,
-        message_id=call.message.id,
-        reply_markup=product_markup(selected_products),
-    )
-
-
-@bot.callback_query_handler(
-    func=lambda call: call.data.startswith("region_")
-    or call.data in ["select_all_regions", "finish_region_selection"]
-)
-async def region_selection(call):
-    chat_id = call.message.chat.id
-    if call.data == "select_all_regions":
-        if len(user_data[chat_id]["regions"]) == len(regions):
-            user_data[chat_id]["regions"] = []
-        else:
-            user_data[chat_id]["regions"] = [region[0] for region in regions]
-    elif call.data == "finish_region_selection":
-        await register_user(chat_id)  # Используем await для вызова асинхронной функции
-        await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-        return
-    else:
-        region = call.data
-        region_name = next((reg[0] for reg in regions if reg[1] == region), None)
-        if region_name:
-            if region_name in user_data[chat_id]["regions"]:
-                user_data[chat_id]["regions"].remove(region_name)
-            else:
-                user_data[chat_id]["regions"].append(region_name)
-
-    selected_regions = user_data[chat_id]["regions"]
-    logger.info(f"Selected regions for user {chat_id}: {selected_regions}")
-    await bot.edit_message_reply_markup(
-        chat_id=chat_id,
-        message_id=call.message.id,
-        reply_markup=region_markup(selected_regions),
-    )
 
 
 # # РАБОЧАЯ!!!!
@@ -1407,209 +1603,6 @@ async def region_selection(call):
 #         await bot.send_message(
 #             chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
 #         )
-
-
-async def user_exists(user_id):
-    connection = await create_connection()
-    async with connection.cursor() as cursor:
-        await cursor.execute(
-            "SELECT COUNT(*) FROM users_tg_bot WHERE user_id = %s", (user_id,)
-        )
-        result = await cursor.fetchone()
-    connection.close()
-    return result[0] > 0
-
-
-async def set_trial_duration(user_id, duration):
-    connection = await create_connection()
-    async with connection.cursor() as cursor:
-        await cursor.execute(
-            "UPDATE users_tg_bot SET trial_duration = %s WHERE user_id = %s",
-            (duration, user_id),
-        )
-        await connection.commit()
-    connection.close()
-
-
-# Админская команда для добавления времени пользователю
-@bot.message_handler(
-    func=lambda message: message.text == "Добавить время пользователю"
-    and message.from_user.id in ADMIN_IDS
-)
-async def add_time_to_user(message):
-    await bot.send_message(
-        message.chat.id,
-        "Введите ID пользователя и количество секунд через пробел (например, 123456789 30):",
-    )
-
-
-@bot.message_handler(func=lambda message: message.from_user.id in ADMIN_IDS)
-async def process_add_time(message):
-    try:
-        user_id, duration = map(int, message.text.split())
-        if await user_exists(user_id):
-            await set_trial_duration(user_id, duration)
-            await bot.send_message(
-                message.chat.id,
-                f"Тестовый период для пользователя {user_id} установлен на {duration} секунд.",
-            )
-        else:
-            await bot.send_message(
-                message.chat.id, "Пользователь с таким ID не найден."
-            )
-    except (IndexError, ValueError):
-        await bot.send_message(
-            message.chat.id,
-            "Неверный формат. Пожалуйста, введите ID пользователя и количество секунд через пробел.",
-        )
-
-
-async def register_user(chat_id):
-    logger.info(f"Attempting to register user {chat_id}")
-
-    user_info = user_data.get(chat_id, {})
-    logger.info(f"user_data for {chat_id}: {user_info}")
-
-    if not user_info:
-        logger.error(f"No user data found for chat_id {chat_id}")
-        await bot.send_message(chat_id, "Ошибка регистрации. Попробуйте снова.")
-        return
-
-    nickname = user_info.get("nickname", "")
-    signup_time = user_info.get("signup_time", "")
-    role = user_info.get("role", "")
-    products = user_info.get("products", [])
-    regions = user_info.get("regions", [])
-
-    logger.info(
-        f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
-    )
-
-    # Проверка на пустые списки продуктов и регионов
-    if not products:
-        await bot.send_message(
-            chat_id,
-            "Ви не вибрали жодного продукту. Будь ласка, виберіть хоча б один продукт:",
-            reply_markup=product_markup(user_data[chat_id]["products"]),
-        )
-        return
-
-    if not regions:
-        await bot.send_message(
-            chat_id,
-            "Ви не вибрали жодного регіону. Будь ласка, виберіть хоча б один регіон:",
-            reply_markup=region_markup(user_data[chat_id]["regions"]),
-        )
-        return
-
-    if role and products and regions:
-        if await db.user_exists(chat_id):
-            await db.add_user(chat_id, nickname, signup_time, role)
-            await db.set_trial_duration(
-                chat_id, user_info.get("trial_duration", 172800)
-            )
-            logger.info(
-                f"User {chat_id} added with signup_time {signup_time} and role {role}"
-            )
-        else:
-            logger.info(f"User {chat_id} already exists")
-
-        for product in products:
-            product_id = await db.get_product_id_by_name(product)
-            if product_id is not None:
-                await db.add_user_raw_material(chat_id, product_id)
-                logger.info(
-                    f"Product {product} with ID {product_id} added for user {chat_id}"
-                )
-            else:
-                logger.error(f"Product ID not found for product: {product}")
-
-        for region in regions:
-            region_id = await db.get_region_id_by_name(region)
-            if region_id is not None:
-                await db.add_user_region(chat_id, region_id)
-                logger.info(
-                    f"Region {region} with ID {region_id} added for user {chat_id}"
-                )
-            else:
-                logger.error(f"Region ID not found for region: {region}")
-
-        await bot.send_message(
-            chat_id,
-            "🎉 Вашу пробну версію активовано!\n\nВи отримали 2 дні безкоштовного використання.\n\n <b>Як тільки з'являться пропозиції на ринку, ви одразу їх отримаєте</b>🚀",
-            parse_mode="HTML",
-        )
-
-        # Запрос контактных данных, если роль - "farmer"
-        if role == "farmer":
-            await bot.send_message(chat_id, "Будь ласка, введіть ваші контактні дані:")
-            user_data[chat_id]["state"] = "awaiting_contact"
-
-    else:
-        logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
-        await bot.send_message(
-            chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
-        )
-
-
-def schedule_messages():
-    start_time = dtime(8, 0)
-    end_time = dtime(20, 0)
-    intervals = 3
-
-    now = datetime.now()
-    first_send = now.replace(hour=8, minute=0, second=0, microsecond=0)
-    last_send = now.replace(hour=20, minute=0, second=0, microsecond=0)
-
-    time_deltas = [
-        (last_send - first_send) / intervals * i
-        + timedelta(minutes=random.randint(0, 59))
-        for i in range(1, intervals + 1)
-    ]
-
-    for delta in time_deltas:
-        send_time = first_send + delta
-        if send_time > now:
-            schedule.every().day.at(send_time.strftime("%H:%M")).do(
-                lambda: asyncio.create_task(check_and_send_trial_end_messages())
-            )
-
-
-# Обработка введенного контакта
-@bot.message_handler(
-    func=lambda message: user_data.get(message.chat.id, {}).get("state")
-    == "awaiting_contact"
-)
-async def process_contact(message):
-    chat_id = message.chat.id
-    contact = message.text
-    user_data[chat_id]["contact"] = contact
-    user_data[chat_id]["state"] = None
-    await send_application_to_moderation(chat_id)
-
-
-# Отправка заявки на модерацию
-async def send_application_to_moderation(chat_id):
-    data = user_data[chat_id]
-    date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    application_text = (
-        f"НОВА ЗАЯВКА ({date})\n\n"
-        f"Сырье: {data['products']}\n"
-        f"Регион: {data['regions']}\n"
-        f"Контакты: {data['contact']}"
-    )
-    moderation_group_id = MODERATION_GROUP_ID  # Замените на ID вашей группы модерации
-    try:
-        await bot.send_message(moderation_group_id, application_text)
-        await bot.send_message(
-            chat_id, "Ваша заявка була відправлена на модерацію. Дякуємо!"
-        )
-    except Exception as e:
-        logger.error(f"Ошибка при отправке сообщения в группу модерации: {e}")
-        await bot.send_message(
-            chat_id,
-            "Возникла ошибка при отправке заявки на модерацию. Пожалуйста, попробуйте позже.",
-        )
 
 
 async def run_scheduler():
