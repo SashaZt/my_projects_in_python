@@ -712,6 +712,7 @@ async def get_traders_trial():
         conn.close()
 
 
+# Проверить и отправить сообщение о окончание тестового периода
 async def check_and_send_trial_end_messages():
     logger.info("Запуск проверки и отправки сообщений о завершении пробного периода")
     traders = await get_traders_trial()
@@ -780,6 +781,66 @@ async def set_trial_duration(user_id, duration):
         )
         await connection.commit()
     connection.close()
+
+
+#  Админская команда для вывода списка пользователей
+@bot.message_handler(
+    func=lambda message: message.text == "Список пользователей"
+    and message.from_user.id in ADMIN_IDS
+)
+# Разметка для админов
+def admin_markup():
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(types.KeyboardButton("Добавить время пользователю"))
+    markup.add(types.KeyboardButton("Список пользователей"))
+    return markup
+
+
+async def list_users(message):
+    await show_users_page(message.chat.id, 0)
+
+
+# Показ страницы со списком пользователей
+async def show_users_page(chat_id, page):
+    try:
+        connection = await create_connection()
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "SELECT user_id, nickname, signup, trial_duration FROM users_tg_bot"
+            )
+            users = await cursor.fetchall()
+            total_pages = (len(users) - 1) // USERS_PER_PAGE + 1
+            start_index = page * USERS_PER_PAGE
+            end_index = start_index + USERS_PER_PAGE
+            users_on_page = users[start_index:end_index]
+
+            response = f"Список пользователей (Страница {page + 1} из {total_pages}):\n"
+            for user in users_on_page:
+                trial_days = user[3] // (24 * 60 * 60)
+                response += f"\nID: {user[0]}, Никнейм: {user[1]}, Дата регистрации: {user[2]}, Тестовый період: {trial_days} днів\n"
+
+            keyboard = types.InlineKeyboardMarkup()
+            if page > 0:
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        "⬅️ Назад", callback_data=f"prev_page_{page - 1}"
+                    )
+                )
+            if page < total_pages - 1:
+                keyboard.add(
+                    types.InlineKeyboardButton(
+                        "Вперед ➡️", callback_data=f"next_page_{page + 1}"
+                    )
+                )
+
+            await bot.send_message(chat_id, response, reply_markup=keyboard)
+        connection.close()
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка пользователей: {e}")
+        await bot.send_message(
+            chat_id,
+            "Возникла ошибка при получении списка пользователей. Пожалуйста, попробуйте позже.",
+        )
 
 
 # Админская команда для добавления времени пользователю
@@ -1038,64 +1099,7 @@ async def send_messages_to_traders():
             last_check_time[user_id] = current_time
 
 
-# Админская команда для вывода списка пользователей
-@bot.message_handler(
-    func=lambda message: message.text == "Список пользователей"
-    and message.from_user.id in ADMIN_IDS
-)
-# Разметка для админов
-def admin_markup():
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton("Добавить время пользователю"))
-    markup.add(types.KeyboardButton("Список пользователей"))
-    return markup
-
-
-async def list_users(message):
-    await show_users_page(message.chat.id, 0)
-
-
-# Показ страницы со списком пользователей
-async def show_users_page(chat_id, page):
-    try:
-        connection = await create_connection()
-        async with connection.cursor() as cursor:
-            await cursor.execute(
-                "SELECT user_id, nickname, signup, trial_duration FROM users_tg_bot"
-            )
-            users = await cursor.fetchall()
-            total_pages = (len(users) - 1) // USERS_PER_PAGE + 1
-            start_index = page * USERS_PER_PAGE
-            end_index = start_index + USERS_PER_PAGE
-            users_on_page = users[start_index:end_index]
-
-            response = f"Список пользователей (Страница {page + 1} из {total_pages}):\n"
-            for user in users_on_page:
-                trial_days = user[3] // (24 * 60 * 60)
-                response += f"\nID: {user[0]}, Никнейм: {user[1]}, Дата регистрации: {user[2]}, Тестовый період: {trial_days} днів\n"
-
-            keyboard = types.InlineKeyboardMarkup()
-            if page > 0:
-                keyboard.add(
-                    types.InlineKeyboardButton(
-                        "⬅️ Назад", callback_data=f"prev_page_{page - 1}"
-                    )
-                )
-            if page < total_pages - 1:
-                keyboard.add(
-                    types.InlineKeyboardButton(
-                        "Вперед ➡️", callback_data=f"next_page_{page + 1}"
-                    )
-                )
-
-            await bot.send_message(chat_id, response, reply_markup=keyboard)
-        connection.close()
-    except Exception as e:
-        logger.error(f"Ошибка при получении списка пользователей: {e}")
-        await bot.send_message(
-            chat_id,
-            "Возникла ошибка при получении списка пользователей. Пожалуйста, попробуйте позже.",
-        )
+#
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("trial_"))
