@@ -203,29 +203,31 @@ async def start(message):
                 else:
                     pass
                     # await bot.send_message(chat_id, "Ваш тестовий період завершився!")
-    if timedelta(0) < remaining_time <= timedelta(days=1):
-        logger.info(f"Осталось времени: {remaining_time} для пользователя {user_id}")
+        if timedelta(0) < remaining_time <= timedelta(days=1):
+            logger.info(
+                f"Осталось времени: {remaining_time} для пользователя {user_id}"
+            )
 
-        # # Проверка временного статуса и времени отправки
-        # can_send = await can_send_message(user_id)
-        # if can_send:
-        #     logger.info(f"Отправка сообщения трейдеру {user_id}")
-        await send_trial_end_message(user_id)
-        # else:
-        #     logger.info(
-        #         f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
-        #     )
-    elif remaining_time <= timedelta(0):
-        # Действия, если время закончилось или меньше нуля
-        logger.info(
-            f"Время закончилось или меньше нуля для пользователя {user_id}. Осталось времени: {remaining_time}"
-        )
-        # Ваш код для обработки случая, когда время закончилось
-        await send_trial_end_message(user_id)
-    else:
-        logger.info(
-            f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
-        )
+            # # Проверка временного статуса и времени отправки
+            # can_send = await can_send_message(user_id)
+            # if can_send:
+            #     logger.info(f"Отправка сообщения трейдеру {user_id}")
+            await send_trial_end_message(user_id)
+            # else:
+            #     logger.info(
+            #         f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
+            #     )
+        elif remaining_time <= timedelta(0):
+            # Действия, если время закончилось или меньше нуля
+            logger.info(
+                f"Время закончилось или меньше нуля для пользователя {user_id}. Осталось времени: {remaining_time}"
+            )
+            # Ваш код для обработки случая, когда время закончилось
+            await send_trial_end_message(user_id)
+        else:
+            logger.info(
+                f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
+            )
 
 
 # Обработчик команды /tarif
@@ -535,32 +537,35 @@ async def handle_balance(message):
                 chat_id,
                 f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
             )
+        # Проверка, что времени осталось меньше суток
+        if timedelta(0) < remaining_time <= timedelta(days=1):
+            logger.info(
+                f"Осталось времени: {remaining_time} для пользователя {user_id}"
+            )
+
+            # # Проверка временного статуса и времени отправки
+            # can_send = await can_send_message(user_id)
+            # if can_send:
+            #     logger.info(f"Отправка сообщения трейдеру {user_id}")
+            await send_trial_end_message(user_id)
+            # else:
+            #     logger.info(
+            #         f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
+            #     )
+        elif remaining_time <= timedelta(0):
+            # Действия, если время закончилось или меньше нуля
+            logger.info(
+                f"Время закончилось или меньше нуля для пользователя {user_id}. Осталось времени: {remaining_time}"
+            )
+            # Ваш код для обработки случая, когда время закончилось
+            await send_trial_end_message(user_id)
+        else:
+            logger.info(
+                f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
+            )
+
     else:
         await bot.send_message(chat_id, "Ваш тестовий період завершився!")
-    # Проверка, что времени осталось меньше суток
-    if timedelta(0) < remaining_time <= timedelta(days=1):
-        logger.info(f"Осталось времени: {remaining_time} для пользователя {user_id}")
-
-        # # Проверка временного статуса и времени отправки
-        # can_send = await can_send_message(user_id)
-        # if can_send:
-        #     logger.info(f"Отправка сообщения трейдеру {user_id}")
-        await send_trial_end_message(user_id)
-        # else:
-        #     logger.info(
-        #         f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
-        #     )
-    elif remaining_time <= timedelta(0):
-        # Действия, если время закончилось или меньше нуля
-        logger.info(
-            f"Время закончилось или меньше нуля для пользователя {user_id}. Осталось времени: {remaining_time}"
-        )
-        # Ваш код для обработки случая, когда время закончилось
-        await send_trial_end_message(user_id)
-    else:
-        logger.info(
-            f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
-        )
 
 
 # Разметка для кнопки пробного периода

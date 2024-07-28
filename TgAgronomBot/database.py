@@ -82,11 +82,14 @@ class Database:
                     number_of_materials VARCHAR(255)
                 );"""
             )
-            await cursor.executemany(
-                """INSERT INTO rates_user_tg_bot (rates_name, number_of_regions, number_of_materials) 
-                   VALUES (%s, %s, %s)""",
-                [("basic", "1", "1"), ("standard", "3", "5"), ("extra", "0", "0")],
-            )
+            await cursor.execute("SELECT COUNT(*) FROM rates_user_tg_bot")
+            count = await cursor.fetchone()
+            if count[0] == 0:
+                await cursor.executemany(
+                    """INSERT INTO rates_user_tg_bot (rates_name, number_of_regions, number_of_materials) 
+                       VALUES (%s, %s, %s)""",
+                    [("basic", "1", "1"), ("standard", "3", "5"), ("extra", "0", "0")],
+                )
             # Создание таблицы тарифов пользователей
             await cursor.execute(
                 """CREATE TABLE IF NOT EXISTS user_rates (
