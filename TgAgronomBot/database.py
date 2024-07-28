@@ -50,8 +50,11 @@ class Database:
                     trial_duration INT,
                     role VARCHAR(255),
                     temporary_status BOOLEAN DEFAULT TRUE,
-                    start_status BOOLEAN DEFAULT TRUE
-                )"""
+                    start_status BOOLEAN DEFAULT TRUE,
+                    subscription_completed TIMESTAMP,
+                    days_of_subscription INT
+                )
+                """
             )
             # Создание таблицы материалов
             await cursor.execute(

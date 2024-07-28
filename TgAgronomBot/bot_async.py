@@ -777,32 +777,21 @@ async def user_exists(user_id):
     return result[0] > 0
 
 
-async def set_trial_duration(user_id, duration):
-    connection = await create_connection()
-    async with connection.cursor() as cursor:
-        await cursor.execute(
-            "UPDATE users_tg_bot SET trial_duration = %s WHERE user_id = %s",
-            (duration, user_id),
-        )
-        await connection.commit()
-    connection.close()
-
-
-#  Админская команда для вывода списка пользователей
+# Админская команда для вывода списка пользователей
 @bot.message_handler(
     func=lambda message: message.text == "Список пользователей"
     and message.from_user.id in ADMIN_IDS
 )
+async def list_users(message):
+    await show_users_page(message.chat.id, 0)
+
+
 # Разметка для админов
 def admin_markup():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("Добавить время пользователю"))
     markup.add(types.KeyboardButton("Список пользователей"))
     return markup
-
-
-async def list_users(message):
-    await show_users_page(message.chat.id, 0)
 
 
 # Показ страницы со списком пользователей
@@ -821,8 +810,9 @@ async def show_users_page(chat_id, page):
 
             response = f"Список пользователей (Страница {page + 1} из {total_pages}):\n"
             for user in users_on_page:
-                trial_days = user[3] // (24 * 60 * 60)
-                response += f"\nID: {user[0]}, Никнейм: {user[1]}, Дата регистрации: {user[2]}, Тестовый період: {trial_days} днів\n"
+                trial_duration = user[3] if user[3] is not None else 0
+                trial_days = trial_duration // (24 * 60 * 60)
+                response += f"\nID: {user[0]}, Никнейм: {user[1]}, Дата регистрации: {user[2]}, Тестовый период: {trial_days} дней\n"
 
             keyboard = types.InlineKeyboardMarkup()
             if page > 0:
@@ -856,20 +846,29 @@ async def show_users_page(chat_id, page):
 async def add_time_to_user(message):
     await bot.send_message(
         message.chat.id,
-        "Введите ID пользователя и количество секунд через пробел (например, 123456789 30):",
+        "Введите ID пользователя\n"
+        "количество дней\n"
+        "тариф:\nбазовый - 1\nстандарт - 2\nекстра - 3\nчерез пробел\n(например, 123456789 30 1):",
     )
 
 
+# Обработчик для добавления времени пользователю
 @bot.message_handler(func=lambda message: message.from_user.id in ADMIN_IDS)
 async def process_add_time(message):
     try:
-        user_id, duration = map(int, message.text.split())
+        user_id, days, rates_id = map(int, message.text.split())
+
+        duration = days * 24 * 60 * 60  # Преобразование дней в секунды
+        subscription_completed = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if await user_exists(user_id):
-            await set_trial_duration(user_id, duration)
+            await set_trial_duration(
+                user_id, duration, subscription_completed, rates_id, days
+            )
             await bot.send_message(
                 message.chat.id,
-                f"Тестовый период для пользователя {user_id} установлен на {duration} секунд.",
+                f"Подписка для {user_id} установлен на {days} дней.",
             )
+            await send_subscription_message(user_id, rates_id)
         else:
             await bot.send_message(
                 message.chat.id, "Пользователь с таким ID не найден."
@@ -877,8 +876,92 @@ async def process_add_time(message):
     except (IndexError, ValueError):
         await bot.send_message(
             message.chat.id,
-            "Неверный формат. Пожалуйста, введите ID пользователя и количество секунд через пробел.",
+            "Неверный формат. Пожалуйста, введите ID пользователя, количество дней и ID тарифа через пробел.",
         )
+
+
+async def set_trial_duration(user_id, duration, subscription_completed, rates_id, days):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        # Обновление таблицы users_tg_bot
+        await cursor.execute(
+            """
+            UPDATE users_tg_bot 
+            SET trial_duration = %s, subscription_completed = %s, days_of_subscription = %s 
+            WHERE user_id = %s
+            """,
+            (duration, subscription_completed, days, user_id),
+        )
+
+        # Вставка в таблицу user_rates
+        await cursor.execute(
+            """
+            INSERT INTO user_rates (user_id, rates_id) 
+            VALUES (%s, %s)
+            """,
+            (user_id, rates_id),
+        )
+        await connection.commit()
+    connection.close()
+
+
+async def send_subscription_message(user_id, rates_id):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        # Получение rates_name на основе rates_id
+        await cursor.execute(
+            """
+            SELECT rates_name FROM rates_user_tg_bot WHERE rates_id = %s
+            """,
+            (rates_id,),
+        )
+        rate = await cursor.fetchone()
+        rates_name = rate[0] if rate else "неизвестный тариф"
+
+    connection.close()
+
+    # Отправка сообщения пользователю
+    await bot.send_message(
+        user_id,
+        f"Ваша подписка на тарифный план {rates_name}, выберите количество регионов и материалов согласно тарифа.",
+    )
+
+
+# @bot.message_handler(func=lambda message: message.from_user.id in ADMIN_IDS) РАБОЧИЙ
+# async def process_add_time(message):
+#     try:
+#         user_id, days, rates_id = map(int, message.text.split())
+
+#         duration = days * 24 * 60 * 60  # Преобразование дней в секунды
+#         subscription_completed = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+#         if await user_exists(user_id):
+#             await set_trial_duration(
+#                 user_id, duration, subscription_completed, rates_id, days
+#             )
+#             await bot.send_message(
+#                 message.chat.id,
+#                 f"Тестовый период для пользователя {user_id} установлен на {days} дней.",
+#             )
+#         else:
+#             await bot.send_message(
+#                 message.chat.id, "Пользователь с таким ID не найден."
+#             )
+#     except (IndexError, ValueError):
+#         await bot.send_message(
+#             message.chat.id,
+#             "Неверный формат. Пожалуйста, введите ID пользователя и количество секунд через пробел.",
+#         )
+
+
+# async def set_trial_duration(user_id, duration, subscription_completed, rates_id, days):
+#     connection = await create_connection()
+#     async with connection.cursor() as cursor:
+#         await cursor.execute(
+#             "UPDATE users_tg_bot SET trial_duration = %s WHERE user_id = %s",
+#             (duration, user_id),
+#         )
+#         await connection.commit()
+#     connection.close()
 
 
 # Регистрация пользователя
