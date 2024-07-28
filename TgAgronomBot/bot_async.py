@@ -852,17 +852,17 @@ async def add_time_to_user(message):
     )
 
 
-# Обработчик для добавления времени пользователю
+# Обработчик для добавления времени пользователю по подписке
 @bot.message_handler(func=lambda message: message.from_user.id in ADMIN_IDS)
 async def process_add_time(message):
     try:
         user_id, days, rates_id = map(int, message.text.split())
-
+        trial_duration = 0
         duration = days * 24 * 60 * 60  # Преобразование дней в секунды
         subscription_completed = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if await user_exists(user_id):
             await set_trial_duration(
-                user_id, duration, subscription_completed, rates_id, days
+                user_id, trial_duration, subscription_completed, rates_id, duration
             )
             await bot.send_message(
                 message.chat.id,
@@ -880,6 +880,7 @@ async def process_add_time(message):
         )
 
 
+# Отправка сообщение пользователю
 async def set_trial_duration(user_id, duration, subscription_completed, rates_id, days):
     connection = await create_connection()
     async with connection.cursor() as cursor:
@@ -893,14 +894,35 @@ async def set_trial_duration(user_id, duration, subscription_completed, rates_id
             (duration, subscription_completed, days, user_id),
         )
 
-        # Вставка в таблицу user_rates
+        # Проверка наличия записи в таблице user_rates
         await cursor.execute(
             """
-            INSERT INTO user_rates (user_id, rates_id) 
-            VALUES (%s, %s)
+            SELECT 1 FROM user_rates WHERE user_id = %s
             """,
-            (user_id, rates_id),
+            (user_id,),
         )
+        exists = await cursor.fetchone()
+
+        if exists:
+            # Обновление записи в таблице user_rates, если она существует
+            await cursor.execute(
+                """
+                UPDATE user_rates 
+                SET rates_id = %s 
+                WHERE user_id = %s
+                """,
+                (rates_id, user_id),
+            )
+        else:
+            # Вставка новой записи в таблицу user_rates, если записи нет
+            await cursor.execute(
+                """
+                INSERT INTO user_rates (user_id, rates_id) 
+                VALUES (%s, %s)
+                """,
+                (user_id, rates_id),
+            )
+
         await connection.commit()
     connection.close()
 
@@ -923,7 +945,7 @@ async def send_subscription_message(user_id, rates_id):
     # Отправка сообщения пользователю
     await bot.send_message(
         user_id,
-        f"Ваша подписка на тарифный план {rates_name}, выберите количество регионов и материалов согласно тарифа.",
+        f"Ваша подписка на тарифный план {rates_name}, выберите количество регионов и материалов согласно тарифа. | /tarif |",
     )
 
 
