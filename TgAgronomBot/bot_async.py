@@ -386,6 +386,26 @@ async def activity_selection(call):
         )
 
 
+# Обработчик выбора активности "trader_subscription"
+@bot.callback_query_handler(func=lambda call: call.data in ["trader_subscription"])
+async def activity_selection_trader(call):
+    chat_id = call.message.chat.id
+    current_directory = os.getcwd()
+    photo_path = os.path.join(current_directory, "img/crops.png")
+    await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+    role = "trader"
+    user_data[chat_id]["role"] = role
+
+    product_buttons = product_markup(user_data[chat_id]["products"])
+    with open(photo_path, "rb") as photo:
+        await bot.send_photo(
+            chat_id,
+            photo,
+            caption="🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
+            reply_markup=product_buttons,
+        )
+
+
 # Разметка для выбора активности
 def activity_markup():
     markup = types.InlineKeyboardMarkup(row_width=True)
@@ -942,10 +962,19 @@ async def send_subscription_message(user_id, rates_id):
 
     connection.close()
 
-    # Отправка сообщения пользователю
+    # Создание клавиатуры с кнопкой
+    keyboard = types.InlineKeyboardMarkup()
+    keyboard.add(
+        types.InlineKeyboardButton(
+            "Подтвердить подписку", callback_data="trader_subscription"
+        )
+    )
+
+    # Отправка сообщения пользователю с клавиатурой
     await bot.send_message(
         user_id,
-        f"Ваша подписка на тарифный план {rates_name}, выберите количество регионов и материалов согласно тарифа. | /tarif |",
+        f"Ваша подписка на тарифный план {rates_name}, выберите количество регионов и материалов согласно тарифа.",
+        reply_markup=keyboard,
     )
 
 
