@@ -492,6 +492,85 @@ def product_markup(selected_products):
     return markup
 
 
+async def get_user_trial_duration(user_id):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            """
+            SELECT trial_duration FROM users_tg_bot WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+        user = await cursor.fetchone()
+    connection.close()
+    return user[0] if user else None
+
+
+async def get_all_rate_details():
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            """
+            SELECT *
+            FROM rates_user_tg_bot
+            """
+        )
+        rows = await cursor.fetchall()
+        connection.close()
+    return rows
+
+
+# Функция для получения тарифного плана пользователя
+async def get_user_rates(chat_id):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            """
+            SELECT rates_id
+            FROM user_rates
+            WHERE user_id = %s
+            """,
+            (chat_id,),
+        )
+        user_rate = await cursor.fetchone()
+    connection.close()
+    return user_rate  # Вернет кортеж (rates_id,)
+
+
+async def get_rate_details_by_id(rate_list, rates_id):
+    for rate in rate_list:
+        if rate["rates_id"] == rates_id:
+            return rate["number_of_regions"], rate["number_of_materials"]
+    return None, None  # Если тариф не найден
+
+
+async def get_rate_details(rates_id):
+    connection = await create_connection()
+    async with connection.cursor() as cursor:
+        await cursor.execute(
+            """
+            SELECT rates_id, number_of_regions, number_of_materials 
+            FROM rates_user_tg_bot 
+            WHERE rates_id = %s
+            """,
+            (rates_id,),
+        )
+        rate_details = await cursor.fetchone()
+    connection.close()
+    return (
+        rate_details  # Вернем кортеж (rates_id, number_of_regions, number_of_materials)
+    )
+
+
+async def validate_quantity(user_choice, allowed_quantity, item_type):
+    if len(user_choice) != int(allowed_quantity):
+        return (
+            False,
+            f"Выберите правильное количество {item_type}: необходимо {allowed_quantity}.",
+        )
+    return True, None
+
+
 @bot.callback_query_handler(
     func=lambda call: call.data.startswith("region_")
     or call.data in ["select_all_regions", "finish_region_selection"]
@@ -504,9 +583,18 @@ async def region_selection(call):
         else:
             user_data[chat_id]["regions"] = [region[0] for region in regions]
     elif call.data == "finish_region_selection":
-        await register_user(chat_id)  # Используем await для вызова асинхронной функции
-        await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-        return
+        trial_duration = await get_user_trial_duration(chat_id)
+        logger.info(f"Пользователь {chat_id} период {trial_duration}")
+        if trial_duration == 0:
+            await register_user_subscription(chat_id, user_data)
+            await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+            return
+
+        elif trial_duration is None:
+            await register_user_trial(chat_id)
+            await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+            return
+
     else:
         region = call.data
         region_name = next((reg[0] for reg in regions if reg[1] == region), None)
@@ -880,6 +968,9 @@ async def process_add_time(message):
         trial_duration = 0
         duration = days * 24 * 60 * 60  # Преобразование дней в секунды
         subscription_completed = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        logger.info(
+            f"Установлена продолжительность пробного периода для пользователя {user_id}: {trial_duration}"
+        )
         if await user_exists(user_id):
             await set_trial_duration(
                 user_id, trial_duration, subscription_completed, rates_id, duration
@@ -913,7 +1004,7 @@ async def set_trial_duration(user_id, duration, subscription_completed, rates_id
             """,
             (duration, subscription_completed, days, user_id),
         )
-
+        logger.info(f"Отправка сообщение пользователю {user_id}: {duration}")
         # Проверка наличия записи в таблице user_rates
         await cursor.execute(
             """
@@ -1015,8 +1106,8 @@ async def send_subscription_message(user_id, rates_id):
 #     connection.close()
 
 
-# Регистрация пользователя
-async def register_user(chat_id):
+# Регистрация пользователя временного периода
+async def register_user_trial(chat_id):
     logger.info(f"Attempting to register user {chat_id}")
 
     user_info = user_data.get(chat_id, {})
@@ -1102,6 +1193,189 @@ async def register_user(chat_id):
         await bot.send_message(
             chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
         )
+
+
+async def register_user_subscription(chat_id, user_data):
+    logger.info(f"Attempting to register user {chat_id}")
+    logger.info(f"user_data for {chat_id}: {user_data}")
+
+    role = user_data[chat_id].get("role")
+    products = user_data[chat_id].get("products", [])
+    regions = user_data[chat_id].get("regions", [])
+
+    if role and products and regions:
+        rates_id = await get_user_rates(chat_id)
+        rates_id = rates_id[
+            0
+        ]  # Предполагаем, что get_user_rates возвращает кортеж с первым элементом rates_id
+        logger.info(f"Тариф {rates_id}")
+
+        rate_details = await get_rate_details(rates_id)
+        if rate_details:
+            _, number_of_regions, number_of_materials = rate_details
+
+            # Проверка количества продуктов
+            is_valid, error_message = await validate_quantity(
+                products, number_of_materials, "материалов"
+            )
+            if not is_valid:
+                await bot.send_message(chat_id, error_message)
+                product_buttons = product_markup(user_data[chat_id]["products"])
+                await bot.send_message(
+                    chat_id,
+                    "🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
+                    reply_markup=product_buttons,
+                )
+                return  # Прерываем текущий вызов, чтобы подождать правильного ввода
+
+            for product in products:
+                product_id = await db.get_product_id_by_name(product)
+                if product_id is not None:
+                    await db.add_user_raw_material(chat_id, product_id)
+                    logger.info(
+                        f"Product {product} with ID {product_id} added for user {chat_id}"
+                    )
+                else:
+                    logger.error(f"Product ID not found for product: {product}")
+
+            # Проверка количества регионов
+            is_valid, error_message = await validate_quantity(
+                regions, number_of_regions, "регионов"
+            )
+            if not is_valid:
+                await bot.send_message(chat_id, error_message)
+                region_buttons = region_markup(user_data[chat_id]["regions"])
+                await bot.send_message(
+                    chat_id,
+                    "🇺🇦Виберіть область, яка вас цікавить, можете вибрати кілька регіонів та натисніть «завершити вибір»",
+                    reply_markup=region_buttons,
+                )
+                return  # Прерываем текущий вызов, чтобы подождать правильного ввода
+
+            for region in regions:
+                region_id = await db.get_region_id_by_name(region)
+                if region_id is not None:
+                    await db.add_user_region(chat_id, region_id)
+                    logger.info(
+                        f"Region {region} with ID {region_id} added for user {chat_id}"
+                    )
+                else:
+                    logger.error(f"Region ID not found for region: {region}")
+
+            await bot.send_message(
+                chat_id,
+                "🎉 Вашу подписку оформлено!\n\nВи отримали 2 дні безкоштовного використання.\n\n <b>Як тільки з'являться пропозиції на ринку, ви одразу їх отримаєте</b>🚀",
+                parse_mode="HTML",
+            )
+        else:
+            logger.error(f"No rate details found for rates_id: {rates_id}")
+    else:
+        logger.error(f"Missing role, products, or regions for user {chat_id}")
+
+
+# # Регистрация пользователя временного периода
+# async def register_user_subscription(chat_id):
+#     logger.info(f"Attempting to register user {chat_id}")
+
+#     user_info = user_data.get(chat_id, {})
+#     logger.info(f"user_data for {chat_id}: {user_info}")
+
+#     if not user_info:
+#         logger.error(f"No user data found for chat_id {chat_id}")
+#         await bot.send_message(chat_id, "Ошибка регистрации. Попробуйте снова.")
+#         return
+
+#     nickname = user_info.get("nickname", "")
+#     signup_time = user_info.get("signup_time", "")
+#     role = user_info.get("role", "")
+#     products = user_info.get("products", [])
+#     regions = user_info.get("regions", [])
+
+#     logger.info(
+#         f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
+#     )
+
+#     # Проверка на пустые списки продуктов и регионов
+#     if not products:
+#         await bot.send_message(
+#             chat_id,
+#             "Ви не вибрали жодного продукту. Будь ласка, виберіть хоча б один продукт:",
+#             reply_markup=product_markup(user_data[chat_id]["products"]),
+#         )
+#         return
+
+#     if not regions:
+#         await bot.send_message(
+#             chat_id,
+#             "Ви не вибрали жодного регіону. Будь ласка, виберіть хоча б один регіон:",
+#             reply_markup=region_markup(user_data[chat_id]["regions"]),
+#         )
+#         return
+
+#     if role and products and regions:
+#         all_rates = await get_all_rate_details()
+#         # Или сохранение данных в список словарей
+#         rate_list = []
+#         for row in all_rates:
+#             rate_dict = {
+#                 "rates_id": row[0],
+#                 "rates_name": row[1],
+#                 "number_of_regions": row[2],
+#                 "number_of_materials": row[3],
+#             }
+#             rate_list.append(rate_dict)
+
+#         user_rate = await get_user_rates(chat_id)
+#         rates_id = user_rate[0]
+#         regions_rate, materials = await get_rate_details_by_id(rate_list, rates_id)
+
+#         # Проверка количества продуктов
+#         is_valid, error_message = await validate_quantity(
+#             products, materials, "товаров"
+#         )
+#         if not is_valid:
+#             return error_message
+#         for product in products:
+#             product_id = await db.get_product_id_by_name(product)
+#             if product_id is not None:
+#                 await db.add_user_raw_material(chat_id, product_id)
+#                 logger.info(
+#                     f"Product {product} with ID {product_id} added for user {chat_id}"
+#                 )
+#             else:
+#                 logger.error(f"Product ID not found for product: {product}")
+#         # Проверка количества регионов
+#         is_valid, error_message = await validate_quantity(
+#             regions, regions_rate, "регионов"
+#         )
+#         if not is_valid:
+#             return error_message  # Количество регионов превышено
+#         for region in regions:
+#             region_id = await db.get_region_id_by_name(region)
+#             if region_id is not None:
+#                 await db.add_user_region(chat_id, region_id)
+#                 logger.info(
+#                     f"Region {region} with ID {region_id} added for user {chat_id}"
+#                 )
+#             else:
+#                 logger.error(f"Region ID not found for region: {region}")
+
+#         await bot.send_message(
+#             chat_id,
+#             "🎉 Вашу подписку оформлено!\n\nВи отримали 2 дні безкоштовного використання.\n\n <b>Як тільки з'являться пропозиції на ринку, ви одразу їх отримаєте</b>🚀",
+#             parse_mode="HTML",
+#         )
+
+#         # Запрос контактных данных, если роль - "farmer"
+#         if role == "farmer":
+#             await bot.send_message(chat_id, "Будь ласка, введіть ваші контактні дані:")
+#             user_data[chat_id]["state"] = "awaiting_contact"
+
+#     else:
+#         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
+#         await bot.send_message(
+#             chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
+#         )
 
 
 def schedule_messages():

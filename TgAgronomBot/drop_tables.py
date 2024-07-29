@@ -13,7 +13,7 @@ async def create_connection():
 
 
 async def drop_tables():
-    connection = await create_connection()
+    # connection = await create_connection()
     async with connection.cursor() as cursor:
         try:
             # Сначала удаляем таблицы, ссылающиеся на другие таблицы
