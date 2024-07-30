@@ -1203,6 +1203,23 @@ async def register_user_subscription(chat_id, user_data):
     products = user_data[chat_id].get("products", [])
     regions = user_data[chat_id].get("regions", [])
 
+    # Проверка на пустые списки продуктов и регионов
+    if not products:
+        await bot.send_message(
+            chat_id,
+            "Ви не вибрали жодного продукту. Будь ласка, виберіть хоча б один продукт:",
+            reply_markup=product_markup(user_data[chat_id]["products"]),
+        )
+        return
+
+    if not regions:
+        await bot.send_message(
+            chat_id,
+            "Ви не вибрали жодного регіону. Будь ласка, виберіть хоча б один регіон:",
+            reply_markup=region_markup(user_data[chat_id]["regions"]),
+        )
+        return
+
     if role and products and regions:
         rates_id = await get_user_rates(chat_id)
         rates_id = rates_id[
