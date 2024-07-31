@@ -80,10 +80,10 @@ async def get_html():
 
     # Устанавливаем ограничение на количество одновременно выполняемых задач
     sem = asyncio.Semaphore(20)  # Ограничение на 100 одновременно выполняемых задач
-    csv_file_path = "urls.csv"
+    csv_file_path = "href.csv"
     # Чтение CSV файла
     urls_df = pd.read_csv(csv_file_path)
-    for count, url in enumerate(urls_df["url"], start=1):
+    for count, url in enumerate(urls_df["href"], start=1):
         proxy = proxies[count % proxy_count]
         tasks.append(fetch_url(url, proxy, headers, sem, count))
 
@@ -147,39 +147,86 @@ async def parsing_page():
     files_html = glob.glob(folder)
     all_datas = {}
 
+    # for item_html in files_html:
     for item_html in files_html:
         with open(item_html, encoding="utf-8") as file:
             src = file.read()
-
         parser = HTMLParser(src)
-        script_tag = parser.css_first(
-            "body > div.body-container > div.all-content > script:nth-child(2)"
-        )
-        data_json = None
-        if script_tag and script_tag.attributes.get("type") == "application/ld+json":
-            json_content = script_tag.text(strip=True)
-            try:
-                data_json = json.loads(json_content)
-            except json.JSONDecodeError as e:
-                print(f"Error decoding JSON: {e}")
-        else:
-            continue
 
-        name_product = data_json.get("name")
-        image_product = f'https://restal-auto.com.ua{data_json.get("image")}'
-        url_product = data_json.get("url")
-        sku_product = data_json.get("sku")
-        price_product = data_json.get("offers", {}).get("price")
+        script_tags = parser.css("script[type='application/ld+json']")
+        data_json_01 = None
+        data_json_02 = None
+        image_product = None
+        name_product = None
+        sku_product = None
+        price_product = None
+        url_product = None
+
+        # Извлекаем данные из первого скрипта
+        if len(script_tags) > 0:
+            json_content_01 = script_tags[0].text(strip=True)
+            try:
+                data_json_01 = json.loads(json_content_01)
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON from the first script: {e}")
+
+            if data_json_01:
+                graph_data_01 = data_json_01.get("@graph", [])
+                if (
+                    graph_data_01
+                    and isinstance(graph_data_01, list)
+                    and len(graph_data_01) > 0
+                ):
+                    image_product = graph_data_01[0].get("thumbnailUrl")
+
+        # Извлекаем данные из второго скрипта
+        if len(script_tags) > 1:
+            json_content_02 = script_tags[1].text(strip=True)
+            try:
+                data_json_02 = json.loads(json_content_02)
+            except json.JSONDecodeError as e:
+                print(f"Error decoding JSON from the second script: {e}")
+
+            if data_json_02:
+                graph_data_02 = data_json_02.get("@graph", [])
+                if (
+                    graph_data_02
+                    and isinstance(graph_data_02, list)
+                    and len(graph_data_02) > 1
+                ):
+                    name_product = graph_data_02[1].get("name")
+                    url_product = graph_data_02[1].get("url")
+                    sku_product = graph_data_02[1].get("sku")
+                    # Проверяем наличие offers и priceSpecification
+                    offers = graph_data_02[1].get("offers", [])
+                    if offers and isinstance(offers, list) and len(offers) > 0:
+                        price_product = offers[0].get("price")
+
+        sku_product_element = parser.css_first(
+            "div.product-info.summary.col-fit.col.entry-summary.product-summary > div.product-short-description > ul > li:nth-child(2)"
+        )
+
+        if sku_product_element:
+            sku_product_text = sku_product_element.text(strip=True)
+            expressions = ["Код оригіналу:", "Код оригінала:", "Код "]
+
+            sku_product_original = None
+            for expression in expressions:
+                if expression in sku_product_text:
+                    sku_product_original = sku_product_text.split(expression)[1].strip()
+                    break
+        else:
+            sku_product_original = None
 
         brand_product_element = parser.css_first(
-            "body > div.body-container > div.all-content > div > div > div.card-wrap > nav > ul > li:nth-child(2) > a > span"
+            "#wrapper > div > div.page-title-inner.flex-row.medium-flex-wrap.container > div.flex-col.flex-grow.medium-text-center > div > nav > a:nth-child(3)"
         )
         brand_product = (
             brand_product_element.text(strip=True) if brand_product_element else None
         )
 
         category_product_element = parser.css_first(
-            "body > div.body-container > div.all-content > div > div > div.card-wrap > nav > ul > li:nth-child(3) > a > span"
+            "#wrapper > div > div.page-title-inner.flex-row.medium-flex-wrap.container > div.flex-col.flex-grow.medium-text-center > div > nav > a:nth-child(5)"
         )
         category_product = (
             category_product_element.text(strip=True)
@@ -188,16 +235,16 @@ async def parsing_page():
         )
 
         breadcrumb_element = parser.css_first(
-            "body > div.body-container > div.all-content > div > div > div.card-wrap > nav > ul > li:nth-child(4) > a > span"
+            "#wrapper > div > div.page-title-inner.flex-row.medium-flex-wrap.container > div.flex-col.flex-grow.medium-text-center > div > nav > a:nth-child(7)"
         )
         breadcrumb = breadcrumb_element.text(strip=True) if breadcrumb_element else None
-
         data = {
             "breadcrumb": breadcrumb,
             "brand_product": brand_product,
             "category_product": category_product,
             "image_product": image_product,
             "sku_product": sku_product,
+            "sku_product_original": sku_product_original,
             "price_product": price_product,
             "name_product": name_product,
             "url_product": url_product,
