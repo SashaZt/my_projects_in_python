@@ -9,12 +9,14 @@ import asyncio
 import os
 import pandas as pd
 from openpyxl import Workbook
-import requests
+import mimetypes
+from PIL import Image as PILImage
 from io import BytesIO
-from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from selectolax.parser import HTMLParser
 import random
+import csv
+
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
@@ -146,7 +148,7 @@ async def parsing_page():
     folder = os.path.join(html_path, "*.html")
     files_html = glob.glob(folder)
     all_datas = {}
-
+    output_csv = "output.csv"  # Укажите имя выходного CSV файла
     # for item_html in files_html:
     for item_html in files_html:
         with open(item_html, encoding="utf-8") as file:
@@ -242,7 +244,7 @@ async def parsing_page():
             "breadcrumb": breadcrumb,
             "brand_product": brand_product,
             "category_product": category_product,
-            "image_product": image_product,
+            "image_product": f'=IMAGE("{image_product}")',
             "sku_product": sku_product,
             "sku_product_original": sku_product_original,
             "price_product": price_product,
@@ -253,83 +255,115 @@ async def parsing_page():
         # Добавляем данные в словарь, если такого sku_product еще нет
         if sku_product not in all_datas:
             all_datas[sku_product] = data
+    # Сохранение данных в CSV
+    csv_columns = [
+        "breadcrumb",
+        "brand_product",
+        "category_product",
+        "image_product",
+        "sku_product",
+        "sku_product_original",
+        "price_product",
+        "name_product",
+        "url_product",
+    ]
 
-    # Преобразуем словарь обратно в список
-    unique_all_datas = list(all_datas.values())
+    try:
+        with open(output_csv, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.writer(
+                csvfile, delimiter=";", quoting=csv.QUOTE_NONE, escapechar="\\"
+            )
+            # Записываем заголовки
+            writer.writerow(csv_columns)
+            for sku, data in all_datas.items():
+                # Форматируем image_product корректно
+                if data["image_product"]:
+                    image_url = data["image_product"].split('"')[1]
+                    data["image_product"] = f'=IMAGE("{image_url}")'
+                    # Удаляем экранирующие символы
+                    data["image_product"] = data["image_product"].replace('\\"', '"')
+                # Записываем данные
+                row = [data[field] for field in csv_columns]
+                # Прямая запись строки, избегая экранирования кавычек
+                writer.writerow(row)
+        print(f"Данные успешно сохранены в {output_csv}")
+    except IOError as e:
+        print(f"Ошибка записи в CSV файл: {e}")
 
-    # Преобразование списка словарей в DataFrame
-    df = pd.DataFrame(unique_all_datas)
+    # # Преобразуем словарь обратно в список
+    # unique_all_datas = list(all_datas.values())
 
-    # Сортировка по указанным колонкам
-    df = df.sort_values(by=["breadcrumb", "brand_product", "category_product"])
+    # # Преобразование списка словарей в DataFrame
+    # df = pd.DataFrame(unique_all_datas)
 
-    # Создаем новый Workbook
-    wb = Workbook()
-    ws = wb.active
+    # # Сортировка по указанным колонкам
+    # df = df.sort_values(by=["breadcrumb", "brand_product", "category_product"])
 
-    # Записываем заголовки
-    for col_num, column_title in enumerate(df.columns, 1):
-        ws.cell(row=1, column=col_num, value=column_title)
+    # # Создаем новый Workbook
+    # wb = Workbook()
+    # ws = wb.active
 
-    # Записываем данные и вставляем изображения
-    for row_num, row_data in enumerate(df.itertuples(index=False), 2):
-        for col_num, cell_value in enumerate(row_data, 1):
-            cell = ws.cell(row=row_num, column=col_num, value=cell_value)
+    # # Записываем заголовки
+    # for col_num, column_title in enumerate(df.columns, 1):
+    #     ws.cell(row=1, column=col_num, value=column_title)
 
-            # Если это колонка с изображениями, вставляем изображение
-            if col_num == df.columns.get_loc("image_product") + 1:
-                image_url = cell_value
-                try:
-                    image_filename = os.path.join(img_path, f"{row_num}.jpg")
-                    if not os.path.exists(image_filename):
-                        print(
-                            f"Загрузка изображения: {image_url}"
-                        )  # Отладочное сообщение
-                        proxy = random_proxy(proxies_list)
-                        image_data = requests.get(
-                            image_url,
-                            headers=headers,
-                            proxies={"http": proxy, "https": proxy},
-                        ).content
+    # # Записываем данные и вставляем изображения
+    # for row_num, row_data in enumerate(df.itertuples(index=False), 2):
+    #     for col_num, cell_value in enumerate(row_data, 1):
+    #         cell = ws.cell(row=row_num, column=col_num, value=cell_value)
 
-                        with open(image_filename, "wb") as img_file:
-                            img_file.write(image_data)
-                    image = Image(image_filename)
-                    image.width = 250  # Ширина изображения
-                    image.height = 250  # Высота изображения
-                    ws.add_image(image, cell.coordinate)
-                    ws.row_dimensions[row_num].height = (
-                        image.height
-                    )  # Установка высоты строки
-                except Exception as e:
-                    print(f"Ошибка при загрузке изображения {image_url}: {e}")
+    #         # Если это колонка с изображениями, вставляем изображение
+    #         if col_num == df.columns.get_loc("image_product") + 1:
+    #             image_url = cell_value
+    #             try:
+    #                 # Загрузка изображения
 
-    # Сохраняем файл
-    output_file = "output.xlsx"
-    wb.save(output_file)
+    #                 image_filename = os.path.join(img_path, f"{row_num}.jpg")
+    #                 if not os.path.exists(image_filename):
+    #                     print(
+    #                         f"Загрузка изображения: {image_url}"
+    #                     )  # Отладочное сообщение
+    #                     proxy = random_proxy(proxies_list)
+    #                     image_data = requests.get(
+    #                         image_url,
+    #                         headers=headers,
+    #                         proxies={"http": proxy, "https": proxy},
+    #                     ).content
 
-    print(f"Файл сохранен как {output_file}")
+    #                     # Определяем MIME-тип файла
+    #                     mime_type, _ = mimetypes.guess_type(image_url)
+    #                     print(mime_type)
 
+    #                     # Обработка webp изображений
+    #                     if mime_type == "image/webp":
+    #                         # Преобразуем из webp в jpg
+    #                         image = PILImage.open(BytesIO(image_data)).convert("RGB")
+    #                         image_filename = os.path.join(img_path, f"{row_num}.jpg")
+    #                         image.save(image_filename, "JPEG")
+    #                     else:
+    #                         image_filename = os.path.join(img_path, f"{row_num}.jpg")
+    #                         with open(image_filename, "wb") as img_file:
+    #                             img_file.write(image_data)
 
-# Функция для выполнения запроса
-async def fetch_url(url, proxy, headers, sem, count):
-    from asyncio import WindowsSelectorEventLoopPolicy
+    #                     # Проверяем, поддерживается ли формат изображения
+    #                     if image_filename.endswith((".jpg", ".jpeg", ".png")):
+    #                         image = Image(image_filename)
+    #                         image.width = 250  # Ширина изображения
+    #                         image.height = 250  # Высота изображения
+    #                         ws.add_image(image, cell.coordinate)
+    #                         ws.row_dimensions[row_num].height = (
+    #                             image.height
+    #                         )  # Установка высоты строки
+    #                     else:
+    #                         print(f"Формат изображения не поддерживается: {image_filename}")
 
-    # Установим политику цикла событий для Windows
-    asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-    async with sem:
-        async with AsyncSession() as session:
-            filename_html = os.path.join(html_path, f"0{count}.html")
-            if not os.path.exists(filename_html):
-                try:
-                    response = await session.get(url, proxy=proxy, headers=headers)
-                    response.raise_for_status()
-                    src = response.text
-                    with open(filename_html, "w", encoding="utf-8") as f:
-                        f.write(src)
-                except Exception as e:
-                    print(f"Failed to fetch {url} with proxy {proxy}: {e}")
-                await asyncio.sleep(1)
+    #                 except Exception as e:
+    #                     print(f"Ошибка при загрузке изображения {image_url}: {e}")
+
+    # # Сохраняем файл
+    # output_file = "output.xlsx"
+    # wb.save(output_file)
+    # print(f"Файл сохранен как {output_file}")
 
 
 def get_xml():

@@ -271,40 +271,17 @@ class Database:
         connection = await self.create_connection()
         async with connection.cursor() as cursor:
             try:
-                logger.info(f"Checking if user {user_id} already has a raw material")
+                logger.info(f"Inserting raw material {material_id} for user {user_id}")
                 await cursor.execute(
                     """
-                    SELECT material_id FROM user_raw_materials WHERE user_id = %s
+                    INSERT INTO user_raw_materials (user_id, material_id)
+                    VALUES (%s, %s)
                     """,
-                    (user_id,),
+                    (user_id, material_id),
                 )
-                existing_material = await cursor.fetchone()
-
-                if existing_material:
-                    logger.info(
-                        f"User {user_id} already has a raw material, updating to {material_id}"
-                    )
-                    await cursor.execute(
-                        """
-                        UPDATE user_raw_materials SET material_id = %s WHERE user_id = %s
-                        """,
-                        (material_id, user_id),
-                    )
-                else:
-                    logger.info(
-                        f"User {user_id} does not have a raw material, inserting {material_id}"
-                    )
-                    await cursor.execute(
-                        """
-                        INSERT INTO user_raw_materials (user_id, material_id)
-                        VALUES (%s, %s)
-                        """,
-                        (user_id, material_id),
-                    )
-
                 await connection.commit()
                 logger.info(
-                    f"User {user_id} with material {material_id} processed successfully in user_raw_materials"
+                    f"User {user_id} with material {material_id} inserted successfully in user_raw_materials"
                 )
             except Exception as err:
                 logger.error(f"Ошибка при добавлении материала пользователя: {err}")
@@ -315,40 +292,17 @@ class Database:
         connection = await self.create_connection()
         async with connection.cursor() as cursor:
             try:
-                logger.info(f"Checking if user {user_id} already has a region")
+                logger.info(f"Inserting region {region_id} for user {user_id}")
                 await cursor.execute(
                     """
-                    SELECT region_id FROM user_regions WHERE user_id = %s
+                    INSERT INTO user_regions (user_id, region_id)
+                    VALUES (%s, %s)
                     """,
-                    (user_id,),
+                    (user_id, region_id),
                 )
-                existing_region = await cursor.fetchone()
-
-                if existing_region:
-                    logger.info(
-                        f"User {user_id} already has a region, updating to {region_id}"
-                    )
-                    await cursor.execute(
-                        """
-                        UPDATE user_regions SET region_id = %s WHERE user_id = %s
-                        """,
-                        (region_id, user_id),
-                    )
-                else:
-                    logger.info(
-                        f"User {user_id} does not have a region, inserting {region_id}"
-                    )
-                    await cursor.execute(
-                        """
-                        INSERT INTO user_regions (user_id, region_id)
-                        VALUES (%s, %s)
-                        """,
-                        (user_id, region_id),
-                    )
-
                 await connection.commit()
                 logger.info(
-                    f"User {user_id} with region {region_id} processed successfully in user_regions"
+                    f"User {user_id} with region {region_id} inserted successfully in user_regions"
                 )
             except Exception as err:
                 logger.error(f"Ошибка при добавлении региона пользователя: {err}")
