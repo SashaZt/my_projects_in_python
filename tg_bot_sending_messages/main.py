@@ -8,9 +8,9 @@ from database import DatabaseInitializer
 # from loguru import logger
 from configuration.logger_setup import logger
 
-api_id = "29672931"
-api_hash = "91335e92be641e03aca068501705a503"
-API_TOKEN = "7305890308:AAG8c3BY5dPb1wg0LhN2EVIpAngF4WCh8co"
+# api_id = "29672931"
+# api_hash = "91335e92be641e03aca068501705a503"
+API_TOKEN = "6801516384:AAHybytgnyvBafSGJYjZbxuCNKjK_g4Ehhg"
 
 # Инициализация бота и диспетчера
 logger.info("Инициализация бота и диспетчера")
@@ -90,49 +90,24 @@ async def handle_message_input(message: types.Message):
         f"Получено сообщение для отправки: {user_message} от пользователя {message.from_user.id}"
     )
 
+    # Получение списка групп только по их ID
     groups = await db_initializer.get_groups()
     logger.debug(f"Отправка сообщения '{user_message}' в группы: {groups}")
 
     # Отправка сообщения в каждую группу
-    for group_id, group_name in groups:
-        sent = False  # Флаг, указывающий на успешность отправки сообщения
-
-        # Попробовать отправить сообщение по group_id
-        if group_id:
-            chat_id = group_id
-            try:
-                if await check_bot_permissions(chat_id):
-                    await bot.send_message(chat_id, user_message)
-                    logger.info(
-                        f"Сообщение '{user_message}' отправлено в группу с ID {chat_id}"
-                    )
-                    sent = True
-                else:
-                    logger.warning(
-                        f"Бот не имеет прав на отправку сообщений в группу с ID {chat_id}"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Ошибка при отправке сообщения в группу с ID {chat_id}: {e}"
+    for group_id in groups:
+        try:
+            if await check_bot_permissions(group_id):
+                await bot.send_message(group_id, user_message)
+                logger.info(
+                    f"Сообщение '{user_message}' отправлено в группу с ID {group_id}"
                 )
-
-        # Если не удалось по group_id, попробовать по group_name
-        if not sent and group_name:
-            chat_id = group_name
-            try:
-                if await check_bot_permissions(chat_id):
-                    await bot.send_message(chat_id, user_message)
-                    logger.info(
-                        f"Сообщение '{user_message}' отправлено в группу с именем {chat_id}"
-                    )
-                else:
-                    logger.warning(
-                        f"Бот не имеет прав на отправку сообщений в группу с именем {chat_id}"
-                    )
-            except Exception as e:
-                logger.error(
-                    f"Ошибка при отправке сообщения в группу с именем {chat_id}: {e}"
+            else:
+                logger.warning(
+                    f"Бот не имеет прав на отправку сообщений в группу с ID {group_id}"
                 )
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения в группу с ID {group_id}: {e}")
 
     await message.reply(
         "Сообщение отправлено во все группы, к которым у бота есть доступ."
@@ -149,21 +124,19 @@ async def handle_message_input(message: types.Message):
 """
 
 
-# Обработчик кнопки "Обновить список групп"
 @router.message(lambda message: message.text == "Обновить список групп")
 async def update_groups_handler(message: types.Message):
     logger.info(
         f"Получена команда 'Обновить список групп' от пользователя {message.from_user.id}"
     )
     await message.reply(
-        "Введите ID и название группы для добавления, разделенные точкой (.), и несколько групп, разделяя их точкой с запятой (;)"
+        "Введите ID группы для добавления, разделенные точкой с запятой (;)"
     )
 
 
-# Обработчик для ввода ID или названия группы
 @router.message(
     lambda message: message.reply_to_message
-    and "Введите ID и название группы для добавления" in message.reply_to_message.text
+    and "Введите ID группы для добавления" in message.reply_to_message.text
 )
 async def add_group_handler(message: types.Message):
     logger.info(f"Обработка ввода групп от пользователя {message.from_user.id}")
@@ -175,13 +148,11 @@ async def add_group_handler(message: types.Message):
     results = []
     for group_input in group_inputs:
         group_input = group_input.strip()
-        if "." in group_input:
-            group_id, group_name = group_input.split(".", 1)
-            group_id = group_id.strip()
-            group_name = group_name.strip()
-            result = await db_initializer.add_group(group_id, group_name)
+        try:
+            group_id = int(group_input)  # Предполагается, что ввод - это ID группы
+            result = await db_initializer.add_group(group_id)
             results.append(result)
-        else:
+        except ValueError:
             results.append(f"Некорректный формат группы: {group_input}")
             logger.error(f"Некорректный формат группы: {group_input}")
 
@@ -229,7 +200,7 @@ async def select_account_handler(message: types.Message):
                 await message.reply("Ошибка выбора аккаунта.")
                 logger.error(
                     f"Ошибка выбора аккаунта {account_name} пользователем {message.from_user.id}"
-                )
+)
 
 
 # Основная асинхронная функция
