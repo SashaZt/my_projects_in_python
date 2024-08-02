@@ -48,33 +48,21 @@ class DatabaseInitializer:
                 except Exception as e:
                     logger.error(f"Ошибка при инициализации базы данных: {e}")
 
-    async def add_group(self, group_id):
-        logger.debug(f"Попытка добавления группы с ID {group_id}")
+    async def add_groups(self, group_ids):
+        """Добавление нескольких групп в базу данных."""
+        logger.debug(f"Добавление групп: {group_ids}")
         async with self.pool.acquire() as connection:
             async with connection.cursor() as cursor:
                 try:
-                    logger.debug(
-                        f"Проверка наличия группы с ID {group_id} в базе данных"
+                    query = (
+                        "INSERT IGNORE INTO groups_for_messages (group_id) VALUES (%s)"
                     )
-                    await cursor.execute(
-                        "SELECT 1 FROM groups_for_messages WHERE group_id = %s",
-                        (group_id,),
+                    await cursor.executemany(
+                        query, [(group_id,) for group_id in group_ids]
                     )
-                    exists = await cursor.fetchone()
-                    if exists:
-                        logger.info(f"Группа с ID {group_id} уже существует")
-                        return f"Группа с ID {group_id} уже существует."
-                    else:
-                        logger.debug(f"Добавление группы с ID {group_id}")
-                        await cursor.execute(
-                            "INSERT INTO groups_for_messages (group_id) VALUES (%s)",
-                            (group_id,),
-                        )
-                        logger.info(f"Группа {group_id} добавлена в базу данных")
-                        return f"Группа с ID {group_id} добавлена."
+                    logger.info(f"Добавлены группы: {group_ids}")
                 except Exception as e:
-                    logger.error(f"Ошибка при добавлении группы {group_id}: {e}")
-                    return f"Ошибка при добавлении группы с ID {group_id}: {e}"
+                    logger.error(f"Ошибка при добавлении групп: {e}")
 
     async def get_groups(self):
         logger.debug("Получение списка групп из базы данных")
