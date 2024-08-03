@@ -16,7 +16,7 @@ from openpyxl.drawing.image import Image
 from selectolax.parser import HTMLParser
 import random
 import csv
-
+import re
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
@@ -36,6 +36,10 @@ headers = {
     "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
 }
+
+# Обновление словаря MIME-типов
+mimetypes.add_type("image/jpeg", ".jpg")
+mimetypes.add_type("image/jpeg", ".jpeg")
 
 
 def proxy_generator(proxies):
@@ -144,12 +148,28 @@ async def get_html():
 #     df.to_excel(output_file, index=False)
 
 
+def save_dict_to_json(data, file_path):
+    """
+    Сохраняет словарь в файл в формате JSON.
+
+    Args:
+    - data: dict, словарь, который нужно сохранить.
+    - file_path: str, путь к файлу, в который нужно сохранить данные.
+    """
+    try:
+        # Открываем файл для записи
+        with open(file_path, "w", encoding="utf-8") as json_file:
+            # Сериализуем словарь в формат JSON и записываем в файл
+            json.dump(data, json_file, ensure_ascii=False, indent=4)
+        print(f"Данные успешно сохранены в файл {file_path}")
+    except Exception as e:
+        print(f"Ошибка при сохранении в файл JSON: {e}")
+
+
 async def parsing_page():
     folder = os.path.join(html_path, "*.html")
     files_html = glob.glob(folder)
     all_datas = {}
-    output_csv = "output.csv"  # Укажите имя выходного CSV файла
-    # for item_html in files_html:
     for item_html in files_html:
         with open(item_html, encoding="utf-8") as file:
             src = file.read()
@@ -204,21 +224,36 @@ async def parsing_page():
                     if offers and isinstance(offers, list) and len(offers) > 0:
                         price_product = offers[0].get("price")
 
-        sku_product_element = parser.css_first(
-            "div.product-info.summary.col-fit.col.entry-summary.product-summary > div.product-short-description > ul > li:nth-child(2)"
+        # Находим основной элемент с классом product-info
+        product_info = parser.css_first(
+            ".product-info.summary.col-fit.col.entry-summary.product-summary"
         )
+        # Ищем в элементах нужное значение
+        sku_product_original = None
+        # Проверяем, что элемент найден
+        if product_info:
+            # Находим все элементы <li> внутри product-info
+            li_elements = product_info.css("li")
 
-        if sku_product_element:
-            sku_product_text = sku_product_element.text(strip=True)
+            # Ищем в элементах нужное значение
+            sku_product_original = None
             expressions = ["Код оригіналу:", "Код оригінала:", "Код "]
 
-            sku_product_original = None
-            for expression in expressions:
-                if expression in sku_product_text:
-                    sku_product_original = sku_product_text.split(expression)[1].strip()
+            # Обрабатываем каждый <li> элемент
+            for li in li_elements:
+                li_text = li.text(strip=True)
+                for expression in expressions:
+                    if expression in li_text:
+                        # Извлекаем значение после выражения
+                        text_after_expression = li_text.split(expression, 1)[1].strip()
+
+                        # Ищем последовательность цифр в строке
+                        match = re.search(r"\d+", text_after_expression)
+                        if match:
+                            sku_product_original = match.group()
+                            break
+                if sku_product_original:
                     break
-        else:
-            sku_product_original = None
 
         brand_product_element = parser.css_first(
             "#wrapper > div > div.page-title-inner.flex-row.medium-flex-wrap.container > div.flex-col.flex-grow.medium-text-center > div > nav > a:nth-child(3)"
@@ -255,40 +290,9 @@ async def parsing_page():
         # Добавляем данные в словарь, если такого sku_product еще нет
         if sku_product not in all_datas:
             all_datas[sku_product] = data
-    # # Сохранение данных в CSV
-    # csv_columns = [
-    #     "breadcrumb",
-    #     "brand_product",
-    #     "category_product",
-    #     "image_product",
-    #     "sku_product",
-    #     "sku_product_original",
-    #     "price_product",
-    #     "name_product",
-    #     "url_product",
-    # ]
+    json_file_path = "all_datas.json"
 
-    # try:
-    #     with open(output_csv, "w", newline="", encoding="utf-8") as csvfile:
-    #         writer = csv.writer(
-    #             csvfile, delimiter=";", quoting=csv.QUOTE_NONE, escapechar="\\"
-    #         )
-    #         # Записываем заголовки
-    #         writer.writerow(csv_columns)
-    #         for sku, data in all_datas.items():
-    #             # Форматируем image_product корректно
-    #             if data["image_product"]:
-    #                 image_url = data["image_product"].split('"')[1]
-    #                 data["image_product"] = f'=IMAGE("{image_url}")'
-    #                 # Удаляем экранирующие символы
-    #                 data["image_product"] = data["image_product"].replace('\\"', '"')
-    #             # Записываем данные
-    #             row = [data[field] for field in csv_columns]
-    #             # Прямая запись строки, избегая экранирования кавычек
-    #             writer.writerow(row)
-    #     print(f"Данные успешно сохранены в {output_csv}")
-    # except IOError as e:
-    #     print(f"Ошибка записи в CSV файл: {e}")
+    save_dict_to_json(all_datas, json_file_path)
 
     # Преобразуем словарь обратно в список
     unique_all_datas = list(all_datas.values())
@@ -317,47 +321,48 @@ async def parsing_page():
                 image_url = cell_value
                 try:
                     # Загрузка изображения
-
                     image_filename = os.path.join(img_path, f"{row_num}.jpg")
                     if not os.path.exists(image_filename):
                         print(
                             f"Загрузка изображения: {image_url}"
                         )  # Отладочное сообщение
                         proxy = random_proxy(proxies_list)
-                        image_data = requests.get(
+                        response = requests.get(
                             image_url,
                             headers=headers,
                             proxies={"http": proxy, "https": proxy},
-                        ).content
+                        )
+                        image_data = response.content
 
-                        # Определяем MIME-тип файла
-                        mime_type, _ = mimetypes.guess_type(image_url)
-                        print(mime_type)
+                        # Определяем MIME-тип файла по заголовкам ответа
+                        mime_type = response.headers.get("Content-Type", "").lower()
+                        print(f"MIME-тип: {mime_type}")
 
                         # Обработка webp изображений
-                        if mime_type == "image/webp":
-                            # Преобразуем из webp в jpg
+                        if "webp" in mime_type:
+                            # Преобразуем из webp в jpg и очищаем метаданные
                             image = PILImage.open(BytesIO(image_data)).convert("RGB")
-                            image_filename = os.path.join(img_path, f"{row_num}.jpg")
+                            image = clear_image_metadata(image)
                             image.save(image_filename, "JPEG")
                         else:
-                            image_filename = os.path.join(img_path, f"{row_num}.jpg")
-                            with open(image_filename, "wb") as img_file:
-                                img_file.write(image_data)
+                            # Открываем изображение и очищаем метаданные
+                            image = PILImage.open(BytesIO(image_data))
+                            image = clear_image_metadata(image)
+                            image.save(image_filename, "JPEG")
 
-                        # Проверяем, поддерживается ли формат изображения
-                        if image_filename.endswith((".jpg", ".jpeg", ".png")):
-                            image = Image(image_filename)
-                            image.width = 250  # Ширина изображения
-                            image.height = 250  # Высота изображения
-                            ws.add_image(image, cell.coordinate)
-                            ws.row_dimensions[row_num].height = (
-                                image.height
-                            )  # Установка высоты строки
-                        else:
-                            print(
-                                f"Формат изображения не поддерживается: {image_filename}"
-                            )
+                    # Добавляем изображение в Excel
+                    if os.path.exists(
+                        image_filename
+                    ) and image_filename.lower().endswith((".jpg", ".jpeg")):
+                        img = Image(image_filename)
+                        img.width = 250  # Устанавливаем ширину изображения
+                        img.height = 250  # Устанавливаем высоту изображения
+                        ws.add_image(
+                            img, cell.coordinate
+                        )  # Добавляем изображение в ячейку
+                        ws.row_dimensions[row_num].height = (
+                            img.height
+                        )  # Установка высоты строки
 
                 except Exception as e:
                     print(f"Ошибка при загрузке изображения {image_url}: {e}")
@@ -366,6 +371,26 @@ async def parsing_page():
     output_file = "output.xlsx"
     wb.save(output_file)
     print(f"Файл сохранен как {output_file}")
+
+
+def clear_image_metadata(image):
+    """
+    Clears metadata from a given image object.
+
+    Args:
+    - image: PIL Image object.
+
+    Returns:
+    - A new PIL Image object with cleared metadata.
+    """
+    # Преобразуем изображение в RGB (если оно в другом формате)
+    image = image.convert("RGB")
+
+    # Создаем новое изображение без метаданных
+    new_image = PILImage.new(image.mode, image.size)
+    new_image.putdata(list(image.getdata()))
+
+    return new_image
 
 
 def get_xml():
