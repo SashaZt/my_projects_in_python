@@ -247,8 +247,8 @@ async def parsing_page():
                         # Извлекаем значение после выражения
                         text_after_expression = li_text.split(expression, 1)[1].strip()
 
-                        # Ищем последовательность цифр в строке
-                        match = re.search(r"\d+", text_after_expression)
+                        # Ищем буквенно-цифровую последовательность в строке
+                        match = re.search(r"\b[A-Za-z0-9]+\b", text_after_expression)
                         if match:
                             sku_product_original = match.group()
                             break
