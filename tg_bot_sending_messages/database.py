@@ -30,7 +30,8 @@ class DatabaseInitializer:
                     await cursor.execute(
                         """CREATE TABLE IF NOT EXISTS groups_for_messages (
                             id INT AUTO_INCREMENT PRIMARY KEY,
-                            group_id BIGINT UNIQUE)"""
+                            group_id BIGINT UNIQUE,
+                            group_link VARCHAR(255) NOT NULL)"""
                     )
                     await cursor.execute(
                         """CREATE TABLE IF NOT EXISTS sessions_for_messages (
@@ -48,21 +49,22 @@ class DatabaseInitializer:
                 except Exception as e:
                     logger.error(f"Ошибка при инициализации базы данных: {e}")
 
-    async def add_groups(self, group_ids):
-        """Добавление нескольких групп в базу данных."""
-        logger.debug(f"Добавление групп: {group_ids}")
-        async with self.pool.acquire() as connection:
-            async with connection.cursor() as cursor:
-                try:
-                    query = (
-                        "INSERT IGNORE INTO groups_for_messages (group_id) VALUES (%s)"
+    async def add_group(self, group_id, group_link):
+        try:
+            async with self.pool.acquire() as connection:
+                async with connection.cursor() as cursor:
+                    await cursor.execute(
+                        """INSERT INTO groups_for_messages (group_id, group_link)
+                           VALUES (%s, %s)
+                           ON DUPLICATE KEY UPDATE group_link = VALUES(group_link)""",
+                        (group_id, group_link),
                     )
-                    await cursor.executemany(
-                        query, [(group_id,) for group_id in group_ids]
+                    await connection.commit()  # Коммит транзакции
+                    logger.info(
+                        f"Канал с ID {group_id} и ссылкой {group_link} добавлен в БД"
                     )
-                    logger.info(f"Добавлены группы: {group_ids}")
-                except Exception as e:
-                    logger.error(f"Ошибка при добавлении групп: {e}")
+        except Exception as e:
+            logger.error(f"Ошибка при добавлении канала в БД: {e}")
 
     async def get_groups(self):
         logger.debug("Получение списка групп из базы данных")

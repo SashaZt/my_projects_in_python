@@ -9,7 +9,12 @@ from telethon.tl.types import Channel
 from telethon.tl.types import InputPeerEmpty
 from configuration.logger_setup import logger
 from telethon.tl.functions.channels import GetFullChannelRequest, JoinChannelRequest
-
+from telethon.tl.types import ChannelParticipantSelf
+from telethon.tl.types import ChannelParticipantsAdmins, InputPeerChannel, PeerChannel
+from telethon.errors.rpcerrorlist import UserAlreadyParticipantError
+from telethon.tl.functions.channels import GetParticipantsRequest, JoinChannelRequest
+from telethon.tl.types import ChannelParticipantsSearch, PeerChannel
+from telethon.errors.rpcerrorlist import UserAlreadyParticipantError
 import schedule
 import random
 from datetime import datetime, timedelta, time as dtime
@@ -46,12 +51,36 @@ current_account = None
 # Разметка для кнопок
 def main_markup():
     buttons = [
+        [types.KeyboardButton(text="Старт")],  # Новая кнопка "Старт"
         [types.KeyboardButton(text="Отправить сообщение")],
         [types.KeyboardButton(text="Обновить список групп")],
+        [types.KeyboardButton(text="Присоединиться к группе")],  #
         [types.KeyboardButton(text="Сменить аккаунт")],
     ]
     markup = types.ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     return markup
+
+
+# Обработчик для кнопки "Старт"
+@router.message(lambda message: message.text == "Старт")
+async def start_button_handler(message: types.Message):
+    logger.info("Обработка кнопки 'Старт'")
+    await message.reply(
+        "Добро пожаловать! Выберите действие на клавиатуре.", reply_markup=main_markup()
+    )
+
+
+# Обработчик для кнопки "Присоединиться к группе"
+@router.message(lambda message: message.text == "Присоединиться к группе")
+async def join_group_button_handler(message: types.Message):
+    logger.info("Обработка кнопки 'Присоединиться к группе'")
+
+    # Передаем db_initializer в join_groups
+    await join_groups(db_initializer)
+
+    await message.reply(
+        "Вы успешно присоединились ко всем группам.", reply_markup=main_markup()
+    )
 
 
 # Функция для обновления списка групп и добавления новых в базу данных
@@ -66,36 +95,31 @@ async def update_groups_from_file(client, db_initializer):
         with open(file_path, "r", encoding="utf-8") as file:
             channel_usernames = [line.strip() for line in file if line.strip()]
 
-        existing_groups = (
-            await get_group_ids()
+        existing_groups = await get_group_ids(
+            db_initializer
         )  # Получаем текущий список групп из базы данных
-        new_groups = []
 
         for username in channel_usernames:
-            try:
-                logger.debug(f"Получение информации о канале {username}")
-                full_channel = await client(GetFullChannelRequest(username))
-                channel_id = full_channel.chats[0].id
+            if username not in existing_groups:  # Проверяем наличие по названию группы
+                try:
+                    logger.debug(f"Получение информации о канале {username}")
+                    full_channel = await client(GetFullChannelRequest(username))
+                    channel_id = full_channel.chats[0].id
 
-                full_channel_id = f"-100{abs(channel_id)}"
-                logger.info(f"Получен ID для {username}: {full_channel_id}")
+                    full_channel_id = f"-100{abs(channel_id)}"
+                    logger.info(f"Получен ID для {username}: {full_channel_id}")
 
-                if full_channel_id not in existing_groups:
-                    new_groups.append(full_channel_id)
-                else:
-                    logger.info(f"Канал {full_channel_id} уже существует в базе данных")
-
-            except Exception as e:
-                logger.error(f"Ошибка при получении ID для {username}: {e}")
-
-        if new_groups:
-            try:
-                await db_initializer.add_groups(
-                    new_groups
-                )  # Добавляем новые группы за один раз
-                logger.info(f"Новые каналы добавлены в базу данных: {new_groups}")
-            except Exception as e:
-                logger.error(f"Ошибка при добавлении новых каналов в бд: {e}")
+                    try:
+                        await db_initializer.add_group(full_channel_id, username)
+                        logger.info(f"Канал {full_channel_id} добавлен в базу данных")
+                    except Exception as e:
+                        logger.error(
+                            f"Ошибка при добавлении канала {full_channel_id} в бд: {e}"
+                        )
+                except Exception as e:
+                    logger.error(f"Ошибка при получении ID для {username}: {e}")
+            else:
+                logger.info(f"Канал {username} уже существует в базе данных")
 
     except Exception as e:
         logger.error(f"Ошибка при обработке файла групп: {e}")
@@ -161,21 +185,22 @@ async def get_account_info(account_id=None):
 
 
 # Функция для получения списка групп из базы данных
-async def get_group_ids():
+async def get_group_ids(db_initializer):
     logger.debug("Получение списка групп из базы данных")
     connection = await db_initializer.pool.acquire()
     try:
         async with connection.cursor() as cursor:
-            await cursor.execute("SELECT group_id FROM groups_for_messages")
+            await cursor.execute("SELECT group_id, group_link FROM groups_for_messages")
             groups = await cursor.fetchall()
-            group_ids = [group_id[0] for group_id in groups]
-            logger.debug(f"Получен список групп: {group_ids}")
-            return group_ids
+            group_dict = {
+                group_link: group_id for group_id, group_link in groups
+            }  # Создаем словарь
+            logger.debug(f"Получен список групп: {group_dict}")
+            return group_dict
     except Exception as e:
         logger.error(f"Ошибка при выполнении запроса для получения групп: {e}")
-        return []  # Возвращаем пустой список в случае ошибки
+        return {}  # Возвращаем пустой словарь в случае ошибки
     finally:
-        # Закрываем соединение без await
         if connection:
             connection.close()
         logger.debug("Соединение с базой данных закрыто group_id")
@@ -198,50 +223,54 @@ async def send_message_to_group(group_id, message):
             logger.debug("Клиент Telegram отключен после отправки сообщения")
 
 
-# Функция для получения ID каналов и добавления их в базу данных
-async def add_channels_from_file(client, db_initializer):
-    logger.debug("Загрузка каналов из файла")
-    file_path = "groups.txt"
-    if not os.path.exists(file_path):
-        logger.error("Файл groups.txt не найден")
-        return
+# # Функция для получения ID каналов и добавления их в базу данных
+# async def add_channels_from_file(client, db_initializer):
+#     logger.debug("Загрузка каналов из файла")
+#     file_path = "groups.txt"
 
-    try:
-        with open(file_path, "r", encoding="utf-8") as file:
-            channel_usernames = [line.strip() for line in file if line.strip()]
+#     if not os.path.exists(file_path):
+#         logger.error("Файл groups.txt не найден")
+#         return
 
-        for username in channel_usernames:
-            try:
-                logger.debug(f"Получение информации о канале {username}")
-                full_channel = await client(GetFullChannelRequest(username))
-                channel_id = full_channel.chats[0].id
+#     try:
+#         with open(file_path, "r", encoding="utf-8") as file:
+#             channel_usernames = [line.strip() for line in file if line.strip()]
 
-                full_channel_id = f"-100{abs(channel_id)}"
-                logger.info(f"Получен ID для {username}: {full_channel_id}")
+#         for username in channel_usernames:
+#             try:
+#                 logger.debug(f"Получение информации о канале {username}")
+#                 full_channel = await client(GetFullChannelRequest(username))
+#                 channel_id = full_channel.chats[0].id
 
-                try:
-                    logger.debug(
-                        f"Проверка и добавление канала {full_channel_id} в базу данных"
-                    )
-                    existing_groups = (
-                        await get_group_ids()
-                    )  # Получаем текущий список групп из базы данных
-                    if full_channel_id not in existing_groups:
-                        await db_initializer.add_groups(full_channel_id)
-                        logger.info(f"Канал {full_channel_id} добавлен в базу данных")
-                    else:
-                        logger.info(
-                            f"Канал {full_channel_id} уже существует в базе данных"
-                        )
-                except Exception as e:
-                    logger.error(
-                        f"Ошибка при добавлении канала {full_channel_id} в бд: {e}"
-                    )
+#                 full_channel_id = f"-100{abs(channel_id)}"
+#                 logger.info(f"Получен ID для {username}: {full_channel_id}")
 
-            except Exception as e:
-                logger.error(f"Ошибка при получении ID для {username}: {e}")
-    except Exception as e:
-        logger.error(f"Ошибка при подключении к Telegram: {e}")
+#                 try:
+#                     logger.debug(
+#                         f"Проверка и добавление канала {full_channel_id} в базу данных"
+#                     )
+#                     existing_groups = (
+#                         await get_group_ids()
+#                     )  # Получаем текущий список групп из базы данных
+#                     if full_channel_id not in existing_groups:
+#                         # Добавляем канал в базу данных
+#                         await db_initializer.add_group(full_channel_id, username)
+#                         logger.info(f"Канал {full_channel_id} добавлен в базу данных")
+#                     else:
+#                         logger.info(
+#                             f"Канал {full_channel_id} уже существует в базе данных"
+#                         )
+#                 except Exception as e:
+#                     logger.error(
+#                         f"Ошибка при добавлении канала {full_channel_id} в бд: {e}"
+#                     )
+
+#             except Exception as e:
+#                 # Логируем ошибку и записываем в файл ошибок
+#                 logger.error(f"Ошибка при получении ID для {username}: {e}")
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при обработке файла групп: {e}")
 
 
 # Обработчик команды /start
@@ -410,7 +439,7 @@ async def add_group_handler(message: types.Message):
         group_input = group_input.strip()
         try:
             group_id = int(group_input)
-            result = await db_initializer.add_groups(group_id)
+            result = await db_initializer.add_group(group_id)
             results.append(result)
         except ValueError:
             logger.error(f"Некорректный формат группы: {group_input}")
@@ -627,10 +656,114 @@ async def setup_scheduler(api_id, api_hash, phone_number, user_message):
 
 #     logger.info("Расписание для отправки сообщений настроено.")
 
+
 #     # Запуск цикла планировщика
 #     while True:
 #         schedule.run_pending()
 #         await asyncio.sleep(1)
+
+
+# Функция для присоединения к группам
+# Функция для присоединения к группам
+async def join_groups(db_initializer, account_id=None):
+    logger.debug("Начинаем процесс присоединения к группам")
+
+    # Получаем данные аккаунта из базы данных
+    account_info = await get_account_info(account_id)
+    if not account_info:
+        logger.error("Не удалось получить данные аккаунта")
+        return
+
+    api_id, api_hash, phone_number = account_info
+
+    # Получаем список групп из базы данных
+    existing_groups = await get_group_ids(db_initializer)
+    if not existing_groups:
+        logger.error("Список групп пуст или не удалось его получить")
+        return
+
+    # Создаем клиент Telethon
+    async with TelegramClient(phone_number, api_id, api_hash) as client:
+        await client.start()
+
+        joined_count = 0  # Счетчик успешно присоединившихся групп
+        pause_duration = 600  # Начальная продолжительность паузы
+
+        for group_link, group_id in existing_groups.items():
+            try:
+                # Проверяем, присоединился ли аккаунт к группе по ID
+                try:
+                    # Получаем объект канала
+                    channel = await client.get_entity(PeerChannel(int(group_id)))
+                    # Получаем информацию о пользователях в канале
+                    async for user in client.iter_participants(
+                        channel, filter=ChannelParticipantsSearch("")
+                    ):
+                        if user.id == (await client.get_me()).id:
+                            logger.info(f"Уже присоединены к группе с ID {group_id}")
+                            break
+                    else:
+                        # Пытаемся присоединиться к группе по group_id
+                        await client(JoinChannelRequest(channel))
+                        logger.info(f"Успешно присоединились к группе с ID {group_id}")
+                        joined_count += 1
+                except UserAlreadyParticipantError:
+                    logger.info(f"Уже присоединены к группе с ID {group_id}")
+
+            except Exception as e:
+                # Если не удалось присоединиться по ID, пытаемся по ссылке
+                if "Could not find the input entity" in str(e):
+                    try:
+                        # Получаем объект канала по ссылке
+                        channel = await client.get_entity(group_link)
+                        # Проверяем, является ли пользователь участником
+                        async for user in client.iter_participants(
+                            channel, filter=ChannelParticipantsSearch("")
+                        ):
+                            if user.id == (await client.get_me()).id:
+                                logger.info(f"Уже присоединены к группе {group_link}")
+                                break
+                        else:
+                            # Пытаемся присоединиться к группе по group_link
+                            await client(JoinChannelRequest(channel))
+                            logger.info(
+                                f"Успешно присоединились к группе с ссылкой {group_link}"
+                            )
+                            joined_count += 1
+                    except UserAlreadyParticipantError:
+                        logger.info(f"Уже присоединены к группе с ссылкой {group_link}")
+                    except Exception as link_error:
+                        # Обрабатываем ситуацию, когда запрос на присоединение уже отправлен
+                        if "You have successfully requested to join" in str(link_error):
+                            logger.warning(
+                                f"Запрос на присоединение к группе {group_link} уже отправлен и ожидает одобрения."
+                            )
+                        else:
+                            logger.error(
+                                f"Ошибка при присоединении к группе {group_link}: {link_error}"
+                            )
+                else:
+                    # Обрабатываем ситуацию, когда запрос на присоединение уже отправлен
+                    if "You have successfully requested to join" in str(e):
+                        logger.warning(
+                            f"Запрос на присоединение к группе {group_id} уже отправлен и ожидает одобрения."
+                        )
+                    else:
+                        # Логируем другие ошибки
+                        logger.error(
+                            f"Ошибка при присоединении к группе {group_id}: {e}"
+                        )
+
+            # Делаем паузу после успешного присоединения к 10 группам
+            if joined_count >= 10:
+                logger.info(
+                    f"Пауза {pause_duration} секунд после присоединения к 10 группам"
+                )
+                await asyncio.sleep(pause_duration)  # Пауза
+                pause_duration += 600
+                joined_count = 0  # Сброс счетчика
+
+    logger.debug("Завершен процесс присоединения к группам")
 
 
 async def main():
