@@ -350,34 +350,6 @@ class TelegramParse:
                 with open(filename, "a", encoding="utf-8") as file:
                     file.write(json.dumps(message_record, ensure_ascii=False) + "\n")
 
-    # async def save_to_db(
-    #     self, message, sender_name, sender_id, sender_phone, parsed_result, trade_type
-    # ):
-    #     query = """
-    #     INSERT INTO corn.messages_tg (sender_name, sender_id, sender_phone, Phones, Raw_Materials, Regions, Messages, trade, data_time)
-    #     VALUES (:sender_name, :sender_id, :sender_phone, :Phones, :Raw_Materials, :Regions, :Messages, :trade, NOW())
-    #     """
-    #     for raw_material in parsed_result["Raw Materials"]:
-    #         for region in parsed_result["Regions"]:
-    #             values = {
-    #                 "sender_name": sender_name,
-    #                 "sender_id": sender_id,
-    #                 "sender_phone": sender_phone,
-    #                 "Phones": json.dumps(parsed_result["Phones"], ensure_ascii=False),
-    #                 "Raw_Materials": json.dumps([raw_material], ensure_ascii=False),
-    #                 "Regions": json.dumps([region], ensure_ascii=False),
-    #                 "Messages": json.dumps(
-    #                     parsed_result["Messages"], ensure_ascii=False
-    #                 ),
-    #                 "trade": trade_type,
-    #             }
-    #             try:
-    #                 logger.info(f"Saving to DB with values: {values}")
-    #                 await self.database.execute(query=query, values=values)
-    #                 logger.info("Successfully saved to DB")
-    #             except Exception as e:
-    #                 logger.error(f"Error saving to DB: {e}")
-    #                 logger.error(f"Failed values: {values}")
     async def save_to_db(
         self, message, sender_name, sender_id, sender_phone, parsed_result, trade_type
     ):

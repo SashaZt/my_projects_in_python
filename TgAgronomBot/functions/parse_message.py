@@ -1,4 +1,11 @@
 import re
+from configuration.logger_setup import logger
+import os
+
+current_directory = os.getcwd()
+logging_directory = "logging"
+logging_path = os.path.join(current_directory, logging_directory)
+os.makedirs(logging_path, exist_ok=True)
 
 
 def parse_message(message, product_keywords, region_keywords):
@@ -66,5 +73,5 @@ def parse_message(message, product_keywords, region_keywords):
         "Regions": regions,
         "Messages": combined_messages,
     }
-
+    logger.info(f"СООБЩЕНИЕ\n{results}")
     return results
