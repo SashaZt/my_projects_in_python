@@ -31,7 +31,9 @@ class DatabaseInitializer:
                         """CREATE TABLE IF NOT EXISTS groups_for_messages (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             group_id BIGINT UNIQUE,
-                            group_link VARCHAR(255) NOT NULL)"""
+                            group_link VARCHAR(255) NOT NULL,
+                            subscription_status BOOLEAN DEFAULT FALSE)
+                        """
                     )
                     await cursor.execute(
                         """CREATE TABLE IF NOT EXISTS sessions_for_messages (

@@ -5,19 +5,28 @@ from datetime import datetime, timedelta, time as dtime
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from telethon import TelegramClient
-from telethon.tl.types import Channel
 from telethon.tl.types import InputPeerEmpty
 from configuration.logger_setup import logger
-from telethon.tl.functions.channels import GetFullChannelRequest, JoinChannelRequest
-from telethon.tl.types import ChannelParticipantSelf
-from telethon.tl.types import ChannelParticipantsAdmins, InputPeerChannel, PeerChannel
-from telethon.errors.rpcerrorlist import UserAlreadyParticipantError
-from telethon.tl.functions.channels import GetParticipantsRequest, JoinChannelRequest
-from telethon.tl.types import ChannelParticipantsSearch, PeerChannel
-from telethon.errors.rpcerrorlist import UserAlreadyParticipantError
+from telethon.tl.functions.channels import GetFullChannelRequest
+from telethon.tl.types import ChannelParticipantsAdmins, InputPeerChannel
+from telethon.tl.functions.channels import GetParticipantsRequest
+from telethon.tl.types import (
+    PeerChannel,
+    ChannelParticipantsSearch,
+    ChannelParticipantSelf,
+)
+from telethon.tl.types import (
+    PeerChannel,
+    ChannelParticipantsSearch,
+    ChannelParticipantSelf,
+)
+from telethon.tl.functions.channels import JoinChannelRequest, GetParticipantRequest
+from telethon.errors.rpcerrorlist import UserAlreadyParticipantError, FloodWaitError
+from telethon.tl.types import Channel, Chat
 import schedule
 import random
 from datetime import datetime, timedelta, time as dtime
+import datetime
 
 
 from database import DatabaseInitializer
@@ -190,37 +199,81 @@ async def get_group_ids(db_initializer):
     connection = await db_initializer.pool.acquire()
     try:
         async with connection.cursor() as cursor:
-            await cursor.execute("SELECT group_id, group_link FROM groups_for_messages")
+            await cursor.execute(
+                "SELECT group_id, group_link, subscription_status FROM groups_for_messages"
+            )
             groups = await cursor.fetchall()
             group_dict = {
-                group_link: group_id for group_id, group_link in groups
-            }  # Создаем словарь
+                group_link: (group_id, subscription_status)
+                for group_id, group_link, subscription_status in groups
+            }
             logger.debug(f"Получен список групп: {group_dict}")
             return group_dict
     except Exception as e:
         logger.error(f"Ошибка при выполнении запроса для получения групп: {e}")
-        return {}  # Возвращаем пустой словарь в случае ошибки
+        return {}
     finally:
         if connection:
             connection.close()
         logger.debug("Соединение с базой данных закрыто group_id")
 
 
-# Функция для отправки сообщения в конкретную группу
-async def send_message_to_group(group_id, message):
-    account_info = await get_account_info()
-    if account_info:
-        api_id, api_hash, phone_number = account_info
-        client = TelegramClient(f"session_{phone_number}", api_id, api_hash)
-        await client.connect()
-        try:
-            await client.send_message(group_id, message)
-            logger.info(f"Сообщение отправлено в группу {group_id}")
-        except Exception as e:
-            logger.error(f"Ошибка при отправке сообщения в группу {group_id}: {e}")
-        finally:
-            await client.disconnect()
-            logger.debug("Клиент Telegram отключен после отправки сообщения")
+async def update_subscription_status(db_initializer, group_id, status):
+    """Обновляет статус подписки в базе данных."""
+    connection = await db_initializer.pool.acquire()
+    try:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "UPDATE groups_for_messages SET subscription_status=%s WHERE group_id=%s",
+                (status, group_id),
+            )
+            await connection.commit()
+            logger.info(f"Статус подписки для группы {group_id} обновлен на {status}")
+    except Exception as e:
+        logger.error(
+            f"Ошибка при обновлении статуса подписки для группы {group_id}: {e}"
+        )
+    finally:
+        if connection:
+            connection.close()
+
+
+# Функция для обновления статуса подписки
+async def update_subscription_status(db_initializer, group_id, status):
+    """Обновляет статус подписки в базе данных."""
+    connection = await db_initializer.pool.acquire()
+    try:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "UPDATE groups_for_messages SET subscription_status=%s WHERE group_id=%s",
+                (status, group_id),
+            )
+            await connection.commit()
+            logger.info(f"Статус подписки для группы {group_id} обновлен на {status}")
+    except Exception as e:
+        logger.error(
+            f"Ошибка при обновлении статуса подписки для группы {group_id}: {e}"
+        )
+    finally:
+        if connection:
+            connection.close()
+
+
+# # Функция для отправки сообщения в конкретную группу
+# async def send_message_to_group(group_id, message):
+#     account_info = await get_account_info()
+#     if account_info:
+#         api_id, api_hash, phone_number = account_info
+#         client = TelegramClient(f"session_{phone_number}", api_id, api_hash)
+#         await client.connect()
+#         try:
+#             await client.send_message(group_id, message)
+#             logger.info(f"Сообщение отправлено в группу {group_id}")
+#         except Exception as e:
+#             logger.error(f"Ошибка при отправке сообщения в группу {group_id}: {e}")
+#         finally:
+#             await client.disconnect()
+#             logger.debug("Клиент Telegram отключен после отправки сообщения")
 
 
 # # Функция для получения ID каналов и добавления их в базу данных
@@ -514,11 +567,19 @@ async def select_account_handler(message: types.Message):
 
 
 # Функция для отправки сообщений с паузой между отправками
-async def send_messages_with_pause(user_message, api_id, api_hash, phone_number):
-    group_ids = await get_group_ids()  # Получение ID групп из базы данных
-    logger.info(f"Начало отправки сообщений в группы: {group_ids}")
+async def send_messages_with_pause(
+    user_message, api_id, api_hash, phone_number, db_initializer
+):
+    group_data = await get_group_ids(
+        db_initializer
+    )  # Получение данных групп из базы данных
+    logger.info(f"Начало отправки сообщений в группы с активной подпиской")
 
-    for group_id in group_ids:
+    for group_link, (group_id, subscription_status) in group_data.items():
+        if not subscription_status:
+            logger.info(f"Пропускаем группу {group_id}, так как подписка неактивна.")
+            continue
+
         client = TelegramClient(f"session_{phone_number}", api_id, api_hash)
         try:
             logger.debug(
@@ -560,7 +621,7 @@ async def send_messages_with_pause(user_message, api_id, api_hash, phone_number)
 
             # Логирование времени отправки сообщения
             logger.info(
-                f"Сообщение '{user_message}' отправлено в {datetime.now().strftime('%H:%M:%S')}"
+                f"Сообщение '{user_message}' отправлено в {datetime.datetime.now().strftime('%H:%M:%S')}"
             )
 
         except Exception as e:
@@ -577,20 +638,88 @@ async def send_messages_with_pause(user_message, api_id, api_hash, phone_number)
         await asyncio.sleep(pause_duration)
 
 
+# # Функция для отправки сообщений с паузой между отправками РАБОЧАЯ
+# async def send_messages_with_pause(user_message, api_id, api_hash, phone_number):
+#     group_ids = await get_group_ids(db_initializer)  # Получение ID групп из базы данных
+#     logger.info(f"Начало отправки сообщений в группы: {group_ids}")
+
+#     for group_id in group_ids:
+#         client = TelegramClient(f"session_{phone_number}", api_id, api_hash)
+#         try:
+#             logger.debug(
+#                 f"Подключение к Telegram для проверки и отправки в группу {group_id}"
+#             )
+#             await client.connect()
+
+#             try:
+#                 entity = await client.get_entity(group_id)
+#                 # Проверка, является ли аккаунт администратором или имеет права на отправку сообщений
+#                 if isinstance(entity, (Channel, Chat)):
+#                     participant = await client(GetParticipantRequest(group_id, "me"))
+#                     if isinstance(participant.participant, ChannelParticipantSelf):
+#                         logger.info(
+#                             f"Аккаунт подписан и имеет права на отправку сообщений в группе с ID {group_id}"
+#                         )
+#                     else:
+#                         logger.warning(
+#                             f"Аккаунт не имеет прав на отправку сообщений в группе с ID {group_id}"
+#                         )
+#                         continue
+#             except Exception as e:
+#                 # Если не подписан или возникла ошибка, пытаемся подписаться
+#                 logger.warning(
+#                     f"Проблемы с подпиской или правами в группе с ID {group_id}, проверка и подписка..."
+#                 )
+#                 try:
+#                     await client(JoinChannelRequest(group_id))
+#                     logger.info(f"Успешно подписан на группу с ID {group_id}")
+#                 except Exception as join_error:
+#                     logger.error(
+#                         f"Не удалось подписаться на группу с ID {group_id}: {join_error}"
+#                     )
+#                     continue  # Переходим к следующей группе
+
+#             # Отправка сообщения в группу
+#             await client.send_message(group_id, user_message)
+#             logger.info(f"Сообщение отправлено в группу с ID {group_id}")
+
+#             # Логирование времени отправки сообщения
+#             logger.info(
+#                 f"Сообщение '{user_message}' отправлено в {datetime.now().strftime('%H:%M:%S')}"
+#             )
+
+#         except Exception as e:
+#             logger.error(f"Ошибка при отправке сообщения в группу с ID {group_id}: {e}")
+
+#         finally:
+#             # Отключение клиента Telegram после каждой отправки
+#             await client.disconnect()
+#             logger.debug(f"Клиент Telegram отключен после отправки в группу {group_id}")
+
+#         # Пауза между отправками
+#         pause_duration = random.randint(180, 300)  # Пауза от 3 до 5 минут
+#         logger.info(f"Пауза перед следующим сообщением: {pause_duration // 60} минут")
+#         await asyncio.sleep(pause_duration)
+
+
 async def setup_scheduler(api_id, api_hash, phone_number, user_message):
     logger.info("Настройка расписания для отправки сообщений")
-    group_ids = await get_group_ids()
+    group_ids = await get_group_ids(db_initializer)
     total_groups = len(group_ids)
     logger.debug(f"Общее количество групп для отправки: {total_groups}")
 
     # Отправка сообщений сразу с паузой
-    await send_messages_with_pause(user_message, api_id, api_hash, phone_number)
+    await send_messages_with_pause(
+        user_message, api_id, api_hash, phone_number, db_initializer
+    )
 
     # Настройка отправки только в будние дни
     for day in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
         schedule.every().__getattribute__(day).at("08:00").do(
             lambda: asyncio.create_task(
-                send_messages_with_pause(user_message, api_id, api_hash, phone_number)
+                send_messages_with_pause(
+                    user_message, api_id, api_hash, phone_number, db_initializer
+                )
             )
         )
 
@@ -664,7 +793,6 @@ async def setup_scheduler(api_id, api_hash, phone_number, user_message):
 
 
 # Функция для присоединения к группам
-# Функция для присоединения к группам
 async def join_groups(db_initializer, account_id=None):
     logger.debug("Начинаем процесс присоединения к группам")
 
@@ -689,51 +817,77 @@ async def join_groups(db_initializer, account_id=None):
         joined_count = 0  # Счетчик успешно присоединившихся групп
         pause_duration = 600  # Начальная продолжительность паузы
 
-        for group_link, group_id in existing_groups.items():
+        for group_link, (group_id, subscription_status) in existing_groups.items():
+            if subscription_status:
+                logger.info(f"Пропускаем группу {group_id}, уже подписаны.")
+                continue
+
             try:
                 # Проверяем, присоединился ли аккаунт к группе по ID
                 try:
-                    # Получаем объект канала
                     channel = await client.get_entity(PeerChannel(int(group_id)))
-                    # Получаем информацию о пользователях в канале
                     async for user in client.iter_participants(
                         channel, filter=ChannelParticipantsSearch("")
                     ):
                         if user.id == (await client.get_me()).id:
                             logger.info(f"Уже присоединены к группе с ID {group_id}")
+                            await update_subscription_status(
+                                db_initializer, group_id, True
+                            )
                             break
                     else:
-                        # Пытаемся присоединиться к группе по group_id
                         await client(JoinChannelRequest(channel))
                         logger.info(f"Успешно присоединились к группе с ID {group_id}")
+                        await update_subscription_status(db_initializer, group_id, True)
                         joined_count += 1
+                        logger.info(f"Добавляем {joined_count}")
                 except UserAlreadyParticipantError:
                     logger.info(f"Уже присоединены к группе с ID {group_id}")
+                    await update_subscription_status(db_initializer, group_id, True)
 
+            except FloodWaitError as e:
+                wait_time = (
+                    e.seconds + 60
+                )  # Добавляем 60 секунд к указанному времени ожидания
+                logger.error(
+                    f"Превышено количество запросов, необходимо подождать {e.seconds} секунд"
+                )
+                logger.info(f"Пауза из-за ошибки FloodWait на {wait_time} секунд.")
+                await asyncio.sleep(wait_time)
+                # После ожидания, продолжаем с той же группы
+                continue
+            except ChatAdminRequiredError:
+                logger.warning(
+                    f"Требуются права администратора для выполнения операции в группе {group_id}. Пропуск..."
+                )
+                continue  # Переходим к следующей группе
             except Exception as e:
-                # Если не удалось присоединиться по ID, пытаемся по ссылке
                 if "Could not find the input entity" in str(e):
                     try:
-                        # Получаем объект канала по ссылке
                         channel = await client.get_entity(group_link)
-                        # Проверяем, является ли пользователь участником
                         async for user in client.iter_participants(
                             channel, filter=ChannelParticipantsSearch("")
                         ):
                             if user.id == (await client.get_me()).id:
                                 logger.info(f"Уже присоединены к группе {group_link}")
+                                await update_subscription_status(
+                                    db_initializer, group_id, True
+                                )
                                 break
                         else:
-                            # Пытаемся присоединиться к группе по group_link
                             await client(JoinChannelRequest(channel))
                             logger.info(
                                 f"Успешно присоединились к группе с ссылкой {group_link}"
                             )
+                            await update_subscription_status(
+                                db_initializer, group_id, True
+                            )
                             joined_count += 1
+                            logger.info(f"Добавляем {joined_count}")
                     except UserAlreadyParticipantError:
                         logger.info(f"Уже присоединены к группе с ссылкой {group_link}")
+                        await update_subscription_status(db_initializer, group_id, True)
                     except Exception as link_error:
-                        # Обрабатываем ситуацию, когда запрос на присоединение уже отправлен
                         if "You have successfully requested to join" in str(link_error):
                             logger.warning(
                                 f"Запрос на присоединение к группе {group_link} уже отправлен и ожидает одобрения."
@@ -743,13 +897,11 @@ async def join_groups(db_initializer, account_id=None):
                                 f"Ошибка при присоединении к группе {group_link}: {link_error}"
                             )
                 else:
-                    # Обрабатываем ситуацию, когда запрос на присоединение уже отправлен
                     if "You have successfully requested to join" in str(e):
                         logger.warning(
                             f"Запрос на присоединение к группе {group_id} уже отправлен и ожидает одобрения."
                         )
                     else:
-                        # Логируем другие ошибки
                         logger.error(
                             f"Ошибка при присоединении к группе {group_id}: {e}"
                         )
@@ -760,8 +912,9 @@ async def join_groups(db_initializer, account_id=None):
                     f"Пауза {pause_duration} секунд после присоединения к 10 группам"
                 )
                 await asyncio.sleep(pause_duration)  # Пауза
-                pause_duration += 600
+                pause_duration += 600  # Увеличиваем продолжительность паузы
                 joined_count = 0  # Сброс счетчика
+                continue
 
     logger.debug("Завершен процесс присоединения к группам")
 
