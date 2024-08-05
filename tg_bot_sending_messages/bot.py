@@ -15,18 +15,13 @@ from telethon.tl.types import (
     ChannelParticipantsSearch,
     ChannelParticipantSelf,
 )
-from telethon.tl.types import (
-    PeerChannel,
-    ChannelParticipantsSearch,
-    ChannelParticipantSelf,
-)
 from telethon.tl.functions.channels import JoinChannelRequest, GetParticipantRequest
-from telethon.errors.rpcerrorlist import UserAlreadyParticipantError, FloodWaitError
+from telethon.errors.rpcerrorlist import (
+    UserAlreadyParticipantError,
+    FloodWaitError,
+    ChatAdminRequiredError,
+)
 from telethon.tl.types import Channel, Chat
-import schedule
-import random
-from datetime import datetime, timedelta, time as dtime
-import datetime
 
 
 from database import DatabaseInitializer
@@ -63,8 +58,9 @@ def main_markup():
         [types.KeyboardButton(text="Старт")],  # Новая кнопка "Старт"
         [types.KeyboardButton(text="Отправить сообщение")],
         [types.KeyboardButton(text="Обновить список групп")],
-        [types.KeyboardButton(text="Присоединиться к группе")],  #
+        [types.KeyboardButton(text="Присоединиться к группе")],
         [types.KeyboardButton(text="Сменить аккаунт")],
+        [types.KeyboardButton(text="Внести данные аккаунта")],  # New button
     ]
     markup = types.ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     return markup
@@ -76,6 +72,15 @@ async def start_button_handler(message: types.Message):
     logger.info("Обработка кнопки 'Старт'")
     await message.reply(
         "Добро пожаловать! Выберите действие на клавиатуре.", reply_markup=main_markup()
+    )
+
+
+# Обработчик для кнопки "Внести данные аккаунта"
+@router.message(lambda message: message.text == "Внести данные аккаунта")
+async def input_account_button_handler(message: types.Message):
+    logger.info("Обработка кнопки 'Внести данные аккаунта'")
+    await message.reply(
+        "Введите ваши данные для аккаунта в формате: api_id,api_hash,phone_number"
     )
 
 
@@ -238,25 +243,25 @@ async def update_subscription_status(db_initializer, group_id, status):
             connection.close()
 
 
-# Функция для обновления статуса подписки
-async def update_subscription_status(db_initializer, group_id, status):
-    """Обновляет статус подписки в базе данных."""
-    connection = await db_initializer.pool.acquire()
-    try:
-        async with connection.cursor() as cursor:
-            await cursor.execute(
-                "UPDATE groups_for_messages SET subscription_status=%s WHERE group_id=%s",
-                (status, group_id),
-            )
-            await connection.commit()
-            logger.info(f"Статус подписки для группы {group_id} обновлен на {status}")
-    except Exception as e:
-        logger.error(
-            f"Ошибка при обновлении статуса подписки для группы {group_id}: {e}"
-        )
-    finally:
-        if connection:
-            connection.close()
+# # Функция для обновления статуса подписки
+# async def update_subscription_status(db_initializer, group_id, status):
+#     """Обновляет статус подписки в базе данных."""
+#     connection = await db_initializer.pool.acquire()
+#     try:
+#         async with connection.cursor() as cursor:
+#             await cursor.execute(
+#                 "UPDATE groups_for_messages SET subscription_status=%s WHERE group_id=%s",
+#                 (status, group_id),
+#             )
+#             await connection.commit()
+#             logger.info(f"Статус подписки для группы {group_id} обновлен на {status}")
+#     except Exception as e:
+#         logger.error(
+#             f"Ошибка при обновлении статуса подписки для группы {group_id}: {e}"
+#         )
+#     finally:
+#         if connection:
+#             connection.close()
 
 
 # # Функция для отправки сообщения в конкретную группу
@@ -792,7 +797,6 @@ async def setup_scheduler(api_id, api_hash, phone_number, user_message):
 #         await asyncio.sleep(1)
 
 
-# Функция для присоединения к группам
 async def join_groups(db_initializer, account_id=None):
     logger.debug("Начинаем процесс присоединения к группам")
 
@@ -826,21 +830,29 @@ async def join_groups(db_initializer, account_id=None):
                 # Проверяем, присоединился ли аккаунт к группе по ID
                 try:
                     channel = await client.get_entity(PeerChannel(int(group_id)))
-                    async for user in client.iter_participants(
-                        channel, filter=ChannelParticipantsSearch("")
-                    ):
-                        if user.id == (await client.get_me()).id:
-                            logger.info(f"Уже присоединены к группе с ID {group_id}")
+                    # Здесь мы можем сначала проверить, является ли канал супергруппой
+                    if isinstance(channel, Channel) and channel.megagroup:
+                        async for user in client.iter_participants(
+                            channel, filter=ChannelParticipantsSearch("")
+                        ):
+                            if user.id == (await client.get_me()).id:
+                                logger.info(
+                                    f"Уже присоединены к группе с ID {group_id}"
+                                )
+                                await update_subscription_status(
+                                    db_initializer, group_id, True
+                                )
+                                break
+                        else:
+                            await client(JoinChannelRequest(channel))
+                            logger.info(
+                                f"Успешно присоединились к группе с ID {group_id}"
+                            )
                             await update_subscription_status(
                                 db_initializer, group_id, True
                             )
-                            break
-                    else:
-                        await client(JoinChannelRequest(channel))
-                        logger.info(f"Успешно присоединились к группе с ID {group_id}")
-                        await update_subscription_status(db_initializer, group_id, True)
-                        joined_count += 1
-                        logger.info(f"Добавляем {joined_count}")
+                            joined_count += 1
+                            logger.info(f"Добавляем {joined_count}")
                 except UserAlreadyParticipantError:
                     logger.info(f"Уже присоединены к группе с ID {group_id}")
                     await update_subscription_status(db_initializer, group_id, True)
@@ -865,25 +877,28 @@ async def join_groups(db_initializer, account_id=None):
                 if "Could not find the input entity" in str(e):
                     try:
                         channel = await client.get_entity(group_link)
-                        async for user in client.iter_participants(
-                            channel, filter=ChannelParticipantsSearch("")
-                        ):
-                            if user.id == (await client.get_me()).id:
-                                logger.info(f"Уже присоединены к группе {group_link}")
+                        if isinstance(channel, Channel) and channel.megagroup:
+                            async for user in client.iter_participants(
+                                channel, filter=ChannelParticipantsSearch("")
+                            ):
+                                if user.id == (await client.get_me()).id:
+                                    logger.info(
+                                        f"Уже присоединены к группе {group_link}"
+                                    )
+                                    await update_subscription_status(
+                                        db_initializer, group_id, True
+                                    )
+                                    break
+                            else:
+                                await client(JoinChannelRequest(channel))
+                                logger.info(
+                                    f"Успешно присоединились к группе с ссылкой {group_link}"
+                                )
                                 await update_subscription_status(
                                     db_initializer, group_id, True
                                 )
-                                break
-                        else:
-                            await client(JoinChannelRequest(channel))
-                            logger.info(
-                                f"Успешно присоединились к группе с ссылкой {group_link}"
-                            )
-                            await update_subscription_status(
-                                db_initializer, group_id, True
-                            )
-                            joined_count += 1
-                            logger.info(f"Добавляем {joined_count}")
+                                joined_count += 1
+                                logger.info(f"Добавляем {joined_count}")
                     except UserAlreadyParticipantError:
                         logger.info(f"Уже присоединены к группе с ссылкой {group_link}")
                         await update_subscription_status(db_initializer, group_id, True)

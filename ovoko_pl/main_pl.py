@@ -27,7 +27,7 @@ async def save_response_json(json_response, url_name):
 
 
 async def log_response(response, url_name):
-    api_url = "https://ovoko.pl/szukaj?man_id=3&cmc=1&cm=36"
+    api_url = "https://www.kupujemprodajem.com/api/web/v1/search"
     request = response.request
     if request.method == "GET" and api_url in request.url:
         try:
@@ -59,7 +59,7 @@ async def main():
                 lambda response: asyncio.create_task(log_response(response, url_name)),
             )
             url_name = f"page_0{i}"
-            url = f"https://ovoko.pl/szukaj?man_id=3&cmc=1&cm=36&mfi=3,1,36;&prs=1&page={i}"
+            url = f"https://www.kupujemprodajem.com/namestaj/stolovi-i-stolice/grupa/1268/395/2?page={i}"
             await page.goto(url)
             # Ждём появления кнопки "Принять все" и кликаем по ней, если она существует
             try:

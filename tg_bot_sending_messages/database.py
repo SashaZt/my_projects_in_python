@@ -47,6 +47,13 @@ class DatabaseInitializer:
                             api_hash VARCHAR(255) NOT NULL,
                             phone_number VARCHAR(20) UNIQUE NOT NULL)"""
                     )
+                    await cursor.execute(
+                        """CREATE TABLE account_group_subscriptions (
+                            id SERIAL PRIMARY KEY,
+                            account_id INT REFERENCES accounts_for_messages(id),
+                            group_id BIGINT REFERENCES groups_for_messages(group_id),
+                            subscription_status BOOLEAN DEFAULT FALSE)"""
+                    )
                     logger.info("Таблицы созданы или уже существуют")
                 except Exception as e:
                     logger.error(f"Ошибка при инициализации базы данных: {e}")
