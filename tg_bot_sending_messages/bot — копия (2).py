@@ -1,43 +1,31 @@
-import os
 import asyncio
 import random
-import logging
+import schedule
 from datetime import datetime, timedelta, time as dtime
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
 from telethon import TelegramClient
+from telethon.tl.types import InputPeerEmpty
+from configuration.logger_setup import logger
+from telethon.tl.functions.channels import GetFullChannelRequest
+from telethon.tl.types import ChannelParticipantsAdmins, InputPeerChannel
+from telethon.tl.functions.channels import GetParticipantsRequest
 from telethon.tl.types import (
-    InputPeerEmpty,
     PeerChannel,
     ChannelParticipantsSearch,
     ChannelParticipantSelf,
-    Channel,
-    Chat,
 )
-from telethon.tl.functions.channels import (
-    GetFullChannelRequest,
-    GetParticipantsRequest,
-    JoinChannelRequest,
-    GetParticipantRequest,
-)
+from telethon.tl.functions.channels import JoinChannelRequest, GetParticipantRequest
 from telethon.errors.rpcerrorlist import (
     UserAlreadyParticipantError,
     FloodWaitError,
     ChatAdminRequiredError,
-    ChatWriteForbiddenError,
 )
-from configuration.logger_setup import logger
+from telethon.tl.types import Channel, Chat
+
+
 from database import DatabaseInitializer
-
-current_directory = os.getcwd()
-configuration_path = os.path.join(current_directory, "configuration")
-logging_path = os.path.join(current_directory, "logging")
-sessions_path = os.path.join(current_directory, "sessions")
-
-# Создание директории, если она не существует
-os.makedirs(configuration_path, exist_ok=True)
-os.makedirs(logging_path, exist_ok=True)
-os.makedirs(sessions_path, exist_ok=True)
+import os
 
 """
 Комментарий по использованию сессий Telegram
@@ -168,9 +156,7 @@ async def update_groups_handler(message: types.Message):
         return
 
     # Обновляем список групп из файла
-    filename_config = os.path.join(sessions_path, f"{phone_number}.session")
-    # Создание клиента Telethon без запятой в конце
-    client = TelegramClient(filename_config, api_id, api_hash)
+    client = TelegramClient(f"session_{phone_number}", api_id, api_hash)
     await client.start(phone_number)
     await update_groups_from_file(client, db_initializer)
     await client.disconnect()
@@ -592,30 +578,23 @@ async def send_messages_with_pause(
     group_data = await get_group_ids(
         db_initializer
     )  # Получение данных групп из базы данных
-    logger.info("Начало отправки сообщений в группы с активной подпиской")
+    logger.info(f"Начало отправки сообщений в группы с активной подпиской")
 
     for group_link, (group_id, subscription_status) in group_data.items():
         if not subscription_status:
             logger.info(f"Пропускаем группу {group_id}, так как подписка неактивна.")
             continue
 
-        # Конфигурация пути для сессии
-        filename_config = os.path.join(sessions_path, f"{phone_number}.session")
-
-        # Создание клиента Telethon
-        client = TelegramClient(filename_config, api_id, api_hash)
-
+        client = TelegramClient(f"session_{phone_number}", api_id, api_hash)
         try:
             logger.debug(
                 f"Подключение к Telegram для проверки и отправки в группу {group_id}"
             )
-            await client.start(phone_number)
+            await client.connect()
 
             try:
-                # Получение информации о группе
                 entity = await client.get_entity(group_id)
-
-                # Проверка прав на отправку сообщений
+                # Проверка, является ли аккаунт администратором или имеет права на отправку сообщений
                 if isinstance(entity, (Channel, Chat)):
                     participant = await client(GetParticipantRequest(group_id, "me"))
                     if isinstance(participant.participant, ChannelParticipantSelf):
@@ -628,7 +607,7 @@ async def send_messages_with_pause(
                         )
                         continue
             except Exception as e:
-                # Обработка проблем с подпиской
+                # Если не подписан или возникла ошибка, пытаемся подписаться
                 logger.warning(
                     f"Проблемы с подпиской или правами в группе с ID {group_id}, проверка и подписка..."
                 )
@@ -639,41 +618,19 @@ async def send_messages_with_pause(
                     logger.error(
                         f"Не удалось подписаться на группу с ID {group_id}: {join_error}"
                     )
-                    continue
+                    continue  # Переходим к следующей группе
 
-            # Попытка отправки сообщения
-            try:
-                await client.send_message(group_id, user_message)
-                logger.info(f"Сообщение отправлено в группу с ID {group_id}")
+            # Отправка сообщения в группу
+            await client.send_message(group_id, user_message)
+            logger.info(f"Сообщение отправлено в группу с ID {group_id}")
 
-                # Логирование времени отправки сообщения
-                logger.info(
-                    f"Сообщение '{user_message}' отправлено в {datetime.now().strftime('%H:%M:%S')}"
-                )
-
-            except FloodWaitError as e:
-                # Обработка ошибки FloodWaitError
-                wait_time = e.seconds + 60  # Дополнительная пауза 60 секунд
-                logger.error(
-                    f"Необходимо подождать {e.seconds} секунд перед следующей отправкой"
-                )
-                logger.info(f"Пауза на {wait_time} секунд.")
-                await asyncio.sleep(wait_time)
-
-            except ChatWriteForbiddenError:
-                # Обработка запрета на отправку сообщений
-                logger.error(
-                    f"Аккаунт заблокирован для отправки сообщений в группе с ID {group_id}"
-                )
-
-            except Exception as e:
-                # Обработка других ошибок
-                logger.error(
-                    f"Ошибка при отправке сообщения в группу с ID {group_id}: {e}"
-                )
+            # Логирование времени отправки сообщения
+            logger.info(
+                f"Сообщение '{user_message}' отправлено в {datetime.datetime.now().strftime('%H:%M:%S')}"
+            )
 
         except Exception as e:
-            logger.error(f"Ошибка при обработке группы с ID {group_id}: {e}")
+            logger.error(f"Ошибка при отправке сообщения в группу с ID {group_id}: {e}")
 
         finally:
             # Отключение клиента Telegram после каждой отправки
@@ -857,10 +814,8 @@ async def join_groups(db_initializer, account_id=None):
         logger.error("Список групп пуст или не удалось его получить")
         return
 
-    # Месторасположение файла ссесии
-    filename_config = os.path.join(sessions_path, f"{phone_number}.session")
     # Создаем клиент Telethon
-    async with TelegramClient(filename_config, api_id, api_hash) as client:
+    async with TelegramClient(phone_number, api_id, api_hash) as client:
         await client.start()
 
         joined_count = 0  # Счетчик успешно присоединившихся групп
@@ -983,21 +938,10 @@ async def main():
     global db_initializer
     logger.info("Starting main function")
     db_initializer = DatabaseInitializer()
-    await db_initializer.create_pool()
+    await db_initializer.create_pool()  # Call asynchronously
     await db_initializer.init_db()
     dp.include_router(router)
-    await bot.delete_webhook(drop_pending_updates=True)
-
-    # Получаем данные аккаунта для инициализации клиента
-    # account_info = await get_account_info()
-    # if account_info:
-    #     api_id, api_hash, phone_number = account_info
-    #     # Запуск планировщика
-    #     await setup_scheduler(api_id, api_hash, phone_number)
-    # else:
-    #     logger.error("Ошибка получения данных аккаунта.")
-    # Старт поллинга
-    await dp.start_polling(bot)
+    await asyncio.run(dp.start_polling(bot))  # Use asyncio.run for bot polling
 
 
 if __name__ == "__main__":

@@ -48,7 +48,7 @@ class DatabaseInitializer:
                             phone_number VARCHAR(20) UNIQUE NOT NULL)"""
                     )
                     await cursor.execute(
-                        """CREATE TABLE IF NOT EXISTS account_group_subscriptions (
+                        """CREATE TABLE account_group_subscriptions (
                             id SERIAL PRIMARY KEY,
                             account_id INT REFERENCES accounts_for_messages(id),
                             group_id BIGINT REFERENCES groups_for_messages(group_id),
