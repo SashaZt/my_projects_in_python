@@ -54,6 +54,18 @@ class DatabaseInitializer:
                             group_id BIGINT REFERENCES groups_for_messages(group_id),
                             subscription_status BOOLEAN DEFAULT FALSE)"""
                     )
+                    await cursor.execute(
+                        """CREATE TABLE IF NOT EXISTS subscriptions (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            account_id INT NOT NULL,
+                            group_id BIGINT NOT NULL,
+                            subscription_status TINYINT(1) NOT NULL DEFAULT 0,
+                            FOREIGN KEY (account_id) REFERENCES accounts_for_messages(id) ON DELETE CASCADE ON UPDATE CASCADE,
+                            FOREIGN KEY (group_id) REFERENCES groups_for_messages(id) ON DELETE CASCADE ON UPDATE CASCADE,
+                            INDEX idx_account_id (account_id),
+                            INDEX idx_group_id (group_id)
+                        );"""
+                    )
                     logger.info("Таблицы созданы или уже существуют")
                 except Exception as e:
                     logger.error(f"Ошибка при инициализации базы данных: {e}")

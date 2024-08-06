@@ -237,6 +237,132 @@ async def get_group_ids(db_initializer):
         logger.debug("Соединение с базой данных закрыто group_id")
 
 
+# Функция для получения списка групп из базы данных
+async def get_group_ids_new(db_initializer):
+    logger.debug("Получение списка групп из базы данных")
+    connection = await db_initializer.pool.acquire()
+    try:
+        async with connection.cursor() as cursor:
+            # Извлекаем id и group_id
+            await cursor.execute(
+                "SELECT id, group_id, group_link FROM groups_for_messages"
+            )
+            groups = await cursor.fetchall()
+            # Возвращаем словарь, где ключ — group_link, а значение — кортеж (id, group_id)
+            group_dict = {
+                group_link: (db_id, tg_group_id)
+                for db_id, tg_group_id, group_link in groups
+            }
+            logger.debug(f"Получен список групп: {group_dict}")
+            return group_dict
+    except Exception as e:
+        logger.error(f"Ошибка при выполнении запроса для получения групп: {e}")
+        return {}
+    finally:
+        await db_initializer.pool.release(connection)
+        logger.debug("Соединение с базой данных закрыто")
+
+
+# Функция для получения данных аккаунта из базы данных
+async def get_account_info_new(db_initializer, account_id=None):
+    logger.debug("Получение данных аккаунта из базы данных")
+    connection = await db_initializer.pool.acquire()
+    try:
+        async with connection.cursor() as cursor:
+            query = "SELECT api_id, api_hash, phone_number FROM accounts_for_messages"
+            params = ()
+            if account_id:
+                logger.debug(f"Получение данных для аккаунта с ID {account_id}")
+                query += " WHERE id=%s"
+                params = (account_id,)
+            else:
+                logger.debug("Получение данных для первого аккаунта")
+                query += " LIMIT 1"
+
+            await cursor.execute(query, params)
+            result = await cursor.fetchone()
+            logger.debug(f"Данные аккаунта получены: {result}")
+            return result
+    except Exception as e:
+        logger.error(
+            f"Ошибка при выполнении запроса для получения данных аккаунта: {e}"
+        )
+        return None
+    finally:
+        await db_initializer.pool.release(connection)
+        logger.debug("Соединение с базой данных закрыто")
+
+
+# Функция для получения списка всех аккаунтов из базы данных
+async def get_all_accounts(db_initializer):
+    logger.debug("Получение данных всех аккаунтов из базы данных")
+    connection = await db_initializer.pool.acquire()
+    try:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "SELECT id, api_id, api_hash, phone_number FROM accounts_for_messages"
+            )
+            accounts = await cursor.fetchall()
+            logger.debug(f"Получены данные аккаунтов: {accounts}")
+            return accounts
+    except Exception as e:
+        logger.error(
+            f"Ошибка при выполнении запроса для получения данных аккаунтов: {e}"
+        )
+        return []
+    finally:
+        await db_initializer.pool.release(connection)
+        logger.debug("Соединение с базой данных закрыто")
+
+
+# Функция для обновления статуса подписки в таблице subscriptions
+async def update_subscription_status_new(db_initializer, account_id, group_id, status):
+    logger.debug(
+        f"Обновление статуса подписки для аккаунта {account_id} и группы {group_id}"
+    )
+    connection = await db_initializer.pool.acquire()
+    try:
+        async with connection.cursor() as cursor:
+            sql = """
+            INSERT INTO subscriptions (account_id, group_id, subscription_status)
+            VALUES (%s, %s, %s)
+            AS new_sub
+            ON DUPLICATE KEY UPDATE subscription_status = new_sub.subscription_status
+            """
+            await cursor.execute(sql, (account_id, group_id, status))
+            await connection.commit()
+            logger.info(
+                f"Статус подписки для аккаунта {account_id} и группы {group_id} обновлен на {status}"
+            )
+    except Exception as e:
+        logger.error(
+            f"Ошибка при обновлении статуса подписки для аккаунта {account_id} и группы {group_id}: {e}"
+        )
+    finally:
+        await db_initializer.pool.release(connection)
+        logger.debug("Соединение с базой данных закрыто")
+
+
+async def get_account_id_by_phone_number(db_initializer, phone_number):
+    """Получает id аккаунта по номеру телефона."""
+    connection = await db_initializer.pool.acquire()
+    try:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                "SELECT id FROM accounts_for_messages WHERE phone_number = %s",
+                (phone_number,),
+            )
+            result = await cursor.fetchone()
+            return result["id"] if result else None
+    except Exception as e:
+        logger.error(
+            f"Ошибка при получении id аккаунта по номеру телефона {phone_number}: {e}"
+        )
+        return None
+    finally:
+        await db_initializer.pool.release(connection)
+
+
 async def update_subscription_status(db_initializer, group_id, status):
     """Обновляет статус подписки в базе данных."""
     connection = await db_initializer.pool.acquire()
@@ -840,143 +966,309 @@ async def setup_scheduler(api_id, api_hash, phone_number, user_message):
 #         await asyncio.sleep(1)
 
 
-async def join_groups(db_initializer, account_id=None):
-    logger.debug("Начинаем процесс присоединения к группам")
+async def join_groups(db_initializer):
+    logger.debug("Начинаем процесс присоединения к группам для всех аккаунтов")
 
-    # Получаем данные аккаунта из базы данных
-    account_info = await get_account_info(account_id)
-    if not account_info:
-        logger.error("Не удалось получить данные аккаунта")
+    # Получаем список всех аккаунтов из базы данных
+    accounts = await get_all_accounts(db_initializer)
+    if not accounts:
+        logger.error("Не удалось получить данные аккаунтов")
         return
 
-    api_id, api_hash, phone_number = account_info
-
-    # Получаем список групп из базы данных
-    existing_groups = await get_group_ids(db_initializer)
+    # Получаем список всех групп из базы данных
+    existing_groups = await get_group_ids_new(db_initializer)
     if not existing_groups:
         logger.error("Список групп пуст или не удалось его получить")
         return
 
-    # Месторасположение файла ссесии
-    filename_config = os.path.join(sessions_path, f"{phone_number}.session")
-    # Создаем клиент Telethon
-    async with TelegramClient(filename_config, api_id, api_hash) as client:
-        await client.start()
+    for account_info in accounts[1:2]:
+        account_id, api_id, api_hash, phone_number = account_info
+        logger.debug(f"Работаем с аккаунтом: {phone_number} (ID: {account_id})")
 
-        joined_count = 0  # Счетчик успешно присоединившихся групп
-        pause_duration = 600  # Начальная продолжительность паузы
+        # Месторасположение файла сессии
+        filename_config = os.path.join(sessions_path, f"{phone_number}.session")
 
-        for group_link, (group_id, subscription_status) in existing_groups.items():
-            if subscription_status:
-                logger.info(f"Пропускаем группу {group_id}, уже подписаны.")
-                continue
+        logger.debug(
+            f"Инициализация клиента Telethon с файлом сессии {filename_config}"
+        )
 
-            try:
-                # Проверяем, присоединился ли аккаунт к группе по ID
-                try:
-                    channel = await client.get_entity(PeerChannel(int(group_id)))
-                    # Здесь мы можем сначала проверить, является ли канал супергруппой
-                    if isinstance(channel, Channel) and channel.megagroup:
-                        async for user in client.iter_participants(
-                            channel, filter=ChannelParticipantsSearch("")
-                        ):
-                            if user.id == (await client.get_me()).id:
-                                logger.info(
-                                    f"Уже присоединены к группе с ID {group_id}"
-                                )
-                                await update_subscription_status(
-                                    db_initializer, group_id, True
-                                )
-                                break
-                        else:
-                            await client(JoinChannelRequest(channel))
-                            logger.info(
-                                f"Успешно присоединились к группе с ID {group_id}"
-                            )
-                            await update_subscription_status(
-                                db_initializer, group_id, True
-                            )
-                            joined_count += 1
-                            logger.info(f"Добавляем {joined_count}")
-                except UserAlreadyParticipantError:
-                    logger.info(f"Уже присоединены к группе с ID {group_id}")
-                    await update_subscription_status(db_initializer, group_id, True)
+        try:
+            # Создаем клиента Telethon
+            async with TelegramClient(filename_config, api_id, api_hash) as client:
+                await client.start()
+                logger.debug(f"Клиент успешно запущен для аккаунта: {phone_number}")
 
-            except FloodWaitError as e:
-                wait_time = (
-                    e.seconds + 60
-                )  # Добавляем 60 секунд к указанному времени ожидания
-                logger.error(
-                    f"Превышено количество запросов, необходимо подождать {e.seconds} секунд"
-                )
-                logger.info(f"Пауза из-за ошибки FloodWait на {wait_time} секунд.")
-                await asyncio.sleep(wait_time)
-                # После ожидания, продолжаем с той же группы
-                continue
-            except ChatAdminRequiredError:
-                logger.warning(
-                    f"Требуются права администратора для выполнения операции в группе {group_id}. Пропуск..."
-                )
-                continue  # Переходим к следующей группе
-            except Exception as e:
-                if "Could not find the input entity" in str(e):
+                joined_count = 0  # Счетчик успешно присоединившихся групп
+                pause_duration = 600  # Начальная продолжительность паузы
+
+                for group_link, (db_group_id, tg_group_id) in existing_groups.items():
+                    logger.debug(f"Проверяем группу с ID {tg_group_id}")
                     try:
-                        channel = await client.get_entity(group_link)
+                        # Используйте только tg_group_id для создания PeerChannel
+                        channel = await client.get_entity(PeerChannel(int(tg_group_id)))
                         if isinstance(channel, Channel) and channel.megagroup:
                             async for user in client.iter_participants(
                                 channel, filter=ChannelParticipantsSearch("")
                             ):
                                 if user.id == (await client.get_me()).id:
                                     logger.info(
-                                        f"Уже присоединены к группе {group_link}"
+                                        f"Уже присоединены к группе с ID {tg_group_id}"
                                     )
-                                    await update_subscription_status(
-                                        db_initializer, group_id, True
+                                    await update_subscription_status_new(
+                                        db_initializer, account_id, db_group_id, 1
                                     )
                                     break
                             else:
                                 await client(JoinChannelRequest(channel))
                                 logger.info(
-                                    f"Успешно присоединились к группе с ссылкой {group_link}"
+                                    f"Успешно присоединились к группе с ID {tg_group_id}"
                                 )
-                                await update_subscription_status(
-                                    db_initializer, group_id, True
+                                await update_subscription_status_new(
+                                    db_initializer, account_id, db_group_id, 1
                                 )
                                 joined_count += 1
-                                logger.info(f"Добавляем {joined_count}")
+
                     except UserAlreadyParticipantError:
-                        logger.info(f"Уже присоединены к группе с ссылкой {group_link}")
-                        await update_subscription_status(db_initializer, group_id, True)
-                    except Exception as link_error:
-                        if "You have successfully requested to join" in str(link_error):
-                            logger.warning(
-                                f"Запрос на присоединение к группе {group_link} уже отправлен и ожидает одобрения."
-                            )
-                        else:
-                            logger.error(
-                                f"Ошибка при присоединении к группе {group_link}: {link_error}"
-                            )
-                else:
-                    if "You have successfully requested to join" in str(e):
-                        logger.warning(
-                            f"Запрос на присоединение к группе {group_id} уже отправлен и ожидает одобрения."
+                        logger.info(f"Уже присоединены к группе с ID {tg_group_id}")
+                        await update_subscription_status_new(
+                            db_initializer, account_id, db_group_id, 1
                         )
-                    else:
+
+                    except FloodWaitError as e:
+                        wait_time = (
+                            e.seconds + 60
+                        )  # Добавляем 60 секунд к указанному времени ожидания
                         logger.error(
-                            f"Ошибка при присоединении к группе {group_id}: {e}"
+                            f"Превышено количество запросов, необходимо подождать {e.seconds} секунд"
                         )
+                        logger.info(
+                            f"Пауза из-за ошибки FloodWait на {wait_time} секунд."
+                        )
+                        await asyncio.sleep(wait_time)
+                        continue  # Продолжаем с той же группы
 
-            # Делаем паузу после успешного присоединения к 10 группам
-            if joined_count >= 10:
-                logger.info(
-                    f"Пауза {pause_duration} секунд после присоединения к 10 группам"
-                )
-                await asyncio.sleep(pause_duration)  # Пауза
-                pause_duration += 600  # Увеличиваем продолжительность паузы
-                joined_count = 0  # Сброс счетчика
-                continue
+                    except ChatAdminRequiredError:
+                        logger.warning(
+                            f"Требуются права администратора для выполнения операции в группе {tg_group_id}. Пропуск..."
+                        )
+                        continue  # Переходим к следующей группе
 
-    logger.debug("Завершен процесс присоединения к группам")
+                    except Exception as e:
+                        logger.error(f"Ошибка при работе с группой {tg_group_id}: {e}")
+                        if "Could not find the input entity" in str(e):
+                            try:
+                                channel = await client.get_entity(group_link)
+                                if isinstance(channel, Channel) and channel.megagroup:
+                                    async for user in client.iter_participants(
+                                        channel, filter=ChannelParticipantsSearch("")
+                                    ):
+                                        if user.id == (await client.get_me()).id:
+                                            logger.info(
+                                                f"Уже присоединены к группе {group_link}"
+                                            )
+                                            await update_subscription_status_new(
+                                                db_initializer,
+                                                account_id,
+                                                db_group_id,
+                                                1,
+                                            )
+                                            break
+                                    else:
+                                        await client(JoinChannelRequest(channel))
+                                        logger.info(
+                                            f"Успешно присоединились к группе с ссылкой {group_link}"
+                                        )
+                                        await update_subscription_status_new(
+                                            db_initializer, account_id, db_group_id, 1
+                                        )
+                                        joined_count += 1
+
+                            except UserAlreadyParticipantError:
+                                logger.info(
+                                    f"Уже присоединены к группе с ссылкой {group_link}"
+                                )
+                                await update_subscription_status_new(
+                                    db_initializer, account_id, db_group_id, 1
+                                )
+
+                            except Exception as link_error:
+                                if "You have successfully requested to join" in str(
+                                    link_error
+                                ):
+                                    logger.warning(
+                                        f"Запрос на присоединение к группе {group_link} уже отправлен и ожидает одобрения."
+                                    )
+                                else:
+                                    logger.error(
+                                        f"Ошибка при присоединении к группе {group_link}: {link_error}"
+                                    )
+
+                        else:
+                            if "You have successfully requested to join" in str(e):
+                                logger.warning(
+                                    f"Запрос на присоединение к группе {tg_group_id} уже отправлен и ожидает одобрения."
+                                )
+                            else:
+                                logger.error(
+                                    f"Ошибка при присоединении к группе {tg_group_id}: {e}"
+                                )
+
+                    # Делаем паузу после успешного присоединения к 10 группам
+                    if joined_count >= 10:
+                        logger.info(
+                            f"Пауза {pause_duration} секунд после присоединения к 10 группам"
+                        )
+                        await asyncio.sleep(pause_duration)  # Пауза
+                        pause_duration += 600  # Увеличиваем продолжительность паузы
+                        joined_count = 0  # Сброс счетчика
+                        continue
+
+        except Exception as client_error:
+            logger.error(
+                f"Ошибка при запуске клиента для аккаунта {phone_number}: {client_error}"
+            )
+            continue  # Переходим к следующему аккаунту в случае ошибки
+
+    logger.debug("Завершен процесс присоединения к группам для всех аккаунтов")
+
+
+# async def join_groups(db_initializer, account_id=None):
+#     logger.debug("Начинаем процесс присоединения к группам")
+
+#     # Получаем данные аккаунта из базы данных
+#     account_info = await get_account_info(account_id)
+#     if not account_info:
+#         logger.error("Не удалось получить данные аккаунта")
+#         return
+
+#     api_id, api_hash, phone_number = account_info
+
+#     # Получаем список групп из базы данных
+#     existing_groups = await get_group_ids(db_initializer)
+#     if not existing_groups:
+#         logger.error("Список групп пуст или не удалось его получить")
+#         return
+
+#     # Месторасположение файла ссесии
+#     filename_config = os.path.join(sessions_path, f"{phone_number}.session")
+#     # Создаем клиент Telethon
+#     async with TelegramClient(filename_config, api_id, api_hash) as client:
+#         await client.start()
+
+#         joined_count = 0  # Счетчик успешно присоединившихся групп
+#         pause_duration = 600  # Начальная продолжительность паузы
+
+#         for group_link, (group_id, subscription_status) in existing_groups.items():
+#             if subscription_status:
+#                 logger.info(f"Пропускаем группу {group_id}, уже подписаны.")
+#                 continue
+
+#             try:
+#                 # Проверяем, присоединился ли аккаунт к группе по ID
+#                 try:
+#                     channel = await client.get_entity(PeerChannel(int(group_id)))
+#                     # Здесь мы можем сначала проверить, является ли канал супергруппой
+#                     if isinstance(channel, Channel) and channel.megagroup:
+#                         async for user in client.iter_participants(
+#                             channel, filter=ChannelParticipantsSearch("")
+#                         ):
+#                             if user.id == (await client.get_me()).id:
+#                                 logger.info(
+#                                     f"Уже присоединены к группе с ID {group_id}"
+#                                 )
+#                                 await update_subscription_status(
+#                                     db_initializer, group_id, True
+#                                 )
+#                                 break
+#                         else:
+#                             await client(JoinChannelRequest(channel))
+#                             logger.info(
+#                                 f"Успешно присоединились к группе с ID {group_id}"
+#                             )
+#                             await update_subscription_status(
+#                                 db_initializer, group_id, True
+#                             )
+#                             joined_count += 1
+#                             logger.info(f"Добавляем {joined_count}")
+#                 except UserAlreadyParticipantError:
+#                     logger.info(f"Уже присоединены к группе с ID {group_id}")
+#                     await update_subscription_status(db_initializer, group_id, True)
+
+#             except FloodWaitError as e:
+#                 wait_time = (
+#                     e.seconds + 60
+#                 )  # Добавляем 60 секунд к указанному времени ожидания
+#                 logger.error(
+#                     f"Превышено количество запросов, необходимо подождать {e.seconds} секунд"
+#                 )
+#                 logger.info(f"Пауза из-за ошибки FloodWait на {wait_time} секунд.")
+#                 await asyncio.sleep(wait_time)
+#                 # После ожидания, продолжаем с той же группы
+#                 continue
+#             except ChatAdminRequiredError:
+#                 logger.warning(
+#                     f"Требуются права администратора для выполнения операции в группе {group_id}. Пропуск..."
+#                 )
+#                 continue  # Переходим к следующей группе
+#             except Exception as e:
+#                 if "Could not find the input entity" in str(e):
+#                     try:
+#                         channel = await client.get_entity(group_link)
+#                         if isinstance(channel, Channel) and channel.megagroup:
+#                             async for user in client.iter_participants(
+#                                 channel, filter=ChannelParticipantsSearch("")
+#                             ):
+#                                 if user.id == (await client.get_me()).id:
+#                                     logger.info(
+#                                         f"Уже присоединены к группе {group_link}"
+#                                     )
+#                                     await update_subscription_status(
+#                                         db_initializer, group_id, True
+#                                     )
+#                                     break
+#                             else:
+#                                 await client(JoinChannelRequest(channel))
+#                                 logger.info(
+#                                     f"Успешно присоединились к группе с ссылкой {group_link}"
+#                                 )
+#                                 await update_subscription_status(
+#                                     db_initializer, group_id, True
+#                                 )
+#                                 joined_count += 1
+#                                 logger.info(f"Добавляем {joined_count}")
+#                     except UserAlreadyParticipantError:
+#                         logger.info(f"Уже присоединены к группе с ссылкой {group_link}")
+#                         await update_subscription_status(db_initializer, group_id, True)
+#                     except Exception as link_error:
+#                         if "You have successfully requested to join" in str(link_error):
+#                             logger.warning(
+#                                 f"Запрос на присоединение к группе {group_link} уже отправлен и ожидает одобрения."
+#                             )
+#                         else:
+#                             logger.error(
+#                                 f"Ошибка при присоединении к группе {group_link}: {link_error}"
+#                             )
+#                 else:
+#                     if "You have successfully requested to join" in str(e):
+#                         logger.warning(
+#                             f"Запрос на присоединение к группе {group_id} уже отправлен и ожидает одобрения."
+#                         )
+#                     else:
+#                         logger.error(
+#                             f"Ошибка при присоединении к группе {group_id}: {e}"
+#                         )
+
+#             # Делаем паузу после успешного присоединения к 10 группам
+#             if joined_count >= 10:
+#                 logger.info(
+#                     f"Пауза {pause_duration} секунд после присоединения к 10 группам"
+#                 )
+#                 await asyncio.sleep(pause_duration)  # Пауза
+#                 pause_duration += 600  # Увеличиваем продолжительность паузы
+#                 joined_count = 0  # Сброс счетчика
+#                 continue
+
+#     logger.debug("Завершен процесс присоединения к группам")
 
 
 async def main():
