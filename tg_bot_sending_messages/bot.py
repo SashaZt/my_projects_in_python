@@ -532,13 +532,28 @@ async def input_account_handler(message: types.Message):
         logger.error("Ошибка формата данных при вводе аккаунта")
 
 
+# # Обработчик команды "Отправить сообщение" Рабочий
+# @router.message(lambda message: message.text == "Отправить сообщение")
+# async def send_message_handler(message: types.Message):
+#     logger.info("Обработка запроса на отправку сообщения")
+
+
+#     # Запросите у пользователя текст сообщения для отправки
+#     await message.reply("Введите текст сообщения для отправки:")
+
+
 # Обработчик команды "Отправить сообщение"
 @router.message(lambda message: message.text == "Отправить сообщение")
 async def send_message_handler(message: types.Message):
     logger.info("Обработка запроса на отправку сообщения")
 
-    # Запросите у пользователя текст сообщения для отправки
-    await message.reply("Введите текст сообщения для отправки:")
+    # Загрузка сообщений из файлов
+    messages = load_messages()
+
+    # Отправка сообщений с каждого аккаунта
+    await send_messages_from_accounts(db_initializer, messages)
+
+    await message.reply("Сообщения отправлены.")
 
 
 # Обработчик следующего сообщения от пользователя
@@ -1135,6 +1150,102 @@ async def join_groups(db_initializer):
             continue
 
     logger.debug("Завершен процесс присоединения к группам для всех аккаунтов")
+
+
+# Функция для чтения сообщений из файлов
+def load_messages():
+    messages_path = os.path.join(current_directory, "messages")
+    messages = {}
+    for i in range(1, 4):
+        file_path = os.path.join(messages_path, f"message_{i:02d}.txt")
+
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                messages[i] = f.read().strip()
+    return messages
+
+
+# Функция для отправки сообщений от каждого аккаунта
+async def send_messages_from_accounts(db_initializer, messages):
+    accounts = await get_all_accounts(db_initializer)
+    if not accounts:
+        logger.error("Не удалось получить данные аккаунтов")
+        return
+
+    tasks = []  # Список задач для параллельного выполнения
+    for index, account_info in enumerate(accounts):
+        account_id, api_id, api_hash, phone_number = account_info
+        logger.debug(
+            f"Подготавливаем отправку от аккаунта: {phone_number} (ID: {account_id})"
+        )
+
+        # Проверяем, есть ли сообщение для текущего аккаунта
+        message = messages.get(
+            index + 1
+        )  # Используем индекс аккаунта для выбора сообщения
+
+        if message:
+            task = send_message_task(api_id, api_hash, phone_number, message)
+            tasks.append(task)
+        else:
+            logger.info(
+                f"Сообщение для аккаунта {phone_number} не найдено, пропускаем."
+            )
+
+    # Параллельное выполнение задач отправки
+    await asyncio.gather(*tasks)
+
+
+# Функция задачи для отправки сообщения
+async def send_message_task(api_id, api_hash, phone_number, message):
+    # Конфигурация пути для сессии
+    filename_config = os.path.join(sessions_path, f"{phone_number}.session")
+
+    # Создание клиента Telethon
+    client = TelegramClient(filename_config, api_id, api_hash)
+
+    try:
+        await client.start()
+        logger.debug(f"Клиент запущен для аккаунта: {phone_number}")
+
+        # Получение ID всех групп
+        group_data = await get_group_ids(db_initializer)
+
+        for group_link, (group_id, subscription_status) in group_data.items():
+            if not subscription_status:
+                logger.info(
+                    f"Пропускаем группу {group_id}, так как подписка неактивна."
+                )
+                continue
+
+            try:
+                await client.send_message(group_id, message)
+                logger.info(
+                    f"Сообщение отправлено в группу с ID {group_id} от {phone_number}"
+                )
+                # Пауза между отправками
+                await asyncio.sleep(random.randint(180, 300))  # Пауза от 3 до 5 минут
+
+            except FloodWaitError as e:
+                wait_time = e.seconds + 60
+                logger.error(
+                    f"FloodWaitError: Необходимо подождать {e.seconds} секунд перед следующей отправкой"
+                )
+                await asyncio.sleep(wait_time)
+
+            except ChatWriteForbiddenError:
+                logger.error(
+                    f"ChatWriteForbiddenError: Нельзя отправить сообщение в группу с ID {group_id}"
+                )
+
+            except Exception as e:
+                logger.error(
+                    f"Ошибка при отправке сообщения в группу с ID {group_id}: {e}"
+                )
+
+    finally:
+        await client.disconnect()
+        logger.debug(f"Клиент Telegram отключен для аккаунта {phone_number}")
 
 
 # # РАБОЧИЙ КОД
