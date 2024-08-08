@@ -273,10 +273,15 @@ def price_study(filename_list, authorization):
         title = json_data["title"]
     except:
         return
+    unit_price = float(json_data["unit_price"])
     if username != "Allbestfory":
         unit_price = float(json_data["unit_price"])
         if unit_price > 999:
             unit_price = float(json_data["display_price"])
+        elif unit_price < 1:
+            return None
+    elif username == "Haliber" and unit_price < 1:
+        return None
 
         price_rang = get_random_price_range()
         new_price = unit_price - price_rang
