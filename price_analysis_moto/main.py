@@ -2,6 +2,7 @@ import re
 import json
 import os
 import csv
+from tkinter import N
 import requests
 import aiofiles
 import time
@@ -152,147 +153,170 @@ def create_html_and_read_csv():
 
 
 async def parse_html_file():
-    # Получение текущей рабочей директории и пути к директории temp
     dir_path = os.path.join(os.getcwd(), "temp")
-    # logger.debug(f"Current working directory: {os.getcwd()}")
-    # logger.debug(f"Target directory: {dir_path}")
 
-    # Получение списка поддиректорий на верхнем уровне
     subdirs = [
         d for d in os.listdir(dir_path) if os.path.isdir(os.path.join(dir_path, d))
     ]
-    # logger.debug(f"Subdirectories found: {subdirs}")
 
-    # Проход по поддиректориям
     for directory in subdirs[2:3]:
-        # Полный путь к поддиректории
         subdir_path = os.path.join(dir_path, directory)
-        # logger.debug(f"Processing directory: {subdir_path}")
         json_out = os.path.join(subdir_path, "out.json")
         async with aiofiles.open(json_out, "r", encoding="utf-8") as file:
             content = await file.read()
             json_data = json.loads(content)
 
-        # Поиск всех HTML-файлов в поддиректории
         html_path = os.path.join(subdir_path, "html")
+        out_path = os.path.join(subdir_path, "out.json")
         folder = os.path.join(html_path, "*.html")
         files_html = glob.glob(folder)
-        # logger.debug(f"HTML files found: {files_html}")
 
-        # Обработка каждого HTML-файла
-        for item in files_html[4:5]:
+        for item in files_html:
             id_product = os.path.splitext(os.path.basename(item))[0]
-            # logger.debug(f"Processing file: {item}")
-            # Асинхронное чтение содержимого HTML-файла
             async with aiofiles.open(item, "r", encoding="utf-8") as file:
                 html_content = await file.read()
-                logger.debug(f"File read successfully: {item}")
 
-            # Парсинг HTML с помощью Selectolax
             tree = HTMLParser(html_content)
+            # Цвета и размеры
+            # # Извлечение цветов и размеров из HTML
+            # color_map = {}
+            # size_map = {}
+            # color_id = None
+            # size_id = None
 
-            # Извлечение цветов и размеров из HTML
-            color_map = {}
-            size_map = {}
+            # # Извлечение цветов и размеров
+            # for option_div in tree.css(".form-group.product-option-radio"):
+            #     label_element = option_div.css_first(".control-label")
+            #     if not label_element:
+            #         continue
 
-            # Поиск всех div с классом product-option-radio
-            for option_div in tree.css(".product-option-radio"):
-                label = option_div.css_first(".control-label").text().strip()
-                for radio in option_div.css(".radio"):
-                    input_element = radio.css_first("input[type='radio']")
-                    value = input_element.attributes.get("value")
-                    option_value = radio.css_first(".option-value").text().strip()
-                    if label == "Цвет":
-                        color_map[value] = option_value
-                    elif label == "Размер":
-                        size_map[value] = option_value
-            logger.debug(f"Color map: {color_map}")
-            logger.debug(f"Size map: {size_map}")
+            #     label = label_element.text().strip().lower()
 
-            # Извлечение JSON-данных из скрипта
-            for script_tag in tree.css("script[type='text/javascript']"):
-                script_content = script_tag.text()
-                if script_content:
-                    json_match = re.search(
-                        r"ro_params\['ro_data'\] = (.*?]);", script_content, re.DOTALL
-                    )
-                    if json_match:
-                        json_string = json_match.group(1)
-                        data = json.loads(json_string)
-                        # logger.debug(f"JSON data extracted: {data}")
+            #     option_id_element = option_div.css_first("div[id^='input-option']")
+            #     if not option_id_element:
+            #         continue
 
-                        # Замена идентификаторов на названия цветов и размеров
-                        for entry in data:
-                            # logger.debug(f"Product ID: {entry['rovp_id']}")
-                            try:
-                                for ro_id, ro_info in entry["ro"].items():
-                                    # Используем ключевые слова для идентификации значений, связанных с цветом и размером
-                                    color_keywords = [
-                                        r"color",
-                                        r"цвет",
-                                    ]  # Ключевые слова, связанные с цветом
-                                    size_keywords = [
-                                        r"size",
-                                        r"размер",
-                                    ]  # Ключевые слова, связанные с размером
+            #     option_id = option_id_element.attributes.get("id").replace(
+            #         "input-option", ""
+            #     )
 
-                                    logger.debug(
-                                        f"Options: {ro_info['options']}"
-                                    )  # Логируем доступные опции
+            #     if "цвет" in label:
+            #         color_id = option_id
+            #         for radio in option_div.css(".radio"):
+            #             input_element = radio.css_first("input[type='radio']")
+            #             value = input_element.attributes.get("value")
+            #             option_value = radio.css_first(".option-value").text().strip()
+            #             color_map[value] = option_value
+            #         logger.debug(f"Color ID: {color_id}, Color Map: {color_map}")
+            #     elif "размер" in label:
+            #         size_id = option_id
+            #         for radio in option_div.css(".radio"):
+            #             input_element = radio.css_first("input[type='radio']")
+            #             value = input_element.attributes.get("value")
+            #             option_value = radio.css_first(".option-value").text().strip()
+            #             size_map[value] = option_value
+            #         logger.debug(f"Size ID: {size_id}, Size Map: {size_map}")
 
-                                    color_value = find_value_by_keyword_size_color(
-                                        ro_info["options"], color_keywords
-                                    )
-                                    size_value = find_value_by_keyword_size_color(
-                                        ro_info["options"], size_keywords
-                                    )
+            # # Обработка JSON-данных из скрипта
+            # for script_tag in tree.css("script[type='text/javascript']"):
+            #     script_content = script_tag.text()
+            #     if script_content:
+            #         json_match = re.search(
+            #             r"ro_params\['ro_data'\] = (.*?]);", script_content, re.DOTALL
+            #         )
+            #         if json_match:
+            #             json_string = json_match.group(1)
+            #             data = json.loads(json_string)
 
-                                    logger.debug(
-                                        f"Found Color Value: {color_value}"
-                                    )  # Логируем найденное значение цвета
-                                    logger.debug(
-                                        f"Found Size Value: {size_value}"
-                                    )  # Логируем найденное значение размера
+            #             # Совместить идентификаторы с названиями цветов и размеров
+            #             combined_options = []
+            #             for entry in data:
+            #                 try:
+            #                     for ro_id, ro_info in entry["ro"].items():
+            #                         color_value = ro_info["options"].get(color_id)
+            #                         size_value = ro_info["options"].get(size_id)
 
-                                    color_name = color_map.get(
-                                        color_value, "Unknown Color"
-                                    )
-                                    size_name = size_map.get(size_value, "Unknown Size")
+            #                         color_name = color_map.get(
+            #                             color_value, "Unknown Color"
+            #                         )
+            #                         size_name = size_map.get(size_value, "Unknown Size")
 
-                                    logger.debug(f"  Related Option ID: {ro_id}")
-                                    logger.debug(f"    Color: {color_name}")
-                                    logger.debug(f"    Size: {size_name}")
-                            except Exception as e:
-                                logger.error(f"Ошибка при обработке продукта: {e}")
-                                continue
+            #                         combined_options.append(
+            #                             {
+            #                                 "related_option_id": ro_id,
+            #                                 "color": color_name,
+            #                                 "size": size_name,
+            #                             }
+            #                         )
+
+            #                         logger.debug(f"  Related Option ID: {ro_id}")
+            #                         logger.debug(f"    Color: {color_name}")
+            #                         logger.debug(f"    Size: {size_name}")
+            #                 except Exception as e:
+            #                     logger.error(f"Ошибка при обработке продукта: {e}")
+            #                     continue
+
             available = None
             price = None
-            # Извлечение текста из элемента <li> с классами product-stock и in-stock
             stock_text_node = tree.css_first("#product > div.product-stats")
 
             if stock_text_node:
-                # Поиск всех элементов <li> с текстом "Наличие:"
                 stock_li_nodes = stock_text_node.css("li")
-
                 for li_node in stock_li_nodes:
-                    # Проверяем наличие текста "Наличие:" в <b> элемента
                     if "Наличие:" in li_node.text():
-                        # Извлекаем текст из <span>
                         stock_text_node = li_node.css_first("span")
                         if stock_text_node:
                             available = stock_text_node.text(strip=True)
-                logger.info(available)
-            # Попытка извлечь цены
+                # logger.info(available)
+
             price_selector = "div.price-group > div.product-price"
             price = extract_text(tree, price_selector)
 
-            # Если предыдущий селектор не сработал, пробуем другой
             if price == "Элемент не найден":
                 price_selector = "div.price-group > div.product-price-new"
                 price = extract_text(tree, price_selector)
 
-            data = {"id": id_product, "available": available, "price": price}
+            err = None
+            data = {
+                "id": id_product,
+                "available": available,
+                "price": price,
+                "err": err,
+            }
             logger.info(data)
+            update_json_with_price_and_availability(subdir_path, data)
+
+
+def update_json_with_price_and_availability(subdir_path, data):
+    out_path = os.path.join(subdir_path, "out.json")
+    result_path = os.path.join(
+        subdir_path, "result.json"
+    )  # Путь для сохранения результата
+
+    # Чтение данных из out.json
+    if os.path.exists(out_path):
+        with open(out_path, "r", encoding="utf-8") as file:
+            json_data = json.load(file)
+
+        # Обновление данных
+        updated = False
+        for key, items in json_data.items():
+            for item in items:
+                if item["id"] == data["id"]:
+                    item["available"] = data["available"]
+                    item["price"] = data["price"]
+                    item["err"] = data["err"]
+                    updated = True
+
+        # Если данные обновлены, сохранение их в файл result.json
+        if updated:
+            with open(result_path, "w", encoding="utf-8") as file:
+                json.dump(json_data, file, ensure_ascii=False, indent=4)
+            print(f"Updated data for ID {data['id']} in {result_path}")
+        else:
+            print(f"ID {data['id']} not found in {out_path}")
+    else:
+        print(f"File {out_path} does not exist.")
 
 
 def find_value_by_keyword_size_color(options, keywords):
@@ -309,7 +333,8 @@ def extract_text(tree, selector):
     try:
         node = tree.css_first(selector)
         if node:
-            return node.text(strip=True)
+            price = node.text(strip=True)
+            return price.replace(" грн.", "")
         else:
             return "Элемент не найден"
     except Exception as e:
