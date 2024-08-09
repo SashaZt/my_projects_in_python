@@ -239,8 +239,8 @@ async def run_html(url_start, type_pars):
     path_json_item = os.path.join(temp_path, "json_Item")
     if os.path.exists(temp_path) and os.path.isdir(temp_path):
         shutil.rmtree(temp_path)
-    browsers_path = os.path.join(current_directory, "pw-browsers")
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+    # browsers_path = os.path.join(current_directory, "pw-browsers")
+    # os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
     # Убедитесь, что папки существуют или создайте их
     await create_directories_async(
         [
@@ -400,8 +400,8 @@ async def main_html(type_pars):
     n = 5
     all_hrefs = await read_hrefs_from_json()
     divided_hrefs = list(divide_data(all_hrefs, n))
-    browsers_path = os.path.join(current_directory, "pw-browsers")
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+    # browsers_path = os.path.join(current_directory, "pw-browsers")
+    # os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
     async with async_playwright() as playwright_instance:
         tasks = [
             asyncio.create_task(
@@ -698,8 +698,8 @@ if __name__ == "__main__":
         while True:
             print(
                 "1 - для скачивания данных json\n"
-                "3 - для скачивания данных html\n"
                 "2 - парсинг данных\n"
+                "3 - для скачивания данных html\n"
                 "0 - для возврата к вводу новых данных\n"
                 "exit - для закрытия программы"
             )
