@@ -138,16 +138,44 @@ async def start(message):
             chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
         )
     else:
-        # Проверка подписки на канал
-        if not await is_subscribed(user_id):
+        # # Проверка подписки на канал
+        # if not await is_subscribed(user_id):
+        #     await bot.send_message(
+        #         chat_id,
+        #         "Будь ласка, підпишіться на канал, щоб продовжити.",
+        #         reply_markup=trial_markup(),
+        #     )
+        #     return
+        signup_time = await db.get_signup_time(user_id)
+        if not await db.user_exists(user_id):
+            await db.add_user_start(user_id, nickname)
+
+            signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            trial_duration = 172800  # 48 часов в секундах
+            user_data[chat_id] = {
+                "nickname": nickname,
+                "signup_time": signup_time,
+                "trial_duration": trial_duration,
+                "role": None,
+                "products": [],
+                "regions": [],
+                "state": "initial",
+            }
+            message_text = (
+                "👋Привіт! Я — бот Agro Helper, який автоматизує пошук вигідних пропозицій на ринку зерна.\n\n"
+                "👀Бот замість вас 24/7 стежить за пропозиціями у всьому інтернеті фільтрує та сортує їх за вашим запитом\n<b></b>\n"
+                "<a href='https://www.youtube.com/shorts/OBtCzSeYfVM'>‼️ДИВІТЬСЯ ВІДЕО ІНСТРУКЦІЮ</a>\n\n"
+                "🚀Отримайте 2 дні безкоштовного користування.🚀"
+            )
+
             await bot.send_message(
                 chat_id,
-                "Будь ласка, підпишіться на канал, щоб продовжити.",
+                message_text,
+                parse_mode="HTML",
                 reply_markup=trial_markup(),
+                disable_web_page_preview=True,
             )
-            return
-
-        if not await db.user_exists(user_id):
+        elif signup_time == None:
             await db.add_user_start(user_id, nickname)
 
             signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -180,7 +208,7 @@ async def start(message):
             signup_time = await db.get_signup_time(user_id)
             trial_duration = await db.get_trial_duration(user_id)
             current_time = datetime.now()
-
+            logger.info(signup_time)
             if signup_time:
                 if isinstance(signup_time, str):
                     signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
@@ -203,31 +231,31 @@ async def start(message):
                 else:
                     pass
                     # await bot.send_message(chat_id, "Ваш тестовий період завершився!")
-            if timedelta(0) < remaining_time <= timedelta(days=1):
-                logger.info(
-                    f"Осталось времени: {remaining_time} для пользователя {user_id}"
-                )
+                if timedelta(0) < remaining_time <= timedelta(days=1):
+                    logger.info(
+                        f"Осталось времени: {remaining_time} для пользователя {user_id}"
+                    )
 
-                # # Проверка временного статуса и времени отправки
-                # can_send = await can_send_message(user_id)
-                # if can_send:
-                #     logger.info(f"Отправка сообщения трейдеру {user_id}")
-                await send_trial_end_message(user_id)
-                # else:
-                #     logger.info(
-                #         f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
-                #     )
-            elif remaining_time <= timedelta(0):
-                # Действия, если время закончилось или меньше нуля
-                logger.info(
-                    f"Время закончилось или меньше нуля для пользователя {user_id}. Осталось времени: {remaining_time}"
-                )
-                # Ваш код для обработки случая, когда время закончилось
-                await send_trial_end_message(user_id)
-            else:
-                logger.info(
-                    f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
-                )
+                    # # Проверка временного статуса и времени отправки
+                    # can_send = await can_send_message(user_id)
+                    # if can_send:
+                    #     logger.info(f"Отправка сообщения трейдеру {user_id}")
+                    await send_trial_end_message(user_id)
+                    # else:
+                    #     logger.info(
+                    #         f"Сообщение не отправлено трейдеру {user_id}. Условия не выполнены."
+                    #     )
+                elif remaining_time <= timedelta(0):
+                    # Действия, если время закончилось или меньше нуля
+                    logger.info(
+                        f"Время закончилось или меньше нуля для пользователя {user_id}. Осталось времени: {remaining_time}"
+                    )
+                    # Ваш код для обработки случая, когда время закончилось
+                    await send_trial_end_message(user_id)
+                else:
+                    logger.info(
+                        f"Условия не выполнены для пользователя {user_id}. Осталось времени: {remaining_time}"
+                    )
 
 
 # Обработчик команды /tarif
@@ -329,7 +357,7 @@ async def callback_check_subscription(call):
         if not await db.user_exists(user_id):
             signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             user_data[chat_id] = {
-                "nickname": nickname,
+                "user_id": user_id,
                 "signup_time": signup_time,
                 "role": None,
                 "products": [],

@@ -80,8 +80,8 @@ async def run(url_start, type_pars):
     path_json_item = os.path.join(temp_path, "json_Item")
     if os.path.exists(temp_path) and os.path.isdir(temp_path):
         shutil.rmtree(temp_path)
-    browsers_path = os.path.join(current_directory, "pw-browsers")
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+    # browsers_path = os.path.join(current_directory, "pw-browsers")
+    # os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
     # Убедитесь, что папки существуют или создайте их
     await create_directories_async(
         [
