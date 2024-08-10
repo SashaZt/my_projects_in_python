@@ -114,6 +114,28 @@ def create_html_and_read_csv():
                         id_link = l["id"]
                         file_name_html = os.path.join(html_path, f"{id_link}.html")
                         get_html_motodom_ua(url, file_name_html)
+        elif directory == "tireshop_ua":
+            # Полный путь к поддиректории
+            subdir_path = os.path.join(dir_path, directory)
+            # Создание новой папки html в каждой поддиректории, если она еще не создана
+            html_path = os.path.join(subdir_path, "html")
+            if not os.path.exists(html_path):
+                os.makedirs(html_path)
+
+            json_file_path = os.path.join(subdir_path, "out.json")
+
+            # Проверка на существование файла out.json
+            if os.path.exists(json_file_path):
+                with open(json_file_path, "r", encoding="utf-8") as json_file:
+                    # Загрузка данных JSON
+                    data = json.load(json_file)
+                    # Получение всех ссылок из ключа "motodom_ua"
+                    links = data.get(directory, [])
+                    for l in links:
+                        url = l["link"]
+                        id_link = l["id"]
+                        file_name_html = os.path.join(html_path, f"{id_link}.html")
+                        get_html_motodom_ua(url, file_name_html)
 
 
 def get_html_motodom_ua(url, file_name_html):
@@ -132,18 +154,6 @@ def get_html_motodom_ua(url, file_name_html):
         headers = {
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
             "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-            "cache-control": "no-cache",
-            "dnt": "1",
-            "pragma": "no-cache",
-            "priority": "u=0, i",
-            "sec-ch-ua": '"Not)A;Brand";v="99", "Google Chrome";v="127", "Chromium";v="127"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "none",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
         }
         response = requests.get(
@@ -158,6 +168,40 @@ def get_html_motodom_ua(url, file_name_html):
                 file.write(response.text)
             logger.info(f"Файл сохраненн {file_name_html}")
             time.sleep(5)
+        else:
+            logger.error(response.status_code)
+
+
+def get_html_tireshop_ua(url, file_name_html):
+
+    if not os.path.exists(file_name_html):
+        cookies = {
+            "language": "ru",
+            "_ms": "37997b6d-db6c-4452-b320-cf43fa925144",
+            "PHPSESSID": "3t80nt1grucdo6pfdatcin5su2",
+            "currency": "UAH",
+        }
+
+        headers = {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
+            "cache-control": "no-cache",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        }
+        response = requests.get(
+            url,
+            cookies=cookies,
+            headers=headers,
+        )
+        # Проверка кода ответа
+        if response.status_code == 200:
+            # Сохранение HTML-страницы целиком
+            with open(file_name_html, "w", encoding="utf-8") as file:
+                file.write(response.text)
+            logger.info(f"Файл сохраненн {file_name_html}")
+            time.sleep(5)
+        else:
+            logger.error(response.status_code)
 
 
 # Основная функция парсера
@@ -171,6 +215,8 @@ async def parse_html_file():
     for directory in subdirs:
         if directory == "motodom_ua":
             await parser_motodom_ua(dir_path, directory)
+        elif directory == "tireshop_ua":
+            await parser_tireshop_ua(dir_path, directory)
 
 
 # Парсер motodom_ua
@@ -213,7 +259,7 @@ async def parser_motodom_ua(dir_path, directory):
             price_selector = "div.price-group > div.product-price-new"
             price = extract_price_motodom_ua(tree, price_selector)
 
-        price = int(price)
+        # price = int(price)
         err = None
         data = {
             "id": id_product,
@@ -221,12 +267,78 @@ async def parser_motodom_ua(dir_path, directory):
             "price": price,
             "err": err,
         }
-        logger.info(data)
-        result_motodom_ua(subdir_path, data)
+        # logger.info(data)
+        result(subdir_path, data)
+
+
+# Парсер motodom_ua
+async def parser_tireshop_ua(dir_path, directory):
+    subdir_path = os.path.join(dir_path, directory)
+    json_out = os.path.join(subdir_path, "out.json")
+
+    async with aiofiles.open(json_out, "r", encoding="utf-8") as file:
+        content = await file.read()
+        json_data = json.loads(content)
+
+    html_path = os.path.join(subdir_path, "html")
+    folder = os.path.join(html_path, "*.html")
+    files_html = glob.glob(folder)
+
+    for item in files_html:
+        # logger.info(item)
+        id_product = os.path.splitext(os.path.basename(item))[0]
+        async with aiofiles.open(item, "r", encoding="utf-8") as file:
+            html_content = await file.read()
+
+        tree = HTMLParser(html_content)
+        available = None
+        price = None
+        # Извлечение текста
+        available_text_node = tree.css_first(
+            "div.flex-column.flex-grow-1.ms-0.ms-lg-4.product-calc > div:nth-child(4) > div:nth-child(2) > div"
+        )
+
+        if available_text_node:
+            extracted_text = available_text_node.text(strip=True)
+            if "В наличии в Киеве" in extracted_text:
+                available = extracted_text
+        #     else:
+        #         logger.info("Text not found.")
+        # else:
+        #     logger.info("Element not found.")
+
+        available = True if available == "В наличии в Киеве" else False
+
+        # Попытка извлечения цены с использованием различных селекторов
+        selectors = [
+            "div.d-flex.align-items-center.my-4.product__product-price.product__card-hr > div.product__item-sale > div.product__card-price.price-grn",
+            "div.flex-column.flex-grow-1.ms-0.ms-lg-4.product-calc > div.d-flex.align-items-center.my-4.product__product-price.product__card-hr > div:nth-child(1) > div",
+            "div.flex-column.flex-grow-1.ms-0.ms-lg-4.product-calc > div.d-flex.align-items-center.my-4 > div.product__card-total-price.price-grn.gray",
+        ]
+
+        price = None
+
+        for selector in selectors:
+            price = extract_price_motodom_ua(tree, selector)
+            if price != "Элемент не найден":
+                break
+
+        if price != "Элемент не найден":
+            pass
+
+        err = None
+        data = {
+            "id": id_product,
+            "available": available,
+            "price": price,
+            "err": err,
+        }
+        # logger.info(data)
+        result(subdir_path, data)
 
 
 # Формирование резултата motodom_ua
-def result_motodom_ua(subdir_path, data):
+def result(subdir_path, data):
     out_path = os.path.join(subdir_path, "out.json")
     result_path = os.path.join(subdir_path, "result.json")
 
@@ -240,7 +352,7 @@ def result_motodom_ua(subdir_path, data):
         for key, items in json_data.items():
             for item in items:
                 if item["id"] == data["id"]:
-                    logger.info(f"Updating item with ID: {item['id']}")
+                    # logger.info(f"Updating item with ID: {item['id']}")
                     item["available"] = data["available"]
                     item["price"] = data["price"]
                     item["err"] = data["err"]
@@ -250,12 +362,12 @@ def result_motodom_ua(subdir_path, data):
         if updated:
             with open(out_path, "w", encoding="utf-8") as file:
                 json.dump(json_data, file, ensure_ascii=False, indent=4)
-            logger.info(f"Data updated in {out_path}")
+            # logger.info(f"Data updated in {out_path}")
 
             # Также сохранить обновленные данные в файл result.json
             with open(result_path, "w", encoding="utf-8") as file:
                 json.dump(json_data, file, ensure_ascii=False, indent=4)
-            logger.info(f"Data also saved in {result_path}")
+            # logger.info(f"Data also saved in {result_path}")
         else:
             logger.warning(f"ID {data['id']} not found in {out_path}")
     else:
@@ -267,8 +379,9 @@ def extract_price_motodom_ua(tree, selector):
     try:
         node = tree.css_first(selector)
         if node:
-            price = node.text(strip=True)
-            return price.replace(" грн.", "")
+            price = node.text(strip=True).replace(" ", "")
+            price = price.replace(" грн.", "")
+            return int(price)
         else:
             return "Элемент не найден"
     except Exception as e:
@@ -277,5 +390,5 @@ def extract_price_motodom_ua(tree, selector):
 
 if __name__ == "__main__":
     # get_dir_json()
-    create_html_and_read_csv()
-    # asyncio.run(parse_html_file())
+    # create_html_and_read_csv()
+    asyncio.run(parse_html_file())
