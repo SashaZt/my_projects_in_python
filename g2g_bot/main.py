@@ -243,6 +243,41 @@ def price_study(filename_list, authorization):
     with open(filename_list, encoding="utf-8") as f:
         data = json.load(f)
 
+    # try:
+    #     with open(filename_list, encoding="utf-8") as f:
+    #         data = json.load(f)
+
+    #     # Используем метод get с указанием значений по умолчанию
+    #     payload = data.get("payload", {})
+    #     results = payload.get("results", [])
+
+    #     if results:
+    #         json_data = results[0]
+    #     else:
+    #         json_data = None
+
+    # except FileNotFoundError:
+    #     logger.info(f"Файл {filename_list} не найден.")
+    #     json_data = None
+    # except json.JSONDecodeError:
+    #     logger.info("Ошибка декодирования JSON.")
+    #     json_data = None
+    # except Exception as e:
+    #     logger.info(f"Произошла ошибка: {e}")
+    #     json_data = None
+    # try:
+    #     username = json_data["username"]
+    # except:
+    #     return
+    # try:
+    #     title = json_data["title"]
+    # except:
+    #     return
+    # unit_price = float(json_data["unit_price"])
+    # if username != "Allbestfory":
+    #     unit_price = float(json_data["unit_price"])
+    #     if unit_price > 999:
+    #         unit_price = float(json_data["display_price"])
     try:
         with open(filename_list, encoding="utf-8") as f:
             data = json.load(f)
@@ -251,45 +286,47 @@ def price_study(filename_list, authorization):
         payload = data.get("payload", {})
         results = payload.get("results", [])
 
-        if results:
-            json_data = results[0]
-        else:
-            json_data = None
+        if not results:
+            return None
+
+        for i in range(min(2, len(results))):  # Обходим не более двух результатов
+            json_data = results[i]
+
+            try:
+                username = json_data["username"]
+                title = json_data["title"]
+                unit_price = float(json_data["unit_price"])
+            except KeyError as e:
+                logger.info(f"Ключ {e} отсутствует в JSON.")
+                return None
+            except ValueError:
+                logger.info("Ошибка преобразования значения в float.")
+                return None
+
+            if username != "Allbestfory":
+                if unit_price > 999:
+                    unit_price = float(json_data["display_price"])
+                elif unit_price < 1:
+                    logger.info("Цена меньше 1, пробуем следующий элемент.")
+                    continue  # Переходим к следующему элементу в results
+
+                # Изменяем цену
+                price_rang = get_random_price_range()
+                new_price = unit_price - price_rang
+                new_price = round(new_price, 6)
+                logger.info(f"Цена {unit_price} конкурента {username} на товар {title}")
+                price_change_request(identifier, new_price, authorization)
+                # return  # Завершаем выполнение после успешного изменения цены
+
+        # Если Allbestfory первый в списке
+        logger.info(f"Allbestfory первый в списке товара {identifier}")
 
     except FileNotFoundError:
         logger.info(f"Файл {filename_list} не найден.")
-        json_data = None
     except json.JSONDecodeError:
         logger.info("Ошибка декодирования JSON.")
-        json_data = None
     except Exception as e:
         logger.info(f"Произошла ошибка: {e}")
-        json_data = None
-    try:
-        username = json_data["username"]
-    except:
-        return
-    try:
-        title = json_data["title"]
-    except:
-        return
-    unit_price = float(json_data["unit_price"])
-    if username != "Allbestfory":
-        unit_price = float(json_data["unit_price"])
-        if unit_price > 999:
-            unit_price = float(json_data["display_price"])
-        elif unit_price < 1:
-            return None
-    elif username == "Haliber" and unit_price < 1:
-        return None
-
-        price_rang = get_random_price_range()
-        new_price = unit_price - price_rang
-        new_price = round(new_price, 6)
-        logger.info(f"Цена {unit_price} конкурента {username}на товар {title}")
-        price_change_request(identifier, new_price, authorization)
-    else:
-        logger.info(f"Allbestfory первый в списке товара {identifier}")
 
 
 # Изменение цены
