@@ -1,3 +1,4 @@
+import random
 import telebot
 from telethon.sync import TelegramClient, events
 from telethon.sessions import SQLiteSession
@@ -14,6 +15,7 @@ from databases import Database
 import time
 from telethon.errors import FloodWaitError
 from datetime import datetime, timedelta
+
 
 current_directory = os.getcwd()
 logging_directory = "logging"
@@ -259,12 +261,16 @@ class TelegramParse:
                                         sender_phone,
                                     )
 
+                        # Добавляем случайную паузу от 3 до 7 секунд между обработкой сообщений
+                        await asyncio.sleep(random.uniform(1, 5))
+
+                    # Добавляем паузу между запросами на уровне группы
+                    await asyncio.sleep(random.uniform(1, 5))
+
                 except FloodWaitError as e:
                     # Добавляем 60 секунд к времени ожидания
                     wait_seconds = e.seconds + 60
                     end_time = datetime.now() + timedelta(seconds=wait_seconds)
-
-                    # Логирование информации об ожидании
                     logger.error(
                         f"FloodWaitError: необходимо подождать {e.seconds} секунд."
                     )
@@ -273,13 +279,15 @@ class TelegramParse:
                     )
 
                     # Ожидание
-                    time.sleep(wait_seconds)
+                    await asyncio.sleep(
+                        wait_seconds
+                    )  # Используем await для асинхронного ожидания
 
                 except ValueError as e:
                     logger.warning(f"Пропуск {group_id}: {e}")
 
-        print("Парсер начал работу. Для остановки нажмите Ctrl+C.")
-        await client.run_until_disconnected()
+            print("Парсер начал работу. Для остановки нажмите Ctrl+C.")
+            await client.run_until_disconnected()
         await self.database.disconnect()
 
     # async def start(self):
