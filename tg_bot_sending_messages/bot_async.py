@@ -1,7 +1,12 @@
+import random
 import os
 import asyncio
 import random
 import logging
+from aiogram import F, types
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.fsm.storage.memory import MemoryStorage
 from datetime import datetime, timedelta, time as dtime
 from aiogram import Bot, Dispatcher, types, Router
 from aiogram.filters import Command
@@ -31,6 +36,15 @@ import schedule
 from configuration.logger_setup import logger
 from database import DatabaseInitializer
 
+
+# Определяем состояния для Finite State Machine (FSM)
+class MessageSending(StatesGroup):
+    selecting_account = State()
+    entering_message = State()
+
+
+# Инициализация состояния FSM
+storage = MemoryStorage()
 
 current_directory = os.getcwd()
 configuration_path = os.path.join(current_directory, "configuration")
@@ -532,18 +546,149 @@ async def input_account_handler(message: types.Message):
         logger.error("Ошибка формата данных при вводе аккаунта")
 
 
+# # Обработчик для кнопки "Отправить сообщение" Рабочий код
+# @router.message(lambda message: message.text == "Отправить сообщение")
+# async def send_message_handler(message: types.Message):
+#     logger.info("Обработка запроса на отправку сообщения")
+
+#     # Загрузка сообщений из файлов
+#     messages = load_messages()
+
+#     # Запуск задачи рассылки сообщений параллельно
+#     asyncio.create_task(send_messages_from_accounts(db_initializer, messages))
+
+
+#     await message.reply("Рассылка сообщений начата.")
 # Обработчик для кнопки "Отправить сообщение"
 @router.message(lambda message: message.text == "Отправить сообщение")
-async def send_message_handler(message: types.Message):
+async def send_message_handler(message: types.Message, state: FSMContext):
     logger.info("Обработка запроса на отправку сообщения")
 
-    # Загрузка сообщений из файлов
-    messages = load_messages()
+    # Получаем список аккаунтов из базы данных
+    accounts = await get_all_accounts(db_initializer)
+    if not accounts:
+        await message.reply("Нет доступных аккаунтов для отправки сообщений.")
+        return
 
-    # Запуск задачи рассылки сообщений параллельно
-    asyncio.create_task(send_messages_from_accounts(db_initializer, messages))
+    # Формируем список аккаунтов для выбора
+    account_list = "\n".join([f"{account[0]}: {account[3]}" for account in accounts])
+    await message.reply(
+        f"Доступные аккаунты:\n{account_list}\nВведите ID аккаунта, для которого хотите отправить сообщение."
+    )
+    # Устанавливаем состояние выбора аккаунта
+    await state.set_state(MessageSending.selecting_account)
 
-    await message.reply("Рассылка сообщений начата.")
+
+@router.message(MessageSending.selecting_account, F.text)
+async def select_account_for_message(message: types.Message, state: FSMContext):
+    logger.info("Обработка выбора аккаунта")
+    accounts = await get_all_accounts(db_initializer)
+    try:
+        account_id = int(message.text.strip())
+        account_info = next((acc for acc in accounts if acc[0] == account_id), None)
+
+        if account_info:
+            # Сохраняем информацию об аккаунте в состоянии FSM
+            await state.update_data(account_info=account_info)
+            await message.reply(
+                f"Аккаунт {account_info[3]} выбран. Отправить сообщение по умолчанию или введите свое? (Ответьте 'по умолчанию' или введите текст сообщения)."
+            )
+            # Устанавливаем состояние ввода сообщения
+            await state.set_state(MessageSending.entering_message)
+        else:
+            await message.reply("Некорректный ID аккаунта. Попробуйте снова.")
+    except ValueError:
+        await message.reply(
+            "Некорректный формат ID. Пожалуйста, введите числовой ID аккаунта."
+        )
+
+
+@router.message(MessageSending.entering_message, F.text)
+async def handle_message_choice(message: types.Message, state: FSMContext):
+    logger.info("Обработка выбора сообщения")
+
+    # Получаем информацию об аккаунте из состояния FSM
+    data = await state.get_data()
+    account_info = data.get("account_info")
+
+    if account_info:
+        api_id, api_hash, phone_number = (
+            account_info[1],
+            account_info[2],
+            account_info[3],
+        )
+
+        if message.text.lower().strip() == "по умолчанию":
+            # Загрузка сообщения из файлов
+            messages = load_messages()
+            user_message = messages.get(
+                account_info[0], "Сообщение по умолчанию не найдено."
+            )
+        else:
+            # Пользователь ввел свое сообщение
+            user_message = message.text.strip()
+
+        await setup_scheduler(api_id, api_hash, phone_number, user_message)
+        await message.reply("Рассылка сообщений начата.")
+        # Сброс состояния после завершения
+        await state.clear()
+    else:
+        await message.reply("Ошибка в выборе аккаунта. Пожалуйста, начните сначала.")
+
+
+@router.message(
+    lambda mt: mt.reply_to_message
+    and "Отправить сообщение по умолчанию" in mt.reply_to_message.text
+)
+async def send_default_message_for_account_1():
+    """Отправляет сообщение по умолчанию для аккаунта с ID 1."""
+    account_info = await get_account_info(account_id=1)
+    if account_info:
+        api_id, api_hash, phone_number = account_info
+        # Загрузка сообщения по умолчанию
+        messages = load_messages()
+        user_message = messages.get(1, "Сообщение по умолчанию не найдено.")
+
+        # Создание задачи отправки сообщений
+        asyncio.create_task(
+            setup_scheduler(api_id, api_hash, phone_number, user_message)
+        )
+        logger.info("Автоматическая отправка сообщения для аккаунта с ID 1 запущена.")
+    else:
+        logger.error("Не удалось получить данные для аккаунта с ID 1.")
+
+
+# async def handle_message_choice(mt: types.Message):
+#     logger.info("Обработка выбора сообщения")
+#     accounts = await get_all_accounts(db_initializer)
+#     previous_message_text = mt.reply_to_message.text
+#     try:
+#         account_id = int(previous_message_text.split(":")[0].strip())
+#         account_info = next((acc for acc in accounts if acc[0] == account_id), None)
+
+#         if account_info:
+#             api_id, api_hash, phone_number = (
+#                 account_info[1],
+#                 account_info[2],
+#                 account_info[3],
+#             )
+
+#             if mt.text.lower().strip() == "по умолчанию":
+#                 # Загрузка сообщения из файлов
+#                 messages = load_messages()
+#                 user_message = messages.get(
+#                     account_id, "Сообщение по умолчанию не найдено."
+#                 )
+#             else:
+#                 # Пользователь ввел свое сообщение
+#                 user_message = mt.text.strip()
+
+#             await setup_scheduler(api_id, api_hash, phone_number, user_message)
+#             await mt.reply("Рассылка сообщений начата.")
+#         else:
+#             await mt.reply("Ошибка в выборе аккаунта.")
+#     except ValueError:
+#         await mt.reply("Ошибка в формате данных аккаунта.")
 
 
 # Обработчик следующего сообщения от пользователя
@@ -719,102 +864,176 @@ async def select_account_handler(message: types.Message):
         logger.error("Ошибка ввода ID аккаунта")
 
 
-# Функция для отправки сообщений с паузой между отправками
+# # Функция для отправки сообщений с паузой между отправками РАБОЧИЙ КОД
+# async def send_messages_with_pause(
+#     user_message, api_id, api_hash, phone_number, db_initializer
+# ):
+#     group_data = await get_group_ids(db_initializer)
+#     logger.info("Начало отправки сообщений в группы с активной подпиской")
+
+#     for group_link, (group_id, subscription_status) in group_data.items():
+#         if not subscription_status:
+#             logger.info(f"Пропускаем группу {group_id}, так как подписка неактивна.")
+#             continue
+
+#         # Конфигурация пути для сессии
+#         filename_config = os.path.join(sessions_path, f"{phone_number}.session")
+
+#         # Создание клиента Telethon
+#         client = TelegramClient(filename_config, api_id, api_hash)
+
+#         try:
+#             logger.debug(
+#                 f"Подключение к Telegram для проверки и отправки в группу {group_id}"
+#             )
+#             await client.start(phone_number)
+
+#             try:
+#                 # Получение информации о группе
+#                 entity = await client.get_entity(group_id)
+
+#                 # Проверка прав на отправку сообщений
+#                 if isinstance(entity, (Channel, Chat)):
+#                     participant = await client(GetParticipantRequest(group_id, "me"))
+#                     if isinstance(participant.participant, ChannelParticipantSelf):
+#                         logger.info(
+#                             f"Аккаунт подписан и имеет права на отправку сообщений в группе с ID {group_id}"
+#                         )
+
+#                     else:
+#                         logger.warning(
+#                             f"Аккаунт не имеет прав на отправку сообщений в группе с ID {group_id}"
+#                         )
+#                         continue
+#             except Exception as e:
+#                 # Обработка проблем с подпиской
+#                 logger.warning(
+#                     f"Проблемы с подпиской или правами в группе с ID {group_id}, проверка и подписка..."
+#                 )
+#                 try:
+#                     await client(JoinChannelRequest(group_id))
+#                     logger.info(f"Успешно подписан на группу с ID {group_id}")
+#                 except Exception as join_error:
+#                     logger.error(
+#                         f"Не удалось подписаться на группу с ID {group_id}: {join_error}"
+#                     )
+#                     continue
+
+#             # Попытка отправки сообщения
+#             try:
+#                 await client.send_message(group_id, user_message)
+#                 logger.info(
+#                     f"Сообщение отправлено в группу с ID {group_id} в {datetime.now().strftime('%H:%M:%S')}"
+#                 )
+#                 # Пауза между отправками
+#                 pause_duration = random.randint(180, 300)  # Пауза от 3 до 5 минут
+#                 logger.info(
+#                     f"Пауза перед следующим сообщением: {pause_duration // 60} минут"
+#                 )
+#                 await asyncio.sleep(pause_duration)
+
+#             except FloodWaitError as e:
+#                 # Обработка ошибки FloodWaitError
+#                 wait_time = e.seconds + 60  # Дополнительная пауза 60 секунд
+#                 logger.error(
+#                     f"Необходимо подождать {e.seconds} секунд перед следующей отправкой"
+#                 )
+#                 logger.info(f"Пауза на {wait_time} секунд.")
+#                 await asyncio.sleep(wait_time)
+
+#             except ChatWriteForbiddenError:
+#                 # Обработка запрета на отправку сообщений
+#                 logger.error(
+#                     f"Аккаунт заблокирован для отправки сообщений в группе с ID {group_id}"
+#                 )
+
+#             except Exception as e:
+#                 # Обработка других ошибок
+#                 logger.error(
+#                     f"Ошибка при отправке сообщения в группу с ID {group_id}: {e}"
+#                 )
+
+#         except Exception as e:
+#             logger.error(f"Ошибка при обработке группы с ID {group_id}: {e}")
+
+
+#         finally:
+#             # Отключение клиента Telegram после каждой отправки
+#             await client.disconnect()
+#             logger.debug(f"Клиент Telegram отключен после отправки в группу {group_id}")
+# Обновленная функция для отправки сообщений с паузой между отправками
+# Обновленная функция для отправки сообщений с паузой между отправками
+# Обновленная функция для отправки сообщений с паузой между отправками
 async def send_messages_with_pause(
     user_message, api_id, api_hash, phone_number, db_initializer
 ):
     group_data = await get_group_ids(db_initializer)
     logger.info("Начало отправки сообщений в группы с активной подпиской")
 
-    for group_link, (group_id, subscription_status) in group_data.items():
-        if not subscription_status:
-            logger.info(f"Пропускаем группу {group_id}, так как подписка неактивна.")
-            continue
+    # Цикл для отправки сообщений трижды
+    for round_number in range(3):
+        logger.info(f"Начало цикла {round_number + 1} из 3")
 
-        # Конфигурация пути для сессии
-        filename_config = os.path.join(sessions_path, f"{phone_number}.session")
+        # Перемешиваем группы для случайного выбора
+        group_list = list(group_data.items())
+        random.shuffle(group_list)
 
-        # Создание клиента Telethon
-        client = TelegramClient(filename_config, api_id, api_hash)
+        for group_link, (group_id, subscription_status) in group_list:
+            if not subscription_status:
+                logger.info(
+                    f"Пропускаем группу {group_id}, так как подписка неактивна."
+                )
+                continue
 
-        try:
-            logger.debug(
-                f"Подключение к Telegram для проверки и отправки в группу {group_id}"
-            )
-            await client.start(phone_number)
+            filename_config = os.path.join(sessions_path, f"{phone_number}.session")
+            client = TelegramClient(filename_config, api_id, api_hash)
 
             try:
-                # Получение информации о группе
-                entity = await client.get_entity(group_id)
-
-                # Проверка прав на отправку сообщений
-                if isinstance(entity, (Channel, Chat)):
-                    participant = await client(GetParticipantRequest(group_id, "me"))
-                    if isinstance(participant.participant, ChannelParticipantSelf):
-                        logger.info(
-                            f"Аккаунт подписан и имеет права на отправку сообщений в группе с ID {group_id}"
-                        )
-
-                    else:
-                        logger.warning(
-                            f"Аккаунт не имеет прав на отправку сообщений в группе с ID {group_id}"
-                        )
-                        continue
-            except Exception as e:
-                # Обработка проблем с подпиской
-                logger.warning(
-                    f"Проблемы с подпиской или правами в группе с ID {group_id}, проверка и подписка..."
+                logger.debug(
+                    f"Подключение к Telegram для проверки и отправки в группу {group_id}"
                 )
+                await client.start(phone_number)
+
+                # Попытка отправки сообщения
                 try:
-                    await client(JoinChannelRequest(group_id))
-                    logger.info(f"Успешно подписан на группу с ID {group_id}")
-                except Exception as join_error:
-                    logger.error(
-                        f"Не удалось подписаться на группу с ID {group_id}: {join_error}"
+                    await client.send_message(group_id, user_message)
+                    logger.info(
+                        f"Сообщение отправлено в группу с ID {group_id} в {datetime.now().strftime('%H:%M:%S')}"
                     )
-                    continue
+                    pause_duration = random.randint(180, 300)  # Пауза от 3 до 5 минут
+                    logger.info(
+                        f"Пауза перед следующим сообщением: {pause_duration // 60} минут"
+                    )
+                    await asyncio.sleep(pause_duration)
 
-            # Попытка отправки сообщения
-            try:
-                await client.send_message(group_id, user_message)
-                logger.info(
-                    f"Сообщение отправлено в группу с ID {group_id} в {datetime.now().strftime('%H:%M:%S')}"
-                )
-                # Пауза между отправками
-                pause_duration = random.randint(180, 300)  # Пауза от 3 до 5 минут
-                logger.info(
-                    f"Пауза перед следующим сообщением: {pause_duration // 60} минут"
-                )
-                await asyncio.sleep(pause_duration)
+                except FloodWaitError as e:
+                    wait_time = e.seconds + 60
+                    logger.error(
+                        f"Необходимо подождать {e.seconds} секунд перед следующей отправкой"
+                    )
+                    logger.info(f"Пауза на {wait_time} секунд.")
+                    await asyncio.sleep(wait_time)
 
-            except FloodWaitError as e:
-                # Обработка ошибки FloodWaitError
-                wait_time = e.seconds + 60  # Дополнительная пауза 60 секунд
-                logger.error(
-                    f"Необходимо подождать {e.seconds} секунд перед следующей отправкой"
-                )
-                logger.info(f"Пауза на {wait_time} секунд.")
-                await asyncio.sleep(wait_time)
+                except ChatWriteForbiddenError:
+                    logger.error(
+                        f"Аккаунт заблокирован для отправки сообщений в группе с ID {group_id}"
+                    )
 
-            except ChatWriteForbiddenError:
-                # Обработка запрета на отправку сообщений
-                logger.error(
-                    f"Аккаунт заблокирован для отправки сообщений в группе с ID {group_id}"
-                )
+                except Exception as e:
+                    logger.error(
+                        f"Ошибка при отправке сообщения в группу с ID {group_id}: {e}"
+                    )
 
             except Exception as e:
-                # Обработка других ошибок
-                logger.error(
-                    f"Ошибка при отправке сообщения в группу с ID {group_id}: {e}"
+                logger.error(f"Ошибка при обработке группы с ID {group_id}: {e}")
+
+            finally:
+                await client.disconnect()
+                logger.debug(
+                    f"Клиент Telegram отключен после отправки в группу {group_id}"
                 )
 
-        except Exception as e:
-            logger.error(f"Ошибка при обработке группы с ID {group_id}: {e}")
-
-        finally:
-            # Отключение клиента Telegram после каждой отправки
-            await client.disconnect()
-            logger.debug(f"Клиент Telegram отключен после отправки в группу {group_id}")
+        logger.info(f"Цикл {round_number + 1} из 3 завершен.")
 
 
 # # Функция для отправки сообщений с паузой между отправками РАБОЧАЯ
@@ -881,26 +1100,28 @@ async def send_messages_with_pause(
 #         await asyncio.sleep(pause_duration)
 
 
+#  Новая функция для настройки ежедневного расписания
 async def setup_scheduler(api_id, api_hash, phone_number, user_message):
     logger.info("Настройка расписания для отправки сообщений")
-    group_ids = await get_group_ids(db_initializer)
-    total_groups = len(group_ids)
-    logger.debug(f"Общее количество групп для отправки: {total_groups}")
 
-    # Отправка сообщений сразу с паузой
-    await send_messages_with_pause(
-        user_message, api_id, api_hash, phone_number, db_initializer
-    )
+    # Получение текущего времени
+    current_time = datetime.now().time()
 
-    # Настройка отправки только в будние дни
-    for day in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
-        schedule.every().__getattribute__(day).at("08:00").do(
-            lambda: asyncio.create_task(
-                send_messages_with_pause(
-                    user_message, api_id, api_hash, phone_number, db_initializer
-                )
+    # Проверка, попадает ли текущее время в интервал с 8 до 18 часов
+    if dtime(8, 0) <= current_time <= dtime(18, 0):
+        logger.info("Время подходит, начинаем отправку сообщений")
+        await send_messages_with_pause(
+            user_message, api_id, api_hash, phone_number, db_initializer
+        )
+
+    # Настройка отправки сообщений каждый день в 8:00
+    schedule.every().day.at("08:00").do(
+        lambda: asyncio.create_task(
+            send_messages_with_pause(
+                user_message, api_id, api_hash, phone_number, db_initializer
             )
         )
+    )
 
     logger.info("Расписание для отправки сообщений настроено.")
 
@@ -908,6 +1129,36 @@ async def setup_scheduler(api_id, api_hash, phone_number, user_message):
     while True:
         schedule.run_pending()
         await asyncio.sleep(1)
+
+
+# РАБОЧИЙ КОД
+# async def setup_scheduler(api_id, api_hash, phone_number, user_message):
+#     logger.info("Настройка расписания для отправки сообщений")
+#     group_ids = await get_group_ids(db_initializer)
+#     total_groups = len(group_ids)
+#     logger.debug(f"Общее количество групп для отправки: {total_groups}")
+
+#     # Отправка сообщений сразу с паузой
+#     await send_messages_with_pause(
+#         user_message, api_id, api_hash, phone_number, db_initializer
+#     )
+
+#     # Настройка отправки только в будние дни
+#     for day in ["monday", "tuesday", "wednesday", "thursday", "friday"]:
+#         schedule.every().__getattribute__(day).at("08:00").do(
+#             lambda: asyncio.create_task(
+#                 send_messages_with_pause(
+#                     user_message, api_id, api_hash, phone_number, db_initializer
+#                 )
+#             )
+#         )
+
+#     logger.info("Расписание для отправки сообщений настроено.")
+
+#     # Запуск цикла планировщика
+#     while True:
+#         schedule.run_pending()
+#         await asyncio.sleep(1)
 
 
 # # Функция для настройки расписания
@@ -1247,14 +1498,9 @@ async def main():
     dp.include_router(router)
     await bot.delete_webhook(drop_pending_updates=True)
 
-    # Получаем данные аккаунта для инициализации клиента
-    # account_info = await get_account_info()
-    # if account_info:
-    #     api_id, api_hash, phone_number = account_info
-    #     # Запуск планировщика
-    #     await setup_scheduler(api_id, api_hash, phone_number)
-    # else:
-    #     logger.error("Ошибка получения данных аккаунта.")
+    # Запуск автоматической отправки сообщений для аккаунта с ID 1
+    await send_default_message_for_account_1()
+
     # Старт поллинга
     await dp.start_polling(bot)
 
