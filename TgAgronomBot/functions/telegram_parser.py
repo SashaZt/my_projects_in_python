@@ -11,6 +11,9 @@ import os
 import json
 from configuration.config import database  # Импортируйте объект базы данных
 from databases import Database
+import time
+from telethon.errors import FloodWaitError
+from datetime import datetime, timedelta
 
 current_directory = os.getcwd()
 logging_directory = "logging"
@@ -201,55 +204,148 @@ class TelegramParse:
             asyncio.create_task(self.monitor_files())
 
             for group_id in self.group_ids:
-                entity = await client.get_input_entity(group_id)
+                try:
+                    entity = await client.get_input_entity(group_id)
 
-                @client.on(events.NewMessage(chats=entity, incoming=True))
-                async def handle_new_message(event):
-                    message_text = event.message.message.lower().strip()
-                    sender = await event.get_sender()
+                    @client.on(events.NewMessage(chats=entity, incoming=True))
+                    async def handle_new_message(event):
+                        message_text = event.message.message.lower().strip()
+                        sender = await event.get_sender()
 
-                    if sender is None:
-                        logger.error("Sender is None, cannot process message.")
-                        return
+                        if sender is None:
+                            logger.error("Sender is None, cannot process message.")
+                            return
 
-                    sender_id = sender.id
-                    sender_name = (
-                        sender.username
-                        if sender.username
-                        else f"{sender.first_name} {sender.last_name}"
+                        sender_id = sender.id
+                        sender_name = (
+                            sender.username
+                            if sender.username
+                            else f"{sender.first_name} {sender.last_name}"
+                        )
+                        sender_phone = sender.phone if sender.phone else "Не указан"
+
+                        if message_text not in self.processed_messages:
+                            self.processed_messages.add(message_text)
+
+                            if self.no_files or (
+                                (
+                                    self.process_buy
+                                    and any(
+                                        keyword in message_text
+                                        for keyword in self.keywords_buy
+                                    )
+                                )
+                                or (
+                                    self.process_sell
+                                    and any(
+                                        keyword in message_text
+                                        for keyword in self.keywords_sell
+                                    )
+                                )
+                            ):
+                                if self.message_contains_product_and_region(
+                                    message_text
+                                ):
+                                    self.log_message(
+                                        message_text,
+                                        sender_name,
+                                        sender_id,
+                                        sender_phone,
+                                    )
+                                    await self.save_message(
+                                        message_text,
+                                        sender_name,
+                                        sender_id,
+                                        sender_phone,
+                                    )
+
+                except FloodWaitError as e:
+                    # Добавляем 60 секунд к времени ожидания
+                    wait_seconds = e.seconds + 60
+                    end_time = datetime.now() + timedelta(seconds=wait_seconds)
+
+                    # Логирование информации об ожидании
+                    logger.error(
+                        f"FloodWaitError: необходимо подождать {e.seconds} секунд."
                     )
-                    sender_phone = sender.phone if sender.phone else "Не указан"
+                    logger.info(
+                        f"Глобальная пауза из-за ошибки FloodWait до {end_time.strftime('%H:%M:%S %Y-%m-%d')}."
+                    )
 
-                    if message_text not in self.processed_messages:
-                        self.processed_messages.add(message_text)
+                    # Ожидание
+                    time.sleep(wait_seconds)
 
-                        if self.no_files or (
-                            (
-                                self.process_buy
-                                and any(
-                                    keyword in message_text
-                                    for keyword in self.keywords_buy
-                                )
-                            )
-                            or (
-                                self.process_sell
-                                and any(
-                                    keyword in message_text
-                                    for keyword in self.keywords_sell
-                                )
-                            )
-                        ):
-                            if self.message_contains_product_and_region(message_text):
-                                self.log_message(
-                                    message_text, sender_name, sender_id, sender_phone
-                                )
-                                await self.save_message(
-                                    message_text, sender_name, sender_id, sender_phone
-                                )
+                except ValueError as e:
+                    logger.warning(f"Пропуск {group_id}: {e}")
 
-            print("Парсер начал работу. Для остановки нажмите Ctrl+C.")
-            await client.run_until_disconnected()
+        print("Парсер начал работу. Для остановки нажмите Ctrl+C.")
+        await client.run_until_disconnected()
         await self.database.disconnect()
+
+    # async def start(self):
+    #     await self.database.connect()
+    #     async with TelegramClient(
+    #         SQLiteSession("my_session"), api_id, api_hash
+    #     ) as client:
+    #         try:
+    #             await client.start()
+    #         except SessionPasswordNeededError:
+    #             print("Введите пароль двухфакторной аутентификации: ")
+    #             password = input()
+    #             await client.start(password=password)
+
+    #         asyncio.create_task(self.monitor_files())
+
+    #         for group_id in self.group_ids:
+    #             entity = await client.get_input_entity(group_id)
+
+    #             @client.on(events.NewMessage(chats=entity, incoming=True))
+    #             async def handle_new_message(event):
+    #                 message_text = event.message.message.lower().strip()
+    #                 sender = await event.get_sender()
+
+    #                 if sender is None:
+    #                     logger.error("Sender is None, cannot process message.")
+    #                     return
+
+    #                 sender_id = sender.id
+    #                 sender_name = (
+    #                     sender.username
+    #                     if sender.username
+    #                     else f"{sender.first_name} {sender.last_name}"
+    #                 )
+    #                 sender_phone = sender.phone if sender.phone else "Не указан"
+
+    #                 if message_text not in self.processed_messages:
+    #                     self.processed_messages.add(message_text)
+
+    #                     if self.no_files or (
+    #                         (
+    #                             self.process_buy
+    #                             and any(
+    #                                 keyword in message_text
+    #                                 for keyword in self.keywords_buy
+    #                             )
+    #                         )
+    #                         or (
+    #                             self.process_sell
+    #                             and any(
+    #                                 keyword in message_text
+    #                                 for keyword in self.keywords_sell
+    #                             )
+    #                         )
+    #                     ):
+    #                         if self.message_contains_product_and_region(message_text):
+    #                             self.log_message(
+    #                                 message_text, sender_name, sender_id, sender_phone
+    #                             )
+    #                             await self.save_message(
+    #                                 message_text, sender_name, sender_id, sender_phone
+    #                             )
+
+    #         print("Парсер начал работу. Для остановки нажмите Ctrl+C.")
+    #         await client.run_until_disconnected()
+    #     await self.database.disconnect()
 
     def log_message(self, message, sender_name, sender_id, sender_phone):
         logger.info(
