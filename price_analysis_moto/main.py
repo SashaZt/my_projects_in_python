@@ -10,6 +10,7 @@ from curl_cffi.requests import AsyncSession
 from asyncio import WindowsSelectorEventLoopPolicy
 from configuration.logger_setup import logger
 import random
+import shutil
 import sys
 
 current_directory = os.getcwd()
@@ -17,6 +18,19 @@ temp_path = os.path.join(current_directory, "temp")
 
 # Создание директории, если она не существует
 os.makedirs(temp_path, exist_ok=True)
+
+
+def del_temp():
+    # Проверяем, существует ли директория, перед удалением
+    if os.path.exists(temp_path):
+        try:
+            # Рекурсивно удаляем директорию temp и все её содержимое
+            shutil.rmtree(temp_path)
+            logger.info(f"Директория {temp_path} успешно удалена.")
+        except Exception as e:
+            logger.error(f"Ошибка при удалении директории {temp_path}: {e}")
+    else:
+        logger.debug(f"Директория {temp_path} не существует.")
 
 
 def get_dir_json():
@@ -396,6 +410,7 @@ def get_results():
 
 
 if __name__ == "__main__":
+    # del_temp()
     get_dir_json()
     asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 
