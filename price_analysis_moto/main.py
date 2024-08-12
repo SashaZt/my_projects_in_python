@@ -112,43 +112,27 @@ def load_json_files_from_subdirectories():
 def get_random_proxy():
     """
     Возвращает случайный прокси из файла proxi.json.
-
-    - Загружает список прокси из файла proxi.json.
-    - Выбирает случайный прокси из списка.
-    - Форматирует прокси для использования в HTTP-запросах.
-    - Если файл отсутствует или содержит некорректные данные, завершает выполнение программы.
     """
     proxies_path = Path("configuration") / "proxi.json"
-
     try:
         with open(proxies_path, "r", encoding="utf-8") as proxy_file:
             proxies = json.load(proxy_file)
 
         if not proxies:
             logger.error("Файл proxi.json пуст или не содержит корректных данных.")
-            sys.exit(
-                "Программа завершена из-за отсутствия корректных данных в proxi.json."
-            )
+            return None
 
         proxy = random.choice(proxies)
-
-        # Проверяем корректность формата прокси
         if len(proxy) < 4:
             logger.error("Некорректный формат прокси в файле proxi.json.")
-            sys.exit("Программа завершена из-за некорректного формата прокси.")
+            return None
 
-        proxy_url = f"http://{proxy[2]}:{proxy[3]}@{proxy[0]}:{proxy[1]}"
-        return proxy_url
-
-    except FileNotFoundError:
-        logger.error("Файл proxi.json не найден в папке configuration.")
-        sys.exit("Программа завершена из-за отсутствия файла proxi.json.")
-    except json.JSONDecodeError:
-        logger.error("Ошибка чтения JSON из файла proxi.json.")
-        sys.exit("Программа завершена из-за ошибки чтения JSON из файла proxi.json.")
+        return f"http://{proxy[2]}:{proxy[3]}@{proxy[0]}:{proxy[1]}"
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        logger.error(f"Ошибка чтения файла proxi.json: {e}")
     except IndexError:
         logger.error("Файл proxi.json пуст или не содержит корректных данных.")
-        sys.exit("Программа завершена из-за отсутствия корректных данных в proxi.json.")
+    return None
 
 
 async def fetch_and_save_html(url, file_name_html, cookies, headers):
@@ -163,70 +147,92 @@ async def fetch_and_save_html(url, file_name_html, cookies, headers):
     file_path = Path(file_name_html)
 
     if not file_path.exists():
-        try:
-            proxy_url = get_random_proxy()
-            if proxy_url is None:
-                logger.error("Нет доступных прокси для использования.")
-                return
+        proxy_url = get_random_proxy()
+        if proxy_url is None:
+            logger.error("Нет доступных прокси для использования.")
+            return
 
-            async with AsyncSession(proxy=proxy_url) as session:
-                response = await session.get(url, cookies=cookies, headers=headers)
-                if response.status_code == 200:
-                    html_content = response.text
-                    file_path.write_text(html_content, encoding="utf-8")
-                    logger.info(f"Файл сохранен: {file_name_html}")
-                    await asyncio.sleep(
-                        5
-                    )  # Задержка для предотвращения быстрого повторного запроса
-                else:
-                    logger.error(f"Ошибка {response.status_code} при загрузке {url}")
+        session = AsyncSession(proxy=proxy_url)
+        try:
+            # Ограничиваем время выполнения запроса тайм-аутом
+            response = await asyncio.wait_for(
+                session.get(url, cookies=cookies, headers=headers), timeout=15
+            )
+            if response.status_code == 200:
+                html_content = response.text
+                file_path.write_text(html_content, encoding="utf-8")
+                logger.info(f"HTML сохранен в: {file_name_html}")
+                # Добавляем задержку, чтобы избежать быстрых повторных запросов
+                await asyncio.sleep(1)
+            else:
+                logger.error(f"Ошибка {response.status_code} при загрузке {url}")
+        except asyncio.TimeoutError:
+            logger.error(f"Тайм-аут при загрузке {url} через прокси {proxy_url}")
         except Exception as e:
             logger.error(f"Ошибка при загрузке {url} через прокси {proxy_url}: {e}")
+        finally:
+            # Убедитесь, что сессия всегда корректно завершена
+            await session.close()
 
 
-async def get_html_for_site(directory, url, id_link):
+async def load_cookies(directory):
+    """
+    Загружает куки из файла cookies.json в указанной директории.
+    """
+    cookies_file_path = Path("temp") / directory / "cookies.json"
+    if cookies_file_path.exists():
+        with cookies_file_path.open("r", encoding="utf-8") as file:
+            cookies = json.load(file)
+        logger.info(f"Cookies loaded from {cookies_file_path}")
+        return cookies
+    else:
+        logger.error(f"Cookies file not found at {cookies_file_path}")
+        return None
+
+
+# Функция для загрузки куков один раз на директорию
+async def load_all_cookies(directories):
+    cookies_map = {}
+    for directory in directories:
+        if directory == "motodom_ua" or directory == "tireshop_ua":
+
+            cookies_file_path = Path("temp") / directory / "cookies.json"
+            if cookies_file_path.exists():
+                with cookies_file_path.open("r", encoding="utf-8") as file:
+                    cookies_map[directory] = json.load(file)
+                logger.info(f"Cookies loaded from {cookies_file_path}")
+            else:
+                logger.error(f"Cookies file not found at {cookies_file_path}")
+    return cookies_map
+
+
+async def get_html_for_site(cookies_map, directory, url, id_link):
+    """
+    Управление процессом загрузки HTML для указанного сайта.
+
+    - Использует заранее загруженные cookies и headers для каждого поддерживаемого сайта.
+    - Вызывает fetch_and_save_html для загрузки и сохранения HTML страницы.
+    """
+    cookies = cookies_map.get(directory)
+    if cookies is None:
+        logger.error(f"No cookies available for directory: {directory}")
+        return
+
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     }
-    """
-    Управление процессом загрузки HTML для указанного сайта.
 
-    - Определяет настройки cookies и headers для каждого поддерживаемого сайта.
-    - Вызывает fetch_and_save_html для загрузки и сохранения HTML страницы.
-
-    Добавление нового сайта:
-    - Добавьте новое условие для вашего сайта, используя название директории.
-    - Определите cookies и headers, необходимые для загрузки страниц с этого сайта.
-    - Вызовите fetch_and_save_html с новыми параметрами.
-    """
     # Создаем путь к директории "html"
-    html_path = Path(directory) / "html"
-    logger.info(html_path)
-    exit()
+    html_path = Path("temp") / directory / "html"
+    html_path.mkdir(parents=True, exist_ok=True)
 
     # Создаем путь к файлу HTML с использованием идентификатора ссылки
     file_name_html = html_path / f"{id_link}.html"
 
-    if "motodom_ua" in directory:
-
-        await fetch_and_save_html(url, file_name_html, cookies, headers)
-
-    elif "tireshop_ua" in directory:
-        cookies = {
-            "language": "ru",
-            "_ms": "37997b6d-db6c-4452-b320-cf43fa925144",
-            "PHPSESSID": "3t80nt1grucdo6pfdatcin5su2",
-            "currency": "UAH",
-        }
-        headers = {
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-            "cache-control": "no-cache",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-        }
-        await fetch_and_save_html(url, file_name_html, cookies, headers)
+    # Загрузка и сохранение HTML
+    await fetch_and_save_html(url, file_name_html, cookies, headers)
 
 
 async def create_html_and_read_csv():
@@ -241,28 +247,45 @@ async def create_html_and_read_csv():
     - Убедитесь, что структура JSON в out.json соответствует ожиданиям.
     - Функция автоматически поддерживает новый сайт, если он добавлен в get_html_for_site.
     """
-    temp_path = Path.cwd() / "temp"
+    current_directory = Path.cwd()
 
-    # Итерируем по всем поддиректориям в temp
+    # Создаем путь к директории "temp"
+    temp_path = current_directory / "temp"
+
+    # Получаем все директории
+    directories = [subdir.name for subdir in temp_path.iterdir() if subdir.is_dir()]
+
+    # Загружаем все куки один раз
+    cookies_map = await load_all_cookies(directories)
+
+    # Создание задач для обработки
+    tasks = []
     for subdir in temp_path.iterdir():
         if subdir.is_dir():
-            html_path = subdir / "html"
-            html_path.mkdir(
-                exist_ok=True
-            )  # Создание директории "html", если не существует
-
             json_file_path = subdir / "out.json"
             if json_file_path.exists():
                 with json_file_path.open("r", encoding="utf-8") as json_file:
                     try:
                         data = json.load(json_file)
                         links = data.get(subdir.name, [])
-                        tasks = [
-                            get_html_for_site(subdir, l["link"], l["id"]) for l in links
-                        ]
-                        await asyncio.gather(*tasks)
+                        tasks.extend(
+                            [
+                                get_html_for_site(
+                                    cookies_map, subdir.name, l["link"], l["id"]
+                                )
+                                for l in links
+                            ]
+                        )
                     except json.JSONDecodeError as e:
                         logger.error(f"Ошибка при загрузке {json_file_path}: {e}")
+
+    if tasks:
+        try:
+            await asyncio.gather(*tasks)
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении задач: {e}")
+        finally:
+            logger.info("Все задачи завершены")
 
 
 async def parse_html(
@@ -399,7 +422,7 @@ def result(subdir_path, data):
                 json.dump(json_data, file, ensure_ascii=False, indent=4)
             with result_path.open("w", encoding="utf-8") as file:
                 json.dump(json_data, file, ensure_ascii=False, indent=4)
-            logger.info(f"Data for ID {data['id']} updated and saved.")
+            # logger.info(f"Data for ID {data['id']} updated and saved.")
         else:
             logger.warning(f"ID {data['id']} not found in {out_path}")
     else:
@@ -552,8 +575,8 @@ if __name__ == "__main__":
     # get_dir_json()
     # asyncio.run(main())
 
-    asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+    # asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 
-    asyncio.run(create_html_and_read_csv())
-    # asyncio.run(parse_html_file())
-    # get_results()
+    # asyncio.run(create_html_and_read_csv())
+    asyncio.run(parse_html_file())
+    get_results()
