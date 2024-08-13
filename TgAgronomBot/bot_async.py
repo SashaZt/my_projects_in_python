@@ -934,7 +934,25 @@ def admin_markup():
     return markup
 
 
-# Показ страницы со списком пользователей
+# Показ стра# Handler for callback queries
+@bot.callback_query_handler(
+    func=lambda call: call.data.startswith("next_page_")
+    or call.data.startswith("prev_page_")
+)
+async def callback_query_handler(call):
+    chat_id = call.message.chat.id
+    # Extract page number from callback_data
+    page = int(call.data.split("_")[-1])
+    logger.info(f"Page changed to: {page}")
+
+    # Answer the callback query to remove "loading" state
+    await bot.answer_callback_query(call.id)
+
+    # Show the specified page
+    await show_users_page(chat_id, page)
+
+
+# Show users page
 async def show_users_page(chat_id, page):
     try:
         connection = await create_connection()

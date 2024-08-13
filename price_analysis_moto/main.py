@@ -106,7 +106,7 @@ def load_json_files_from_subdirectories():
                 for link in all_links:
                     writer.writerow([link])
 
-            logger.info(f"Ссылки сохранены в {csv_file_path}")
+            # logger.info(f"Ссылки сохранены в {csv_file_path}")
 
 
 def get_random_proxy():
@@ -144,7 +144,13 @@ async def fetch_and_save_html(url, file_name_html, cookies, headers):
     - Использует случайный прокси для выполнения запроса.
     - Логирует ошибки при загрузке страницы.
     """
+    # Создаем путь к файлу HTML
     file_path = Path(file_name_html)
+
+    # Проверяем, что путь к директории существует, если нет - создаем
+    html_dir = file_path.parent
+    if not html_dir.exists():
+        html_dir.mkdir(parents=True, exist_ok=True)
 
     if not file_path.exists():
         proxy_url = get_random_proxy()
@@ -163,7 +169,7 @@ async def fetch_and_save_html(url, file_name_html, cookies, headers):
                 file_path.write_text(html_content, encoding="utf-8")
                 logger.info(f"HTML сохранен в: {file_name_html}")
                 # Добавляем задержку, чтобы избежать быстрых повторных запросов
-                await asyncio.sleep(1)
+                await asyncio.sleep(5)
             else:
                 logger.error(f"Ошибка {response.status_code} при загрузке {url}")
         except asyncio.TimeoutError:
@@ -213,26 +219,32 @@ async def get_html_for_site(cookies_map, directory, url, id_link):
     - Использует заранее загруженные cookies и headers для каждого поддерживаемого сайта.
     - Вызывает fetch_and_save_html для загрузки и сохранения HTML страницы.
     """
-    cookies = cookies_map.get(directory)
-    if cookies is None:
-        logger.error(f"No cookies available for directory: {directory}")
-        return
+    try:
+        cookies = cookies_map.get(directory)
+        if cookies is None:
+            pass
+            return
 
-    headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-    }
+        headers = {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        }
 
-    # Создаем путь к директории "html"
-    html_path = Path("temp") / directory / "html"
-    html_path.mkdir(parents=True, exist_ok=True)
+        # Создаем путь к директории "html"
+        html_path = Path("temp") / directory / "html"
+        html_path.mkdir(parents=True, exist_ok=True)
 
-    # Создаем путь к файлу HTML с использованием идентификатора ссылки
-    file_name_html = html_path / f"{id_link}.html"
+        # Создаем путь к файлу HTML с использованием идентификатора ссылки
+        file_name_html = html_path / f"{id_link}.html"
 
-    # Загрузка и сохранение HTML
-    await fetch_and_save_html(url, file_name_html, cookies, headers)
+        # Загрузка и сохранение HTML
+        await fetch_and_save_html(url, file_name_html, cookies, headers)
+    except GeneratorExit:
+        logger.warning(f"GeneratorExit triggered for {directory}")
+        raise
+    except Exception as e:
+        logger.error(f"Error in get_html_for_site for {directory}: {e}")
 
 
 async def create_html_and_read_csv():
@@ -281,7 +293,7 @@ async def create_html_and_read_csv():
 
     if tasks:
         try:
-            await asyncio.gather(*tasks)
+            await asyncio.gather(*tasks, return_exceptions=True)
         except Exception as e:
             logger.error(f"Ошибка при выполнении задач: {e}")
         finally:
@@ -494,7 +506,7 @@ async def save_cookies_to_file(cookies, directory, filename="cookies.json"):
     # Сохраняем куки в файл
     with open(file_path, "w", encoding="utf-8") as file:
         json.dump(cookies, file, indent=4)
-    logger.info(f"Cookies saved to {file_path}")
+    # logger.info(f"Cookies saved to {file_path}")
 
 
 # Обработка куков в формат словаря
@@ -505,7 +517,7 @@ def process_cookies(raw_cookies):
 
 # Функция для получения куков с URL
 async def fetch_cookies(page, url):
-    logger.info(f"Fetching cookies from {url}")
+    logger.info(f"Извлечение файлов cookie из {url}")
     try:
         await page.goto(url)
         await asyncio.sleep(2)  # Немногое ожидание для загрузки страницы
@@ -520,23 +532,23 @@ async def fetch_cookies(page, url):
         button1 = await page.query_selector(button_selector_1)
         if button1:
             await button1.click()
-            logger.info("Clicked the first button")
+            # logger.info("Clicked the first button")
 
         # Кликаем вторую кнопку, если она существует
         button2 = await page.query_selector(button_selector_2)
         if button2:
             await button2.click()
-            logger.info("Clicked the second button")
+            # logger.info("Clicked the second button")
 
-        # Если ни одна кнопка не найдена, выводим сообщение
-        if not button1 and not button2:
-            logger.info("No buttons found to click")
+        # # Если ни одна кнопка не найдена, выводим сообщение
+        # if not button1 and not button2:
+        #     logger.info("No buttons found to click")
 
         # Ожидание, чтобы изменения от кликов вступили в силу
         await asyncio.sleep(3)
 
         raw_cookies = await page.context.cookies()
-        logger.info(f"Cookies fetched successfully from {url}")
+        # logger.info(f"Cookies fetched successfully from {url}")
         return process_cookies(raw_cookies)
     except Exception as e:
         logger.error(f"Failed to fetch cookies from {url}: {e}")
@@ -567,16 +579,17 @@ async def main():
                 logger.warning(f"No cookies saved for {url}")
 
             await browser.close()
-            logger.info("Browser closed")
+            # logger.info("Browser closed")
 
 
 if __name__ == "__main__":
-    # del_temp()
-    # get_dir_json()
-    # asyncio.run(main())
+    del_temp()
+    get_dir_json()
+    asyncio.run(main())
 
-    # asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+    asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
 
-    # asyncio.run(create_html_and_read_csv())
+    asyncio.run(create_html_and_read_csv())
+
     asyncio.run(parse_html_file())
     get_results()
