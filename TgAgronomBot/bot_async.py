@@ -417,21 +417,45 @@ async def activity_selection(call):
 # Обработчик выбора активности "trader_subscription"
 @bot.callback_query_handler(func=lambda call: call.data in ["trader_subscription"])
 async def activity_selection_trader(call):
-    chat_id = call.message.chat.id
-    current_directory = os.getcwd()
-    photo_path = os.path.join(current_directory, "img/crops.png")
-    await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-    role = "trader"
-    user_data[chat_id]["role"] = role
+    try:
+        chat_id = call.message.chat.id
+        current_directory = os.getcwd()
+        photo_path = os.path.join(current_directory, "img/crops.png")
 
-    product_buttons = product_markup(user_data[chat_id]["products"])
-    with open(photo_path, "rb") as photo:
-        await bot.send_photo(
-            chat_id,
-            photo,
-            caption="🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
-            reply_markup=product_buttons,
-        )
+        # Удаление сообщения
+        await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
+
+        role = "trader"
+        if chat_id not in user_data:
+            user_data[chat_id] = {
+                "role": role,
+                "products": [],
+                "regions": [],
+            }
+        else:
+            # Убедитесь, что поля инициализированы
+            user_data[chat_id].setdefault("role", role)
+            user_data[chat_id].setdefault("products", [])
+            user_data[chat_id].setdefault("regions", [])
+
+        product_buttons = product_markup(user_data[chat_id]["products"])
+
+        with open(photo_path, "rb") as photo:
+            await bot.send_photo(
+                chat_id,
+                photo,
+                caption="🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
+                reply_markup=product_buttons,
+            )
+    except FileNotFoundError:
+        logger.error(f"Файл не найден: {photo_path}")
+        await bot.send_message(chat_id, "Ошибка: Изображение не найдено.")
+    except KeyError as e:
+        logger.error(f"Проблема с данными пользователя: {e}")
+        await bot.send_message(chat_id, "Ошибка: Проблема с данными пользователя.")
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка: {e}")
+        await bot.send_message(chat_id, "Произошла непредвиденная ошибка.")
 
 
 # Разметка для выбора активности
@@ -490,6 +514,7 @@ async def product_selection(call):
 
 
 # Разметка для выбора продуктов
+# Пример разметки для продуктов
 def product_markup(selected_products):
     markup = types.InlineKeyboardMarkup()
     buttons = []
@@ -769,6 +794,32 @@ async def send_trial_end_message(user_id):
         logger.error(f"Failed to send message to user {user_id}: {e}")
 
 
+# async def get_new_messages(trader, check_time):
+#     user_id, role, signup, trial_duration, region, material = trader
+#     query = """
+#     SELECT
+#         id, Messages, data_time
+#     FROM
+#         messages_tg
+#     WHERE
+#         data_time > %s AND
+#         FIND_IN_SET(%s, Regions) > 0 AND
+#         FIND_IN_SET(%s, Raw_Materials) > 0 AND
+#         trade = 'sell';
+#     """
+#     try:
+#         conn = await create_connection()
+#         async with conn.cursor() as cursor:
+#             await cursor.execute(query, (check_time, region, material))
+#             messages = await cursor.fetchall()
+#         conn.close()
+#         if messages:
+#             logger.info(f"Новые сообщения для {user_id}")
+#         return messages
+#     except aiomysql.Error as err:
+#         logger.error(f"Ошибка при получении новых сообщений для {user_id}: {err}")
+#         return []
+# Добавление тайм-аута для функций ожидания
 async def get_new_messages(trader, check_time):
     user_id, role, signup, trial_duration, region, material = trader
     query = """
@@ -794,6 +845,10 @@ async def get_new_messages(trader, check_time):
     except aiomysql.Error as err:
         logger.error(f"Ошибка при получении новых сообщений для {user_id}: {err}")
         return []
+
+    finally:
+        # Убедитесь, что соединение закрыто в любом случае
+        conn.close()
 
 
 async def get_traders():
@@ -1281,20 +1336,22 @@ async def register_user_subscription(chat_id, user_data):
         if rate_details:
             _, number_of_regions, number_of_materials = rate_details
 
-            # Проверка количества продуктов
-            is_valid, error_message = await validate_quantity(
-                products, number_of_materials, "материалов"
-            )
-            if not is_valid:
-                await bot.send_message(chat_id, error_message)
-                product_buttons = product_markup(user_data[chat_id]["products"])
-                await bot.send_message(
-                    chat_id,
-                    "🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
-                    reply_markup=product_buttons,
+            # Проверка количества продуктов только если есть ограничения
+            if rates_id != 3 and number_of_materials > 0:
+                is_valid, error_message = await validate_quantity(
+                    products, number_of_materials, "материалов"
                 )
-                return  # Прерываем текущий вызов, чтобы подождать правильного ввода
+                if not is_valid:
+                    await bot.send_message(chat_id, error_message)
+                    product_buttons = product_markup(user_data[chat_id]["products"])
+                    await bot.send_message(
+                        chat_id,
+                        "🌽Виберіть зернові, яка вас цікавить, можете вибрати кілька культур та натисніть «завершити вибір»",
+                        reply_markup=product_buttons,
+                    )
+                    return  # Прерываем текущий вызов, чтобы подождать правильного ввода
 
+            # Сохранение выбранных продуктов
             for product in products:
                 product_id = await db.get_product_id_by_name(product)
                 if product_id is not None:
@@ -1305,20 +1362,22 @@ async def register_user_subscription(chat_id, user_data):
                 else:
                     logger.error(f"Product ID not found for product: {product}")
 
-            # Проверка количества регионов
-            is_valid, error_message = await validate_quantity(
-                regions, number_of_regions, "регионов"
-            )
-            if not is_valid:
-                await bot.send_message(chat_id, error_message)
-                region_buttons = region_markup(user_data[chat_id]["regions"])
-                await bot.send_message(
-                    chat_id,
-                    "🇺🇦Виберіть область, яка вас цікавить, можете вибрати кілька регіонів та натисніть «завершити вибір»",
-                    reply_markup=region_buttons,
+            # Проверка количества регионов только если есть ограничения
+            if rates_id != 3 and number_of_regions > 0:
+                is_valid, error_message = await validate_quantity(
+                    regions, number_of_regions, "регионов"
                 )
-                return  # Прерываем текущий вызов, чтобы подождать правильного ввода
+                if not is_valid:
+                    await bot.send_message(chat_id, error_message)
+                    region_buttons = region_markup(user_data[chat_id]["regions"])
+                    await bot.send_message(
+                        chat_id,
+                        "🇺🇦Виберіть область, яка вас цікавить, можете вибрати кілька регіонів та натисніть «завершити вибір»",
+                        reply_markup=region_buttons,
+                    )
+                    return  # Прерываем текущий вызов, чтобы подождать правильного ввода
 
+            # Сохранение выбранных регионов
             for region in regions:
                 region_id = await db.get_region_id_by_name(region)
                 if region_id is not None:
@@ -1541,42 +1600,90 @@ async def can_send_message(user_id):
     return True
 
 
+# Отправка сообщения пользователю
 async def send_message(user_id, message_text):
     try:
         await bot.send_message(user_id, message_text)
         logger.info(f"Сообщение пользователю {user_id} отправлено успешно")
+    except apihelper.ApiException as e:
+        logger.error(f"Ошибка API при отправке сообщения пользователю {user_id}: {e}")
     except Exception as e:
         logger.error(f"Не удалось отправить сообщение пользователю {user_id}: {e}")
 
 
+# async def send_messages_to_traders():
+#     traders = await get_traders()
+#     current_time = datetime.now()
+#     check_time_threshold = current_time - timedelta(seconds=30)
+
+#     for trader in traders:
+#         user_id, role, signup, trial_duration, region, material = trader
+#         signup_time = signup  # signup уже является datetime объектом
+#         end_trial_time = signup_time + timedelta(seconds=trial_duration)
+
+#         if current_time <= end_trial_time:
+#             check_time = last_check_time.get(user_id, signup_time)
+#             if check_time < check_time_threshold:
+#                 check_time = check_time_threshold
+
+
+#             messages = await get_new_messages(trader, check_time)
+#             if messages:
+#                 for message in messages:
+#                     message_id, message_text, message_time = message
+#                     if message_id not in sent_messages.get(user_id, set()):
+#                         await send_message(user_id, message_text)
+#                         if user_id not in sent_messages:
+#                             sent_messages[user_id] = set()
+#                         sent_messages[user_id].add(message_id)
+#                         last_check_time[user_id] = max(
+#                             last_check_time.get(user_id, signup_time), message_time
+#                         )
+#             last_check_time[user_id] = current_time
 async def send_messages_to_traders():
-    traders = await get_traders()
-    current_time = datetime.now()
-    check_time_threshold = current_time - timedelta(seconds=30)
+    try:
+        traders = await get_traders()
+        current_time = datetime.now()
+        check_time_threshold = current_time - timedelta(seconds=30)
 
-    for trader in traders:
-        user_id, role, signup, trial_duration, region, material = trader
-        signup_time = signup  # signup уже является datetime объектом
-        end_trial_time = signup_time + timedelta(seconds=trial_duration)
+        for trader in traders:
+            user_id, role, signup, trial_duration, region, material = trader
+            signup_time = signup  # signup уже является datetime объектом
+            end_trial_time = signup_time + timedelta(seconds=trial_duration)
 
-        if current_time <= end_trial_time:
-            check_time = last_check_time.get(user_id, signup_time)
-            if check_time < check_time_threshold:
-                check_time = check_time_threshold
+            if current_time <= end_trial_time:
+                check_time = last_check_time.get(user_id, signup_time)
+                if check_time < check_time_threshold:
+                    check_time = check_time_threshold
 
-            messages = await get_new_messages(trader, check_time)
-            if messages:
-                for message in messages:
-                    message_id, message_text, message_time = message
-                    if message_id not in sent_messages.get(user_id, set()):
-                        await send_message(user_id, message_text)
-                        if user_id not in sent_messages:
-                            sent_messages[user_id] = set()
-                        sent_messages[user_id].add(message_id)
-                        last_check_time[user_id] = max(
-                            last_check_time.get(user_id, signup_time), message_time
-                        )
-            last_check_time[user_id] = current_time
+                # Открываем соединение и получаем новые сообщения
+                conn = await create_connection()
+                try:
+                    messages = await get_new_messages(trader, check_time)
+                    if messages:
+                        for message in messages:
+                            message_id, message_text, message_time = message
+                            if message_id not in sent_messages.get(user_id, set()):
+                                await send_message(user_id, message_text)
+                                if user_id not in sent_messages:
+                                    sent_messages[user_id] = set()
+                                sent_messages[user_id].add(message_id)
+                                last_check_time[user_id] = max(
+                                    last_check_time.get(user_id, signup_time),
+                                    message_time,
+                                )
+                    last_check_time[user_id] = current_time
+                except Exception as e:
+                    logger.error(f"Ошибка при получении новых сообщений: {e}")
+                finally:
+                    # Убедитесь, что соединение закрыто в любом случае
+                    conn.close()
+
+    except Exception as e:
+        logger.error(f"Ошибка при отправке сообщений трейдерам: {e}")
+    finally:
+        # Убедитесь, что все задачи завершены
+        await asyncio.sleep(0)
 
 
 #
