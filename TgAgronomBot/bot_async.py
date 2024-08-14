@@ -14,6 +14,7 @@ from configuration.config import (
     NAME_CHANNEL,
     DB_CONFIG,
 )
+from telebot.asyncio_helper import ApiTelegramException
 
 # from loguru import logger
 from configuration.logger_setup import logger
@@ -21,6 +22,7 @@ import os
 import asyncio
 import aiomysql
 import schedule
+from contextlib import asynccontextmanager
 
 
 bot = AsyncTeleBot(TOKEN)  # инициализацию бота
@@ -29,7 +31,8 @@ bot = AsyncTeleBot(TOKEN)  # инициализацию бота
 # db.initialize_db()
 USERS_PER_PAGE = 10
 user_data = {}
-
+# Глобальная переменная для базы данных
+db = None
 # Словарь для хранения временных меток последней проверки
 last_check_time = {}
 # Словарь для хранения количества отправленных сообщений за день
@@ -769,15 +772,6 @@ async def send_trial_end_message(user_id):
         "Який з тарифів підходить під ваши потреби?\n👇👇👇👇"
     )
 
-    # message = (
-    #     "Ваш пробний час закінчився. Оформіть підписку для отримання повідомлень:| /tarif |.\n"
-    #     "🌾БАЗОВИЙ ПЛАН\n"
-    #     "🌽СТАНДАРТ (Найпопулярніший)\n"
-    #     "🌱ЕКСТРА\n"
-    #     "Який з тарифів підходить під ваши потреби?\n"
-    #     "👇👇ОБЕРІТЬ👇👇"
-    # )
-
     try:
         markup = types.InlineKeyboardMarkup()
         markup.add(
@@ -794,61 +788,29 @@ async def send_trial_end_message(user_id):
         logger.error(f"Failed to send message to user {user_id}: {e}")
 
 
-# async def get_new_messages(trader, check_time):
-#     user_id, role, signup, trial_duration, region, material = trader
-#     query = """
-#     SELECT
-#         id, Messages, data_time
-#     FROM
-#         messages_tg
-#     WHERE
-#         data_time > %s AND
-#         FIND_IN_SET(%s, Regions) > 0 AND
-#         FIND_IN_SET(%s, Raw_Materials) > 0 AND
-#         trade = 'sell';
-#     """
-#     try:
-#         conn = await create_connection()
-#         async with conn.cursor() as cursor:
-#             await cursor.execute(query, (check_time, region, material))
-#             messages = await cursor.fetchall()
-#         conn.close()
-#         if messages:
-#             logger.info(f"Новые сообщения для {user_id}")
-#         return messages
-#     except aiomysql.Error as err:
-#         logger.error(f"Ошибка при получении новых сообщений для {user_id}: {err}")
-#         return []
 # Добавление тайм-аута для функций ожидания
-async def get_new_messages(trader, check_time):
-    user_id, role, signup, trial_duration, region, material = trader
-    query = """
-    SELECT
-        id, Messages, data_time
-    FROM
-        messages_tg
-    WHERE
-        data_time > %s AND
-        FIND_IN_SET(%s, Regions) > 0 AND
-        FIND_IN_SET(%s, Raw_Materials) > 0 AND
-        trade = 'sell';
-    """
+# Пример функции получения новых сообщений с тайм-аутом
+async def get_new_messages(trader, check_time, conn):
     try:
-        conn = await create_connection()
+        user_id, role, signup, trial_duration, region, material = trader
+        query = """
+        SELECT
+            id, Messages, data_time
+        FROM
+            messages_tg
+        WHERE
+            data_time > %s AND
+            FIND_IN_SET(%s, Regions) > 0 AND
+            FIND_IN_SET(%s, Raw_Materials) > 0 AND
+            trade = 'sell';
+        """
         async with conn.cursor() as cursor:
             await cursor.execute(query, (check_time, region, material))
             messages = await cursor.fetchall()
-        conn.close()
-        if messages:
-            logger.info(f"Новые сообщения для {user_id}")
         return messages
-    except aiomysql.Error as err:
+    except Exception as err:
         logger.error(f"Ошибка при получении новых сообщений для {user_id}: {err}")
         return []
-
-    finally:
-        # Убедитесь, что соединение закрыто в любом случае
-        conn.close()
 
 
 async def get_traders():
@@ -873,6 +835,7 @@ async def get_traders():
     WHERE
         u.role = 'trader';
     """
+    conn = None
     try:
         conn = await create_connection()
         async with conn.cursor() as cursor:
@@ -883,7 +846,8 @@ async def get_traders():
         logger.error(f"Ошибка при получении трейдеров: {err}")
         return []
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 
 async def get_traders_trial():
@@ -1174,43 +1138,6 @@ async def send_subscription_message(user_id, rates_id):
     )
 
 
-# @bot.message_handler(func=lambda message: message.from_user.id in ADMIN_IDS) РАБОЧИЙ
-# async def process_add_time(message):
-#     try:
-#         user_id, days, rates_id = map(int, message.text.split())
-
-#         duration = days * 24 * 60 * 60  # Преобразование дней в секунды
-#         subscription_completed = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-#         if await user_exists(user_id):
-#             await set_trial_duration(
-#                 user_id, duration, subscription_completed, rates_id, days
-#             )
-#             await bot.send_message(
-#                 message.chat.id,
-#                 f"Тестовый период для пользователя {user_id} установлен на {days} дней.",
-#             )
-#         else:
-#             await bot.send_message(
-#                 message.chat.id, "Пользователь с таким ID не найден."
-#             )
-#     except (IndexError, ValueError):
-#         await bot.send_message(
-#             message.chat.id,
-#             "Неверный формат. Пожалуйста, введите ID пользователя и количество секунд через пробел.",
-#         )
-
-
-# async def set_trial_duration(user_id, duration, subscription_completed, rates_id, days):
-#     connection = await create_connection()
-#     async with connection.cursor() as cursor:
-#         await cursor.execute(
-#             "UPDATE users_tg_bot SET trial_duration = %s WHERE user_id = %s",
-#             (duration, user_id),
-#         )
-#         await connection.commit()
-#     connection.close()
-
-
 # Регистрация пользователя временного периода
 async def register_user_trial(chat_id):
     logger.info(f"Attempting to register user {chat_id}")
@@ -1399,111 +1326,6 @@ async def register_user_subscription(chat_id, user_data):
         logger.error(f"Missing role, products, or regions for user {chat_id}")
 
 
-# # Регистрация пользователя временного периода
-# async def register_user_subscription(chat_id):
-#     logger.info(f"Attempting to register user {chat_id}")
-
-#     user_info = user_data.get(chat_id, {})
-#     logger.info(f"user_data for {chat_id}: {user_info}")
-
-#     if not user_info:
-#         logger.error(f"No user data found for chat_id {chat_id}")
-#         await bot.send_message(chat_id, "Ошибка регистрации. Попробуйте снова.")
-#         return
-
-#     nickname = user_info.get("nickname", "")
-#     signup_time = user_info.get("signup_time", "")
-#     role = user_info.get("role", "")
-#     products = user_info.get("products", [])
-#     regions = user_info.get("regions", [])
-
-#     logger.info(
-#         f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
-#     )
-
-#     # Проверка на пустые списки продуктов и регионов
-#     if not products:
-#         await bot.send_message(
-#             chat_id,
-#             "Ви не вибрали жодного продукту. Будь ласка, виберіть хоча б один продукт:",
-#             reply_markup=product_markup(user_data[chat_id]["products"]),
-#         )
-#         return
-
-#     if not regions:
-#         await bot.send_message(
-#             chat_id,
-#             "Ви не вибрали жодного регіону. Будь ласка, виберіть хоча б один регіон:",
-#             reply_markup=region_markup(user_data[chat_id]["regions"]),
-#         )
-#         return
-
-#     if role and products and regions:
-#         all_rates = await get_all_rate_details()
-#         # Или сохранение данных в список словарей
-#         rate_list = []
-#         for row in all_rates:
-#             rate_dict = {
-#                 "rates_id": row[0],
-#                 "rates_name": row[1],
-#                 "number_of_regions": row[2],
-#                 "number_of_materials": row[3],
-#             }
-#             rate_list.append(rate_dict)
-
-#         user_rate = await get_user_rates(chat_id)
-#         rates_id = user_rate[0]
-#         regions_rate, materials = await get_rate_details_by_id(rate_list, rates_id)
-
-#         # Проверка количества продуктов
-#         is_valid, error_message = await validate_quantity(
-#             products, materials, "товаров"
-#         )
-#         if not is_valid:
-#             return error_message
-#         for product in products:
-#             product_id = await db.get_product_id_by_name(product)
-#             if product_id is not None:
-#                 await db.add_user_raw_material(chat_id, product_id)
-#                 logger.info(
-#                     f"Product {product} with ID {product_id} added for user {chat_id}"
-#                 )
-#             else:
-#                 logger.error(f"Product ID not found for product: {product}")
-#         # Проверка количества регионов
-#         is_valid, error_message = await validate_quantity(
-#             regions, regions_rate, "регионов"
-#         )
-#         if not is_valid:
-#             return error_message  # Количество регионов превышено
-#         for region in regions:
-#             region_id = await db.get_region_id_by_name(region)
-#             if region_id is not None:
-#                 await db.add_user_region(chat_id, region_id)
-#                 logger.info(
-#                     f"Region {region} with ID {region_id} added for user {chat_id}"
-#                 )
-#             else:
-#                 logger.error(f"Region ID not found for region: {region}")
-
-#         await bot.send_message(
-#             chat_id,
-#             "🎉 Вашу подписку оформлено!\n\nВи отримали 2 дні безкоштовного використання.\n\n <b>Як тільки з'являться пропозиції на ринку, ви одразу їх отримаєте</b>🚀",
-#             parse_mode="HTML",
-#         )
-
-#         # Запрос контактных данных, если роль - "farmer"
-#         if role == "farmer":
-#             await bot.send_message(chat_id, "Будь ласка, введіть ваші контактні дані:")
-#             user_data[chat_id]["state"] = "awaiting_contact"
-
-#     else:
-#         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
-#         await bot.send_message(
-#             chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
-#         )
-
-
 def schedule_messages():
     start_time = dtime(8, 0)
     end_time = dtime(20, 0)
@@ -1605,85 +1427,54 @@ async def send_message(user_id, message_text):
     try:
         await bot.send_message(user_id, message_text)
         logger.info(f"Сообщение пользователю {user_id} отправлено успешно")
-    except apihelper.ApiException as e:
-        logger.error(f"Ошибка API при отправке сообщения пользователю {user_id}: {e}")
+    except ApiTelegramException as api_exc:
+        logger.error(
+            f"API ошибка при отправке сообщения пользователю {user_id}: {api_exc}"
+        )
     except Exception as e:
         logger.error(f"Не удалось отправить сообщение пользователю {user_id}: {e}")
 
 
-# async def send_messages_to_traders():
-#     traders = await get_traders()
-#     current_time = datetime.now()
-#     check_time_threshold = current_time - timedelta(seconds=30)
-
-#     for trader in traders:
-#         user_id, role, signup, trial_duration, region, material = trader
-#         signup_time = signup  # signup уже является datetime объектом
-#         end_trial_time = signup_time + timedelta(seconds=trial_duration)
-
-#         if current_time <= end_trial_time:
-#             check_time = last_check_time.get(user_id, signup_time)
-#             if check_time < check_time_threshold:
-#                 check_time = check_time_threshold
-
-
-#             messages = await get_new_messages(trader, check_time)
-#             if messages:
-#                 for message in messages:
-#                     message_id, message_text, message_time = message
-#                     if message_id not in sent_messages.get(user_id, set()):
-#                         await send_message(user_id, message_text)
-#                         if user_id not in sent_messages:
-#                             sent_messages[user_id] = set()
-#                         sent_messages[user_id].add(message_id)
-#                         last_check_time[user_id] = max(
-#                             last_check_time.get(user_id, signup_time), message_time
-#                         )
-#             last_check_time[user_id] = current_time
-async def send_messages_to_traders():
+# Контекстный менеджер для асинхронного соединения
+@asynccontextmanager
+async def get_connection():
+    conn = None
     try:
-        traders = await get_traders()
-        current_time = datetime.now()
-        check_time_threshold = current_time - timedelta(seconds=30)
-
-        for trader in traders:
-            user_id, role, signup, trial_duration, region, material = trader
-            signup_time = signup  # signup уже является datetime объектом
-            end_trial_time = signup_time + timedelta(seconds=trial_duration)
-
-            if current_time <= end_trial_time:
-                check_time = last_check_time.get(user_id, signup_time)
-                if check_time < check_time_threshold:
-                    check_time = check_time_threshold
-
-                # Открываем соединение и получаем новые сообщения
-                conn = await create_connection()
-                try:
-                    messages = await get_new_messages(trader, check_time)
-                    if messages:
-                        for message in messages:
-                            message_id, message_text, message_time = message
-                            if message_id not in sent_messages.get(user_id, set()):
-                                await send_message(user_id, message_text)
-                                if user_id not in sent_messages:
-                                    sent_messages[user_id] = set()
-                                sent_messages[user_id].add(message_id)
-                                last_check_time[user_id] = max(
-                                    last_check_time.get(user_id, signup_time),
-                                    message_time,
-                                )
-                    last_check_time[user_id] = current_time
-                except Exception as e:
-                    logger.error(f"Ошибка при получении новых сообщений: {e}")
-                finally:
-                    # Убедитесь, что соединение закрыто в любом случае
-                    conn.close()
-
-    except Exception as e:
-        logger.error(f"Ошибка при отправке сообщений трейдерам: {e}")
+        conn = await create_connection()
+        yield conn
     finally:
-        # Убедитесь, что все задачи завершены
-        await asyncio.sleep(0)
+        if conn:
+            conn.close()
+
+
+async def send_messages_to_traders():
+    traders = await get_traders()
+    current_time = datetime.now()
+    check_time_threshold = current_time - timedelta(seconds=30)
+
+    for trader in traders:
+        user_id, role, signup, trial_duration, region, material = trader
+        signup_time = signup
+        end_trial_time = signup_time + timedelta(seconds=trial_duration)
+
+        if current_time <= end_trial_time:
+            check_time = last_check_time.get(user_id, signup_time)
+            if check_time < check_time_threshold:
+                check_time = check_time_threshold
+
+            async with create_connection() as conn:
+                messages = await get_new_messages(trader, check_time, conn)
+                if messages:
+                    for message in messages:
+                        message_id, message_text, message_time = message
+                        if message_id not in sent_messages.get(user_id, set()):
+                            await send_message(user_id, message_text)
+                            sent_messages.setdefault(user_id, set()).add(message_id)
+                            last_check_time[user_id] = max(
+                                last_check_time.get(user_id, signup_time),
+                                message_time,
+                            )
+            last_check_time[user_id] = current_time
 
 
 #
@@ -1806,416 +1597,28 @@ def region_markup(selected_regions):
     return markup
 
 
-# #Рабачая, убрать потом
-# async def can_send_message(user_id):
-#     """Проверка, может ли быть отправлено сообщение"""
-#     now = datetime.now()
-#     if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
-#         logger.info(
-#             f"Сообщения могут быть отправлены только с 8:00 до 20:00. Сейчас: {now.time()}"
-#         )
-#         return False
-
-#     last_sent = last_check_time.get(user_id)
-#     if last_sent:
-#         logger.info(f"Последняя отправка {last_sent}")
-#     else:
-#         logger.info(
-#             f"Для пользователя {user_id} нет записей о последней отправке сообщений"
-#         )
-
-#     if last_sent and now - last_sent < timedelta(minutes=1):
-#         logger.info(
-#             f"Сообщение пользователю {user_id} было отправлено менее минуты назад."
-#         )
-#         return False
-
-#     count = daily_message_count.get(user_id, 0)
-#     logger.info(
-#         f"Количество сообщений, отправленных пользователю {user_id} за сегодня: {count}"
-#     )
-
-#     if count >= 20:
-#         logger.info(f"Достигнут лимит в 20 сообщений в день для пользователя {user_id}")
-#         return False
-
-
-#     return True
-# async def can_send_message(user_id):
-#     """Проверка, может ли быть отправлено сообщение (временная версия для тестирования)"""
-#     now = datetime.now()
-
-#     # Убрать проверку на временные рамки отправки сообщений
-#     # if not (dtime(8, 0) <= now.time() <= dtime(20, 0)):
-#     #     logger.info(f"Сообщения могут быть отправлены только с 8:00 до 20:00. Сейчас: {now.time()}")
-#     #     return False
-
-#     last_sent = last_check_time.get(user_id)
-#     if last_sent:
-#         logger.info(f"Последняя отправка {last_sent}")
-#     else:
-#         logger.info(
-#             f"Для пользователя {user_id} нет записей о последней отправке сообщений"
-#         )
-
-#     # Убрать проверку на интервал времени между отправками
-#     # if last_sent and now - last_sent < timedelta(minutes=1):
-#     #     logger.info(f"Сообщение пользователю {user_id} было отправлено менее минуты назад.")
-#     #     return False
-
-#     count = daily_message_count.get(user_id, 0)
-#     logger.info(
-#         f"Количество сообщений, отправленных пользователю {user_id} за сегодня: {count}"
-#     )
-
-#     # Убрать проверку на лимит сообщений в день
-#     # if count >= 20:
-#     #     logger.info(f"Достигнут лимит в 20 сообщений в день для пользователя {user_id}")
-#     #     return False
-
-#     return True  # Всегда возвращаем True для тестирования
-
-
-# # Функция проверки подписки РАБОЧИЙ
-# async def is_subscribed(user_id):
-#     try:
-#         # Используем ID канала напрямую
-#         channel_chat_id = CHANNEL_USERNAME  # Должен быть числовым ID канала
-#         member = await bot.get_chat_member(channel_chat_id, user_id)
-#         return member.status in ["member", "administrator", "creator"]
-#     except Exception as e:
-#         logger.error(f"Ошибка при проверке подписки: {e}")
-#         return False
-
-
-# Обработчик команды /start РАБОЧИЙ
-# @bot.message_handler(commands=["start"])
-# async def start(message):
-#     user_id = message.from_user.id
-#     chat_id = message.chat.id
-
-#     # Проверка роли пользователя
-#     if user_id in ADMIN_IDS:
-#         await bot.send_message(
-#             chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
-#         )
-#     elif not db.user_exists(user_id):
-#         nickname = message.from_user.username
-#         signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-#         trial_duration = 172800  # 48 часов в секундах
-#         user_data[chat_id] = {
-#             "nickname": nickname,
-#             "signup_time": signup_time,
-#             "trial_duration": trial_duration,
-#             "role": None,
-#             "products": [],
-#             "regions": [],
-#             "state": "initial",
-#         }
-#         message = "👋Привіт! Я — бот Agro Helper, який автоматизує пошук вигідних пропозицій на ринку зерна.\n\n👀Я цілодобово моніторю джерела, збираю, фільтрую та сортуваю пропозиції згідно з вашими потребами. Вам залишається лише обирати найкращі варіанти, зв'язуватися з продавцями та укладати угоди. Економте час і гроші з Agro Helper! 🌾\n<b></b>\n<a href='https://www.youtube.com/shorts/OBtCzSeYfVM'>‼️ДИВІТЬСЯ ВІДЕО ІНСТРУКЦІЮ</a>\n\n🚀Отримайте 2 дні безкоштовного користування.🚀"
-
-#         await bot.send_message(
-#             chat_id,
-#             message,
-#             parse_mode="HTML",
-#             reply_markup=trial_markup(),
-#             disable_web_page_preview=True,
-#         )
-
-#     else:
-#         signup_time = db.get_signup_time(user_id)
-#         trial_duration = db.get_trial_duration(user_id)
-#         current_time = datetime.now()
-
-#         if signup_time:
-#             if isinstance(signup_time, str):
-#                 signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
-
-#             if trial_duration is None:
-#                 trial_duration = 0
-
-#             trial_end_time = signup_time + timedelta(seconds=trial_duration)
-#             remaining_time = trial_end_time - current_time
-
-
-#             if remaining_time.total_seconds() > 0:
-#                 trial_days = remaining_time.days
-#                 trial_hours = remaining_time.seconds // 3600
-#                 await bot.send_message(
-#                     chat_id,
-#                     f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
-#                 )
-#                 await bot.send_message(
-#                     chat_id,
-#                     "📨Зв'язатися з підтримкою📨",
-#                     reply_markup=technical_support(),
-#                 )
-#                 return
-#             else:
-#                 await bot.send_message(chat_id, "Ваш тестовий період завершився!")
-#                 await bot.send_message(
-#                     chat_id,
-#                     "📨Зв'язатися з підтримкою📨",
-#                     reply_markup=technical_support(),
-#                 )
-#         else:
-#             await bot.send_message(
-#                 chat_id,
-#                 "📨Зв'язатися з підтримкою📨",
-#                 reply_markup=technical_support(),
-#             )
-
-# # Обработчик команды /start
-# @bot.message_handler(commands=["start"])
-# async def start(message):
-#     user_id = message.from_user.id
-#     chat_id = message.chat.id
-
-#     # Проверка роли пользователя
-#     if user_id in ADMIN_IDS:
-#         await bot.send_message(
-#             chat_id, "Добро пожаловать в админ панель.", reply_markup=admin_markup()
-#         )
-#     else:
-#         # Проверка подписки на канал
-#         chat_member = await bot.get_chat_member(
-#             chat_id=f"@{NAME_CHANNEL}", user_id=user_id
-#         )
-#         if chat_member.status not in ["member", "administrator", "creator"]:
-#             await bot.send_message(
-#                 chat_id,
-#                 "Будь ласка, підпишіться на канал, щоб продовжити.",
-#                 reply_markup=trial_markup(),
-#             )
-#             return
-
-#         if not db.user_exists(user_id):
-#             nickname = message.from_user.username
-#             signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-#             trial_duration = 172800  # 48 часов в секундах
-#             user_data[chat_id] = {
-#                 "nickname": nickname,
-#                 "signup_time": signup_time,
-#                 "trial_duration": trial_duration,
-#                 "role": None,
-#                 "products": [],
-#                 "regions": [],
-#                 "state": "initial",
-#             }
-#             message_text = (
-#                 "👋Привіт! Я — бот Agro Helper, який автоматизує пошук вигідних пропозицій на ринку зерна.\n\n"
-#                 "👀Я цілодобово моніторю джерела, збираю, фільтрую та сортуваю пропозиції згідно з вашими потребами. "
-#                 "Вам залишається лише обирати найкращі варіанти, зв'язуватися з продавцями та укладати угоди. "
-#                 "Економте час і гроші з Agro Helper! 🌾\n<b></b>\n"
-#                 "<a href='https://www.youtube.com/shorts/OBtCzSeYfVM'>‼️ДИВІТЬСЯ ВІДЕО ІНСТРУКЦІЮ</a>\n\n"
-#                 "🚀Отримайте 2 дні безкоштовного користування.🚀"
-#             )
-
-#             await bot.send_message(
-#                 chat_id,
-#                 message_text,
-#                 parse_mode="HTML",
-#                 reply_markup=trial_markup(),
-#                 disable_web_page_preview=True,
-#             )
-
-#         else:
-#             signup_time = db.get_signup_time(user_id)
-#             trial_duration = db.get_trial_duration(user_id)
-#             current_time = datetime.now()
-
-#             if signup_time:
-#                 if isinstance(signup_time, str):
-#                     signup_time = datetime.strptime(signup_time, "%Y-%m-%d %H:%M:%S")
-
-#                 if trial_duration is None:
-#                     trial_duration = 0
-
-#                 trial_end_time = signup_time + timedelta(seconds=trial_duration)
-#                 remaining_time = trial_end_time - current_time
-
-
-#                 if remaining_time.total_seconds() > 0:
-#                     trial_days = remaining_time.days
-#                     trial_hours = remaining_time.seconds // 3600
-#                     await bot.send_message(
-#                         chat_id,
-#                         f"Ви вже підписані і ваш тестовий період активний. Залишилось {trial_days} днів і {trial_hours} годин.",
-#                     )
-#                     await bot.send_message(
-#                         chat_id,
-#                         "📨Зв'язатися з підтримкою📨",
-#                         reply_markup=technical_support(),
-#                     )
-#                     return
-#                 else:
-#                     await bot.send_message(chat_id, "Ваш тестовий період завершився!")
-#                     await bot.send_message(
-#                         chat_id,
-#                         "📨Зв'язатися з підтримкою📨",
-#                         reply_markup=technical_support(),
-#                     )
-#             else:
-#                 await bot.send_message(
-#                     chat_id,
-#                     "📨Зв'язатися з підтримкою📨",
-#                     reply_markup=technical_support(),
-#                 )
-
-
-# # Обработчик нажатия кнопки "check" для проверки подписки и регистрации пользователя РАБОЧИЙ
-# @bot.callback_query_handler(func=lambda call: call.data == "check")
-# async def callback_check_subscription(call):
-#     user_id = call.from_user.id
-#     chat_id = call.message.chat.id
-#     nickname = call.from_user.username
-
-#     await bot.delete_message(chat_id=chat_id, message_id=call.message.id)
-
-#     if is_subscribed(user_id):
-#         if not db.user_exists(user_id):
-#             signup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-#             user_data[chat_id] = {
-#                 "nickname": nickname,
-#                 "signup_time": signup_time,
-#                 "role": None,
-#                 "products": [],
-#                 "regions": [],
-#                 "state": "initial",
-#             }
-#             await bot.answer_callback_query(call.id, "Ваша підписка розпочалась! 🎉")
-#             sent_message = await bot.send_message(
-#                 chat_id,
-#                 "Ваша підписка розпочалась! 🎉",
-#             )
-#             user_messages[chat_id] = [sent_message.message_id]
-#         else:
-#             await bot.answer_callback_query(
-#                 call.id, "Ваша підписка вже активована! 🌟."
-#             )
-
-#         if chat_id in user_messages:
-#             for message_id in user_messages[chat_id]:
-#                 await bot.delete_message(chat_id=chat_id, message_id=message_id)
-
-
-#         sent_message_2 = await bot.send_message(
-#             chat_id,
-#             "Виберіть свою діяльність:",
-#             reply_markup=activity_markup(),
-#         )
-#         user_messages[chat_id] = sent_message_2.message_id
-#     else:
-#         sent_message = await bot.send_message(
-#             chat_id,
-#             "Щоб користуватися ботом, необхідно підписатися на канал!",
-#             reply_markup=start_markup(),
-#         )
-#         user_messages[chat_id] = [sent_message.message_id]
-
-
-# # РАБОЧАЯ!!!!
-# async def register_user(chat_id):
-#     logger.info(f"Attempting to register user {chat_id}")
-
-#     user_info = user_data.get(chat_id, {})
-#     logger.info(f"user_data for {chat_id}: {user_info}")
-
-#     if not user_info:
-#         logger.error(f"No user data found for chat_id {chat_id}")
-#         await bot.send_message(chat_id, "Ошибка регистрации. Попробуйте снова.")
-#         return
-
-#     nickname = user_info.get("nickname", "")
-#     signup_time = user_info.get("signup_time", "")
-#     role = user_info.get("role", "")
-#     products = user_info.get("products", [])
-#     regions = user_info.get("regions", [])
-
-#     logger.info(
-#         f"Registering user {chat_id} with role: {role}, products: {products}, regions: {regions}"
-#     )
-
-#     # Проверка на пустые списки продуктов и регионов
-#     if not products:
-#         await bot.send_message(
-#             chat_id,
-#             "Ви не вибрали жодного продукту. Будь ласка, виберіть хоча б один продукт:",
-#             reply_markup=product_markup(user_data[chat_id]["products"]),
-#         )
-#         return
-
-#     if not regions:
-#         await bot.send_message(
-#             chat_id,
-#             "Ви не вибрали жодного регіону. Будь ласка, виберіть хоча б один регіон:",
-#             reply_markup=region_markup(user_data[chat_id]["regions"]),
-#         )
-#         return
-
-#     if role and products and regions:
-#         if not db.user_exists(chat_id):
-#             db.add_user(chat_id, nickname, signup_time, role)
-#             db.set_trial_duration(chat_id, user_info.get("trial_duration", 172800))
-#             logger.info(
-#                 f"User {chat_id} added with signup_time {signup_time} and role {role}"
-#             )
-#         else:
-#             logger.info(f"User {chat_id} already exists")
-
-#         for product in products:
-#             product_id = db.get_product_id_by_name(product)
-#             if product_id is not None:
-#                 db.add_user_raw_material(chat_id, product_id)
-#                 logger.info(
-#                     f"Product {product} with ID {product_id} added for user {chat_id}"
-#                 )
-#             else:
-#                 logger.error(f"Product ID not found for product: {product}")
-
-#         for region in regions:
-#             region_id = db.get_region_id_by_name(region)
-#             if region_id is not None:
-#                 db.add_user_region(chat_id, region_id)
-#                 logger.info(
-#                     f"Region {region} with ID {region_id} added for user {chat_id}"
-#                 )
-#             else:
-#                 logger.error(f"Region ID not found for region: {region}")
-
-#         await bot.send_message(
-#             chat_id,
-#             "🎉 Вашу пробну версію активовано!\n\nВи отримали 2 дні безкоштовного використання.\n\n <b>Як тільки з'являться пропозиції на ринку, ви одразу їх отримаєте</b>🚀",
-#             parse_mode="HTML",
-#         )
-
-#     else:
-#         logger.info(f"Недостаточно данных для регистрации пользователя {chat_id}")
-#         await bot.send_message(
-#             chat_id, "Будь ласка, оберіть усі необхідні дані для реєстрації."
-#         )
-
-
 async def run_scheduler():
     while True:
         schedule.run_pending()
-        await asyncio.sleep(1)
+        await asyncio.sleep(1)  # Let other tasks run
 
 
 async def main():
     global db
 
-    loop = asyncio.get_running_loop()
-    db = Database(loop)
+    db = Database(asyncio.get_running_loop())
     await db.create_connection()
     await db.initialize_db()
-    asyncio.create_task(run_scheduler())  # Запуск планировщика из send_messages_asio.py
+
     schedule.every(30).seconds.do(
         lambda: asyncio.create_task(send_messages_to_traders())
     )
-    schedule_messages()
-    await set_commands()  # Устанавливаем команды перед запуском бота
-    await bot.infinity_polling()
+
+    try:
+        await set_commands()
+        await bot.infinity_polling()
+    finally:
+        await db.close_connection()
 
 
 if __name__ == "__main__":
