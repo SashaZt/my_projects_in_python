@@ -122,4 +122,4 @@ async def parsing_page():
 
 if __name__ == "__main__":
     asyncio.run(get_html())
-    # asyncio.run(parsing_page())
+    asyncio.run(parsing_page())
