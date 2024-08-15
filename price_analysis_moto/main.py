@@ -43,14 +43,14 @@ def del_temp():
 
 def get_dir_json():
     """
-    Создание директорий и файлов JSON из out.json.
+    Создание директорий и файлов JSON из out1.json.
 
-    - Загружает файл out.json, содержащий данные для разных сайтов.
+    - Загружает файл out1.json, содержащий данные для разных сайтов.
     - Создает поддиректории для каждого сайта в папке temp.
-    - Сохраняет данные для каждого сайта в отдельный out.json в соответствующей поддиректории.
+    - Сохраняет данные для каждого сайта в отдельный out1.json в соответствующей поддиректории.
     """
-    # Загружаем данные из out.json
-    with open("out.json", "r", encoding="utf-8") as file:
+    # Загружаем данные из out1.json
+    with open("out1.json", "r", encoding="utf-8") as file:
         data = json.load(file)
 
     # Определяем путь к временной директории
@@ -62,8 +62,8 @@ def get_dir_json():
         dir_path = temp_path / key
         dir_path.mkdir(parents=True, exist_ok=True)
 
-        # Записываем данные в out.json в поддиректории
-        with open(dir_path / "out.json", "w", encoding="utf-8") as outfile:
+        # Записываем данные в out1.json в поддиректории
+        with open(dir_path / "out1.json", "w", encoding="utf-8") as outfile:
             json.dump({key: data[key]}, outfile, ensure_ascii=False, indent=4)
 
     logger.info("Данные успешно разделены и сохранены в соответствующих папках.")
@@ -75,7 +75,7 @@ def load_json_files_from_subdirectories():
     Загрузка JSON-файлов из поддиректорий и сохранение ссылок в CSV.
 
     - Итерирует по поддиректориям в папке temp.
-    - Загружает out.json из каждой поддиректории и извлекает ссылки.
+    - Загружает out1.json из каждой поддиректории и извлекает ссылки.
     - Сохраняет извлеченные ссылки в файлы CSV в соответствующих поддиректориях.
     """
     # Определяем путь к временной директории
@@ -84,7 +84,7 @@ def load_json_files_from_subdirectories():
     # Проходим по всем поддиректориям
     for subdir in temp_path.iterdir():
         if subdir.is_dir():
-            json_file_path = subdir / "out.json"
+            json_file_path = subdir / "out1.json"
             csv_file_path = subdir / "out.csv"
 
             all_links = []
@@ -252,11 +252,11 @@ async def create_html_and_read_csv():
     Создание HTML-файлов и чтение данных из CSV.
 
     - Итерирует по поддиректориям в папке temp.
-    - Загружает JSON данные из out.json и извлекает ссылки.
+    - Загружает JSON данные из out1.json и извлекает ссылки.
     - Запускает процесс загрузки HTML для каждого сайта.
 
     Добавление нового сайта:
-    - Убедитесь, что структура JSON в out.json соответствует ожиданиям.
+    - Убедитесь, что структура JSON в out1.json соответствует ожиданиям.
     - Функция автоматически поддерживает новый сайт, если он добавлен в get_html_for_site.
     """
     current_directory = Path.cwd()
@@ -274,7 +274,7 @@ async def create_html_and_read_csv():
     tasks = []
     for subdir in temp_path.iterdir():
         if subdir.is_dir():
-            json_file_path = subdir / "out.json"
+            json_file_path = subdir / "out1.json"
             if json_file_path.exists():
                 with json_file_path.open("r", encoding="utf-8") as json_file:
                     try:
@@ -315,7 +315,7 @@ async def parse_html(
     - Добавьте их в вызов функции parse_html_file.
     """
     subdir_path = Path(dir_path) / directory
-    json_out = subdir_path / "out.json"
+    json_out = subdir_path / "out1.json"
 
     async with aiofiles.open(json_out, "r", encoding="utf-8") as file:
         content = await file.read()
@@ -411,12 +411,12 @@ def result(subdir_path, data):
     """
     Сохранение результата парсинга в JSON-файл.
 
-    - Обновляет данные в out.json на основе результатов парсинга.
-    - Сохраняет обновленные данные в result.json.
+    - Обновляет данные в out1.json на основе результатов парсинга.
+    - Сохраняет обновленные данные в result1.json.
     """
     subdir_path = Path(subdir_path)
-    out_path = subdir_path / "out.json"
-    result_path = subdir_path / "result.json"
+    out_path = subdir_path / "out1.json"
+    result_path = subdir_path / "result1.json"
 
     if out_path.exists():
         with out_path.open("r", encoding="utf-8") as file:
@@ -467,8 +467,8 @@ def get_results():
     """
     Объединение всех результатов в один файл.
 
-    - Собирает данные из всех result.json в поддиректориях.
-    - Объединяет данные в один файл result.json в корневой директории.
+    - Собирает данные из всех result1.json в поддиректориях.
+    - Объединяет данные в один файл result1.json в корневой директории.
     """
     combined_data = {}
 
@@ -478,7 +478,7 @@ def get_results():
     # Проход по всем поддиректориям
     for subdir in temp_path.iterdir():
         if subdir.is_dir():
-            json_file_path = subdir / "result.json"
+            json_file_path = subdir / "result1.json"
 
             if json_file_path.is_file():
                 with json_file_path.open("r", encoding="utf-8") as json_file:
@@ -486,7 +486,7 @@ def get_results():
                     combined_data.update(data)
 
     # Путь к выходному файлу
-    output_file_path = Path.cwd() / "result.json"
+    output_file_path = Path.cwd() / "result1.json"
 
     # Запись объединенных данных в файл
     with output_file_path.open("w", encoding="utf-8") as output_file:

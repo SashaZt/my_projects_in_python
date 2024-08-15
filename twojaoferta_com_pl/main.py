@@ -10,6 +10,7 @@ import pandas as pd
 import glob
 import json
 import re
+import datetime
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -171,6 +172,7 @@ async def parsing_page():
     files_html = list(folder.glob("*.html"))
     all_datas = []
 
+    data_parsing = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     for item_html in files_html:
         with open(item_html, encoding="utf-8") as file:
             src = file.read()
@@ -182,6 +184,8 @@ async def parsing_page():
         publication_date = extract_publication_date(parser)
         user_name, local = extract_user_info(parser)
         phone_number = extract_phone_number(parser)
+        meta_url = extract_meta_url(parser)
+
         # if phone_number == "Телефон не найден":
         logger.info(item_html)
         logger.info(phone_number)
@@ -191,10 +195,22 @@ async def parsing_page():
             "user_name": user_name,
             "local": local,
             "phone_number": phone_number,
+            "meta_url": meta_url,
+            "data_parsing": data_parsing,
         }
         all_datas.append(data)
-    logger.info(all_datas)
+    # logger.info(all_datas)
     return all_datas
+
+
+def extract_meta_url(parser: HTMLParser) -> str:
+    """Извлекает URL из мета-тега в HTML."""
+    meta_element = parser.css_first("head > meta:nth-child(25)")
+    if meta_element:
+        url = meta_element.attrs.get("content")
+        if url:
+            return url
+    return "URL не найден"
 
 
 """Извлекает дату публикации """
@@ -283,13 +299,13 @@ def extract_phone_number(parser: HTMLParser) -> str:
 
 
 if __name__ == "__main__":
-    # # Запуск асинхронной функции
-    # from asyncio import WindowsSelectorEventLoopPolicy
+    # Запуск асинхронной функции
+    from asyncio import WindowsSelectorEventLoopPolicy
 
-    # # Установим политику цикла событий для Windows
-    # asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-    # asyncio.run(download_and_parse_xml())
+    # Установим политику цикла событий для Windows
+    asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+    asyncio.run(download_and_parse_xml())
 
-    # asyncio.run(get_html())
+    asyncio.run(get_html())
 
     asyncio.run(parsing_page())
