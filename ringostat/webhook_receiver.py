@@ -15,7 +15,6 @@ from typing import Optional, Dict, Any
 from fastapi import Query
 
 
-
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
 temp_directory = "temp"
@@ -31,6 +30,7 @@ ringostat_directory.mkdir(parents=True, exist_ok=True)
 # Создаем глобальный объект db_initializer
 db_initializer = None
 
+
 # Управление жизненным циклом приложения
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,13 +42,14 @@ async def lifespan(app: FastAPI):
     yield
     await db_initializer.close_pool()
 
+
 app = FastAPI(lifespan=lifespan)
 
+
 # Используем Depends для передачи db_initializer в эндпоинт
-@app.get('/calls')
+@app.get("/calls")
 async def get_calls(
-    request: Request,
-    db: DatabaseInitializer = Depends(lambda: db_initializer)
+    request: Request, db: DatabaseInitializer = Depends(lambda: db_initializer)
 ):
     query = "SELECT * FROM calls WHERE 1=1"
     parameters = []
@@ -59,86 +60,159 @@ async def get_calls(
     try:
         async with db.pool.acquire() as connection:
             async with connection.cursor(aiomysql.DictCursor) as cursor:
-                
+
                 # Получаем список всех колонок в таблице calls
                 await cursor.execute("SHOW COLUMNS FROM calls")
                 columns = await cursor.fetchall()
                 column_names = [column["Field"] for column in columns]
-                
+
                 # Формируем SQL-запрос на основе переданных параметров, если они совпадают с колонками
                 for param, value in requested_params.items():
                     if param in column_names:
                         query += f" AND {param} = %s"
                         parameters.append(value)
-                
+
                 # Выполняем запрос
                 await cursor.execute(query, parameters)
                 calls = await cursor.fetchall()
-                
+
                 # Преобразование данных в формат, который может быть сериализован в JSON
                 calls_serializable = jsonable_encoder(calls)
 
-                return JSONResponse(status_code=200, content={"status": "success", "data": calls_serializable})
+                return JSONResponse(
+                    status_code=200,
+                    content={"status": "success", "data": calls_serializable},
+                )
     except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "failure", "message": str(e)})
+        return JSONResponse(
+            status_code=500, content={"status": "failure", "message": str(e)}
+        )
 
 
-# Эндпоинт POST для обработки данных вебхука
-@app.post('/ringostat')
-async def ringostat_post(request: Request):
+# Используем Depends для передачи db_initializer в эндпоинт
+@app.post("/ringostat")
+async def ringostat_post(
+    request: Request, db: DatabaseInitializer = Depends(lambda: db_initializer)
+):
     try:
         data = await request.json()
         logger.debug(f"Получены JSON данные: {data}")
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        json_file_path = ringostat_directory / f"data_{timestamp}.json"
+        # Подготовка данных для записи в базу данных
+        phone_number = data["additional_call_data"]["userfield"]
+        contacts = await db.get_all_contact_data()
 
-        with open(json_file_path, 'w', encoding='utf-8') as json_file:
-            json.dump(data, json_file, ensure_ascii=False, indent=4)
-        logger.debug(f"Данные сохранены в файл: {json_file_path}")
+        # По умолчанию статус клиента - "Новий"
+        client_status = "Новий"
+        client_id = None
+
+        # Проверяем номера телефонов в базе данных
+        for contact in contacts:
+            client_id_bd = contact.get("contact_id")
+            phone_number_bd = contact.get("phone_number")
+
+            if phone_number_bd == phone_number:
+                client_id = client_id_bd
+                client_status = "Существует"
+                logger.info(f"Найден клиент с ID {client_id} и номером {phone_number}")
+                break
+
+        all_data = {
+            "id_call": data["uniqueid"],
+            "date_and_time": data["calldate"],
+            "client_id": client_id,  # Значение client_id после проверки в базе данных
+            "phone_number": phone_number,
+            "company_number": data["additional_call_data"]["dst"],
+            "call_type": data["additional_call_data"]["call_type"],
+            "client_status": client_status,  # Обновленный статус клиента
+            "interaction_status": "Договір",
+            "employee": "Хтось",
+            "commentary": "commentary",
+            "action": data["additional_call_data"].get("action", "Нет действия"),
+        }
+
+        # Попытка записи данных в базу данных
+        success = await db.insert_call_data(all_data)
+        if success:
+            logger.info(f"Данные успешно добавлены в БД: {all_data}")
+        else:
+            logger.error(f"Ошибка при добавлении данных в БД: {all_data}")
+            return JSONResponse(
+                status_code=500,
+                content={"status": "failure", "message": "Failed to save data"},
+            )
+
     except json.JSONDecodeError:
         logger.error("Ошибка декодирования JSON данных")
-        return JSONResponse(status_code=400, content={"status": "failure", "message": "Invalid JSON data"})
+        return JSONResponse(
+            status_code=400,
+            content={"status": "failure", "message": "Invalid JSON data"},
+        )
     except Exception as e:
         logger.error(f"Не удалось сохранить данные: {e}")
-        return JSONResponse(status_code=500, content={"status": "failure", "message": "Failed to save data"})
+        return JSONResponse(
+            status_code=500,
+            content={"status": "failure", "message": f"Failed to save data: {e}"},
+        )
 
     return JSONResponse(status_code=200, content={"status": "success", "data": data})
 
+
 # Эндпоинт GET для проверки состояния вебхука
-@app.get('/ringostat')
+@app.get("/ringostat")
 async def ringostat_get():
     logger.debug("GET запрос на /ringostat - вебхук работает корректно")
-    return JSONResponse(status_code=200, content={"status": "success", "message": "Webhook endpoint is up and running"})
+    return JSONResponse(
+        status_code=200,
+        content={"status": "success", "message": "Webhook endpoint is up and running"},
+    )
 
 
 class ContactData(BaseModel):
-    data: Dict[str, Any] = Field(..., description="Данные для записи в таблицы contacts_")
+    data: Dict[str, Any] = Field(
+        ..., description="Данные для записи в таблицы contacts_"
+    )
 
-async def ensure_column_exists(table_name: str, column_name: str, column_type: str, db: DatabaseInitializer):
+
+async def ensure_column_exists(
+    table_name: str, column_name: str, column_type: str, db: DatabaseInitializer
+):
     """Проверить, существует ли колонка в таблице, и если нет, добавить её."""
     async with db.pool.acquire() as connection:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
-            logger.info(f"Проверка существования колонки '{column_name}' в таблице '{table_name}'.")
-            await cursor.execute(f"SHOW COLUMNS FROM {table_name} LIKE %s", (column_name,))
+            logger.info(
+                f"Проверка существования колонки '{column_name}' в таблице '{table_name}'."
+            )
+            await cursor.execute(
+                f"SHOW COLUMNS FROM {table_name} LIKE %s", (column_name,)
+            )
             column_exists = await cursor.fetchone()
 
             if not column_exists:
-                logger.info(f"Колонка '{column_name}' отсутствует в таблице '{table_name}'. Добавляем колонку.")
-                await cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                logger.info(
+                    f"Колонка '{column_name}' отсутствует в таблице '{table_name}'. Добавляем колонку."
+                )
+                await cursor.execute(
+                    f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
+                )
                 await connection.commit()
-                logger.info(f"Колонка '{column_name}' добавлена в таблицу '{table_name}'.")
+                logger.info(
+                    f"Колонка '{column_name}' добавлена в таблицу '{table_name}'."
+                )
 
-async def insert_dynamic_data(table_name: str, data: Dict[str, Any], db: DatabaseInitializer):
+
+async def insert_dynamic_data(
+    table_name: str, data: Dict[str, Any], db: DatabaseInitializer
+):
     """Вставка данных в таблицу, динамически добавляя колонки."""
     async with db.pool.acquire() as connection:
         async with connection.cursor(aiomysql.DictCursor) as cursor:
             logger.info(f"Начало вставки данных в таблицу '{table_name}': {data}")
-            
+
             # Получаем существующие колонки таблицы
             await cursor.execute(f"SHOW COLUMNS FROM {table_name}")
             columns = await cursor.fetchall()
-            existing_columns = {col['Field']: col['Type'] for col in columns}
+            existing_columns = {col["Field"]: col["Type"] for col in columns}
 
             insert_columns = []
             insert_values = []
@@ -146,7 +220,9 @@ async def insert_dynamic_data(table_name: str, data: Dict[str, Any], db: Databas
 
             for key, value in data.items():
                 if key not in existing_columns:
-                    logger.info(f"Колонка '{key}' отсутствует в таблице '{table_name}'.")
+                    logger.info(
+                        f"Колонка '{key}' отсутствует в таблице '{table_name}'."
+                    )
                     await ensure_column_exists(table_name, key, "VARCHAR(255)", db)
                 insert_columns.append(key)
                 insert_values.append(value)
@@ -158,22 +234,25 @@ async def insert_dynamic_data(table_name: str, data: Dict[str, Any], db: Databas
             await connection.commit()
             logger.info(f"Данные успешно вставлены в таблицу '{table_name}'.")
 
-@app.post('/contacts')
-async def create_contact(data: ContactData, db: DatabaseInitializer = Depends(lambda: db_initializer)):
+
+@app.post("/contacts")
+async def create_contact(
+    data: ContactData, db: DatabaseInitializer = Depends(lambda: db_initializer)
+):
     try:
         logger.info(f"Приняты данные для вставки в таблицы contacts_: {data}")
-        
+
         # Вставляем данные в таблицу contacts
         contact_id = None
         if "contacts" in data.data:
             contact_data = data.data.pop("contacts")
             logger.info(f"Вставка данных в таблицу 'contacts': {contact_data}")
             await insert_dynamic_data("contacts", contact_data, db)
-            
+
             async with db.pool.acquire() as connection:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute("SELECT LAST_INSERT_ID() as last_id")
-                    contact_id = (await cursor.fetchone())['last_id']
+                    contact_id = (await cursor.fetchone())["last_id"]
                     logger.info(f"Получен ID вставленного контакта: {contact_id}")
 
         if not contact_id:
@@ -195,14 +274,14 @@ async def create_contact(data: ContactData, db: DatabaseInitializer = Depends(la
         raise HTTPException(status_code=500, detail=f"Failed to create contact: {e}")
 
 
-@app.get('/contacts')
+@app.get("/contacts")
 async def get_all_contacts(
     name: Optional[str] = None,
     surname: Optional[str] = None,
     formal_title: Optional[str] = None,
     phone_number: Optional[str] = None,
     email: Optional[str] = None,
-    db: DatabaseInitializer = Depends(lambda: db_initializer)
+    db: DatabaseInitializer = Depends(lambda: db_initializer),
 ):
     try:
         logger.info("Начало получения данных с фильтрацией по параметрам.")
@@ -213,7 +292,7 @@ async def get_all_contacts(
             "surname": surname,
             "formal_title": formal_title,
             "phone_number": phone_number,
-            "email": email
+            "email": email,
         }
         # Убираем параметры, значение которых None
         filters = {k: v for k, v in filters.items() if v is not None}
@@ -230,10 +309,13 @@ async def get_all_contacts(
 
     except Exception as e:
         logger.error(f"Ошибка при получении данных из всех таблиц contacts_: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to retrieve contact data: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve contact data: {e}"
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logger.debug("Запуск FastAPI сервера")
     import uvicorn
-    uvicorn.run(app, host='0.0.0.0', port=5000)
+
+    uvicorn.run(app, host="0.0.0.0", port=5000)
