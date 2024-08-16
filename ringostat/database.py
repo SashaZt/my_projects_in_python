@@ -19,6 +19,7 @@ user_db_password = os.getenv("USER_DB_PASSWORD")
 host_db = os.getenv("HOST_DB")
 port_db = int(os.getenv("PORT_DB", 3306))
 db_name = os.getenv("DB")
+logger.info(user_db)
 
 
 class DatabaseInitializer:

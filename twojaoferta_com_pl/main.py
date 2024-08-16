@@ -1,3 +1,5 @@
+from phonenumbers.phonenumberutil import NumberParseException
+import phonenumbers
 from selectolax.parser import HTMLParser
 import asyncio
 import xml.etree.ElementTree as ET
@@ -7,6 +9,7 @@ from curl_cffi.requests import AsyncSession
 from pathlib import Path
 from configuration.logger_setup import logger
 import pandas as pd
+import aiofiles
 import glob
 import json
 import re
@@ -46,52 +49,6 @@ headers = {
 }
 
 
-# Функция для чтения прокси-серверов из файла
-def load_proxies(filename):
-    proxies = []
-    try:
-        with open(filename, "r") as file:
-            for line in file:
-                proxy = line.strip()
-                if proxy:
-                    proxies.append(proxy)
-    except FileNotFoundError:
-        logger.warning(f"Файл {filename} не найден. Продолжаем без него.")
-    return proxies
-
-
-# Загрузить прокси-серверы из файла
-def load_proxies_curl_cffi():
-    proxy_file_path = Path("configuration/proxies_with_auth.txt")
-
-    # Чтение файла с прокси-серверами
-    with open(proxy_file_path, "r") as f:
-        raw_proxies = f.readlines()
-
-    formatted_proxies = []
-    for proxy in raw_proxies:
-        proxy = proxy.strip()  # Убираем лишние пробелы и символы новой строки
-        if proxy:
-            formatted_proxies.append(f"http://{proxy}")
-
-    return formatted_proxies
-
-
-# Функция для выбора случайного прокси
-def get_random_proxy():
-    # Определение пути к файлу с прокси
-    proxy_file_path = Path("configuration/proxies_with_auth.txt")
-
-    # Загрузка прокси из файла
-    proxies_with_auth = load_proxies(proxy_file_path)
-
-    if not proxies_with_auth:
-        return None  # Нет доступных прокси
-
-    # Выбор случайного прокси
-    return random.choice(proxies_with_auth)
-
-
 async def download_and_parse_xml():
     url = "https://twojaoferta.com.pl/sitemap/sitemap_classified_0.xml"  # Здесь укажите вашу ссылку
     output_csv = Path("data/urls.csv")
@@ -129,42 +86,187 @@ async def download_and_parse_xml():
                 writer.writerow([url])
 
 
-# Функция для выполнения запроса
-async def fetch_url(url, proxy, headers, cookies, sem, count):
-    async with sem:
-        async with AsyncSession() as session:
-            filename_html = Path(html_directory) / f"0{count}.html"
+# Функция для чтения прокси-серверов из файла
+def load_proxies(filename):
+    proxies = []
+    try:
+        with open(filename, "r") as file:
+            for line in file:
+                proxy = line.strip()
+                if proxy:
+                    proxies.append(proxy)
+    except FileNotFoundError:
+        logger.warning(f"Файл {filename} не найден. Продолжаем без него.")
+    return proxies
 
-            if not filename_html.exists():
+
+# Обновленный код для чтения и форматирования прокси-серверов
+async def load_proxies_curl_cffi():
+    proxy_file_path = Path("configuration/proxies_with_auth.txt")
+
+    # Чтение файла с прокси-серверами
+    with open(proxy_file_path, "r") as f:
+        raw_proxies = f.readlines()
+
+    formatted_proxies = []
+    for proxy in raw_proxies:
+        proxy = proxy.strip()  # Убираем лишние пробелы и символы новой строки
+        if proxy:
+            # Проверяем и добавляем схему (http:// или https://) к прокси
+            if not proxy.startswith("http://") and not proxy.startswith("https://"):
+                proxy = f"http://{proxy}"
+            formatted_proxies.append(proxy)
+
+    return formatted_proxies
+
+
+# Функция для выбора случайного прокси
+def get_random_proxy():
+    # Определение пути к файлу с прокси
+    proxy_file_path = Path("configuration/proxies_with_auth.txt")
+
+    # Загрузка прокси из файла
+    proxies_with_auth = load_proxies(proxy_file_path)
+
+    if not proxies_with_auth:
+        return None  # Нет доступных прокси
+
+    # Выбор случайного прокси
+    return random.choice(proxies_with_auth)
+
+
+# Асинхронная функция для записи в CSV-файл
+async def write_to_csv(file_path, data):
+    async with aiofiles.open(file_path, mode="a", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        await writer.writerow(data)
+
+
+# Функция для чтения уже успешных URL из CSV-файла
+def get_successful_urls(csv_file_successful):
+    if not Path(csv_file_successful).exists():
+        return set()
+
+    with open(csv_file_successful, mode="r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        successful_urls = {row[0] for row in reader if row}
+    return successful_urls
+
+
+# Обновленный код в функции fetch_url для правильной работы с прокси
+async def fetch_url(
+    url, proxies, headers, cookies, sem, count, csv_file_successful, successful_urls
+):
+    async with sem:
+        if url in successful_urls:
+            print(f"URL {url} already successfully downloaded, skipping.")
+            return
+
+        for proxy in proxies:
+            if not proxy:  # Пропускаем пустые прокси
+                continue
+            async with AsyncSession() as session:
                 try:
                     response = await session.get(
                         url, proxy=proxy, headers=headers, cookies=cookies
                     )
                     response.raise_for_status()
+
                     src = response.text
+                    filename_html = Path(html_directory) / f"0{count}.html"
                     with open(filename_html, "w", encoding="utf-8") as f:
                         f.write(src)
+
+                    if response.status_code == 200:
+                        # Если статус ответа 200, записываем URL в CSV успешных загрузок
+                        await write_to_csv(csv_file_successful, [url])
+                        successful_urls.add(
+                            url
+                        )  # Добавляем URL в множество успешно загруженных
+                        return
+
                 except Exception as e:
                     print(f"Failed to fetch {url} with proxy {proxy}: {e}")
-                await asyncio.sleep(1)
+                    continue  # Переходим к следующему прокси
+
+            await asyncio.sleep(1)
+
+        print(f"Failed to fetch {url} with all proxies.")
 
 
 # Основная функция для распределения URL по прокси и запуска задач
 async def get_html():
-
     tasks = []
-    proxies = load_proxies_curl_cffi()
-    proxy_count = len(proxies)
-    # Устанавливаем ограничение на количество одновременно выполняемых задач
-    sem = asyncio.Semaphore(10)  # Ограничение на 100 одновременно выполняемых задач
+    proxies = await load_proxies_curl_cffi()  # Загружаем список всех прокси
+    sem = asyncio.Semaphore(10)  # Ограничение на 10 одновременно выполняемых задач
     csv_file_path = Path("data/urls.csv")
-    # Чтение CSV файла
+    csv_file_successful = Path("data/urls_successful.csv")
+
+    # Получение списка уже успешных URL
+    successful_urls = get_successful_urls(csv_file_successful)
+
     urls_df = pd.read_csv(csv_file_path)
     for count, url in enumerate(urls_df["url"], start=1):
-        proxy = proxies[count % proxy_count]
-        tasks.append(fetch_url(url, proxy, headers, cookies, sem, count))
+        tasks.append(
+            fetch_url(
+                url,
+                proxies,  # Передаем весь список прокси
+                headers,
+                cookies,
+                sem,
+                count,
+                csv_file_successful,
+                successful_urls,
+            )
+        )
 
     await asyncio.gather(*tasks)
+
+
+# # Функция для выполнения запроса
+# async def fetch_url(url, proxy, headers, cookies, sem, count):
+#     async with sem:
+#         async with AsyncSession() as session:
+#             filename_html = Path(html_directory) / f"0{count}.html"
+
+#             if not filename_html.exists():
+#                 try:
+#                     response = await session.get(
+#                         url, proxy=proxy, headers=headers, cookies=cookies
+#                     )
+#                     response.raise_for_status()
+
+#                     src = response.text
+#                     with open(filename_html, "w", encoding="utf-8") as f:
+#                         f.write(src)
+#                 except Exception as e:
+#                     print(f"Failed to fetch {url} with proxy {proxy}: {e}")
+#                 await asyncio.sleep(1)
+
+
+# # Основная функция для распределения URL по прокси и запуска задач
+# async def get_html():
+
+#     tasks = []
+#     proxies = load_proxies_curl_cffi()
+#     proxy_count = len(proxies)
+#     # Устанавливаем ограничение на количество одновременно выполняемых задач
+#     sem = asyncio.Semaphore(10)  # Ограничение на 100 одновременно выполняемых задач
+#     csv_file_path = Path("data/urls.csv")
+#     # Чтение CSV файла
+#     urls_df = pd.read_csv(csv_file_path)
+#     for count, url in enumerate(urls_df["url"], start=1):
+#         proxy = proxies[count % proxy_count]
+#         tasks.append(fetch_url(url, proxy, headers, cookies, sem, count))
+
+#     await asyncio.gather(*tasks)
+
+
+async def write_to_result(all_datas, file_path="result.csv"):
+    async with aiofiles.open(file_path, mode="w", encoding="utf-8", newline="") as f:
+        for data in all_datas:
+            line = data + "\n"  # Добавляем новую строку в конец каждой строки данных
+            await f.write(line)
 
 
 async def parsing_page():
@@ -172,7 +274,7 @@ async def parsing_page():
     files_html = list(folder.glob("*.html"))
     all_datas = []
 
-    data_parsing = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    time_posted = datetime.datetime.now().strftime("%Y-%m-%d")
     for item_html in files_html:
         with open(item_html, encoding="utf-8") as file:
             src = file.read()
@@ -182,25 +284,24 @@ async def parsing_page():
 
         # Извлекаем данные с использованием соответствующих функций
         publication_date = extract_publication_date(parser)
-        user_name, local = extract_user_info(parser)
+        user_name, location = extract_user_info(parser)
         phone_number = extract_phone_number(parser)
-        meta_url = extract_meta_url(parser)
-
-        # if phone_number == "Телефон не найден":
-        logger.info(item_html)
-        logger.info(phone_number)
-        # Сохраняем все данные в список (или другой контейнер)
-        data = {
+        # logger.info(phone_number)
+        link = extract_meta_url(parser)
+        mail_address = None
+        data_dict_ = {
             "date": publication_date,
             "user_name": user_name,
-            "local": local,
+            "location": location,
             "phone_number": phone_number,
-            "meta_url": meta_url,
-            "data_parsing": data_parsing,
+            "link": link,
+            "mail_address": mail_address,
+            "time_posted": time_posted,
         }
+
+        data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{link};{mail_address};{time_posted}'
         all_datas.append(data)
-    # logger.info(all_datas)
-    return all_datas
+    await write_to_result(all_datas)
 
 
 def extract_meta_url(parser: HTMLParser) -> str:
@@ -261,11 +362,16 @@ def extract_user_info(parser: HTMLParser) -> dict:
 
 
 def extract_phone_number(parser: HTMLParser) -> str:
-    """Извлекает номер телефона из JavaScript кода в HTML."""
+    """Извлекает номер телефона из JavaScript кода в HTML и проверяет его валидность."""
     script_elements = parser.css("script")
-    phone_number_pattern = re.compile(
-        r"\b\d{3}[-\s]?\d{3}[-\s]?\d{3}\b"
-    )  # Поиск числовых последовательностей в формате телефона
+
+    # Шаблон регулярного выражения для поиска телефонных номеров
+    phone_pattern = re.compile(
+        r"\d{3}\s\d{3}\s\d{3}|"  # Формат: 123 456 789
+        r"\(\d{3}\)\s\d{3}\-\d{3}|"  # Формат: (123) 456-789
+        r"\b\d[\d\s\(\)\-]{6,}\b|"  # Общий формат с минимальной длиной
+        r"\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"  # Формат: 123-456-789 (разделенные символами)
+    )
     phone_number_pattern_1 = re.compile(r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b")
     phone_number_pattern_2 = re.compile(r"\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b")
 
@@ -276,36 +382,159 @@ def extract_phone_number(parser: HTMLParser) -> str:
         if "this.phone" in script_text:
             # Поиск всех возможных телефонных номеров по всем паттернам
             phone_numbers = []
-            phone_numbers += phone_number_pattern.findall(script_text)
+            phone_numbers += phone_pattern.findall(script_text)
             phone_numbers += phone_number_pattern_1.findall(script_text)
             phone_numbers += phone_number_pattern_2.findall(script_text)
 
-            logger.info(phone_numbers)
+            # logger.info(phone_numbers)
 
             if phone_numbers:
-                # Возвращаем первый найденный номер
+                # Берем первый найденный номер и удаляем лишние символы и ведущие нули
                 phone_number = phone_numbers[0]
-                phone_number = phone_number.strip().replace(" ", "").replace("-", "")
-                return phone_number.strip()
-
-        # Если `this.phone` не найден, ищем числовые последовательности
-        potential_numbers = phone_number_pattern.findall(script_text)
-        if potential_numbers:
-            phone_number = potential_numbers[0]  # Берем первый найденный номер
-            logger.info(f"Найденная числовая последовательность: {phone_number}")
-            return phone_number
+                phone_number = re.sub(
+                    r"[^\d]", "", phone_number
+                )  # Удаление всех символов, кроме цифр
+                phone_number = re.sub(
+                    r"^0+", "", phone_number
+                )  # Удаление ведущих нулей
+                # Удаление префикса "48" в начале строки
+                phone_number = re.sub(r"^48", "", phone_number)
+                return phone_number
+                # # Проверка валидности номера с помощью phonenumbers
+                # valid_phone_number = validate_and_format_phone_number(phone_number)
+                # if valid_phone_number:
+                #     # logger.info(valid_phone_number)
+                #     return valid_phone_number
+                # else:
+                #     logger.warning(f"Найден невалидный номер: {phone_number}")
 
     return "Телефон не найден"
+
+    # # Если `this.phone` не найден, ищем числовые последовательности по основному паттерну
+    # potential_numbers = phone_pattern.findall(script_text)
+    # if potential_numbers:
+    #     phone_number = potential_numbers[0]  # Берем первый найденный номер
+    #     logger.info(f"Найденная числовая последовательность: {phone_number}")
+    #     phone_number = re.sub(
+    #         r"[^\d]", "", phone_number
+    #     )  # Удаление всех символов, кроме цифр
+    #     phone_number = re.sub(r"^0+", "", phone_number)  # Удаление ведущих нулей
+    #     return phone_number
+
+    # return "Телефон не найден"
+
+
+# def validate_and_format_phone_number(phone_number: str) -> str:
+#     """Проверяет валидность телефонного номера и возвращает его в международном формате с кодом страны PL."""
+#     try:
+#         # Если номер начинается с '48' или другого кода, мы предполагаем, что это международный формат
+#         if not phone_number.startswith("48"):
+#             phone_number = f"48{phone_number}"  # Добавляем код страны Польши
+
+#         # Парсинг номера
+#         parsed_number = phonenumbers.parse(phone_number, "PL")
+
+#         # Проверка валидности номера
+#         if phonenumbers.is_valid_number(parsed_number):
+#             # Возвращаем номер в международном формате
+#             return phonenumbers.format_number(
+#                 parsed_number, phonenumbers.PhoneNumberFormat.E164
+#             )
+#         else:
+#             return None
+#     except NumberParseException:
+#         return None
+
+
+# def extract_phone_number(parser: HTMLParser) -> str:
+#     """Извлекает номер телефона из JavaScript кода в HTML."""
+#     script_elements = parser.css("script")
+#     phone_number_pattern = re.compile(
+#         r"\b\d{3}[-\s]?\d{3}[-\s]?\d{3}\b"
+#     )  # Поиск числовых последовательностей в формате телефона
+#     phone_number_pattern_1 = re.compile(r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b")
+#     phone_number_pattern_2 = re.compile(r"\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b")
+
+#     for script_element in script_elements:
+#         script_text = script_element.text()
+
+#         # Сначала проверяем наличие строки `this.phone`
+#         if "this.phone" in script_text:
+#             # Поиск всех возможных телефонных номеров по всем паттернам
+#             phone_numbers = []
+#             phone_numbers += phone_number_pattern.findall(script_text)
+#             phone_numbers += phone_number_pattern_1.findall(script_text)
+#             phone_numbers += phone_number_pattern_2.findall(script_text)
+
+#             logger.info(phone_numbers)
+
+#             if phone_numbers:
+#                 # Возвращаем первый найденный номер
+#                 phone_number = phone_numbers[0]
+#                 phone_number = phone_number.strip().replace(" ", "").replace("-", "")
+#                 return phone_number.strip()
+
+#         # Если `this.phone` не найден, ищем числовые последовательности
+#         potential_numbers = phone_number_pattern.findall(script_text)
+#         if potential_numbers:
+#             phone_number = potential_numbers[0]  # Берем первый найденный номер
+#             logger.info(f"Найденная числовая последовательность: {phone_number}")
+#             return phone_number
+
+#     return "Телефон не найден"
+
+
+# def extract_phone_numbers(data):
+#     phone_numbers = set()  # Для хранения уникальных корректных номеров
+#     invalid_numbers = []  # Для хранения некорректных номеров
+
+#     # Регулярное выражение для поиска различных форматов телефонных номеров
+#     phone_pattern = re.compile(
+#         r"\d{3}\s\d{3}\s\d{3}|"  # Формат: 123 456 789
+#         r"\(\d{3}\)\s\d{3}\-\d{3}|"  # Формат: (123) 456-789
+#         r"\b\d[\d\s\(\)\-]{6,}\b|"  # Общий формат с минимальной длиной
+#         r"\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"  # Формат: 123-456-789 (разделенные символами)
+#     )
+
+#     for entry in data:
+#         if isinstance(entry, str):
+#             # Поиск всех совпадений с шаблоном
+#             matches = phone_pattern.findall(entry)
+#             for match in matches:
+#                 original_match = match
+#                 # Удаление всех символов, кроме цифр
+#                 match = re.sub(r"[^\d]", "", match)
+#                 # Удаление ведущих нулей
+#                 match = re.sub(r"^0+", "", match)
+#                 try:
+#                     # Попытка парсинга номера с предположением, что он относится к Польше (код "PL")
+#                     parsed_number = phonenumbers.parse(match, "PL")
+#                     # Проверка валидности номера
+#                     if phonenumbers.is_valid_number(parsed_number):
+#                         # Преобразование номера в национальный формат
+#                         national_number = phonenumbers.format_number(
+#                             parsed_number, phonenumbers.PhoneNumberFormat.NATIONAL
+#                         )
+#                         # Удаление всех символов, кроме цифр, для чистого представления номера
+#                         clean_number = "".join(filter(str.isdigit, national_number))
+#                         phone_numbers.add(clean_number)
+#                     else:
+#                         invalid_numbers.append(original_match)
+#                 except NumberParseException:
+#                     # Добавление в список некорректных номеров при возникновении ошибки парсинга
+#                     invalid_numbers.append(original_match)
+
+#     return phone_numbers, invalid_numbers
 
 
 if __name__ == "__main__":
     # Запуск асинхронной функции
-    from asyncio import WindowsSelectorEventLoopPolicy
+    # from asyncio import WindowsSelectorEventLoopPolicy
 
-    # Установим политику цикла событий для Windows
-    asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-    asyncio.run(download_and_parse_xml())
+    # # Установим политику цикла событий для Windows
+    # asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
+    # asyncio.run(download_and_parse_xml())
 
     asyncio.run(get_html())
 
-    asyncio.run(parsing_page())
+    # asyncio.run(parsing_page())
