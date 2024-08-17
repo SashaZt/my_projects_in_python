@@ -535,6 +535,6 @@ if __name__ == "__main__":
     # asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
     # asyncio.run(download_and_parse_xml())
 
-    asyncio.run(get_html())
+    # asyncio.run(get_html())
 
-    # asyncio.run(parsing_page())
+    asyncio.run(parsing_page())

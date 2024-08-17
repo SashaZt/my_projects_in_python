@@ -49,9 +49,12 @@ def get_dir_json():
     - Создает поддиректории для каждого сайта в папке temp.
     - Сохраняет данные для каждого сайта в отдельный out1.json в соответствующей поддиректории.
     """
-    # Загружаем данные из out1.json
-    with open("out1.json", "r", encoding="utf-8") as file:
+
+    # Загружаем данные из out1.json с учетом BOM
+    with open("out1.json", "r", encoding="utf-8-sig") as file:
         data = json.load(file)
+
+    # Теперь данные загружены корректно
 
     # Определяем путь к временной директории
     temp_path = Path.cwd() / "temp"
