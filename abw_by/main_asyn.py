@@ -13,7 +13,10 @@ import aiofiles
 import glob
 import json
 import re
+import locale
 import datetime
+from dateutil import parser as date_parser
+
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -25,65 +28,126 @@ data_directory = current_directory / "data"
 html_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 cookies = {
-    "PHPSESSID": "61d10f9937ace73e3c3970f2b80e4608",
+    "_uid": "172406750548113",
+    "cookiePolicy": "%7B%22accepted%22%3Atrue%2C%22technical%22%3Atrue%2C%22statistics%22%3A%22true%22%2C%22marketing%22%3A%22true%22%2C%22expire%22%3A1755603507%7D",
 }
 
 headers = {
-    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-    "cache-control": "no-cache",
-    # 'cookie': 'PHPSESSID=61d10f9937ace73e3c3970f2b80e4608',
-    "dnt": "1",
-    "pragma": "no-cache",
-    "priority": "u=0, i",
-    "referer": "https://twojaoferta.com.pl/sitemap.xml",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    # 'Cookie': '_uid=172406750548113; cookiePolicy=%7B%22accepted%22%3Atrue%2C%22technical%22%3Atrue%2C%22statistics%22%3A%22true%22%2C%22marketing%22%3A%22true%22%2C%22expire%22%3A1755603507%7D',
+    "DNT": "1",
+    "Pragma": "no-cache",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     "sec-ch-ua": '"Not)A;Brand";v="99", "Google Chrome";v="127", "Chromium";v="127"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "document",
-    "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "same-origin",
-    "sec-fetch-user": "?1",
-    "upgrade-insecure-requests": "1",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
 }
 
 
-async def download_and_parse_xml():
-    url = "https://twojaoferta.com.pl/sitemap/sitemap_classified_0.xml"  # Здесь укажите вашу ссылку
-    output_csv = Path("data/urls.csv")
+async def fetch_and_parse_xml(session, url):
+    logger.info(f"Fetching and parsing XML from {url}")
+    response = await session.get(url)
+    response.raise_for_status()
+    logger.info(f"Successfully fetched XML from {url}")
+    return ET.fromstring(response.content)
 
-    # Получаем случайный прокси
-    chosen_proxy = get_random_proxy()
 
-    # Создаем асинхронную сессию
-    async with AsyncSession(proxy=chosen_proxy) as session:
-        # Скачивание XML файла
-        response = await session.get(url, cookies=cookies, headers=headers)
-        response.raise_for_status()  # проверка успешности запроса
+async def download_file(session, url, save_directory):
+    file_name = Path(url).name
+    save_path = save_directory / file_name
 
-        # Парсинг XML данных
-        root = ET.fromstring(response.content)
+    logger.info(f"Downloading file from {url} to {save_path}")
+    response = await session.get(url)
+    response.raise_for_status()
 
-        # Сбор всех URL из XML
-        urls = []
-        for url_element in root.findall(
+    async with aiofiles.open(save_path, "wb") as file:
+        await file.write(response.content)
+    logger.info(f"Successfully downloaded {url} to {save_path}")
+
+    return save_path
+
+
+async def process_sitemap(session, url, save_directory):
+    logger.info(f"Processing sitemap {url}")
+    root = await fetch_and_parse_xml(session, url)
+
+    sitemap_elements = root.findall(
+        ".//{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap"
+    )
+
+    downloaded_files = []
+
+    if sitemap_elements:
+        logger.info(f"Found {len(sitemap_elements)} sub-sitemaps in {url}")
+        for sitemap_element in sitemap_elements:
+            loc_element = sitemap_element.find(
+                "{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
+            )
+            if loc_element is not None:
+                child_sitemap_url = loc_element.text
+                logger.info(f"Processing child sitemap {child_sitemap_url}")
+                downloaded_files.extend(
+                    await process_sitemap(session, child_sitemap_url, save_directory)
+                )
+    else:
+        download_path = await download_file(session, url, save_directory)
+        downloaded_files.append(download_path)
+
+    return downloaded_files
+
+
+async def extract_urls_from_xml(file_path):
+    logger.info(f"Extracting URLs from {file_path}")
+    urls = []
+    async with aiofiles.open(file_path, "r", encoding="utf-8") as file:
+        content = await file.read()
+        root = ET.fromstring(content)
+        url_elements = root.findall(
             ".//{http://www.sitemaps.org/schemas/sitemap/0.9}url"
-        ):
+        )
+        for url_element in url_elements:
             loc_element = url_element.find(
                 "{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
             )
             if loc_element is not None:
                 urls.append(loc_element.text)
+    logger.info(f"Extracted {len(urls)} URLs from {file_path}")
+    return urls
 
-        # Запись URL в CSV файл с заголовком
-        with open(output_csv, "w", newline="") as csvfile:
+
+async def main():
+    url = "https://static.abw.by/sitemap/adverts.xml"
+    data_directory = Path("data_directory")
+    data_directory.mkdir(parents=True, exist_ok=True)
+
+    csv_file_path = Path("data/output.csv")
+    chosen_proxy = None  # Если прокси не используется, можно оставить None
+
+    async with AsyncSession(proxy=chosen_proxy) as session:
+        logger.info(f"Starting sitemap processing for {url}")
+        downloaded_files = await process_sitemap(session, url, data_directory)
+        logger.info(f"Downloaded {len(downloaded_files)} files")
+
+        all_urls = []
+        for file_path in downloaded_files:
+            urls = await extract_urls_from_xml(file_path)
+            all_urls.extend(urls)
+
+        logger.info(f"Writing {len(all_urls)} URLs to {csv_file_path}")
+        with open(csv_file_path, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.writer(csvfile)
-            # Записываем заголовок
             writer.writerow(["url"])
-            # Записываем сами URL
-            for url in urls:
+            for url in all_urls:
                 writer.writerow([url])
+        logger.info(f"Finished writing URLs to {csv_file_path}")
 
 
 # Функция для чтения прокси-серверов из файла
@@ -155,11 +219,19 @@ def get_successful_urls(csv_file_successful):
 
 # Обновленный код в функции fetch_url для правильной работы с прокси
 async def fetch_url(
-    url, proxies, headers, cookies, sem, count, csv_file_successful, successful_urls
+    url,
+    proxies,
+    headers,
+    cookies,
+    sem,
+    count,
+    csv_file_successful,
+    successful_urls,
+    url_id,
 ):
     async with sem:
         if url in successful_urls:
-            print(f"URL {url} already successfully downloaded, skipping.")
+            logger.info(f"URL {url} already successfully downloaded, skipping.")
             return
 
         for proxy in proxies:
@@ -172,26 +244,26 @@ async def fetch_url(
                     )
                     response.raise_for_status()
 
-                    src = response.text
-                    filename_html = Path(html_directory) / f"0{count}.html"
-                    with open(filename_html, "w", encoding="utf-8") as f:
-                        f.write(src)
+                    src = await response.text()
 
                     if response.status_code == 200:
                         # Если статус ответа 200, записываем URL в CSV успешных загрузок
                         await write_to_csv(csv_file_successful, [url])
-                        successful_urls.add(
-                            url
-                        )  # Добавляем URL в множество успешно загруженных
+                        await parsing(url_id, src, url, proxy, headers, cookies)
+                        successful_urls.add(url)
                         return
+                    else:
+                        logger.error(
+                            f"Unexpected status code {response.status_code} for {url}"
+                        )
 
                 except Exception as e:
-                    print(f"Failed to fetch {url} with proxy {proxy}: {e}")
+                    logger.error(f"Failed to fetch {url} with proxy {proxy}: {e}")
                     continue  # Переходим к следующему прокси
 
-            await asyncio.sleep(1)
+            await asyncio.sleep(10)
 
-        print(f"Failed to fetch {url} with all proxies.")
+        logger.error(f"Failed to fetch {url} with all proxies.")
 
 
 # Основная функция для распределения URL по прокси и запуска задач
@@ -199,7 +271,7 @@ async def get_html():
     tasks = []
     proxies = await load_proxies_curl_cffi()  # Загружаем список всех прокси
     sem = asyncio.Semaphore(10)  # Ограничение на 10 одновременно выполняемых задач
-    csv_file_path = Path("data/urls.csv")
+    csv_file_path = Path("data/output.csv")
     csv_file_successful = Path("data/urls_successful.csv")
 
     # Получение списка уже успешных URL
@@ -207,6 +279,7 @@ async def get_html():
 
     urls_df = pd.read_csv(csv_file_path)
     for count, url in enumerate(urls_df["url"], start=1):
+        url_id = url.split("/")[-1]
         tasks.append(
             fetch_url(
                 url,
@@ -217,56 +290,48 @@ async def get_html():
                 count,
                 csv_file_successful,
                 successful_urls,
+                url_id,
             )
         )
 
     await asyncio.gather(*tasks)
 
 
-# # Функция для выполнения запроса
-# async def fetch_url(url, proxy, headers, cookies, sem, count):
-#     async with sem:
-#         async with AsyncSession() as session:
-#             filename_html = Path(html_directory) / f"0{count}.html"
+async def get_number(url_id, proxy, headers, cookies):
+    url = f"https://b.abw.by/api/v2/adverts/{url_id}/phones"
 
-#             if not filename_html.exists():
-#                 try:
-#                     response = await session.get(
-#                         url, proxy=proxy, headers=headers, cookies=cookies
-#                     )
-#                     response.raise_for_status()
+    async with AsyncSession() as session:
+        response = await session.get(url, proxy=proxy, headers=headers, cookies=cookies)
+        response.raise_for_status()
+        logger.info(response.raise_for_status())
 
-#                     src = response.text
-#                     with open(filename_html, "w", encoding="utf-8") as f:
-#                         f.write(src)
-#                 except Exception as e:
-#                     print(f"Failed to fetch {url} with proxy {proxy}: {e}")
-#                 await asyncio.sleep(1)
+        # Извлекаем JSON из ответа
+        json_data = await response.json()
 
+        # Извлекаем необходимые данные
+        user_name = json_data.get("title")
+        phones = json_data.get("phones", [])
+        number = phones[0] if phones else None
 
-# # Основная функция для распределения URL по прокси и запуска задач
-# async def get_html():
+        logger.info(f"User name: {user_name}")
+        logger.info(f"Number: {number}")
 
-#     tasks = []
-#     proxies = load_proxies_curl_cffi()
-#     proxy_count = len(proxies)
-#     # Устанавливаем ограничение на количество одновременно выполняемых задач
-#     sem = asyncio.Semaphore(10)  # Ограничение на 100 одновременно выполняемых задач
-#     csv_file_path = Path("data/urls.csv")
-#     # Чтение CSV файла
-#     urls_df = pd.read_csv(csv_file_path)
-#     for count, url in enumerate(urls_df["url"], start=1):
-#         proxy = proxies[count % proxy_count]
-#         tasks.append(fetch_url(url, proxy, headers, cookies, sem, count))
-
-#     await asyncio.gather(*tasks)
+        return user_name, number
 
 
-async def write_to_result(all_datas, file_path="result.csv"):
-    async with aiofiles.open(file_path, mode="w", encoding="utf-8", newline="") as f:
-        for data in all_datas:
-            line = data + "\n"  # Добавляем новую строку в конец каждой строки данных
-            await f.write(line)
+async def parsing(url_id, src, url, proxy, headers, cookies):
+    try:
+        # Создаем объект HTMLParser
+        parser = HTMLParser(src)
+
+        # Получаем номер телефона и имя пользователя
+        number, user_name = await get_number(url_id, proxy, headers, cookies)
+
+        # Извлекаем данные с использованием соответствующих функций
+        publication_date = extract_publication_date(parser)
+        logger.info(f"Publication date for {url_id}: {publication_date}")
+    except Exception as e:
+        logger.error(f"Failed to parse HTML for {url_id}: {e}")
 
 
 async def parsing_page():
@@ -284,8 +349,11 @@ async def parsing_page():
 
         # Извлекаем данные с использованием соответствующих функций
         publication_date = extract_publication_date(parser)
+
         user_name, location = extract_user_info(parser)
+
         phone_number = extract_phone_number(parser)
+        logger.info(phone_number)
         # logger.info(phone_number)
         link = extract_meta_url(parser)
         mail_address = None
@@ -304,6 +372,13 @@ async def parsing_page():
     await write_to_result(all_datas)
 
 
+async def write_to_result(all_datas, file_path="result.csv"):
+    async with aiofiles.open(file_path, mode="w", encoding="utf-8", newline="") as f:
+        for data in all_datas:
+            line = data + "\n"  # Добавляем новую строку в конец каждой строки данных
+            await f.write(line)
+
+
 def extract_meta_url(parser: HTMLParser) -> str:
     """Извлекает URL из мета-тега в HTML."""
     meta_element = parser.css_first("head > meta:nth-child(25)")
@@ -318,14 +393,49 @@ def extract_meta_url(parser: HTMLParser) -> str:
 
 
 def extract_publication_date(parser: HTMLParser) -> str:
+    locale.setlocale(
+        locale.LC_TIME, "ru_RU.UTF-8"
+    )  # Устанавливаем локаль на русский язык
 
     date_element = parser.css_first(
-        "#classified__panel > p.small.text-muted > span:nth-child(1)"
+        "#__nuxt > div > div.application > div > div > main > div.page-loader > div:nth-child(2) > div.container > div > div > section.ch-content > div > div.ch-content-header-actions > p"
     )
-    if date_element:
-        date_element_text = date_element.text(strip=True).replace("Opublikowano: ", "")
 
-        return date_element_text
+    if date_element:
+        date_element_text = date_element.text(strip=True)
+
+        # Ищем дату между "Создано" и "/"
+        match = re.search(r"Создано\s+(.+?)\s+/", date_element_text)
+        if match:
+            date_str = match.group(1)
+
+            # Месяцы на русском языке и их числовые эквиваленты
+            months = {
+                "Января": "01",
+                "Февраля": "02",
+                "Марта": "03",
+                "Апреля": "04",
+                "Мая": "05",
+                "Июня": "06",
+                "Июля": "07",
+                "Августа": "08",
+                "Сентября": "09",
+                "Октября": "10",
+                "Ноября": "11",
+                "Декабря": "12",
+            }
+
+            # Разбиваем строку на компоненты
+            day, month, year = date_str.split()
+            month = months.get(month)
+
+            if month:
+                # Форматируем дату в нужный формат
+                formatted_date = f"{year}-{month}-{int(day):02d}"
+                return formatted_date
+            else:
+                return "Месяц не распознан"
+
     return "Дата не найдена"
 
 
@@ -338,24 +448,21 @@ def extract_user_info(parser: HTMLParser) -> dict:
         "user_name": None,
         "local": None,
     }
+    user_name = None
+    local = None
+    # Извлечение имени пользователя
+    user_element = parser.css_first(
+        "div.card-wrapper.card-wrapper__white.cover-desktop-aside > a.seller__link"
+    )
+    if user_element:
+        user_name = user_element.text(strip=True)
+    # Извлечение местоположения
+    location_row = parser.css_first(
+        "div > div > div.detail-content-cover.detail-content-cover--border > div.card-wrapper.card-wrapper__white.cover-desktop-aside > div.vin"
+    )
 
-    # Поиск таблицы с информацией
-    table_element = parser.css_first("table.table-borderless.table-sm")
-    if table_element:
-        # Извлечение имени пользователя
-        user_element = table_element.css_first("a.color-primary")
-        if user_element:
-            user_name = user_element.text(strip=True)
-        # Извлечение местоположения
-        location_row = table_element.css_first("table.table-borderless.table-sm")
-
-        if location_row:
-            location_element = location_row.css_first(
-                "tr:nth-child(2) > td:nth-child(2)"
-            )
-
-            if location_element:
-                local = location_element.text(strip=True)
+    if location_row:
+        local = location_row.text(strip=True)
 
     # logger.info(f"Извлеченная информация: {user_name, local}")
     return user_name, local
@@ -375,38 +482,27 @@ def extract_phone_number(parser: HTMLParser) -> str:
     phone_number_pattern_1 = re.compile(r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b")
     phone_number_pattern_2 = re.compile(r"\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b")
 
+    phone_numbers = set()
+
     for script_element in script_elements:
         script_text = script_element.text()
 
         # Сначала проверяем наличие строки `this.phone`
         if "this.phone" in script_text:
             # Поиск всех возможных телефонных номеров по всем паттернам
-            phone_numbers = []
-            phone_numbers += phone_pattern.findall(script_text)
-            phone_numbers += phone_number_pattern_1.findall(script_text)
-            phone_numbers += phone_number_pattern_2.findall(script_text)
+            phone_numbers.update(phone_pattern.findall(script_text))
+            phone_numbers.update(phone_number_pattern_1.findall(script_text))
+            phone_numbers.update(phone_number_pattern_2.findall(script_text))
 
-            # logger.info(phone_numbers)
-
-            if phone_numbers:
-                # Берем первый найденный номер и удаляем лишние символы и ведущие нули
-                phone_number = phone_numbers[0]
-                phone_number = re.sub(
-                    r"[^\d]", "", phone_number
-                )  # Удаление всех символов, кроме цифр
-                phone_number = re.sub(
-                    r"^0+", "", phone_number
-                )  # Удаление ведущих нулей
-                # Удаление префикса "48" в начале строки
-                phone_number = re.sub(r"^48", "", phone_number)
-                return phone_number
-                # # Проверка валидности номера с помощью phonenumbers
-                # valid_phone_number = validate_and_format_phone_number(phone_number)
-                # if valid_phone_number:
-                #     # logger.info(valid_phone_number)
-                #     return valid_phone_number
-                # else:
-                #     logger.warning(f"Найден невалидный номер: {phone_number}")
+    if phone_numbers:
+        # Если найдено несколько номеров, выбираем первый и очищаем его
+        phone_number = next(iter(phone_numbers))
+        phone_number = re.sub(
+            r"[^\d]", "", phone_number
+        )  # Удаление всех символов, кроме цифр
+        phone_number = re.sub(r"^0+", "", phone_number)  # Удаление ведущих нулей
+        phone_number = re.sub(r"^48", "", phone_number)  # Удаление префикса "48"
+        return phone_number
 
     return "Телефон не найден"
 
@@ -531,10 +627,10 @@ if __name__ == "__main__":
     # Запуск асинхронной функции
     # from asyncio import WindowsSelectorEventLoopPolicy
 
-    # # Установим политику цикла событий для Windows
+    # # # Установим политику цикла событий для Windows
     # asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-    asyncio.run(download_and_parse_xml())
+    # asyncio.run(main())
 
-    # asyncio.run(get_html())
+    asyncio.run(get_html())
 
-    asyncio.run(parsing_page())
+    # asyncio.run(parsing_page())
