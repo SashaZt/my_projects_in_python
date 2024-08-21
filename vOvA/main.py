@@ -1,6 +1,6 @@
 import re
 from bs4 import BeautifulSoup
-from transformers import MarianMTModel, MarianTokenizer
+from googletrans import Translator
 
 
 def extract_cyrillic_phrases_from_html(file_path: str):
@@ -36,20 +36,16 @@ def extract_cyrillic_phrases_from_html(file_path: str):
         if phrases:
             russian_phrases.append(" ".join(phrases))
 
-    return russian_phrases, soup, html_content
+    return russian_phrases, html_content
 
 
-def translate_phrases(phrases, model, tokenizer):
-    translated_phrases = []
+def translate_phrases(phrases):
+    translator = Translator()
+    translations = []
     for phrase in phrases:
-        # Подготовка текста для модели и перевод
-        translated = model.generate(
-            **tokenizer(phrase, return_tensors="pt", padding=True)
-        )
-        # Расшифровка и добавление перевода в список
-        translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
-        translated_phrases.append(translated_text)
-    return translated_phrases
+        translated = translator.translate(phrase, src="ru", dest="it")
+        translations.append(translated.text)
+    return translations
 
 
 def replace_and_save_html(file_path: str, phrases, translations, html_content):
@@ -67,15 +63,10 @@ def replace_and_save_html(file_path: str, phrases, translations, html_content):
 file_path = "index.html"
 
 # Шаг 1: Извлечение фраз
-phrases, soup, html_content = extract_cyrillic_phrases_from_html(file_path)
-
-# Настройка модели для перевода с русского на итальянский
-model_name = "Helsinki-NLP/opus-mt-ru-it"
-tokenizer = MarianTokenizer.from_pretrained(model_name)
-model = MarianMTModel.from_pretrained(model_name)
-
-# Шаг 2: Перевод фраз
-translations = translate_phrases(phrases, model, tokenizer)
-
-# Шаг 3: Замена фраз и сохранение переведенного HTML в тот же файл
+phrases, html_content = extract_cyrillic_phrases_from_html(file_path)
+print(phrases)
+# # Шаг 2: Перевод фраз
+translations = translate_phrases(phrases)
+print(translations)
+# # Шаг 3: Замена фраз и сохранение переведенного HTML в тот же файл
 replace_and_save_html(file_path, phrases, translations, html_content)
