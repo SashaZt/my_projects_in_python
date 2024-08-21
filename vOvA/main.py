@@ -1,6 +1,7 @@
 import re
 from bs4 import BeautifulSoup
 from googletrans import Translator
+from configuration.logger_setup import logger
 
 
 def extract_cyrillic_phrases_from_html(file_path: str):
@@ -11,30 +12,27 @@ def extract_cyrillic_phrases_from_html(file_path: str):
     # Парсинг HTML с использованием BeautifulSoup и парсера lxml
     soup = BeautifulSoup(html_content, "lxml")
 
-    # Извлечение текста из всех элементов
-    text = soup.get_text(separator=" ")
+    # Регулярное выражение для поиска фраз на кириллице (русский и украинский), включая апострофы
+    cyrillic_pattern = re.compile(r"[А-Яа-яЁёІіЇїЄєҐґ'ʼ]+")
 
-    # Очистка текста от лишних пробелов, оставляя переносы строк
-    text = re.sub(r"[^\S\r\n]+", " ", text).strip()
-
-    # Разделение текста на части по каждому переносу строки
-    blocks = re.split(r"\s*\n+\s*", text)
-
-    # Регулярное выражение для поиска фраз на кириллице (русский и украинский), включая апостроф
-    cyrillic_pattern = re.compile(r"[А-Яа-яЁёІіЇїЄєҐґ'ʼ\s,.!?-]+")
-
-    # Поиск всех фраз на кириллице и формирование списка фраз
+    # Список для хранения найденных фраз
     russian_phrases = []
-    for block in blocks:
-        phrases = cyrillic_pattern.findall(block)
-        # Фильтрация фраз: удаляем те, которые не содержат кириллицы
-        phrases = [
-            phrase.strip()
-            for phrase in phrases
-            if re.search(r"[А-Яа-яЁёІіЇїЄєҐґ]", phrase)
-        ]
-        if phrases:
-            russian_phrases.append(" ".join(phrases))
+
+    def extract_text_recursive(element):
+        # Извлечение текста из текущего элемента
+        if element.string:  # Если текущий элемент содержит текст напрямую
+            text = element.string.strip()
+            text = re.sub(r"\s+", " ", text).strip()
+            if cyrillic_pattern.search(text):
+                russian_phrases.append(text)
+        else:
+            # Если текст вложен в другие теги, продолжаем рекурсивный вызов
+            for child in element.children:
+                extract_text_recursive(child)
+
+    # Проход по всем нужным тегам
+    for element in soup.find_all(["p", "li", "div", "span", "a", "strong"]):
+        extract_text_recursive(element)
 
     return russian_phrases, html_content
 
@@ -44,6 +42,7 @@ def translate_phrases(phrases):
     translations = []
     for phrase in phrases:
         translated = translator.translate(phrase, src="ru", dest="it")
+        logger.info(translated)
         translations.append(translated.text)
     return translations
 
@@ -56,7 +55,7 @@ def replace_and_save_html(file_path: str, phrases, translations, html_content):
     # Сохранение измененного HTML-контента в тот же файл
     with open(file_path, "w", encoding="utf-8") as file:
         file.write(html_content)
-    print(f"Translated HTML content saved back to {file_path}")
+    logger.info(f"Translated HTML content saved back to {file_path}")
 
 
 # Основной код для выполнения всех шагов
@@ -64,9 +63,9 @@ file_path = "index.html"
 
 # Шаг 1: Извлечение фраз
 phrases, html_content = extract_cyrillic_phrases_from_html(file_path)
-print(phrases)
-# # Шаг 2: Перевод фраз
+# logger.info(phrases)
+# # # # Шаг 2: Перевод фраз
 translations = translate_phrases(phrases)
-print(translations)
-# # Шаг 3: Замена фраз и сохранение переведенного HTML в тот же файл
+# logger.info(translations)
+# # # # # Шаг 3: Замена фраз и сохранение переведенного HTML в тот же файл
 replace_and_save_html(file_path, phrases, translations, html_content)

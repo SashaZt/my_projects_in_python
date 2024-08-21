@@ -1,27 +1,37 @@
-import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import requests
-from pathlib import Path
+from phonenumbers import NumberParseException
 from configuration.logger_setup import logger
-import csv
-import xml.etree.ElementTree as ET
 from selectolax.parser import HTMLParser
-import re
+from mysql.connector import errorcode
+import xml.etree.ElementTree as ET
+from pathlib import Path
+import mysql.connector
+import phonenumbers
+import pandas as pd
+import threading
+import datetime
+import requests
+import random
 import locale
 import csv
-import pandas as pd
-import datetime
-import threading
+import re
 
+# Параметры подключения к базе данных
+config = {"user": "", "password": "", "host": "", "database": ""}
+
+belarus_phone_patterns = {
+    "full": r"\b(80\d{9}|375\d{9}|\d{9})\b",
+    "split": r"(375\d{9})",
+    "final": r"\b(\d{9})\b",
+    "codes": [375],
+}
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
 temp_directory = "temp"
 temp_path = current_directory / temp_directory
 data_directory = current_directory / "data"
-
 data_directory.mkdir(parents=True, exist_ok=True)
-
 
 cookies = {
     "_uid": "172406750548113",
@@ -260,57 +270,163 @@ def parsing(url_id, src, url, proxy, headers, cookies):
         mail_address = None
         phone_number = None
 
-        # Прямое извлечение данных из JSON (интеграция get_number)
-        number_url = f"https://b.abw.by/api/v2/adverts/{url_id}/phones"
-        proxies = {"http": proxy, "https": proxy} if proxy else None
+        with parsing_lock:
+            # Прямое извлечение данных из JSON (интеграция get_number)
+            number_url = f"https://b.abw.by/api/v2/adverts/{url_id}/phones"
+            proxies = {"http": proxy, "https": proxy} if proxy else None
 
-        try:
-            response = requests.get(
-                number_url, proxies=proxies, headers=headers, cookies=cookies
-            )
-            response.raise_for_status()
-            json_data = response.json()
-            user_name = json_data.get("title")
-            phones = json_data.get("phones", [])
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to fetch number for {url_id} with proxy {proxy}: {e}")
-            phones = []
+            try:
+                response = requests.get(
+                    number_url, proxies=proxies, headers=headers, cookies=cookies
+                )
+                response.raise_for_status()
+                json_data = response.json()
+                user_name = json_data.get("title")
+                phones = json_data.get("phones", [])
+            except requests.exceptions.RequestException as e:
+                logger.error(
+                    f"Failed to fetch number for {url_id} with proxy {proxy}: {e}"
+                )
+                phones = []
 
-        if not phones:
-            logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
+            if not phones:
+                logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
 
-        phone_numbers_extracted = extract_phone_numbers(phones)
-        if not phone_numbers_extracted:
-            logger.warning(f"Извлеченные номера телефонов пусты для URL: {url}")
+            # phone_numbers_extracted = extract_phone_numbers(phones)
+            # if not phone_numbers_extracted:
+            #     logger.warning(f"Извлеченные номера телефонов пусты для URL: {url}")
 
-        location = extract_user_info(parser)
-        if not location:
-            logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
-
-        publication_date = extract_publication_date(parser)
-        if not publication_date:
-            logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
-
-        if location and publication_date and phone_numbers_extracted:
-            for phone_number in phone_numbers_extracted:
-                data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-                with parsing_lock:
-                    write_to_csv(data, csv_file_path)
-            return True
-        else:
-            missing_data = []
+            location = extract_user_info(parser)
             if not location:
-                missing_data.append("location")
+                logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
+
+            publication_date = extract_publication_date(parser)
             if not publication_date:
-                missing_data.append("publication_date")
-            if not phone_numbers_extracted:
-                missing_data.append("phone_numbers")
+                logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
 
-            logger.error(
-                f"Отсутствуют необходимые данные для URL: {url}. Недостающие данные: {', '.join(missing_data)}"
-            )
-            return False
+            logger.info(f"| {url} | Номера - {phones} | Локация - {location} |")
 
+            data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
+            if location and publication_date and phones:
+                for phone_number in phones:
+                    data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
+                    write_to_csv(data, csv_file_path)
+                # return True
+            # else:
+            #     missing_data = []
+            #     if not location:
+            #         missing_data.append("location")
+            #     if not publication_date:
+            #         missing_data.append("publication_date")
+            #     if not phones:
+            #         missing_data.append("phone_numbers")
+
+            #     logger.error(
+            #         f"Отсутствуют необходимые данные для URL: {url}. Недостающие данные: {', '.join(missing_data)}"
+            #     )
+            #     # return False
+
+            # Разбиваем строку на переменные
+            _, location, timestamp, link, mail_address, time_posted = data.split(";")
+            date_part, time_part = timestamp.split(" ")
+
+            # Параметры для вставки в таблицу
+            site_id = 25  # id_site для 'https://abw.by/'
+
+            # Подключение к базе данных и запись данных
+            try:
+                cnx = mysql.connector.connect(**config)
+                cursor = cnx.cursor(
+                    buffered=True
+                )  # Используем buffered=True для извлечения всех результатов
+
+                insert_announcement = (
+                    "INSERT INTO ogloszenia (id_site, poczta, adres, data, czas, link_do_ogloszenia, time_posted) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                )
+
+                announcement_data = (
+                    site_id,
+                    mail_address,
+                    location,
+                    date_part,
+                    time_part,
+                    link,
+                    time_posted,
+                )
+
+                cursor.execute(insert_announcement, announcement_data)
+
+                cnx.commit()  # Убедитесь, что изменения зафиксированы, прежде чем получить id
+
+                # Получение id_ogloszenia с помощью SELECT-запроса
+                select_query = (
+                    "SELECT id_ogloszenia FROM ogloszenia "
+                    "WHERE id_site = %s AND poczta = %s AND adres = %s AND data = %s AND czas = %s AND link_do_ogloszenia = %s AND time_posted = %s"
+                )
+                cursor.execute(
+                    select_query,
+                    (
+                        site_id,
+                        mail_address,
+                        location,
+                        date_part,
+                        time_part,
+                        link,
+                        time_posted,
+                    ),
+                )
+
+                # Извлечение результата и проверка наличия данных
+                result = cursor.fetchone()
+                if result:
+                    id_ogloszenia = result[0]
+                else:
+                    print("Не удалось получить id_ogloszenia")
+                    # Пропустить обработку, если id не найден
+                    raise ValueError("Не удалось получить id_ogloszenia")
+
+                # Заполнение таблицы numbers, если номера телефонов присутствуют
+                if phones and id_ogloszenia:
+                    phone_numbers_extracted, invalid_numbers = extract_phone_numbers(
+                        phones
+                    )
+                    valid_numbers = [
+                        num
+                        for num in phone_numbers_extracted
+                        if re.match(belarus_phone_patterns["final"], num)
+                    ]
+                    if valid_numbers:
+                        clean_numbers = ", ".join(valid_numbers)
+                    else:
+                        clean_numbers = "invalid"
+
+                    insert_numbers = (
+                        "INSERT INTO numbers (id_ogloszenia, raw, correct) "
+                        "VALUES (%s, %s, %s)"
+                    )
+                    raw_numbers = ", ".join(phones)
+                    numbers_data = (id_ogloszenia, raw_numbers, clean_numbers)
+                    cursor.execute(insert_numbers, numbers_data)
+
+                    cnx.commit()
+                    print("Данные успешно добавлены в таблицы numbers и ogloszenia.")
+                else:
+                    print("Нет номеров телефонов для добавления в таблицу numbers.")
+
+            except mysql.connector.Error as err:
+                if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
+                    print("Ошибка доступа: Неверное имя пользователя или пароль")
+                elif err.errno == errorcode.ER_BAD_DB_ERROR:
+                    print("Ошибка базы данных: База данных не существует")
+                else:
+                    print(err)
+                return False
+            finally:
+                cursor.close()
+                cnx.close()
+                print("Соединение с базой данных закрыто.")
+                return True
     except Exception as e:
         logger.error(f"Ошибка при парсинге HTML для URL {url_id}: {e}")
         return False
@@ -323,6 +439,7 @@ def fetch_url(
     counter_error = 0  # Счетчик ошибок
 
     if url in successful_urls:
+        logger.info(f"| Объявление уже было обработано, пропускаем. |")
         return
 
     while proxies:
@@ -338,7 +455,7 @@ def fetch_url(
                 proxies=proxies_dict,
                 headers=headers,
                 cookies=cookies,
-                timeout=10,  # Тайм-аут для предотвращения зависания
+                timeout=60,  # Тайм-аут для предотвращения зависания
             )
             response.raise_for_status()
 
@@ -367,6 +484,7 @@ def fetch_url(
             return "Редирект"
 
         except (requests.exceptions.ProxyError, requests.exceptions.Timeout) as e:
+            proxies.remove(proxy)
             logger.error(f"Ошибка прокси или таймаут: {e}. Прокси удален: {proxy}")
             logger.info(f"Осталось прокси: {len(proxies)}")
 
@@ -414,41 +532,40 @@ def get_html(max_workers=10):
 """Проверяет валидность номера телефона и форматирует его."""
 
 
-def extract_phone_numbers(phones: list) -> list:
-    """Проверяет валидность каждого номера телефона и форматирует их, возвращая уникальные номера."""
-    patterns = [
-        re.compile(r"\+375(\d{9})"),  # Формат: +375299422341
-        re.compile(r"\d{3}\s\d{3}\s\d{3}"),  # Формат: 123 456 789
-        re.compile(r"\(\d{3}\)\s\d{3}\-\d{3}"),  # Формат: (123) 456-789
-        re.compile(r"\b\d[\d\s\(\)\-]{6,}\b"),  # Общий формат с минимальной длиной
-        re.compile(r"\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"),  # Формат: 123-456-789
-        re.compile(r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b"),  # Формат: 12 345 67 89
-        re.compile(
-            r"\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b"
-        ),  # Формат: +12 345 678 789
-    ]
-
-    unique_numbers = set()  # Используем множество для хранения уникальных номеров
-
-    for phone_number in phones:
-        for pattern in patterns:
-            if pattern.match(phone_number):
-                number = re.sub(
-                    r"[^\d]", "", phone_number
-                )  # Удаляем все символы, кроме цифр
-                number = re.sub(r"^0+", "", number)  # Удаляем ведущие нули
-                number = re.sub(
-                    r"^375", "375", number
-                )  # Преобразуем префикс в международный формат
-                unique_numbers.add(number)  # Добавляем номер в множество
-                break  # Если найдено совпадение, выходим из цикла
-
-    return list(unique_numbers)  # Преобразуем множество обратно в список для возврата
+def extract_phone_numbers(data):
+    phone_numbers = set()
+    invalid_numbers = []
+    phone_pattern = re.compile(
+        r"(\+375\d{9}|\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b)"
+    )
+    for entry in data:
+        if isinstance(entry, str):
+            matches = phone_pattern.findall(entry)
+            for match in matches:
+                original_match = match
+                match = re.sub(r"[^\d]", "", match)
+                match = re.sub(r"^0+", "", match)
+                try:
+                    parsed_number = phonenumbers.parse(match, "BY")
+                    # region = geocoder.description_for_number(parsed_number, "ru")  # Регион на русском языке
+                    # operator = carrier.name_for_number(parsed_number, "ru")  # Оператор на русском языке
+                    # print(f'parsed_number = {parsed_number} | Валид = {phonenumbers.is_valid_number(parsed_number)} | Регион = {region} | Оператор = {operator}')
+                    if phonenumbers.is_valid_number(parsed_number):
+                        # national_number = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.NATIONAL)
+                        national_number = str(parsed_number.national_number)
+                        national_number = re.sub(r"[^\d]", "", national_number)
+                        national_number = re.sub(r"^0+", "", national_number)
+                        clean_number = "".join(filter(str.isdigit, national_number))
+                        phone_numbers.add(clean_number)
+                    else:
+                        invalid_numbers.append(original_match)
+                except NumberParseException:
+                    invalid_numbers.append(original_match)
+    return phone_numbers, invalid_numbers
 
 
 # Извлечение местоположения
 def extract_user_info(parser: HTMLParser) -> dict:
-
     location = None
     # Извлечение местоположения
     location_row = parser.css_first(
@@ -513,7 +630,6 @@ def extract_publication_date(parser: HTMLParser) -> str:
 
 
 def get_number(url_id, proxy, headers, cookies):
-
     url = f"https://b.abw.by/api/v2/adverts/{url_id}/phones"
 
     # Настраиваем прокси для запроса, если он указан
@@ -536,5 +652,5 @@ def get_number(url_id, proxy, headers, cookies):
 
 
 if __name__ == "__main__":
-    main()  # Запускаем основную функцию при выполнении скрипта напрямую
+    # main()  # Запускаем основную функцию при выполнении скрипта напрямую
     get_html(max_workers=10)  # Устанавливаем количество потоков
