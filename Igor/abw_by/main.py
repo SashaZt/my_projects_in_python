@@ -1,8 +1,5 @@
 import random
-
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from phonenumbers.phonenumberutil import NumberParseException
-import phonenumbers
 import requests
 from pathlib import Path
 from configuration.logger_setup import logger
@@ -61,55 +58,93 @@ def load_proxies():
     return proxies
 
 
+class SitemapProcessor:
+    def __init__(self, session, save_directory):
+        self.session = session  # Используем requests.Session для повторного использования соединений
+        self.save_directory = (
+            save_directory  # Директория для сохранения загруженных файлов
+        )
+        self.downloaded_files = []  # Список загруженных файлов
+
+    def process_sitemap(self, url):
+        """Обрабатывает карту сайта, загружает файлы и рекурсивно обрабатывает дочерние карты."""
+        root = self.fetch_and_parse_xml(url)
+
+        sitemap_elements = root.findall(
+            ".//{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap"
+        )
+
+        if sitemap_elements:
+            logger.info(f"Found {len(sitemap_elements)} sub-sitemaps in {url}")
+            for sitemap_element in sitemap_elements:
+                loc_element = sitemap_element.find(
+                    "{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
+                )
+                if loc_element is not None:
+                    child_sitemap_url = loc_element.text
+                    self.process_sitemap(child_sitemap_url)
+        else:
+            download_path = self.download_file(url)
+            self.downloaded_files.append(download_path)
+
+    def download_file(self, url):
+        """Загружает файл по указанному URL и сохраняет его в заданную директорию."""
+        file_name = Path(url).name
+        save_path = self.save_directory / file_name
+
+        response = self.session.get(url)
+        response.raise_for_status()
+
+        with open(save_path, "wb") as file:
+            file.write(response.content)
+        logger.info(f"Successfully downloaded {url} to {save_path}")
+
+        return save_path
+
+    def fetch_and_parse_xml(self, url):
+        """Загружает XML файл по указанному URL и парсит его содержимое."""
+        response = self.session.get(url)
+        response.raise_for_status()
+        return ET.fromstring(response.content)
+
+    def extract_urls_from_files(self):
+        """Извлекает все URL из загруженных XML файлов."""
+        all_urls = []
+        for file_path in self.downloaded_files:
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+            urls = [
+                elem.text
+                for elem in root.findall(
+                    ".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
+                )
+            ]
+            all_urls.extend(urls)
+        return all_urls
+
+
 def main():
-    url = "https://static.abw.by/sitemap/adverts.xml"  # URL карты сайта
-    data_directory = Path(
-        "data_directory"
-    )  # Директория для сохранения загруженных файлов
-    data_directory.mkdir(
-        parents=True, exist_ok=True
-    )  # Создаем директорию, если она не существует
+    url = "https://static.abw.by/sitemap/adverts.xml"
+    data_directory = Path("data_directory")
+    data_directory.mkdir(parents=True, exist_ok=True)
 
-    csv_file_path = Path("data/output.csv")  # Путь для сохранения списка URL в CSV
-    chosen_proxy = None  # Если требуется прокси, можно его указать здесь
+    session = requests.Session()
+    processor = SitemapProcessor(session, data_directory)
 
-    session = (
-        requests.Session()
-    )  # Создаем сессию для повторного использования соединений
-    if chosen_proxy:
-        session.proxies = {
-            "http": chosen_proxy,
-            "https": chosen_proxy,
-        }  # Настраиваем прокси, если он указан
+    logger.info(f"Starting sitemap processing for {url}")
+    processor.process_sitemap(url)
+    logger.info(f"Downloaded {len(processor.downloaded_files)} files")
 
-    logger.info(
-        f"Starting sitemap processing for {url}"
-    )  # Логируем начало обработки карты сайта
-    downloaded_files = process_sitemap(
-        session, url, data_directory
-    )  # Обрабатываем карту сайта и загружаем файлы
-    logger.info(
-        f"Downloaded {len(downloaded_files)} files"
-    )  # Логируем количество загруженных файлов
+    all_urls = processor.extract_urls_from_files()
 
-    all_urls = []
-    for file_path in downloaded_files:
-        urls = extract_urls_from_xml(
-            file_path
-        )  # Извлекаем URL из каждого загруженного XML файла
-        all_urls.extend(urls)  # Добавляем извлеченные URL в общий список
-
-    logger.info(
-        f"Writing {len(all_urls)} URLs to {csv_file_path}"
-    )  # Логируем количество URL для записи в CSV
+    csv_file_path = Path("data/output.csv")
+    logger.info(f"Writing {len(all_urls)} URLs to {csv_file_path}")
     with open(csv_file_path, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["url"])  # Пишем заголовок столбца
+        writer.writerow(["url"])
         for url in all_urls:
-            writer.writerow([url])  # Записываем каждый URL в CSV файл
-    logger.info(
-        f"Finished writing URLs to {csv_file_path}"
-    )  # Логируем завершение записи в CSV
+            writer.writerow([url])
+    logger.info(f"Finished writing URLs to {csv_file_path}")
 
 
 def process_sitemap(session, url, save_directory):
@@ -183,7 +218,6 @@ def fetch_and_parse_xml(session, url):
 
 def extract_urls_from_xml(file_path):
     """Извлекает все URL из XML файла."""
-    logger.info(f"Extracting URLs from {file_path}")  # Логируем начало извлечения URL
     tree = ET.parse(file_path)  # Парсим XML файл
     root = tree.getroot()  # Получаем корневой элемент
     urls = [
@@ -220,34 +254,42 @@ def parsing(url_id, src, url, proxy, headers, cookies):
     parsing_lock = threading.Lock()  # Локальная блокировка
 
     try:
-        # logger.info(f"Начало парсинга URL: {url} с использованием прокси: {proxy}")
-
         parser = HTMLParser(src)
         location = None
         publication_date = None
         mail_address = None
         phone_number = None
 
-        # Извлечение данных из JSON
-        user_name, phones = get_number(url_id, proxy, headers, cookies)
+        # Прямое извлечение данных из JSON (интеграция get_number)
+        number_url = f"https://b.abw.by/api/v2/adverts/{url_id}/phones"
+        proxies = {"http": proxy, "https": proxy} if proxy else None
+
+        try:
+            response = requests.get(
+                number_url, proxies=proxies, headers=headers, cookies=cookies
+            )
+            response.raise_for_status()
+            json_data = response.json()
+            user_name = json_data.get("title")
+            phones = json_data.get("phones", [])
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to fetch number for {url_id} with proxy {proxy}: {e}")
+            phones = []
+
         if not phones:
-            pass
-            # logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
+            logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
 
         phone_numbers_extracted = extract_phone_numbers(phones)
         if not phone_numbers_extracted:
-            pass
-            # logger.warning(f"Извлеченные номера телефонов пусты для URL: {url}")
+            logger.warning(f"Извлеченные номера телефонов пусты для URL: {url}")
 
         location = extract_user_info(parser)
         if not location:
-            pass
-            # logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
+            logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
 
         publication_date = extract_publication_date(parser)
         if not publication_date:
-            pass
-            # logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
+            logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
 
         if location and publication_date and phone_numbers_extracted:
             for phone_number in phone_numbers_extracted:
@@ -288,8 +330,6 @@ def fetch_url(
 
         if not proxy:
             continue
-
-        # logger.info(f"Используем прокси: {proxy}")
         proxies_dict = {"http": proxy, "https": proxy}
 
         try:
@@ -313,7 +353,6 @@ def fetch_url(
 
             elif response.status_code == 403:
                 logger.error(f"Код ошибки 403. Прокси заблокирован: {proxy}")
-                proxies.remove(proxy)
                 counter_error += 1
                 logger.info(f"Осталось прокси: {len(proxies)}. Ошибок: {counter_error}")
                 if counter_error == 10:
@@ -322,7 +361,6 @@ def fetch_url(
 
             else:
                 logger.error(f"Unexpected status code {response.status_code} for {url}")
-                proxies.remove(proxy)  # Удаляем прокси при ошибке
 
         except requests.exceptions.TooManyRedirects:
             logger.error("Произошла ошибка: Exceeded 30 redirects. Пропуск URL.")
@@ -330,7 +368,6 @@ def fetch_url(
 
         except (requests.exceptions.ProxyError, requests.exceptions.Timeout) as e:
             logger.error(f"Ошибка прокси или таймаут: {e}. Прокси удален: {proxy}")
-            proxies.remove(proxy)
             logger.info(f"Осталось прокси: {len(proxies)}")
 
         except Exception as e:
@@ -372,16 +409,6 @@ def get_html(max_workers=10):
                 future.result()  # Получаем результат выполнения задачи
             except Exception as e:
                 logger.error(f"Error occurred: {e}")
-
-
-def write_result_to_csv(csv_file_path, data):
-    """Функция для записи данных в CSV-файл."""
-    with open(csv_file_path, mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(
-            file, delimiter=";", quotechar='"', quoting=csv.QUOTE_MINIMAL
-        )
-        # Записываем строку данных
-        writer.writerow(data)
 
 
 """Проверяет валидность номера телефона и форматирует его."""
@@ -501,8 +528,6 @@ def get_number(url_id, proxy, headers, cookies):
         # Извлекаем необходимые данные
         user_name = json_data.get("title")
         phones = json_data.get("phones", [])
-        # number = phones[0] if phones else None
-        # logger.info(phones)
         return user_name, phones
 
     except requests.exceptions.RequestException as e:
@@ -511,5 +536,5 @@ def get_number(url_id, proxy, headers, cookies):
 
 
 if __name__ == "__main__":
-    # main()  # Запускаем основную функцию при выполнении скрипта напрямую
+    main()  # Запускаем основную функцию при выполнении скрипта напрямую
     get_html(max_workers=10)  # Устанавливаем количество потоков
