@@ -13,9 +13,13 @@ import csv
 import pandas as pd
 import datetime
 import threading
+import requests
+import gzip
+import shutil
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from itertools import cycle
 
-# Создаем глобальную блокировку
-write_lock = threading.Lock()
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -26,10 +30,12 @@ data_directory = current_directory / "data"
 
 html_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
+# Создаем глобальную блокировку
+write_lock = threading.Lock()
 
 cookies = {
-    "_uid": "172406750548113",
-    "cookiePolicy": "%7B%22accepted%22%3Atrue%2C%22technical%22%3Atrue%2C%22statistics%22%3A%22true%22%2C%22marketing%22%3A%22true%22%2C%22expire%22%3A1755603507%7D",
+    "stid": "9ddfc9584e848b034a08d6194dc885a1297a2dc80e523a4a1577b1cda945effb",
+    "ouid": "snyBDmbDM0tWegvsAyl/Ag==",
 }
 
 headers = {
@@ -37,34 +43,21 @@ headers = {
     "Accept-Language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
     "Cache-Control": "no-cache",
     "Connection": "keep-alive",
-    # 'Cookie': '_uid=172406750548113; cookiePolicy=%7B%22accepted%22%3Atrue%2C%22technical%22%3Atrue%2C%22statistics%22%3A%22true%22%2C%22marketing%22%3A%22true%22%2C%22expire%22%3A1755603507%7D',
-    "DNT": "1",
-    "Pragma": "no-cache",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-    "sec-ch-ua": '"Not)A;Brand";v="99", "Google Chrome";v="127", "Chromium";v="127"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
 }
 
 """Читает и форматирует прокси-серверы из файла."""
 
 
-def load_proxies_curl_cffi():
+def load_proxies():
     proxy_file_path = Path("configuration/proxies_with_auth.txt")
-    # Чтение файла с прокси-серверами
     with open(proxy_file_path, "r") as f:
         raw_proxies = f.readlines()
 
     formatted_proxies = []
     for proxy in raw_proxies:
-        proxy = proxy.strip()  # Убираем лишние пробелы и символы новой строки
+        proxy = proxy.strip()
         if proxy:
-            # Проверяем и добавляем схему (http:// или https://) к прокси
             if not proxy.startswith("http://") and not proxy.startswith("https://"):
                 proxy = f"http://{proxy}"
             formatted_proxies.append(proxy)
@@ -72,141 +65,80 @@ def load_proxies_curl_cffi():
     return formatted_proxies
 
 
-def main():
-    url = "https://static.abw.by/sitemap/adverts.xml"  # URL карты сайта
-    data_directory = Path(
-        "data_directory"
-    )  # Директория для сохранения загруженных файлов
-    data_directory.mkdir(
+def download_and_extract_gz(url, output_gz_file, output_xml_file, proxies=None):
+    proxy_pool = None
+    if proxies:
+        proxy_pool = cycle(proxies)  # Циклический итератор для прокси
+
+    while True:
+        try:
+            proxy = next(proxy_pool) if proxy_pool else None
+            proxy_dict = {"http": proxy, "https": proxy} if proxy else None
+
+            response = requests.get(url, stream=True, proxies=proxy_dict)
+            if response.status_code == 200:
+                with open(output_gz_file, "wb") as f:
+                    f.write(response.content)
+                break  # Успешно скачали файл, выходим из цикла
+            else:
+                logger.error(
+                    f"Не удалось скачать файл через {proxy}, статус код: {response.status_code}"
+                )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Ошибка при использовании прокси {proxy}: {e}")
+            if not proxy_pool:
+                raise  # Если нет прокси, выходим с ошибкой
+
+    with gzip.open(output_gz_file, "rb") as f_in:
+        with open(output_xml_file, "wb") as f_out:
+            shutil.copyfileobj(f_in, f_out)
+
+
+def parse_xml_for_links(xml_file):
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+
+    links = [url.find("loc").text for url in root.findall("url")]
+    return links
+
+
+def save_links_to_csv(links, output_csv_file):
+    output_csv_file.parent.mkdir(
         parents=True, exist_ok=True
-    )  # Создаем директорию, если она не существует
-
-    csv_file_path = Path("data/output.csv")  # Путь для сохранения списка URL в CSV
-    chosen_proxy = None  # Если требуется прокси, можно его указать здесь
-
-    session = (
-        requests.Session()
-    )  # Создаем сессию для повторного использования соединений
-    if chosen_proxy:
-        session.proxies = {
-            "http": chosen_proxy,
-            "https": chosen_proxy,
-        }  # Настраиваем прокси, если он указан
-
-    logger.info(
-        f"Starting sitemap processing for {url}"
-    )  # Логируем начало обработки карты сайта
-    downloaded_files = process_sitemap(
-        session, url, data_directory
-    )  # Обрабатываем карту сайта и загружаем файлы
-    logger.info(
-        f"Downloaded {len(downloaded_files)} files"
-    )  # Логируем количество загруженных файлов
-
-    all_urls = []
-    for file_path in downloaded_files:
-        urls = extract_urls_from_xml(
-            file_path
-        )  # Извлекаем URL из каждого загруженного XML файла
-        all_urls.extend(urls)  # Добавляем извлеченные URL в общий список
-
-    logger.info(
-        f"Writing {len(all_urls)} URLs to {csv_file_path}"
-    )  # Логируем количество URL для записи в CSV
-    with open(csv_file_path, "w", newline="", encoding="utf-8") as csvfile:
+    )  # Создаем директории, если их нет
+    with open(output_csv_file, mode="w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["url"])  # Пишем заголовок столбца
-        for url in all_urls:
-            writer.writerow([url])  # Записываем каждый URL в CSV файл
-    logger.info(
-        f"Finished writing URLs to {csv_file_path}"
-    )  # Логируем завершение записи в CSV
+        writer.writerow(["URL"])  # Заголовок CSV файла
+        for link in links:
+            writer.writerow([link])
 
 
-def process_sitemap(session, url, save_directory):
-    """Обрабатывает карту сайта, загружает файлы и рекурсивно обрабатывает дочерние карты."""
-    logger.info(f"Processing sitemap {url}")  # Логируем начало обработки карты сайта
-    root = fetch_and_parse_xml(session, url)  # Загружаем и парсим XML
+def main():
+    url = "https://ab.onliner.by/sitemap/cars-1.xml.gz"
+    output_gz_file = Path("data/cars-1.xml.gz")
+    output_xml_file = Path("data/cars-1.xml")
 
-    sitemap_elements = root.findall(
-        ".//{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap"
-    )  # Ищем все элементы sitemaps в XML
+    proxies = load_proxies()  # Загружаем прокси
 
-    downloaded_files = []
+    download_and_extract_gz(url, output_gz_file, output_xml_file, proxies)
 
-    if sitemap_elements:
-        logger.info(
-            f"Found {len(sitemap_elements)} sub-sitemaps in {url}"
-        )  # Логируем количество найденных под-карт
-        for sitemap_element in sitemap_elements:
-            loc_element = sitemap_element.find(
-                "{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
-            )  # Извлекаем URL под-карты
-            if loc_element is not None:
-                child_sitemap_url = loc_element.text  # Получаем текстовое значение URL
-                logger.info(
-                    f"Processing child sitemap {child_sitemap_url}"
-                )  # Логируем обработку под-карты
-                downloaded_files.extend(
-                    process_sitemap(session, child_sitemap_url, save_directory)
-                )  # Рекурсивно обрабатываем под-карту
-    else:
-        download_path = download_file(
-            session, url, save_directory
-        )  # Загружаем файл, если под-карт нет
-        downloaded_files.append(
-            download_path
-        )  # Добавляем путь загруженного файла в список
+    links = parse_xml_for_links(output_xml_file)
 
-    return downloaded_files  # Возвращаем список загруженных файлов
+    for link in links:
+        logger.info(link)
 
 
-def download_file(session, url, save_directory):
-    """Загружает файл по указанному URL и сохраняет его в заданную директорию."""
-    file_name = Path(url).name  # Извлекаем имя файла из URL
-    save_path = save_directory / file_name  # Определяем путь для сохранения файла
+"""
+___________________________________________________________________________________________
 
-    logger.info(
-        f"Downloading file from {url} to {save_path}"
-    )  # Логируем начало загрузки
-    response = session.get(url)  # Выполняем HTTP-запрос для загрузки файла
-    response.raise_for_status()  # Проверяем успешность запроса
-
-    with open(save_path, "wb") as file:
-        file.write(response.content)  # Сохраняем содержимое файла
-    logger.info(
-        f"Successfully downloaded {url} to {save_path}"
-    )  # Логируем успешную загрузку
-
-    return save_path  # Возвращаем путь к загруженному файлу
+"""
 
 
-def fetch_and_parse_xml(session, url):
-    """Загружает XML файл по указанному URL и парсит его содержимое."""
-    logger.info(
-        f"Fetching and parsing XML from {url}"
-    )  # Логируем начало загрузки и парсинга XML
-    response = session.get(url)  # Выполняем HTTP-запрос для загрузки XML файла
-    response.raise_for_status()  # Проверяем успешность запроса
-    logger.info(f"Successfully fetched XML from {url}")  # Логируем успешную загрузку
-    return ET.fromstring(response.content)  # Парсим XML и возвращаем корневой элемент
-
-
-def extract_urls_from_xml(file_path):
-    """Извлекает все URL из XML файла."""
-    logger.info(f"Extracting URLs from {file_path}")  # Логируем начало извлечения URL
-    tree = ET.parse(file_path)  # Парсим XML файл
-    root = tree.getroot()  # Получаем корневой элемент
-    urls = [
-        elem.text
-        for elem in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
-    ]  # Извлекаем все элементы <loc> и получаем их текстовое значение (URL)
-    return urls  # Возвращаем список URL
-
-
-def write_to_csv(data, filename):
-    with open(filename, "a", encoding="utf-8") as f:
-        f.write(f"{data}\n")
+def write_to_csv(file_path, data):
+    """Записывает данные в CSV-файл."""
+    with open(file_path, mode="a", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(data)
 
 
 def get_successful_urls(csv_file_successful):
@@ -243,11 +175,11 @@ def fetch_url(
             src = response.text
 
             if response.status_code == 200:
+                # Если статус ответа 200, записываем URL в CSV успешных загрузок
+                write_to_csv(csv_file_successful, [url])
                 # Парсим HTML и извлекаем данные
                 parsing(url_id, src, url, proxy, headers, cookies)
                 successful_urls.add(url)
-                # Если данные успешно обработны, записываем URL в CSV успешных загрузок
-                write_to_csv(url, csv_file_successful)
                 return
             else:
                 logger.error(f"Unexpected status code {response.status_code} for {url}")
@@ -298,26 +230,30 @@ def parsing(url_id, src, url, proxy, headers, cookies):
     try:
         # Создаем объект HTMLParser для парсинга HTML-контента
         parser = HTMLParser(src)
-        location = None
-        publication_date = None
+        time_posted = datetime.datetime.now().strftime("%Y-%m-%d")
         mail_address = None
-        phone_number = None
 
         # Получаем номер телефона и имя пользователя с помощью синхронной функции get_number
         user_name, phones = get_number(url_id, proxy, headers, cookies)
-        phone_numbers_extracted = extract_phone_numbers(
-            phones
-        )  # Получаем список номеров
+        phone_numbers_extracted = extract_phone_numbers(phones)
         location = extract_user_info(parser)
 
         # Извлекаем дату публикации с использованием соответствующей функции
         publication_date = extract_publication_date(parser)
 
-        # Если phone_numbers_extracted содержит более одного номера, разделяем данные
-        for phone_number in phone_numbers_extracted:
-            data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-            with write_lock:
-                write_to_csv(data, csv_file_path)
+        # Формируем строку данных для записи в CSV
+        data = [
+            phone_numbers_extracted,
+            location,
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            url,
+            mail_address,
+            time_posted,
+        ]
+
+        # Записываем данные в CSV с использованием блокировки
+        with write_lock:
+            write_result_to_csv(csv_file_path, data)
 
     except Exception as e:
         logger.error(f"Failed to parse HTML for {url_id}: {e}")
@@ -336,8 +272,10 @@ def write_result_to_csv(csv_file_path, data):
 """Проверяет валидность номера телефона и форматирует его."""
 
 
-def extract_phone_numbers(phones: list) -> list:
-    """Проверяет валидность каждого номера телефона и форматирует их, возвращая уникальные номера."""
+def extract_phone_numbers(phone_numbers: list) -> str:
+    """Проверяет валидность каждого номера телефона в списке и форматирует их."""
+
+    # Шаблоны регулярных выражений для поиска и извлечения номеров телефонов
     patterns = [
         re.compile(r"\+375(\d{9})"),  # Формат: +375299422341
         re.compile(r"\d{3}\s\d{3}\s\d{3}"),  # Формат: 123 456 789
@@ -352,20 +290,58 @@ def extract_phone_numbers(phones: list) -> list:
 
     unique_numbers = set()  # Используем множество для хранения уникальных номеров
 
-    for phone_number in phones:
+    # Проходим по каждому номеру в списке phone_numbers
+    for phone_number in phone_numbers:
         for pattern in patterns:
-            if pattern.match(phone_number):
+            match = pattern.match(phone_number)
+            if match:
+                # Очищаем найденный номер и добавляем его в множество уникальных номеров
                 number = re.sub(
                     r"[^\d]", "", phone_number
-                )  # Удаляем все символы, кроме цифр
-                number = re.sub(r"^0+", "", number)  # Удаляем ведущие нули
-                number = re.sub(
-                    r"^375", "375", number
-                )  # Преобразуем префикс в международный формат
+                )  # Удаление всех символов, кроме цифр
+                number = re.sub(r"^0+", "", number)  # Удаление ведущих нулей
+                number = re.sub(r"^375", "", number)  # Удаление префикса "375"
                 unique_numbers.add(number)  # Добавляем номер в множество
-                break  # Если найдено совпадение, выходим из цикла
+                break  # Если номер подошел под один паттерн, прекращаем дальнейшие проверки
 
-    return list(unique_numbers)  # Преобразуем множество обратно в список для возврата
+    if unique_numbers:
+        # Возвращаем строку, содержащую все уникальные номера, разделенные запятыми
+        clean_numbers = ", ".join(
+            sorted(unique_numbers)
+        )  # Сортируем для удобства чтения
+        logger.info(clean_numbers)
+        return clean_numbers
+
+    return "Телефоны не найдены"
+
+
+# def extract_phone_numbers(data: str) -> str:
+#     phone_numbers = set()
+#     invalid_numbers = []
+#     phone_pattern = re.compile(
+#         r"\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"
+#     )
+#     for entry in data:
+#         if isinstance(entry, str):
+#             matches = phone_pattern.findall(entry)
+#             for match in matches:
+#                 original_match = match
+#                 match = re.sub(r"[^\d]", "", match)
+#                 match = re.sub(r"^0+", "", match)
+#                 try:
+#                     parsed_number = phonenumbers.parse(match, "BY")
+#                     if phonenumbers.is_valid_number(parsed_number):
+#                         national_number = phonenumbers.format_number(
+#                             parsed_number, phonenumbers.PhoneNumberFormat.NATIONAL
+#                         )
+#                         clean_number = "".join(filter(str.isdigit, national_number))
+#                         phone_numbers.add(clean_number)
+#                     else:
+#                         invalid_numbers.append(original_match)
+#                 except NumberParseException:
+#                     invalid_numbers.append(original_match)
+#     logger.info(phone_numbers)
+#     return phone_numbers, invalid_numbers
 
 
 # Извлечение местоположения
@@ -461,4 +437,4 @@ def get_number(url_id, proxy, headers, cookies):
 
 if __name__ == "__main__":
     main()  # Запускаем основную функцию при выполнении скрипта напрямую
-    get_html(max_workers=10)  # Устанавливаем количество потоков
+    # get_html(max_workers=10)  # Устанавливаем количество потоков

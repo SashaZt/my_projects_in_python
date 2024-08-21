@@ -14,8 +14,6 @@ import pandas as pd
 import datetime
 import threading
 
-# Создаем глобальную блокировку
-write_lock = threading.Lock()
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -26,6 +24,9 @@ data_directory = current_directory / "data"
 
 html_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
+
+# Создаем глобальную блокировку
+write_lock = threading.Lock()
 
 cookies = {
     "_uid": "172406750548113",
@@ -202,6 +203,12 @@ def extract_urls_from_xml(file_path):
         for elem in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc")
     ]  # Извлекаем все элементы <loc> и получаем их текстовое значение (URL)
     return urls  # Возвращаем список URL
+
+
+"""
+___________________________________________________________________________________________
+
+"""
 
 
 def write_to_csv(data, filename):
@@ -457,6 +464,11 @@ def get_number(url_id, proxy, headers, cookies):
     except requests.exceptions.RequestException as e:
         logger.error(f"Failed to fetch number for {url_id} with proxy {proxy}: {e}")
         return None, None
+
+"""_______________________________________________________________________________________"""
+
+
+
 
 
 if __name__ == "__main__":

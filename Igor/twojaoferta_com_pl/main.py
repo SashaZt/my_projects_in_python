@@ -284,23 +284,27 @@ async def parsing_page():
 
         # Извлекаем данные с использованием соответствующих функций
         publication_date = extract_publication_date(parser)
+        logger.info(publication_date)
+        exit()
         user_name, location = extract_user_info(parser)
         phone_number = extract_phone_number(parser)
         # logger.info(phone_number)
         link = extract_meta_url(parser)
         mail_address = None
-        data_dict_ = {
-            "date": publication_date,
-            "user_name": user_name,
-            "location": location,
-            "phone_number": phone_number,
-            "link": link,
-            "mail_address": mail_address,
-            "time_posted": time_posted,
-        }
+        for phone_number in phone_number:
+            # logger.info(phone_number)
+            data = [
+                publication_date,
+                phone_number,  # Один номер телефона
+                location,
+                datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                link,
+                mail_address,
+                time_posted,
+            ]
 
-        data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{link};{mail_address};{time_posted}'
-        all_datas.append(data)
+            datas = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{link};{mail_address};{publication_date}'
+            all_datas.append(data)
     await write_to_result(all_datas)
 
 
@@ -318,14 +322,21 @@ def extract_meta_url(parser: HTMLParser) -> str:
 
 
 def extract_publication_date(parser: HTMLParser) -> str:
-
     date_element = parser.css_first(
         "#classified__panel > p.small.text-muted > span:nth-child(1)"
     )
     if date_element:
         date_element_text = date_element.text(strip=True).replace("Opublikowano: ", "")
+        logger.info(date_element_text)
 
-        return date_element_text
+        # Преобразование строки в объект datetime
+        publication_date_obj = datetime.strptime(date_element_text, "%d-%m-%Y")
+
+        # Преобразование объекта datetime в строку в нужном формате
+        publication_date = publication_date_obj.strftime("%Y-%m-%d")
+
+        return publication_date
+
     return "Дата не найдена"
 
 
@@ -361,54 +372,51 @@ def extract_user_info(parser: HTMLParser) -> dict:
     return user_name, local
 
 
-def extract_phone_number(parser: HTMLParser) -> str:
-    """Извлекает номер телефона из JavaScript кода в HTML и проверяет его валидность."""
-    script_elements = parser.css("script")
+def extract_phone_number(parser: HTMLParser) -> list:
+    """Извлекает номера телефонов из JavaScript кода в HTML и проверяет их валидность."""
 
-    # Шаблон регулярного выражения для поиска телефонных номеров
-    phone_pattern = re.compile(
-        r"\d{3}\s\d{3}\s\d{3}|"  # Формат: 123 456 789
-        r"\(\d{3}\)\s\d{3}\-\d{3}|"  # Формат: (123) 456-789
-        r"\b\d[\d\s\(\)\-]{6,}\b|"  # Общий формат с минимальной длиной
-        r"\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"  # Формат: 123-456-789 (разделенные символами)
-    )
-    phone_number_pattern_1 = re.compile(r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b")
-    phone_number_pattern_2 = re.compile(r"\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b")
+    # Шаблоны регулярных выражений для поиска телефонных номеров
+    patterns = [
+        re.compile(r"\+375(\d{9})"),  # Формат: +375299422341
+        re.compile(r"\d{3}\s\d{3}\s\d{3}"),  # Формат: 123 456 789
+        re.compile(r"\(\d{3}\)\s\d{3}\-\d{3}"),  # Формат: (123) 456-789
+        re.compile(r"\b\d[\d\s\(\)\-]{6,}\b"),  # Общий формат с минимальной длиной
+        re.compile(r"\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"),  # Формат: 123-456-789
+        re.compile(r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b"),  # Формат: 12 345 67 89
+        re.compile(
+            r"\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b"
+        ),  # Формат: +12 345 678 789
+    ]
+
+    unique_numbers = set()  # Используем множество для хранения уникальных номеров
+
+    script_elements = parser.css("script")
 
     for script_element in script_elements:
         script_text = script_element.text()
 
-        # Сначала проверяем наличие строки `this.phone`
+        # Проверка на наличие строки `this.phone`
         if "this.phone" in script_text:
-            # Поиск всех возможных телефонных номеров по всем паттернам
-            phone_numbers = []
-            phone_numbers += phone_pattern.findall(script_text)
-            phone_numbers += phone_number_pattern_1.findall(script_text)
-            phone_numbers += phone_number_pattern_2.findall(script_text)
+            # Поиск всех возможных телефонных номеров по паттернам
+            for pattern in patterns:
+                phone_numbers = pattern.findall(script_text)
 
-            # logger.info(phone_numbers)
+                for phone_number in phone_numbers:
+                    # Очистка найденного номера
+                    phone_number = re.sub(
+                        r"[^\d]", "", phone_number
+                    )  # Удаление всех символов, кроме цифр
+                    phone_number = re.sub(
+                        r"^0+", "", phone_number
+                    )  # Удаление ведущих нулей
+                    phone_number = re.sub(
+                        r"^48", "", phone_number
+                    )  # Удаление префикса "48"
 
-            if phone_numbers:
-                # Берем первый найденный номер и удаляем лишние символы и ведущие нули
-                phone_number = phone_numbers[0]
-                phone_number = re.sub(
-                    r"[^\d]", "", phone_number
-                )  # Удаление всех символов, кроме цифр
-                phone_number = re.sub(
-                    r"^0+", "", phone_number
-                )  # Удаление ведущих нулей
-                # Удаление префикса "48" в начале строки
-                phone_number = re.sub(r"^48", "", phone_number)
-                return phone_number
-                # # Проверка валидности номера с помощью phonenumbers
-                # valid_phone_number = validate_and_format_phone_number(phone_number)
-                # if valid_phone_number:
-                #     # logger.info(valid_phone_number)
-                #     return valid_phone_number
-                # else:
-                #     logger.warning(f"Найден невалидный номер: {phone_number}")
+                    # Добавление уникального номера в множество
+                    unique_numbers.add(phone_number)
 
-    return "Телефон не найден"
+    return list(unique_numbers)
 
     # # Если `this.phone` не найден, ищем числовые последовательности по основному паттерну
     # potential_numbers = phone_pattern.findall(script_text)
@@ -533,7 +541,7 @@ if __name__ == "__main__":
 
     # # Установим политику цикла событий для Windows
     # asyncio.set_event_loop_policy(WindowsSelectorEventLoopPolicy())
-    asyncio.run(download_and_parse_xml())
+    # asyncio.run(download_and_parse_xml())
 
     # asyncio.run(get_html())
 

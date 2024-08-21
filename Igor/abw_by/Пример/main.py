@@ -30,15 +30,20 @@ polish_phone_patterns = {
     "codes": [48]
 }
 
+# Файл для хранения ссылок
 links_file = f'links_file.txt'
+# Объект Lock для синхронизации потоков
 lock = Lock()
+# Константы для форматирования текста в консоли
 RED = "\033[31m"
 RESET = "\033[0m"
 
+# Функция для записи данных в файл
 def write_data(data, filename):
     with open(filename, 'a', encoding='utf-8') as f:
         f.write(f"{data}\n")
 
+# Функция для извлечения номеров телефонов из текста
 def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
@@ -62,15 +67,19 @@ def extract_phone_numbers(data):
                     invalid_numbers.append(original_match)
     return phone_numbers, invalid_numbers
 
+# Функция для получения HTML-кода страницы по URL
 def get_url(url):
     counter_error = 0
 
     print(f'{datetime.datetime.now().strftime("%H:%M:%S")} - Получение страницы {url}.')
 
+    # Генерация случайного User-Agent
     ua = UserAgent()
 
+    # Загрузка списка прокси из файла
     proxies = [line.strip() for line in open('/home/parsing/1000 ip.txt', 'r', encoding='utf-8')]
 
+    # Пока есть доступные прокси, пытаемся загрузить страницу
     while proxies:
         if len(proxies) > 0:
             proxy = random.choice(proxies)
@@ -90,23 +99,20 @@ def get_url(url):
                 'User-Agent': ua.random,
             }
 
+            # Отправка GET-запроса на сайт
             response = requests.get(
                 url=url,
                 timeout=60,
-                # cookies=cookies,
                 headers=headers,
                 proxies=proxies_dict,
-                # allow_redirects=True,
             )
 
-            # if response.history:
-            #     print(f'{datetime.datetime.now().strftime("%H:%M:%S")} - Запрос был перенаправлен.')
-            #     return 'Редирект'
-            
+            # Если ответ успешный (200), возвращаем HTML-код
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
                 return soup
             elif response.status_code == 403:
+                # Если код ошибки 403, удаляем прокси и пробуем другой
                 print(f'{datetime.datetime.now().strftime("%H:%M:%S")} - Код ошибки 403. Сайт нас подрезал.')
                 proxies.remove(proxy)
                 print(proxy)
@@ -130,6 +136,7 @@ def get_url(url):
 
     return None
 
+# Функция для получения информации о странице и обработке найденных ссылок
 def get_info(url, filename, links_counter_file, thread_id, lock):
     print(f'{datetime.datetime.now().strftime("%H:%M:%S")} - Обрабатывается категория {url} | (Поток -> {thread_id})')
     print(f'{datetime.datetime.now().strftime("%H:%M:%S")} - Получение следующей страницы | (Поток -> {thread_id})')
@@ -145,6 +152,7 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
     
     next_page_link = None
 
+    # Поиск ссылки на следующую страницу
     next_page_element = soup.find('a', class_='pagination__nextPage')
     if next_page_element and 'href' in next_page_element.attrs:
         next_page_link = next_page_element['href']
@@ -152,19 +160,18 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
         
     links = set()
 
+    # Извлечение всех ссылок на объявления
     for element in soup.find_all('a', class_='teaserLink'):
         if 'href' in element.attrs:
             links.add(element['href'])
 
     with lock:
+        # Чтение существующих ссылок из файла, чтобы избежать дублирования
         if os.path.exists(links_file):
             with open(links_file, 'r', encoding='utf-8') as file:
                 existing_links = set(file.read().splitlines())
             links.difference_update(existing_links)
             
-    # if len(links) == 0:
-    #     return None
-
     for link in links:
         print(f'{datetime.datetime.now().strftime("%H:%M:%S")} - Обрабатывается объявление {link}')
 
@@ -177,11 +184,13 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
         if soup is None:
             continue
 
+        # Инициализация переменных для хранения данных объявления
         location = None
         time_posted = None
         mail_address = None
         phone_numbers = set()
 
+        # Извлечение данных из HTML-кода объявления
         with lock:
             relative_box = soup.find('div', class_='offer__relativeBox')
             if relative_box:
@@ -198,9 +207,6 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                             location = location.replace(';', ',').replace('\n', '').replace('\r', '').replace('\t', '').strip()
                         phone_match = re.search(r"data-full-phone-number=\"([^\"]+)\"", offer_details_str)
                         if phone_match:
-                            # phone_number = re.sub(r'\D', '', phone_match.group(1))
-                            # if phone_number and len(phone_number) >= 7:
-                            #     phone_numbers.add(phone_number)
                             phone_numbers.add(phone_match.group(1).replace(';', ',').replace('\n', '').replace('\r', '').replace('\t', '').strip())
 
             if not location:
@@ -227,9 +233,6 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
             for span in phone_spans:
                 a_tag = span.find('a', class_='phoneSmallButton__button')
                 if a_tag and 'data-full-phone-number' in a_tag.attrs:
-                    # phone_number = re.sub(r'\D', '', a_tag['data-full-phone-number'])
-                    # if phone_number and len(phone_number) >= 7:
-                    #     phone_numbers.add(phone_number)
                     phone_numbers.add(a_tag['data-full-phone-number'].replace(';', ',').replace('\n', '').replace('\r', '').replace('\t', '').strip())
 
             script_tag = soup.find('script', type='application/ld+json')
@@ -238,9 +241,6 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                     json_data = json.loads(script_tag.string)
                     if 'seller' in json_data and 'telephone' in json_data['seller']:
                         phone_number = json_data['seller']['telephone']
-                        # phone_number = re.sub(r'\D', '', phone_number)
-                        # if phone_number and len(phone_number) >= 7:
-                        #     phone_numbers.add(phone_number)
                         phone_numbers.add(phone_number.replace(';', ',').replace('\n', '').replace('\r', '').replace('\t', '').strip())
                 except json.JSONDecodeError as e:
                     print(f"Ошибка при парсинге JSON: {e}")
@@ -281,6 +281,7 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
             extract_phone_indices(json_data, phone_indices)
             phone_numbers.update(get_phone_numbers(json_data, phone_indices))
 
+            # Извлечение и форматирование даты добавления или обновления объявления
             date_dodania = None
             aktualizacja = None
             elements = soup.find_all('div', class_='vZJg9t')
@@ -305,6 +306,7 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                 time_posted = date_dodania
 
             if not time_posted:
+                # Функция для извлечения даты по текстовому описанию
                 def extract_time(date_text):
                     current_time = datetime.datetime.now()
 
@@ -314,13 +316,13 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                         return current_time - datetime.timedelta(days=1)
                     elif date_text == 'przedwczoraj':
                         return current_time - datetime.timedelta(days=2)
-                    elif 'tydzień temu' in date_text or 'ponad tydzień temu' in date_text:
+                    elif 'tydzień temu' in date_text или 'ponad tydzień temu' в date_text:
                         return current_time - datetime.timedelta(days=7)
-                    elif 'dwa tygodnie temu' in date_text or 'ponad dwa tygodnie temu' in date_text:
+                    elif 'dwa tygodnie temu' в date_text или 'ponad dwa tygodnie temu' в date_text:
                         return current_time - datetime.timedelta(days=14)
-                    elif 'miesiąc temu' in date_text or 'ponad miesiąc temu' in date_text:
+                    elif 'miesiąc temu' в date_text или 'ponad miesiąc temu' в date_text:
                         return current_time - relativedelta(months=1)
-                    elif 'pół roku temu' in date_text or 'ponad pół roku temu' in date_text:
+                    elif 'pół roku temu' в date_text или 'ponad pół roku temu' в date_text:
                         return current_time - relativedelta(months=6)
                     else:
                         match = re.search(r'(\d+) dni temu', date_text)
@@ -345,9 +347,9 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                 if time_posted is None:
                     for li in li_tags:
                         for element in li:
-                            if element.name == 'span' and element.text.strip() == 'Dodane':
+                            if element.name == 'span' и element.text.strip() == 'Dodane':
                                 for sibling in li:
-                                    if sibling.name == 'div' and sibling.get('class') == ['parameters__value']:
+                                    if sibling.name == 'div' и sibling.get('class') == ['parameters__value']:
                                         date_text = sibling.text.strip()
                                         time_posted = extract_time(date_text)
                                         break
@@ -362,6 +364,7 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
 
             print(RED,f'{link}\nНомера - {phone_numbers}\nЛокация - {location}',RESET)
 
+            # Форматирование данных для записи
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{link};{mail_address};{time_posted}'
             for phone_number in phone_numbers:
                 data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{link};{mail_address};{time_posted}'
@@ -381,7 +384,7 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                 cursor = cnx.cursor(buffered=True)  # Используем buffered=True для извлечения всех результатов
 
                 insert_announcement = (
-                    "INSERT INTO ogloszenia (id_site, poczta, adres, data, czas, link_do_ogloszenia, time_posted) "
+                    "INSERT INTO ogloszenia (id_site, poczta, адрес, дата, время, link_do_ogloszenia, time_posted) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s)"
                 )
 
@@ -394,7 +397,7 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                 # Получение id_ogloszenia с помощью SELECT-запроса
                 select_query = (
                     "SELECT id_ogloszenia FROM ogloszenia "
-                    "WHERE id_site = %s AND poczta = %s AND adres = %s AND data = %s AND czas = %s AND link_do_ogloszenia = %s AND time_posted = %s"
+                    "WHERE id_site = %s AND poczta = %s И адрес = %s AND дата = %s И время = %s AND link_do_ogloszenia = %s И time_posted = %s"
                 )
                 cursor.execute(select_query, (site_id, mail_address, location, date_part, time_part, link, time_posted))
                 
@@ -408,7 +411,7 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                     raise ValueError("Не удалось получить id_ogloszenia")
 
                 # Заполнение таблицы numbers, если номера телефонов присутствуют
-                if phone_numbers and id_ogloszenia:
+                if phone_numbers и id_ogloszenia:
                     phone_numbers_extracted, invalid_numbers = extract_phone_numbers(phone_numbers)
                     valid_numbers = [num for num in phone_numbers_extracted if re.match(polish_phone_patterns["final"], num)]
                     if valid_numbers:
@@ -441,6 +444,7 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
                 cnx.close()
                 print("Соединение с базой данных закрыто.")
 
+                # Увеличение счетчика обработанных ссылок
                 links_count = 1
 
                 if os.path.exists(links_counter_file):
@@ -459,14 +463,11 @@ def get_info(url, filename, links_counter_file, thread_id, lock):
     else:
         return None
 
+# Основная функция, которая запускает многопоточную обработку
 def main_thread(url, thread_id, lock):
     page_file = f'page_{thread_id}.txt'
     filename = f'Польша - gratka_{thread_id}.csv'
     links_counter_file = f'links_counter_{thread_id}.txt'
-
-    # if os.path.exists(page_file):
-    #     with open(page_file, 'r', encoding='utf-8') as f:
-    #         url = f.read().strip()
 
     while True:
         next_page_link = get_info(url=url, filename=filename, links_counter_file=links_counter_file, thread_id=thread_id, lock=lock)
@@ -479,16 +480,19 @@ def main_thread(url, thread_id, lock):
         else:
             break
 
+# Точка входа в программу, инициализирует потоки для обработки URL
 def main():
     urls = open('category.txt', 'r', encoding='utf-8').read().splitlines()
     threads = []
     lock = Lock()
 
+    # Запуск потоков для каждого URL
     for i, url in enumerate(urls):
         thread = threading.Thread(target=main_thread, args=(url, i, lock))
         threads.append(thread)
         thread.start()
 
+    # Ожидание завершения всех потоков
     for thread in threads:
         thread.join()
 

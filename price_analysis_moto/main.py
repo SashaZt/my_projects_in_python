@@ -24,6 +24,13 @@ temp_path = current_directory / "temp"
 temp_path.mkdir(parents=True, exist_ok=True)
 
 
+# def ensure_playwright_browsers_installed():
+#     browsers_path = Path(os.getenv("PLAYWRIGHT_BROWSERS_PATH", "pw-browsers"))
+#     if not browsers_path.exists():
+#         # Если браузеры не установлены, устанавливаем их
+#         subprocess.run(["python", "-m", "playwright", "install"], check=True)
+
+
 def del_temp():
     temp_path = current_directory / "temp"
     # Используем pathlib для представления пути
@@ -146,42 +153,47 @@ async def fetch_and_save_html(url, file_name_html, cookies, headers):
     - Сохраняет полученное HTML-содержимое в файл.
     - Использует случайный прокси для выполнения запроса.
     - Логирует ошибки при загрузке страницы.
+    - Делает до 10 попыток с разными прокси.
     """
-    # Создаем путь к файлу HTML
     file_path = Path(file_name_html)
-
-    # Проверяем, что путь к директории существует, если нет - создаем
     html_dir = file_path.parent
     if not html_dir.exists():
         html_dir.mkdir(parents=True, exist_ok=True)
 
     if not file_path.exists():
-        proxy_url = get_random_proxy()
-        if proxy_url is None:
-            logger.error("Нет доступных прокси для использования.")
-            return
+        for attempt in range(10):
+            proxy_url = get_random_proxy()
+            if proxy_url is None:
+                logger.error("Нет доступных прокси для использования.")
+                return
 
-        session = AsyncSession(proxy=proxy_url)
-        try:
-            # Ограничиваем время выполнения запроса тайм-аутом
-            response = await asyncio.wait_for(
-                session.get(url, cookies=cookies, headers=headers), timeout=15
-            )
-            if response.status_code == 200:
-                html_content = response.text
-                file_path.write_text(html_content, encoding="utf-8")
-                logger.info(f"HTML сохранен в: {file_name_html}")
-                # Добавляем задержку, чтобы избежать быстрых повторных запросов
-                await asyncio.sleep(5)
-            else:
-                logger.error(f"Ошибка {response.status_code} при загрузке {url}")
-        except asyncio.TimeoutError:
-            logger.error(f"Тайм-аут при загрузке {url} через прокси {proxy_url}")
-        except Exception as e:
-            logger.error(f"Ошибка при загрузке {url} через прокси {proxy_url}: {e}")
-        finally:
-            # Убедитесь, что сессия всегда корректно завершена
-            await session.close()
+            session = AsyncSession(proxy=proxy_url)
+            try:
+                response = await asyncio.wait_for(
+                    session.get(url, cookies=cookies, headers=headers), timeout=15
+                )
+                if response.status_code == 200:
+                    html_content = response.text
+                    file_path.write_text(html_content, encoding="utf-8")
+                    logger.info(f"HTML сохранен в: {file_name_html}")
+                    await asyncio.sleep(5)
+                    return  # Успешная загрузка, выход из функции
+                else:
+                    logger.error(
+                        f"Ошибка {response.status_code} при загрузке {url} (попытка {attempt + 1})"
+                    )
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Тайм-аут при загрузке {url} через прокси {proxy_url} (попытка {attempt + 1})"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Ошибка при загрузке {url} через прокси {proxy_url} (попытка {attempt + 1}): {e}"
+                )
+            finally:
+                await session.close()
+
+        logger.error(f"Не удалось загрузить страницу {url} после 10 попыток.")
 
 
 async def load_cookies(directory):
@@ -303,6 +315,61 @@ async def create_html_and_read_csv():
             logger.info("Все задачи завершены")
 
 
+# async def parse_html(
+#     dir_path, directory, availability_selector, price_selectors, currency_symbol="грн."
+# ):
+#     """
+#     Парсинг HTML-файлов для извлечения данных.
+
+#     - Загружает HTML файлы из поддиректорий.
+#     - Использует CSS-селекторы для извлечения информации о наличии и цене.
+#     - Сохраняет извлеченные данные в JSON файлы.
+
+#     Добавление нового сайта:
+#     - Определите новые CSS-селекторы для вашего сайта для извлечения данных.
+#     - Добавьте их в вызов функции parse_html_file.
+#     """
+#     subdir_path = Path(dir_path) / directory
+#     json_out = subdir_path / "out1.json"
+
+#     async with aiofiles.open(json_out, "r", encoding="utf-8") as file:
+#         content = await file.read()
+#         json_data = json.loads(content)
+
+#     html_path = subdir_path / "html"
+#     files_html = html_path.glob("*.html")
+
+#     for html_file in files_html:
+#         id_product = html_file.stem
+#         async with aiofiles.open(html_file, "r", encoding="utf-8") as file:
+#             html_content = await file.read()
+
+#         tree = HTMLParser(html_content)
+#         available = None
+#         price = None
+
+#         # Извлечение информации о наличии
+#         available_text_node = tree.css_first(availability_selector)
+#         if available_text_node:
+#             extracted_text = available_text_node.text(strip=True)
+#             available = "в наличии" in extracted_text.lower()
+
+#         # Извлечение цены
+#         for selector in price_selectors:
+#             price = extract_price(tree, selector, currency_symbol)
+#             if price is not None:
+#                 break
+
+#         # Сохранение результатов
+#         data = {
+#             "id": id_product,
+#             "available": available,
+#             "price": price,
+#             "err": None,
+#         }
+#         result(subdir_path, data)
+
+
 async def parse_html(
     dir_path, directory, availability_selector, price_selectors, currency_symbol="грн."
 ):
@@ -312,13 +379,13 @@ async def parse_html(
     - Загружает HTML файлы из поддиректорий.
     - Использует CSS-селекторы для извлечения информации о наличии и цене.
     - Сохраняет извлеченные данные в JSON файлы.
-
-    Добавление нового сайта:
-    - Определите новые CSS-селекторы для вашего сайта для извлечения данных.
-    - Добавьте их в вызов функции parse_html_file.
     """
     subdir_path = Path(dir_path) / directory
     json_out = subdir_path / "out1.json"
+
+    if not json_out.exists():
+        logger.warning(f"Файл {json_out} не найден, пропуск директории {directory}.")
+        return
 
     async with aiofiles.open(json_out, "r", encoding="utf-8") as file:
         content = await file.read()
@@ -558,8 +625,42 @@ async def fetch_cookies(page, url):
         return {}
 
 
+async def find_latest_chromium_executable():
+    # Поиск в текущей директории pw-browsers
+    current_directory = Path.cwd()
+    browsers_path = current_directory / "pw-browsers"
+    chromium_folders = sorted(browsers_path.glob("chromium-*"), reverse=True)
+
+    # Если не найдено в текущей директории, ищем в домашней директории
+    if not chromium_folders:
+        logger.info(
+            "Chromium не найден в текущей директории, ищем в домашней директории."
+        )
+        base_path = Path.home() / "AppData" / "Local" / "ms-playwright"
+        chromium_folders = sorted(base_path.glob("chromium-*"), reverse=True)
+
+        if not chromium_folders:
+            raise FileNotFoundError(
+                "Установка Chromium не найдена ни в текущей, ни в домашней директории."
+            )
+
+    latest_chromium_path = chromium_folders[0] / "chrome-win" / "chrome.exe"
+
+    if not latest_chromium_path.exists():
+        raise FileNotFoundError(
+            f"Исполняемый файл не найден по пути: {latest_chromium_path}"
+        )
+
+    # Логирование найденного пути
+    logger.info(f"Найден исполняемый файл Chromium по пути: {latest_chromium_path}")
+
+    return str(latest_chromium_path)
+
+
 # Основная функция
 async def main():
+    chromium_executable = await find_latest_chromium_executable()
+
     # Пример использования
     urls_with_directories = {
         "bikermarket_com_ua": "https://bikermarket.com.ua/ua/",
@@ -573,7 +674,12 @@ async def main():
 
     for directory, url in urls_with_directories.items():
         async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=True)
+            browser = await playwright.chromium.launch(
+                executable_path=chromium_executable,
+                headless=True,
+                args=["--no-sandbox"],
+            )
+
             page = await browser.new_page()
             cookies = await fetch_cookies(page, url)
             if cookies:
@@ -582,7 +688,6 @@ async def main():
                 logger.warning(f"No cookies saved for {url}")
 
             await browser.close()
-            # logger.info("Browser closed")
 
 
 if __name__ == "__main__":
