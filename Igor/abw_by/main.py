@@ -1,3 +1,5 @@
+import random
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from phonenumbers.phonenumberutil import NumberParseException
 import phonenumbers
@@ -14,18 +16,15 @@ import pandas as pd
 import datetime
 import threading
 
-# Создаем глобальную блокировку
-write_lock = threading.Lock()
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
 temp_directory = "temp"
 temp_path = current_directory / temp_directory
-html_directory = temp_path / "html"
 data_directory = current_directory / "data"
 
-html_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
+
 
 cookies = {
     "_uid": "172406750548113",
@@ -54,22 +53,12 @@ headers = {
 """Читает и форматирует прокси-серверы из файла."""
 
 
-def load_proxies_curl_cffi():
-    proxy_file_path = Path("configuration/proxies_with_auth.txt")
-    # Чтение файла с прокси-серверами
-    with open(proxy_file_path, "r") as f:
-        raw_proxies = f.readlines()
-
-    formatted_proxies = []
-    for proxy in raw_proxies:
-        proxy = proxy.strip()  # Убираем лишние пробелы и символы новой строки
-        if proxy:
-            # Проверяем и добавляем схему (http:// или https://) к прокси
-            if not proxy.startswith("http://") and not proxy.startswith("https://"):
-                proxy = f"http://{proxy}"
-            formatted_proxies.append(proxy)
-
-    return formatted_proxies
+def load_proxies():
+    file_path = "1000 ip.txt"
+    # Загрузка списка прокси из файла
+    with open(file_path, "r", encoding="utf-8") as file:
+        proxies = [line.strip() for line in file]
+    return proxies
 
 
 def main():
@@ -204,6 +193,12 @@ def extract_urls_from_xml(file_path):
     return urls  # Возвращаем список URL
 
 
+"""
+___________________________________________________________________________________________
+
+"""
+
+
 def write_to_csv(data, filename):
     with open(filename, "a", encoding="utf-8") as f:
         f.write(f"{data}\n")
@@ -220,48 +215,135 @@ def get_successful_urls(csv_file_successful):
     return successful_urls
 
 
+def parsing(url_id, src, url, proxy, headers, cookies):
+    csv_file_path = "result.csv"
+    parsing_lock = threading.Lock()  # Локальная блокировка
+
+    try:
+        # logger.info(f"Начало парсинга URL: {url} с использованием прокси: {proxy}")
+
+        parser = HTMLParser(src)
+        location = None
+        publication_date = None
+        mail_address = None
+        phone_number = None
+
+        # Извлечение данных из JSON
+        user_name, phones = get_number(url_id, proxy, headers, cookies)
+        if not phones:
+            pass
+            # logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
+
+        phone_numbers_extracted = extract_phone_numbers(phones)
+        if not phone_numbers_extracted:
+            pass
+            # logger.warning(f"Извлеченные номера телефонов пусты для URL: {url}")
+
+        location = extract_user_info(parser)
+        if not location:
+            pass
+            # logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
+
+        publication_date = extract_publication_date(parser)
+        if not publication_date:
+            pass
+            # logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
+
+        if location and publication_date and phone_numbers_extracted:
+            for phone_number in phone_numbers_extracted:
+                data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
+                with parsing_lock:
+                    write_to_csv(data, csv_file_path)
+            return True
+        else:
+            missing_data = []
+            if not location:
+                missing_data.append("location")
+            if not publication_date:
+                missing_data.append("publication_date")
+            if not phone_numbers_extracted:
+                missing_data.append("phone_numbers")
+
+            logger.error(
+                f"Отсутствуют необходимые данные для URL: {url}. Недостающие данные: {', '.join(missing_data)}"
+            )
+            return False
+
+    except Exception as e:
+        logger.error(f"Ошибка при парсинге HTML для URL {url_id}: {e}")
+        return False
+
+
 def fetch_url(
     url, proxies, headers, cookies, csv_file_successful, successful_urls, url_id
 ):
-    """Выполняет HTTP-запрос для заданного URL, используя прокси, и парсит ответ."""
+    fetch_lock = threading.Lock()  # Локальная
+    counter_error = 0  # Счетчик ошибок
+
     if url in successful_urls:
-        # logger.info(f"URL {url} already successfully downloaded, skipping.")
         return
 
-    for proxy in proxies:
-        if not proxy:  # Пропускаем пустые прокси
+    while proxies:
+        proxy = random.choice(proxies)  # Выбираем случайный прокси
+
+        if not proxy:
             continue
+
+        # logger.info(f"Используем прокси: {proxy}")
+        proxies_dict = {"http": proxy, "https": proxy}
+
         try:
             response = requests.get(
                 url,
-                proxies={"http": proxy, "https": proxy},
+                proxies=proxies_dict,
                 headers=headers,
                 cookies=cookies,
+                timeout=10,  # Тайм-аут для предотвращения зависания
             )
             response.raise_for_status()
 
-            src = response.text
-
             if response.status_code == 200:
-                # Парсим HTML и извлекаем данные
-                parsing(url_id, src, url, proxy, headers, cookies)
-                successful_urls.add(url)
-                # Если данные успешно обработны, записываем URL в CSV успешных загрузок
-                write_to_csv(url, csv_file_successful)
+                src = response.text
+                success = parsing(url_id, src, url, proxy, headers, cookies)
+                if success:
+                    with fetch_lock:
+                        successful_urls.add(url)
+                        write_to_csv(url, csv_file_successful)
                 return
+
+            elif response.status_code == 403:
+                logger.error(f"Код ошибки 403. Прокси заблокирован: {proxy}")
+                proxies.remove(proxy)
+                counter_error += 1
+                logger.info(f"Осталось прокси: {len(proxies)}. Ошибок: {counter_error}")
+                if counter_error == 10:
+                    logger.error(f"Перезапуск из-за 10 ошибок 403. Прокси: {proxy}")
+                    return None
+
             else:
                 logger.error(f"Unexpected status code {response.status_code} for {url}")
+                proxies.remove(proxy)  # Удаляем прокси при ошибке
+
+        except requests.exceptions.TooManyRedirects:
+            logger.error("Произошла ошибка: Exceeded 30 redirects. Пропуск URL.")
+            return "Редирект"
+
+        except (requests.exceptions.ProxyError, requests.exceptions.Timeout) as e:
+            logger.error(f"Ошибка прокси или таймаут: {e}. Прокси удален: {proxy}")
+            proxies.remove(proxy)
+            logger.info(f"Осталось прокси: {len(proxies)}")
 
         except Exception as e:
-            logger.error(f"Failed to fetch {url} with proxy {proxy}: {e}")
-            continue  # Переходим к следующему прокси
+            logger.error(f"Произошла ошибка: {e}")
+            continue
 
-    logger.error(f"Failed to fetch {url} with all proxies.")
+    logger.error(f"Не удалось загрузить {url} ни с одним из прокси.")
+    return None
 
 
 def get_html(max_workers=10):
     """Основная функция для обработки списка URL с использованием многопоточности."""
-    proxies = load_proxies_curl_cffi()  # Загружаем список всех прокси
+    proxies = load_proxies()  # Загружаем список всех прокси
     csv_file_path = Path("data/output.csv")
     csv_file_successful = Path("data/urls_successful.csv")
 
@@ -290,37 +372,6 @@ def get_html(max_workers=10):
                 future.result()  # Получаем результат выполнения задачи
             except Exception as e:
                 logger.error(f"Error occurred: {e}")
-
-
-def parsing(url_id, src, url, proxy, headers, cookies):
-    csv_file_path = "result.csv"
-    """Синхронная функция для парсинга HTML-контента и извлечения данных."""
-    try:
-        # Создаем объект HTMLParser для парсинга HTML-контента
-        parser = HTMLParser(src)
-        location = None
-        publication_date = None
-        mail_address = None
-        phone_number = None
-
-        # Получаем номер телефона и имя пользователя с помощью синхронной функции get_number
-        user_name, phones = get_number(url_id, proxy, headers, cookies)
-        phone_numbers_extracted = extract_phone_numbers(
-            phones
-        )  # Получаем список номеров
-        location = extract_user_info(parser)
-
-        # Извлекаем дату публикации с использованием соответствующей функции
-        publication_date = extract_publication_date(parser)
-
-        # Если phone_numbers_extracted содержит более одного номера, разделяем данные
-        for phone_number in phone_numbers_extracted:
-            data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-            with write_lock:
-                write_to_csv(data, csv_file_path)
-
-    except Exception as e:
-        logger.error(f"Failed to parse HTML for {url_id}: {e}")
 
 
 def write_result_to_csv(csv_file_path, data):
@@ -451,7 +502,7 @@ def get_number(url_id, proxy, headers, cookies):
         user_name = json_data.get("title")
         phones = json_data.get("phones", [])
         # number = phones[0] if phones else None
-        logger.info(phones)
+        # logger.info(phones)
         return user_name, phones
 
     except requests.exceptions.RequestException as e:
@@ -460,5 +511,5 @@ def get_number(url_id, proxy, headers, cookies):
 
 
 if __name__ == "__main__":
-    main()  # Запускаем основную функцию при выполнении скрипта напрямую
+    # main()  # Запускаем основную функцию при выполнении скрипта напрямую
     get_html(max_workers=10)  # Устанавливаем количество потоков
