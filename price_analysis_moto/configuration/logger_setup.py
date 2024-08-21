@@ -1,6 +1,7 @@
 import os
 from loguru import logger
 
+
 current_directory = os.getcwd()
 logging_directory = "logging"
 logging_path = os.path.join(current_directory, logging_directory)

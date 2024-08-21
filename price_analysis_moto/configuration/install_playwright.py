@@ -1,20 +1,20 @@
-from logger_setup import logger
+from configuration.logger_setup import logger
 import sys
 import os
 import subprocess
 from pathlib import Path
 import time
 
-# Важное сообщение для пользователя с задержкой на 20 секунд
-logger.warning(
-    "ВАЖНО: Перед запуском этого скрипта убедитесь, что вы активировали виртуальное окружение вручную."
-)
-logger.warning("Для этого выполните следующие команды в командной строке:")
-logger.warning(r".\venv\Scripts\activate")
-logger.warning("Затем обновите Playwright с помощью команды:")
-logger.warning("pip install --upgrade playwright")
-logger.warning("Этот скрипт продолжит выполнение через 20 секунд...")
-time.sleep(20)
+# # Важное сообщение для пользователя с задержкой на 20 секунд
+# logger.warning(
+#     "ВАЖНО: Перед запуском этого скрипта убедитесь, что вы активировали виртуальное окружение вручную."
+# )
+# logger.warning("Для этого выполните следующие команды в командной строке:")
+# logger.warning(r".\venv\Scripts\activate")
+# logger.warning("Затем обновите Playwright с помощью команды:")
+# logger.warning("pip install --upgrade playwright")
+# logger.warning("Этот скрипт продолжит выполнение через 20 секунд...")
+# time.sleep(20)
 
 
 def set_playwright_browsers_path():
