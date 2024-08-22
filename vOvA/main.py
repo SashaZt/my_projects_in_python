@@ -1,3 +1,4 @@
+import os
 import re
 from bs4 import BeautifulSoup
 from googletrans import Translator
@@ -17,7 +18,7 @@ def process_element(element, translator, cyrillic_pattern):
         if cyrillic_pattern.search(text):
             # Перевод текста
             translated = translator.translate(text, src="ru", dest="it").text
-            logger.info(f"Original: {text} | Translated: {translated}")
+            # logger.info(f"Original: {text} | Translated: {translated}")
             # Замена текста в элементе
             element.string.replace_with(translated)
     else:
@@ -47,9 +48,19 @@ def extract_and_translate(file_path: str):
     # Сохранение измененного HTML-контента в тот же файл
     with open(file_path, "w", encoding="utf-8") as file:
         file.write(str(soup))
-    logger.info(f"Translated HTML content saved back to {file_path}")
+    # logger.info(f"Translated HTML content saved back to {file_path}")
+
+
+def find_and_process_index_files(start_directory: str):
+    # Рекурсивно обходим все подкаталоги, начиная с указанной директории
+    for root, dirs, files in os.walk(start_directory):
+        for file in files:
+            if file == "index.html":
+                file_path = os.path.join(root, file)
+                logger.info(f"Processing file: {file_path}")
+                extract_and_translate(file_path)
 
 
 # Основной код для выполнения всех шагов
-file_path = "index.html"
-extract_and_translate(file_path)
+start_directory = "C:\\my_projects_in_python\\vOvA\\www"
+find_and_process_index_files(start_directory)
