@@ -521,10 +521,41 @@ def save_high_resolution_screenshot(pdf_path):
 #     return image
 
 
+# # Рабочий вариант
+# def enhance_image(image):
+#     """
+#     Улучшает качество изображения для улучшения распознавания текста.
+#     """
+#     # Повышаем резкость
+#     image = image.filter(ImageFilter.SHARPEN)
+
+#     # Повышаем контраст
+#     enhancer = ImageEnhance.Contrast(image)
+#     image = enhancer.enhance(2)
+
+#     # Повышаем яркость
+#     enhancer = ImageEnhance.Brightness(image)
+#     image = enhancer.enhance(2)
+
+#     # Конвертируем изображение в черно-белое
+#     image = image.convert("L")
+
+#     # Експерементально
+#     # # Применяем адаптивную бинаризацию
+#     # image = ImageOps.autocontrast(image)
+#     # image = ImageOps.invert(image)
+#     # threshold = 150
+#     # image = image.point(lambda p: p > threshold and 255)
+
+
+#     return image
 def enhance_image(image):
     """
     Улучшает качество изображения для улучшения распознавания текста.
     """
+    # Увеличиваем изображение для лучшего распознавания
+    image = image.resize((image.width * 2, image.height * 2), Image.Resampling.LANCZOS)
+
     # Повышаем резкость
     image = image.filter(ImageFilter.SHARPEN)
 
@@ -539,12 +570,9 @@ def enhance_image(image):
     # Конвертируем изображение в черно-белое
     image = image.convert("L")
 
-    # Експерементально
-    # # Применяем адаптивную бинаризацию
-    # image = ImageOps.autocontrast(image)
-    # image = ImageOps.invert(image)
-    # threshold = 150
-    # image = image.point(lambda p: p > threshold and 255)
+    # Применяем пороговое значение для улучшения контраста текста
+    threshold = 140
+    image = image.point(lambda p: p > threshold and 255)
 
     return image
 
@@ -573,7 +601,7 @@ def scale_crop_areas(crop_areas, scale_factor):
 
 def extract_text_from_image():
     # Коэффициент масштабирования
-    scale_factor = 1.1  # Увеличение на 1.1
+    scale_factor = 1  # Увеличение на 1.1
     image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению
     temp_path = "temp"  # Укажите временный путь для сохранения изображений
 
@@ -597,8 +625,73 @@ def extract_text_from_image():
     crop_areas_3b = [
         (1620, 120, 2320, 170),
     ]
+    crop_areas_4 = [
+        (2320, 120, 2475, 170),
+    ]
+    crop_areas_5 = [
+        (1538, 215, 1828, 260),
+    ]
+    crop_areas_6a = [
+        (1828, 215, 2030, 260),
+    ]
+    crop_areas_6b = [
+        (2032, 215, 2235, 260),
+    ]
+    crop_areas_8b = [
+        (110, 310, 950, 360),
+    ]
+    crop_areas_9a = [
+        (1280, 265, 2470, 310),
+    ]
+    crop_areas_9b = [
+        (980, 310, 1905, 360),
+    ]
+    crop_areas_9c = [
+        (1945, 310, 2030, 360),
+    ]
+    crop_areas_9d = [
+        (2060, 310, 2350, 360),
+    ]
+
+    crop_areas_10 = [
+        (75, 410, 340, 460),
+    ]
+
+    crop_areas_11 = [
+        (340, 410, 425, 460),
+    ]
+    crop_areas_12 = [
+        (425, 410, 600, 460),
+    ]
+    crop_areas_13 = [
+        (605, 410, 690, 460),
+    ]
+    crop_areas_14 = [
+        (695, 410, 775, 460),
+    ]
+    crop_areas_15 = [
+        (780, 410, 865, 460),
+    ]
+    crop_areas_16 = [
+        (870, 410, 950, 460),
+    ]
+    crop_areas_17 = [
+        (955, 410, 1040, 460),
+    ]
+    crop_areas_31a = [
+        (75, 510, 165, 560),
+    ]
+    crop_areas_31b = [
+        (170, 510, 360, 560),
+    ]
+    crop_areas_32a = [
+        (375, 510, 450, 560),
+    ]
+    crop_areas_32b = [
+        (465, 510, 655, 560),
+    ]
     crop_areas = [
-        (1620, 120, 2320, 170),
+        (465, 510, 655, 560),
     ]
 
     # Масштабируем каждый список
@@ -629,7 +722,7 @@ def extract_text_from_image():
         draw.rectangle(crop_area, outline="red", width=2)
 
         # Извлекаем текст с помощью Tesseract OCR
-        custom_config = r"--oem 3 --psm 6"
+        custom_config = r"--oem 3 --psm 6 -c tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         text = pytesseract.image_to_string(
             cropped_image, config=custom_config, lang="eng"
         )
