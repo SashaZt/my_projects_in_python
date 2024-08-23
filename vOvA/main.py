@@ -1,3 +1,4 @@
+# Перевод на разные языки
 import os
 import re
 from bs4 import BeautifulSoup
@@ -17,7 +18,9 @@ def process_element(element, translator, cyrillic_pattern):
 
         if cyrillic_pattern.search(text):
             # Перевод текста
-            translated = translator.translate(text, src="ru", dest="it").text
+            translated = translator.translate(
+                text, src="ru", dest="en"
+            ).text  # en, ru , ua
             # logger.info(f"Original: {text} | Translated: {translated}")
             # Замена текста в элементе
             element.string.replace_with(translated)
