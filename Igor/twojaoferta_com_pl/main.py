@@ -140,6 +140,22 @@ def get_successful_urls(csv_file_successful):
     return successful_urls
 
 
+def extract_phone_site(parser):
+    phone_pattern = re.compile(
+        r"\b\d{1,4}(?:[\s-]?\d{1,4}){0,3}\b"
+        # r"\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"
+    )
+    script_elements = parser.css("script")
+
+    for script_element in script_elements:
+        script_text = script_element.text()
+
+        if "this.phone" in script_text:
+
+            matches = phone_pattern.findall(script_text)
+            return matches
+
+
 def parsing(src, url):
     csv_file_path = "result.csv"
     parsing_lock = threading.Lock()  # Локальная блокировка
@@ -150,13 +166,11 @@ def parsing(src, url):
         publication_date = None
         mail_address = None
         phone_number = None
+        phone_numbers = set()
 
         with parsing_lock:
 
-            phones = extract_phone_numbers(parser)
-            phones = phones[0]
-
-            logger.info(phones)
+            phone_numbers.update(extract_phone_site(parser))
             location = extract_user_info(parser)
             if not location:
                 logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
@@ -164,14 +178,16 @@ def parsing(src, url):
             publication_date = extract_publication_date(parser)
             if not publication_date:
                 logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
-            # logger.info(
-            #     f"| {url} | Номера - {phones} | Локация - {location} | Дата публикации - {publication_date} "
-            # )
+            logger.info(
+                f"| {url} | Номера - {phone_numbers} | Локация - {location} | Дата публикации - {publication_date} "
+            )
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-            # logger.info(data)
-            if location and publication_date and phones:
-                for phone_number in phones:
+
+            if location and publication_date and phone_numbers:
+                # logger.info(phones)
+                for phone_number in phone_numbers:
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
+                    logger.info(data)
                     write_to_csv(data, csv_file_path)
 
             # Разбиваем строку на переменные
@@ -179,7 +195,7 @@ def parsing(src, url):
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 25  # id_site для 'https://abw.by/'
+            site_id = 25  # id_site для 'twojaoferta.com.pl'
 
             # Подключение к базе данных и запись данных
             try:
@@ -235,9 +251,9 @@ def parsing(src, url):
                     raise ValueError("Не удалось получить id_ogloszenia")
 
                 # Заполнение таблицы numbers, если номера телефонов присутствуют
-                if phones and id_ogloszenia:
+                if phone_numbers and id_ogloszenia:
                     phone_numbers_extracted, invalid_numbers = extract_phone_numbers(
-                        phones
+                        phone_numbers
                     )
                     valid_numbers = [
                         num
@@ -253,7 +269,7 @@ def parsing(src, url):
                         "INSERT INTO numbers (id_ogloszenia, raw, correct) "
                         "VALUES (%s, %s, %s)"
                     )
-                    raw_numbers = ", ".join(phones)
+                    raw_numbers = ", ".join(phone_numbers)
                     numbers_data = (id_ogloszenia, raw_numbers, clean_numbers)
                     cursor.execute(insert_numbers, numbers_data)
 
@@ -329,7 +345,7 @@ def fetch_url(url, proxies, headers, cookies, csv_file_successful, successful_ur
             return "Редирект"
 
         except (requests.exceptions.ProxyError, requests.exceptions.Timeout) as e:
-            logger.info(f"Осталось прокси: {len(proxies)}")
+            pass
 
         except Exception as e:
             logger.error(f"Произошла ошибка: {e}")
@@ -374,24 +390,16 @@ def get_html(max_workers=10):
 """Проверяет валидность номера телефона и форматирует его."""
 
 
-def extract_phone_numbers(parser):
+def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
     phone_pattern = re.compile(
         r"\b\d{1,4}(?:[\s-]?\d{1,4}){0,3}\b"
         # r"\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"
     )
-    script_elements = parser.css("script")
-
-    for script_element in script_elements:
-        script_text = script_element.text()
-
-        if "this.phone" in script_text:
-
-            # for pattern in phone_pattern:
-            # phone_numbers = phone_pattern.findall(script_text)
-            matches = phone_pattern.findall(script_text)
-            # logger.info(matches)
+    for entry in data:
+        if isinstance(entry, str):
+            matches = phone_pattern.findall(entry)
             for match in matches:
                 original_match = match
                 match = re.sub(r"[^\d]", "", match)
@@ -400,8 +408,7 @@ def extract_phone_numbers(parser):
                     parsed_number = phonenumbers.parse(match, "PL")
                     if phonenumbers.is_valid_number(parsed_number):
                         national_number = phonenumbers.format_number(
-                            parsed_number,
-                            phonenumbers.PhoneNumberFormat.NATIONAL,
+                            parsed_number, phonenumbers.PhoneNumberFormat.NATIONAL
                         )
                         clean_number = "".join(filter(str.isdigit, national_number))
                         phone_numbers.add(clean_number)

@@ -21,7 +21,7 @@ def process_element(element, translator, cyrillic_pattern):
             translated = translator.translate(
                 text, src="ru", dest="uk"
             ).text  # en, ru , ua
-            logger.info(f"Original: {text} | Translated: {translated}")
+            # logger.info(f"Original: {text} | Translated: {translated}")
             # Замена текста в элементе
             element.string.replace_with(translated)
     else:
@@ -51,7 +51,7 @@ def extract_and_translate(file_path: str):
     # Сохранение измененного HTML-контента в тот же файл
     with open(file_path, "w", encoding="utf-8") as file:
         file.write(str(soup))
-    # logger.info(f"Translated HTML content saved back to {file_path}")
+    logger.info(f"Translated HTML content saved back to {file_path}")
 
 
 def find_and_process_index_files(start_directory: str):

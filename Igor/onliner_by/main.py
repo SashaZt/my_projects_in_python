@@ -8,6 +8,7 @@ import csv
 import xml.etree.ElementTree as ET
 from selectolax.parser import HTMLParser
 import re
+import random
 import locale
 import csv
 import pandas as pd
@@ -45,37 +46,42 @@ headers = {
     "Connection": "keep-alive",
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
 }
-
+# Параметры подключения к базе данных
+config = {"user": "", "password": "", "host": "", "database": ""}
 """Читает и форматирует прокси-серверы из файла."""
+belarus_phone_patterns = {
+    "full": r"\b(80\d{9}|375\d{9}|\d{9})\b",
+    "split": r"(375\d{9})",
+    "final": r"\b(\d{9})\b",
+    "codes": [375],
+}
 
 
 def load_proxies():
-    proxy_file_path = Path("configuration/proxies_with_auth.txt")
-    with open(proxy_file_path, "r") as f:
-        raw_proxies = f.readlines()
-
-    formatted_proxies = []
-    for proxy in raw_proxies:
-        proxy = proxy.strip()
-        if proxy:
-            if not proxy.startswith("http://") and not proxy.startswith("https://"):
-                proxy = f"http://{proxy}"
-            formatted_proxies.append(proxy)
-
-    return formatted_proxies
+    file_path = "1000 ip.txt"
+    # Загрузка списка прокси из файла
+    with open(file_path, "r", encoding="utf-8") as file:
+        proxies = [line.strip() for line in file]
+    return proxies
 
 
-def download_and_extract_gz(url, output_gz_file, output_xml_file, proxies=None):
-    proxy_pool = None
-    if proxies:
-        proxy_pool = cycle(proxies)  # Циклический итератор для прокси
+def download_and_extract_gz():
+    url = "https://ab.onliner.by/sitemap/cars-1.xml.gz"
+    output_gz_file = Path("data/cars-1.xml.gz")
+    output_xml_file = Path("data/cars-1.xml")
+    output_csv_file = Path("data/output.csv")
+    proxies = load_proxies()  # Загружаем список всех прокси
+    proxy = random.choice(proxies)  # Выбираем случайный прокси
+    proxies_dict = {"http": proxy, "https": proxy}
 
     while True:
         try:
-            proxy = next(proxy_pool) if proxy_pool else None
-            proxy_dict = {"http": proxy, "https": proxy} if proxy else None
 
-            response = requests.get(url, stream=True, proxies=proxy_dict)
+            response = requests.get(
+                url,
+                stream=True,
+                proxies=proxies_dict,
+            )
             if response.status_code == 200:
                 with open(output_gz_file, "wb") as f:
                     f.write(response.content)
@@ -86,19 +92,31 @@ def download_and_extract_gz(url, output_gz_file, output_xml_file, proxies=None):
                 )
         except requests.exceptions.RequestException as e:
             logger.error(f"Ошибка при использовании прокси {proxy}: {e}")
-            if not proxy_pool:
+            if not proxies_dict:
                 raise  # Если нет прокси, выходим с ошибкой
 
     with gzip.open(output_gz_file, "rb") as f_in:
         with open(output_xml_file, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
+    links = parse_xml_for_links(output_xml_file)
+    save_links_to_csv(links, output_csv_file)
 
 
-def parse_xml_for_links(xml_file):
-    tree = ET.parse(xml_file)
+def parse_xml_for_links(output_xml_file):
+    tree = ET.parse(output_xml_file)
     root = tree.getroot()
 
-    links = [url.find("loc").text for url in root.findall("url")]
+    # Определение пространства имен
+    namespaces = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+
+    # Поиск всех URL с учетом пространства имен
+    links = [
+        url.find("ns:loc", namespaces).text
+        for url in root.findall("ns:url", namespaces)
+    ]
+
+    logger.info(links)
+
     return links
 
 
@@ -111,21 +129,6 @@ def save_links_to_csv(links, output_csv_file):
         writer.writerow(["URL"])  # Заголовок CSV файла
         for link in links:
             writer.writerow([link])
-
-
-def main():
-    url = "https://ab.onliner.by/sitemap/cars-1.xml.gz"
-    output_gz_file = Path("data/cars-1.xml.gz")
-    output_xml_file = Path("data/cars-1.xml")
-
-    proxies = load_proxies()  # Загружаем прокси
-
-    download_and_extract_gz(url, output_gz_file, output_xml_file, proxies)
-
-    links = parse_xml_for_links(output_xml_file)
-
-    for link in links:
-        logger.info(link)
 
 
 """
@@ -436,5 +439,5 @@ def get_number(url_id, proxy, headers, cookies):
 
 
 if __name__ == "__main__":
-    main()  # Запускаем основную функцию при выполнении скрипта напрямую
+    # download_and_extract_gz()  # Запускаем основную функцию при выполнении скрипта напрямую
     # get_html(max_workers=10)  # Устанавливаем количество потоков
