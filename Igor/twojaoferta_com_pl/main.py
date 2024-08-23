@@ -154,7 +154,9 @@ def parsing(src, url):
         with parsing_lock:
 
             phones = extract_phone_numbers(parser)
-            # logger.info(phones)
+            phones = phones[0]
+
+            logger.info(phones)
             location = extract_user_info(parser)
             if not location:
                 logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
@@ -162,13 +164,14 @@ def parsing(src, url):
             publication_date = extract_publication_date(parser)
             if not publication_date:
                 logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
-            logger.info(f"| {url} | Номера - {phones} | Локация - {location} |")
+            # logger.info(
+            #     f"| {url} | Номера - {phones} | Локация - {location} | Дата публикации - {publication_date} "
+            # )
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-            logger.info(data)
+            # logger.info(data)
             if location and publication_date and phones:
                 for phone_number in phones:
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-
                     write_to_csv(data, csv_file_path)
 
             # Разбиваем строку на переменные
@@ -273,7 +276,7 @@ def parsing(src, url):
                 print("Соединение с базой данных закрыто.")
                 return True
     except Exception as e:
-        logger.error(f"Ошибка при парсинге HTML для URL {e}")
+        # logger.error(f"Ошибка при парсинге HTML для URL {e}")
         return False
 
 
@@ -406,7 +409,6 @@ def extract_phone_numbers(parser):
                         invalid_numbers.append(original_match)
                 except NumberParseException:
                     invalid_numbers.append(original_match)
-    # logger.info(phone_numbers)
     return phone_numbers, invalid_numbers
 
 

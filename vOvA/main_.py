@@ -34,7 +34,7 @@ def replace_text_in_file(file_path: str, search_text: str, replace_text: str):
 
 # Основной код для выполнения всех шагов
 start_directory = "C:\\my_projects_in_python\\vOvA\\www"
-search_text = "/ru/"
-replace_text = "/en/"
+search_text = "/dvery-tormax.html"
+replace_text = "/dvery-tormax/index.html"
 
 find_and_process_index_files(start_directory, search_text, replace_text)

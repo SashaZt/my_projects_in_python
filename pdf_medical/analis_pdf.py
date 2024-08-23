@@ -7,8 +7,8 @@ import json
 import os
 import shutil
 
-# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
 
@@ -539,11 +539,12 @@ def enhance_image(image):
     # Конвертируем изображение в черно-белое
     image = image.convert("L")
 
-    # Применяем адаптивную бинаризацию
-    image = ImageOps.autocontrast(image)
-    image = ImageOps.invert(image)
-    threshold = 150
-    image = image.point(lambda p: p > threshold and 255)
+    # Експерементально
+    # # Применяем адаптивную бинаризацию
+    # image = ImageOps.autocontrast(image)
+    # image = ImageOps.invert(image)
+    # threshold = 150
+    # image = image.point(lambda p: p > threshold and 255)
 
     return image
 
@@ -566,12 +567,17 @@ def generate_keys():
     return keys
 
 
-def extract_text_from_image():
+def scale_crop_areas(crop_areas, scale_factor):
+    return [tuple(int(coord * scale_factor) for coord in area) for area in crop_areas]
 
+
+def extract_text_from_image():
+    # Коэффициент масштабирования
+    scale_factor = 1.1  # Увеличение на 1.1
     image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению
     temp_path = "temp"  # Укажите временный путь для сохранения изображений
 
-    crop_areas = [
+    crop_areas_42_49 = [
         (75, 900, 200, 1900),
         (220, 900, 750, 1900),
         (945, 901, 1355, 1900),
@@ -582,6 +588,23 @@ def extract_text_from_image():
         (2130, 900, 2385, 1900),
         (2410, 900, 2465, 1900),
     ]
+    crop_areas_01 = [
+        (75, 70, 800, 255),
+    ]
+    crop_areas_3a = [
+        (1620, 70, 2320, 120),
+    ]
+    crop_areas_3b = [
+        (1620, 120, 2320, 170),
+    ]
+    crop_areas = [
+        (1620, 120, 2320, 170),
+    ]
+
+    # Масштабируем каждый список
+    crop_areas_01 = scale_crop_areas(crop_areas_01, scale_factor)
+    crop_areas_3a = scale_crop_areas(crop_areas_3a, scale_factor)
+    crop_areas_3b = scale_crop_areas(crop_areas_3b, scale_factor)
 
     # Открываем изображение
     image = Image.open(image_path)
@@ -651,9 +674,9 @@ def update_json_with_image_data():
 
 
 if __name__ == "__main__":
-    pdf_path = "03.pdf"
+    pdf_path = "01.pdf"
     # write_json(pdf_path)
-    save_high_resolution_screenshot(pdf_path)
+    # save_high_resolution_screenshot(pdf_path)
     # anali_pdf_02(pdf_path, test_page_no=0)
 
     extract_text_from_image()

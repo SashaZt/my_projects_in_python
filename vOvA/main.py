@@ -19,9 +19,9 @@ def process_element(element, translator, cyrillic_pattern):
         if cyrillic_pattern.search(text):
             # Перевод текста
             translated = translator.translate(
-                text, src="ru", dest="en"
+                text, src="ru", dest="uk"
             ).text  # en, ru , ua
-            # logger.info(f"Original: {text} | Translated: {translated}")
+            logger.info(f"Original: {text} | Translated: {translated}")
             # Замена текста в элементе
             element.string.replace_with(translated)
     else:
@@ -45,7 +45,7 @@ def extract_and_translate(file_path: str):
     translator = Translator()
 
     # Проход по всем нужным тегам и перевод текста
-    for element in soup.find_all(["p", "li", "div", "span", "a", "strong"]):
+    for element in soup.find_all(["p", "li", "ul", "div", "span", "a", "strong"]):
         process_element(element, translator, cyrillic_pattern)
 
     # Сохранение измененного HTML-контента в тот же файл
