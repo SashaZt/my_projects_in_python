@@ -561,19 +561,22 @@ def enhance_image(image):
 
     # Повышаем контраст
     enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2)
+    image = enhancer.enhance(
+        1.5
+    )  # Слегка уменьшаем контраст, чтобы не потерять мелкие детали
 
     # Повышаем яркость
     enhancer = ImageEnhance.Brightness(image)
-    image = enhancer.enhance(1.5)
+    image = enhancer.enhance(1.2)  # Слегка уменьшаем яркость, чтобы сохранить детали
 
     # Конвертируем изображение в черно-белое
     image = image.convert("L")
 
-    # Применяем пороговое значение для улучшения контраста текста
-    threshold = 140
-    image = image.point(lambda p: p > threshold and 255)
-
+    # # Применяем пороговое значение для улучшения контраста текста
+    # threshold = 140
+    # image = image.point(lambda p: p > threshold and 255)
+    # Применяем бинаризацию Otsu для улучшения контраста текста
+    image = ImageOps.autocontrast(image)
     return image
 
 
@@ -690,8 +693,23 @@ def extract_text_from_image():
     crop_areas_32b = [
         (465, 510, 655, 560),
     ]
+    crop_areas_35a = [
+        (1250, 510, 1325, 560),
+    ]
+    crop_areas_35b = [
+        (1340, 510, 1530, 560),
+    ]
+    crop_areas_35c = [
+        (1540, 510, 1740, 560),
+    ]
+    crop_areas_38a = [
+        (110, 610, 1290, 660),
+    ]
+    crop_areas_38b = [
+        (110, 660, 1290, 710),
+    ]
     crop_areas = [
-        (465, 510, 655, 560),
+        (110, 710, 1290, 760),
     ]
 
     # Масштабируем каждый список
@@ -721,11 +739,14 @@ def extract_text_from_image():
         draw = ImageDraw.Draw(image)
         draw.rectangle(crop_area, outline="red", width=2)
 
-        # Извлекаем текст с помощью Tesseract OCR
-        custom_config = r"--oem 3 --psm 6 -c tessedit_char_whitelist=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        # Все символы, включая буквы, цифры и специальные символы
+        whitelist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,."
+
+        custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist}"
         text = pytesseract.image_to_string(
             cropped_image, config=custom_config, lang="eng"
         )
+
         # Чистим текст и удаляем пустые строки
         cleaned_text = [clean_text(line) for line in text.strip().split("\n") if line]
         all_texts[image_keys[i]] = cleaned_text  # Привязываем ключ к списку
