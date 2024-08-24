@@ -1,3 +1,5 @@
+import wordninja
+from configuration.logger_setup import logger
 import pdfplumber
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 import pytesseract
@@ -470,7 +472,7 @@ def write_json(pdf_path):
 
 def save_high_resolution_screenshot(pdf_path):
     resolution = 300
-    page_number = 15  # Номер страницы (начиная с 0)
+    page_number = 57  # Номер страницы (начиная с 0)
     output_image_path = "high_res_screenshot.png"
 
     with pdfplumber.open(pdf_path) as pdf:
@@ -553,30 +555,24 @@ def enhance_image(image):
     """
     Улучшает качество изображения для улучшения распознавания текста.
     """
-    # Увеличиваем изображение для лучшего распознавания
     image = image.resize((image.width * 2, image.height * 2), Image.Resampling.LANCZOS)
+    image = image.filter(ImageFilter.MedianFilter(size=3))  # Удаление шумов
+    image = image.filter(ImageFilter.SHARPEN)  # Повышение резкости
 
-    # Повышаем резкость
-    image = image.filter(ImageFilter.SHARPEN)
-
-    # Повышаем контраст
     enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(
-        1.5
-    )  # Слегка уменьшаем контраст, чтобы не потерять мелкие детали
+    image = enhancer.enhance(2)  # Повышение контраста
 
-    # Повышаем яркость
     enhancer = ImageEnhance.Brightness(image)
-    image = enhancer.enhance(1.2)  # Слегка уменьшаем яркость, чтобы сохранить детали
+    image = enhancer.enhance(2)  # Повышение яркости
 
-    # Конвертируем изображение в черно-белое
-    image = image.convert("L")
+    image = image.convert("L")  # Конвертация в черно-белое изображение
 
-    # # Применяем пороговое значение для улучшения контраста текста
-    # threshold = 140
-    # image = image.point(lambda p: p > threshold and 255)
-    # Применяем бинаризацию Otsu для улучшения контраста текста
-    image = ImageOps.autocontrast(image)
+    # Применяем бинаризацию методом Otsu
+    threshold = 140
+    image = image.point(lambda p: p > threshold and 255)
+
+    image = ImageOps.autocontrast(image)  # Применяем автоконтраст
+
     return image
 
 
@@ -600,6 +596,88 @@ def generate_keys():
 
 def scale_crop_areas(crop_areas, scale_factor):
     return [tuple(int(coord * scale_factor) for coord in area) for area in crop_areas]
+
+
+# def validity_text(text_list):
+#     """
+#     Принимает список строк, делит каждую строку на слова с помощью wordninja.split,
+#     и возвращает список с объединенными строками.
+#     """
+#     result_list = []
+#     for text in text_list:
+#         # Разделяем строку на слова
+#         split_words = wordninja.split(text)
+#         # Объединяем слова обратно в строку и добавляем в результат
+#         result_list.append(" ".join(split_words))
+#     return result_list
+
+
+def validity_text(text_list):
+    """
+    Принимает список строк, проверяет каждую строку на наличие чисел, заглавных букв, точек и других условий,
+    и разделяет её соответствующим образом, добавляя пробелы после определенных последовательностей или с помощью wordninja.split.
+    Возвращает список с объединенными строками.
+    """
+    result_list = []
+
+    # Регулярное выражение для шаблона "числа + заглавные буквы + заглавная с последующими строчными буквами"
+    pattern = re.compile(r"(\d+)([A-Z]+)([A-Z][a-z]+)([A-Z][a-z]+)([A-Z][a-z]*)")
+
+    # Регулярное выражение для "город + двухбуквенный штат + цифры"
+    city_state_zip_pattern = re.compile(r"([A-Za-z]+)([A-Z]{2})(\d+)")
+
+    # Регулярное выражение для формата "4 заглавные буквы + одна цифра"
+    four_caps_one_digit_pattern = re.compile(r"^[A-Z]{4}\d$")
+
+    # Регулярное выражение для числа с десятичной точкой
+    decimal_number_pattern = re.compile(r"^\d+\.\d+$")
+
+    # Регулярное выражение для одной буквы и нескольких цифр
+    single_letter_digits_pattern = re.compile(r"^[A-Za-z]\d+$")
+
+    # Регулярное выражение для формата "O422M2Z2Z62"
+    exclude_pattern = re.compile(r"^O\d{3}M\d{1}Z\d{1}Z\d{2}$")
+
+    for text in text_list:
+        processed_words = []
+
+        # Проверяем каждое слово в строке
+        for word in text.split():
+            # Условие для сохранения формата "O422M2Z2Z62" без обработки
+            if exclude_pattern.match(word):
+                processed_words.append(word)
+            # Условие для формата "4 заглавные буквы + одна цифра"
+            elif four_caps_one_digit_pattern.match(word):
+                processed_words.append(word)
+            # Условие для формата "число с десятичной точкой"
+            elif decimal_number_pattern.match(word):
+                processed_words.append(word)
+            # Условие для формата "одна буква и несколько цифр"
+            elif single_letter_digits_pattern.match(word):
+                processed_words.append(word)
+            # Условие для замены "P.0." на "P.O."
+            elif "P.0." in word:
+                processed_words.append(word.replace("P.0.", "P.O. ") + " ")
+            elif city_state_zip_pattern.match(word):
+                # Разделяем слово по шаблону "город + двухбуквенный штат + цифры"
+                processed_words.extend(city_state_zip_pattern.match(word).groups())
+            elif pattern.match(word):
+                # Разделяем слово по регулярному выражению и добавляем в обработанные слова
+                processed_words.extend(pattern.match(word).groups())
+            elif re.match(r"^\d+[A-Z]", word):
+                # Если начинается с чисел и заглавных букв, оставляем его как есть
+                processed_words.append(word)
+            elif re.search(r"[a-z]+[A-Z]", word):
+                # Если найдено "строчные + заглавная", разделяем его по заглавным буквам
+                processed_words.extend(re.findall(r"[A-Z][a-z]*|[a-z]+[A-Z]", word))
+            else:
+                # Если не соответствует, используем wordninja.split
+                processed_words.extend(wordninja.split(word))
+
+        # Объединяем слова обратно в строку и добавляем в результат
+        result_list.append(" ".join(processed_words))
+
+    return result_list
 
 
 def extract_text_from_image():
@@ -708,8 +786,11 @@ def extract_text_from_image():
     crop_areas_38b = [
         (110, 660, 1290, 710),
     ]
-    crop_areas = [
+    crop_areas_38 = [
         (110, 710, 1290, 760),
+    ]
+    crop_areas = [
+        (1620, 70, 2320, 120),
     ]
 
     # Масштабируем каждый список
@@ -722,34 +803,30 @@ def extract_text_from_image():
 
     all_texts = {}
 
-    # Генерируем ключи начиная с 42, включая 47a и 47b
-    image_keys = generate_keys()
+    cropped_image = image.crop(crop_area)
 
-    for i, crop_area in enumerate(crop_areas):
-        # Обрезаем изображение до заданной области
-        cropped_image = image.crop(crop_area)
+    # Улучшаем обрезанное изображение
+    cropped_image = enhance_image(cropped_image)
 
-        # Улучшаем обрезанное изображение
-        cropped_image = enhance_image(cropped_image)
+    # Сохраняем обрезанное изображение для визуализации
+    filename_cropped_image = os.path.join(temp_path, f"cropped_image_{i+1}.png")
+    cropped_image.save(filename_cropped_image)
+    # Рисуем прямоугольник на оригинальном изображении для визуализации
+    draw = ImageDraw.Draw(image)
+    draw.rectangle(crop_area, outline="red", width=2)
 
-        # Сохраняем обрезанное изображение для визуализации
-        filename_cropped_image = os.path.join(temp_path, f"cropped_image_{i+1}.png")
-        cropped_image.save(filename_cropped_image)
-        # Рисуем прямоугольник на оригинальном изображении для визуализации
-        draw = ImageDraw.Draw(image)
-        draw.rectangle(crop_area, outline="red", width=2)
+    # Все символы, включая буквы, цифры и специальные символы
+    whitelist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,."
 
-        # Все символы, включая буквы, цифры и специальные символы
-        whitelist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,."
+    custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist} -c preserve_interword_spaces=1"
 
-        custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist}"
-        text = pytesseract.image_to_string(
-            cropped_image, config=custom_config, lang="eng"
-        )
-
-        # Чистим текст и удаляем пустые строки
-        cleaned_text = [clean_text(line) for line in text.strip().split("\n") if line]
-        all_texts[image_keys[i]] = cleaned_text  # Привязываем ключ к списку
+    text = pytesseract.image_to_string(cropped_image, config=custom_config, lang="eng")
+    text = split_on_capitals(text)
+    logger.info(text)
+    # Чистим текст и удаляем пустые строки
+    cleaned_text = [clean_text(line) for line in text.strip().split("\n") if line]
+    logger.info(cleaned_text)
+    all_texts[image_keys[i]] = cleaned_text  # Привязываем ключ к списку
 
     # Сохраняем изображение с нарисованной областью обрезки
     filename_outlined = os.path.join(temp_path, "outlined_image.png")
@@ -761,8 +838,227 @@ def extract_text_from_image():
         key: column_texts + [""] * (max_rows - len(column_texts))
         for key, column_texts in all_texts.items()
     }
-    print(data)
+    logger.info(data)
     return data
+
+
+def process_single_crop_area():
+    crop_areas_01 = [
+        (75, 70, 800, 255),
+    ]
+    crop_areas_3a = [
+        (1620, 70, 2320, 120),
+    ]
+    crop_areas_3b = [
+        (1620, 120, 2320, 170),
+    ]
+    crop_areas_4 = [
+        (2320, 120, 2475, 170),
+    ]
+    crop_areas_5 = [
+        (1538, 215, 1828, 260),
+    ]
+    crop_areas_6a = [
+        (1828, 215, 2030, 260),
+    ]
+    crop_areas_6b = [
+        (2032, 215, 2235, 260),
+    ]
+    crop_areas_8b = [
+        (110, 310, 950, 360),
+    ]
+    crop_areas_9a = [
+        (1280, 265, 2470, 310),
+    ]
+    crop_areas_9b = [
+        (980, 310, 1905, 360),
+    ]
+    crop_areas_9c = [
+        (1945, 310, 2030, 360),
+    ]
+    crop_areas_9d = [
+        (2060, 310, 2350, 360),
+    ]
+
+    crop_areas_10 = [
+        (75, 410, 340, 460),
+    ]
+
+    crop_areas_11 = [
+        (340, 410, 425, 460),
+    ]
+    crop_areas_12 = [
+        (425, 410, 600, 460),
+    ]
+    crop_areas_13 = [
+        (605, 410, 690, 460),
+    ]
+    crop_areas_14 = [
+        (695, 410, 775, 460),
+    ]
+    crop_areas_15 = [
+        (780, 410, 865, 460),
+    ]
+    crop_areas_16 = [
+        (870, 410, 950, 460),
+    ]
+    crop_areas_17 = [
+        (955, 410, 1040, 460),
+    ]
+    crop_areas_31a = [
+        (75, 510, 165, 560),
+    ]
+    crop_areas_31b = [
+        (170, 510, 360, 560),
+    ]
+    crop_areas_32a = [
+        (375, 510, 450, 560),
+    ]
+    crop_areas_32b = [
+        (465, 510, 655, 560),
+    ]
+    crop_areas_35a = [
+        (1250, 510, 1325, 560),
+    ]
+    crop_areas_35b = [
+        (1340, 510, 1530, 560),
+    ]
+    crop_areas_35c = [
+        (1540, 510, 1740, 560),
+    ]
+    crop_areas_38a = [
+        (110, 610, 1290, 660),
+    ]
+    crop_areas_38b = [
+        (110, 660, 1290, 710),
+    ]
+    crop_areas_38c = [
+        (110, 710, 1290, 760),
+    ]
+    crop_areas_38d = [
+        (110, 760, 1290, 810),
+    ]
+    crop_areas_38e = [
+        (90, 810, 1290, 850),
+    ]
+    crop_areas_39a = [
+        (1340, 660, 1410, 845),
+    ]
+    crop_areas_39b = [
+        (1430, 660, 1650, 845),
+    ]
+    crop_areas_39c = [
+        (1650, 660, 1708, 845),
+    ]
+    crop_areas_40a = [
+        (1717, 660, 1793, 845),
+    ]
+    crop_areas_40b = [
+        (1805, 660, 2030, 845),
+    ]
+    crop_areas_40c = [
+        (2040, 660, 2088, 845),
+    ]
+    crop_areas_41 = [
+        (2100, 660, 2175, 845),
+    ]
+    crop_areas_41a = [
+        (2190, 660, 2410, 845),
+    ]
+    crop_areas_41b = [
+        (2410, 660, 2465, 845),
+    ]
+
+    crop_areas_42 = [
+        (75, 900, 200, 1900),
+    ]
+    crop_areas_43 = [
+        (220, 900, 750, 1900),
+    ]
+    crop_areas_44 = [(945, 901, 1355, 1900)]
+    crop_areas_45 = [(1390, 899, 1560, 1900)]
+    crop_areas_46 = [(1730, 900, 1790, 1900)]
+    crop_areas_47 = [(1850, 901, 2030, 1900)]
+    crop_areas_47_a = [(2032, 901, 2085, 1900)]
+    crop_areas_28 = [(78, 1965, 180, 2000)]
+    crop_areas_gre_dat = [(1400, 1965, 1560, 2000)]
+    crop_areas_totals = [(1920, 1970, 2030, 2000)]
+    crop_areas_50 = [(75, 2060, 700, 2120)]
+    crop_areas_51 = [(760, 2065, 1150, 2120)]
+    crop_areas_52 = [(1190, 2065, 1240, 2120)]
+    crop_areas_53 = [(1275, 2065, 1330, 2120)]
+    crop_areas_55 = [(1780, 2065, 1888, 2120)]
+    crop_areas_55a = [(1895, 2065, 1943, 2120)]
+    crop_areas_56 = [(2040, 2015, 2400, 2060)]
+    crop_areas_58 = [(75, 2260, 800, 2300)]
+    crop_areas_59 = [(835, 2260, 910, 2300)]
+    crop_areas_60 = [(925, 2260, 1400, 2300)]
+    crop_areas = [(75, 2455, 900, 2550)]
+    scale_factor = 1  # Увеличение на 1.1
+    image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению
+    temp_path = "temp"  # Укажите временный путь для сохранения изображений
+    # Открываем изображение
+    image = Image.open(image_path)
+
+    # Извлекаем первую (и единственную) область из списка
+    crop_area = crop_areas[0]
+
+    # Обрезаем изображение до заданной области
+    cropped_image = image.crop(crop_area)
+
+    # Улучшаем обрезанное изображение
+    cropped_image = enhance_image(cropped_image)
+
+    # Сохраняем обрезанное изображение для визуализации
+    filename_cropped_image = os.path.join(temp_path, "cropped_image.png")
+    cropped_image.save(filename_cropped_image)
+
+    # Рисуем прямоугольник на оригинальном изображении для визуализации
+    draw = ImageDraw.Draw(image)
+    draw.rectangle(crop_area, outline="red", width=2)
+
+    # Все символы, включая буквы, цифры и специальные символы
+    whitelist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,."
+
+    custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist} -c preserve_interword_spaces=1"
+
+    text = pytesseract.image_to_string(cropped_image, config=custom_config, lang="eng")
+    cleaned_text = [clean_text(line) for line in text.strip().split("\n") if line]
+    logger.info(f"До обработки: {cleaned_text}")
+    cleaned_text = validity_text(cleaned_text)
+    logger.info(f"Результирующие данные: {cleaned_text}")
+
+    # Сохраняем изображение с нарисованной областью обрезки
+    filename_outlined = os.path.join(temp_path, "outlined_image.png")
+    image.save(filename_outlined)
+
+    return cleaned_text
+
+
+# def validity_text(text_list):
+#     """
+#     Принимает список строк, делит каждую строку на слова с помощью wordninja.split,
+#     и выполняет дополнительную проверку для слов с внутренними заглавными буквами.
+#     Возвращает список с объединенными строками.
+#     """
+#     result_list = []
+#     for text in text_list:
+#         # Разделяем строку на слова
+#         split_words = wordninja.split(text)
+
+#         # Обрабатываем каждое слово, проверяя наличие внутренней заглавной буквы
+#         processed_words = []
+#         for word in split_words:
+#             # Если слово соответствует шаблону, разделяем его
+#             if re.search(r"[a-z]+[A-Z]", word):
+#                 processed_words.extend(re.findall(r"[A-Z][a-z]*|[a-z]+[A-Z]", word))
+#             else:
+#                 processed_words.append(word)
+
+#         # Объединяем слова обратно в строку и добавляем в результат
+#         result_list.append(" ".join(processed_words))
+
+#     return result_list
 
 
 def update_json_with_image_data():
@@ -787,11 +1083,129 @@ def update_json_with_image_data():
     print(f"Данные успешно добавлены в {json_path}")
 
 
+def split_on_capitals(text):
+    """
+    Разделяет текст на слова в местах, где начинаются заглавные буквы,
+    сохраняя числа и учитывая, что слово состоит только из заглавных букв.
+    Например, "1199SEIUNationalBenfitFund" -> ["1199", "SEIU", "National", "Benfit", "Fund"]
+    """
+    # Проверяем, состоит ли слово только из заглавных букв
+    if text.isupper():
+        return [text]  # Возвращаем слово как есть
+
+    # Регулярное выражение, которое учитывает числа и заглавные буквы
+    return re.findall(r"[0-9]+|[A-Z][a-z]*|[A-Z]+(?=[A-Z]|$)", text)
+
+
+# На весь список ПОКА ЗАКРЫТА она
+def process_image():
+    image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению
+    temp_path = "temp"  # Укажите временный путь для сохранения изображений
+    crop_areas = {
+        "01": [(90, 71, 800, 255)],
+        "3a": [(1620, 70, 2320, 120)],
+        "3b": [(1620, 120, 2320, 170)],
+        "4": [(2320, 120, 2475, 170)],
+        "5": [(1538, 215, 1828, 260)],
+        "6a": [(1828, 215, 2030, 260)],
+        "6b": [(2032, 215, 2235, 260)],
+        "8b": [(110, 310, 950, 360)],
+        "9a": [(1280, 265, 2470, 310)],
+        "9b": [(980, 310, 1905, 360)],
+        "9c": [(1945, 310, 2030, 360)],
+        "9d": [(2060, 310, 2350, 360)],
+        "10": [(75, 410, 340, 460)],
+        "11": [(340, 410, 425, 460)],
+        "12": [(425, 410, 600, 460)],
+        "13": [(605, 410, 690, 460)],
+        "14": [(695, 410, 775, 460)],
+        "15": [(780, 410, 865, 460)],
+        "16": [(870, 410, 950, 460)],
+        "17": [(955, 410, 1040, 460)],
+        "31a": [(75, 510, 165, 560)],
+        "31b": [(170, 510, 360, 560)],
+        "32a": [(375, 510, 450, 560)],
+        "32b": [(465, 510, 655, 560)],
+        "35a": [(1250, 510, 1325, 560)],
+        "35b": [(1340, 510, 1530, 560)],
+        "35c": [(1540, 510, 1740, 560)],
+        "38a": [(110, 610, 1290, 660)],
+        "38b": [(110, 660, 1290, 710)],
+        "38c": [(110, 710, 1290, 760)],
+    }
+
+    # Открываем изображение
+    image = Image.open(image_path)
+
+    all_texts = {}
+    exclude_keys = [
+        "3a",
+        "1",
+        "9a",
+    ]  # Пример: добавьте сюда ключи, которые вы хотите пропустить
+
+    # Пример использования функции split_on_capitals
+    for key, areas in crop_areas.items():
+        for i, crop_area in enumerate(areas):
+            # Обрезаем изображение до заданной области
+            cropped_image = image.crop(crop_area)
+
+            # Улучшаем обрезанное изображение
+            cropped_image = enhance_image(cropped_image)
+
+            # Сохраняем обрезанное изображение для визуализации
+            filename_cropped_image = os.path.join(
+                temp_path, f"cropped_image_{key}_{i+1}.png"
+            )
+            cropped_image.save(filename_cropped_image)
+
+            # Рисуем прямоугольник на оригинальном изображении для визуализации
+            draw = ImageDraw.Draw(image)
+            draw.rectangle(crop_area, outline="red", width=2)
+
+            # Все символы, включая буквы, цифры и специальные символы
+            whitelist = (
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,."
+            )
+
+            custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist} -c preserve_interword_spaces=1"
+
+            text = pytesseract.image_to_string(
+                cropped_image, config=custom_config, lang="eng"
+            )
+
+            # Чистим текст и удаляем пустые строки
+            cleaned_text = [
+                clean_text(line) for line in text.strip().split("\n") if line
+            ]
+            logger.info(f"Оригинал: {cleaned_text}")
+
+            # Если в списке одно значение, и ключ не в списке исключений, применяем функцию разделения текста на основе заглавных букв
+            if len(cleaned_text) == 1:
+                all_texts[key] = split_on_capitals(cleaned_text[0])
+                logger.info(f"Разделенный текст для ключа {key}: {all_texts[key]}")
+            else:
+                all_texts[key] = cleaned_text
+
+    # Сохраняем изображение с нарисованной областью обрезки
+    filename_outlined = os.path.join(temp_path, "outlined_image.png")
+    image.save(filename_outlined)
+
+    # Создаем DataFrame для структурирования данных
+    max_rows = max(len(column_texts) for column_texts in all_texts.values())
+    data = {
+        key: column_texts + [""] * (max_rows - len(column_texts))
+        for key, column_texts in all_texts.items()
+    }
+    logger.info(data)
+    return data
+
+
 if __name__ == "__main__":
     pdf_path = "01.pdf"
     # write_json(pdf_path)
     # save_high_resolution_screenshot(pdf_path)
     # anali_pdf_02(pdf_path, test_page_no=0)
-
-    extract_text_from_image()
+    process_single_crop_area()
+    # extract_text_from_image()
     # update_json_with_image_data()
