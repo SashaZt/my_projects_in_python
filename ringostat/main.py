@@ -6,6 +6,8 @@ from database import DatabaseInitializer
 import dependencies  # Импортируем модуль для хранения зависимостей
 from post_routes import router as post_router
 from get_routes import router as get_router
+from put_routes import router as put_router  # Импортируем маршруты из put_routes
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,8 +20,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-app.include_router(post_router)
-app.include_router(get_router)
+app.include_router(post_router) # Подключаем маршруты post_router
+app.include_router(get_router) # Подключаем маршруты put_routes
+app.include_router(put_router)  # Подключаем маршруты get_router
+
 
 if __name__ == "__main__":
     logger.debug("Запуск FastAPI сервера")

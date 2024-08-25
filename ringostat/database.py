@@ -94,9 +94,11 @@ class DatabaseInitializer:
                                 userphone VARCHAR(20),  -- Телефонный номер контакта
                                 useremail VARCHAR(255),  -- Электронная почта контакта
                                 usersite VARCHAR(255),  -- Веб-сайт контакта
-                                comment TEXT  -- Комментарии к контакту
+                                comment TEXT,  -- Комментарии к контакту
+                                created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- Дата и время создания контакта
                             );
                         """)
+
                                         
                         await cursor.execute("""
                             -- Создание таблицы для хранения информации о дополнительных контактах, связанных с основным контактом
