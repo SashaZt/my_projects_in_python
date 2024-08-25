@@ -83,6 +83,17 @@ class DatabaseInitializer:
             async with connection:
                 async with connection.cursor() as cursor:
                     try:
+                        # Таблица метаданных
+                        """Эта таблица будет использоваться для хранения информации о динамически добавляемых столбцах. Это позволяет вашему приложению отслеживать, какие дополнительные столбцы были добавлены в каждую таблицу, и каков их тип данных."""
+                        await cursor.execute("""
+                            CREATE TABLE IF NOT EXISTS table_metadata (
+                                id INT AUTO_INCREMENT PRIMARY KEY,  # Уникальный идентификатор для каждой записи. AUTO_INCREMENT автоматически увеличивает значение с каждой новой записью.
+                                table_name VARCHAR(255) NOT NULL,   # Название таблицы, к которой относится данная запись (например, 'contacts'). Используем тип VARCHAR(255), так как название таблицы - это строка.
+                                column_name VARCHAR(255) NOT NULL,  # Название столбца, который добавляется динамически. Также используем тип VARCHAR(255), так как это строка.
+                                data_type VARCHAR(50) NOT NULL      # Тип данных для данного столбца (например, 'VARCHAR(255)', 'INT', 'DATETIME'). Мы используем тип VARCHAR(50), так как тип данных - это тоже строка, и обычно его длина не превышает 50 символов.
+                            );
+                        """)
+
                         await cursor.execute("""
                             -- Создание таблицы для хранения информации о контактах
                             CREATE TABLE IF NOT EXISTS contacts (
@@ -185,7 +196,6 @@ class DatabaseInitializer:
             logger.info("Пул соединений закрыт")
 
     """Получение всех данных о контактах с возможностью фильтрации."""
-
     async def get_all_contact_data(self, filters: Optional[Dict[str, Any]] = None):
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
@@ -555,6 +565,24 @@ class DatabaseInitializer:
         except Exception as e:
             logger.error(f"Ошибка при добавлении дополнительного контакта: {e}")
             return False
+    async def get_dynamic_columns(self, table_name: str):
+        """Получает список всех столбцов в таблице, включая динамически добавленные."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return []
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(f"SHOW COLUMNS FROM {table_name}")
+                    columns = await cursor.fetchall()
+                    column_names = [column['Field'] for column in columns]
+                    return column_names
+        except Exception as e:
+            logger.error(f"Ошибка при получении столбцов таблицы {table_name}: {e}")
+            return []
+
 
 
 

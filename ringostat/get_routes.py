@@ -122,28 +122,27 @@ async def get_contact(contact_id: int, db=Depends(get_db)):
         payment_details = await db.get_payment_details(contact_id)
         comments = await db.get_comments(contact_id)
         
-        # Формируем ответ в формате заказчика
+        # Преобразование datetime в строку
+        for key, value in contact.items():
+            if isinstance(value, datetime):
+                contact[key] = value.strftime('%d.%m.%Y %H:%M:%S')
+
         response_data = {
             "contactId": contact_id,
-            "username": contact["username"],
-            "contactType": contact["contact_type"],
-            "contactStatus": contact["contact_status"],
-            "manager": contact["manager"],
-            "userphone": contact["userphone"],
-            "useremail": contact["useremail"],
-            "usersite": contact["usersite"],
-            "comment": contact["comment"],
+            **contact,
             "additionalContacts": additional_contacts,
             "messengersData": messengers_data,
             "paymentDetails": payment_details,
             "comments": comments
         }
         
-        return response_data
+        return JSONResponse(status_code=200, content=response_data)
 
     except Exception as e:
         logger.error(f"Ошибка при получении данных контакта: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
 
 @router.get("/contacts")
 async def get_filtered_contacts(
@@ -160,8 +159,12 @@ async def get_filtered_contacts(
     db=Depends(get_db)
 ):
     try:
+        # Динамическое формирование списка полей для запроса
+        contact_columns = await db.get_dynamic_columns("contacts")
+        columns = ", ".join(contact_columns)
+
         # Формирование базового SQL-запроса
-        query = "SELECT id, created_at AS date, contact_type AS organization, contact_status AS status, manager AS contact, userphone AS phone FROM contacts WHERE 1=1"
+        query = f"SELECT {columns} FROM contacts WHERE 1=1"
         parameters = []
 
         # Добавление условий фильтрации
@@ -202,10 +205,10 @@ async def get_filtered_contacts(
 
                 # Преобразование datetime в строку
                 for contact in contacts:
-                    if isinstance(contact.get('date'), datetime):
-                        contact['date'] = contact['date'].strftime('%d.%m.%Y')
+                    if isinstance(contact.get('created_at'), datetime):
+                        contact['created_at'] = contact['created_at'].strftime('%d.%m.%Y')
 
-        # Расчет общего количества страниц (предполагается, что общее количество записей уже известно)
+        # Получаем общее количество записей
         async with db.pool.acquire() as connection:
             async with connection.cursor() as cursor:
                 await cursor.execute("SELECT COUNT(*) FROM contacts WHERE 1=1")
@@ -222,4 +225,5 @@ async def get_filtered_contacts(
     except Exception as e:
         logger.error(f"Ошибка при получении списка контактов: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
 

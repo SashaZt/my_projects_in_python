@@ -103,6 +103,24 @@ async def handle_contact(request: Request):
         contact_id = data.get("contactId")
         mode = data.get("mode")
 
+        # Статические поля, которые всегда должны быть в таблице
+        static_fields = {
+            "username": "VARCHAR(255)",
+            "contact_type": "VARCHAR(255)",
+            "contact_status": "VARCHAR(255)",
+            "manager": "VARCHAR(255)",
+            "userphone": "VARCHAR(20)",
+            "useremail": "VARCHAR(255)",
+            "usersite": "VARCHAR(255)",
+            "comment": "TEXT"
+        }
+
+        # Проверка на наличие новых полей в данных
+        for key in data.keys():
+            if key not in static_fields:
+                # Если поле не является статическим, проверяем его наличие в БД и добавляем при необходимости
+                await add_column_if_not_exists("contacts", key, "VARCHAR(255)", db)
+
         if mode == "new" or not contact_id:
             # Создание нового контакта
             new_contact_data = {
@@ -115,6 +133,11 @@ async def handle_contact(request: Request):
                 "usersite": data["usersite"],
                 "comment": data.get("comment", "")
             }
+
+            # Добавляем динамические данные
+            for key in data.keys():
+                if key not in static_fields:
+                    new_contact_data[key] = data[key]
 
             contact_id = await db.insert_contact(new_contact_data)
             logger.info(f"Создан новый контакт с ID {contact_id}")
@@ -132,6 +155,11 @@ async def handle_contact(request: Request):
                 "usersite": data["usersite"],
                 "comment": data.get("comment", "")
             }
+
+            # Добавляем динамические данные
+            for key in data.keys():
+                if key not in static_fields:
+                    update_contact_data[key] = data[key]
 
             success = await db.update_contact(update_contact_data)
             if success:
@@ -173,3 +201,18 @@ async def handle_contact(request: Request):
             status_code=500,
             content={"status": "failure", "message": f"Failed to process data: {e}"},
         )
+"""Добавление нового столбца в таблицу, если его еще нет"""
+async def add_column_if_not_exists(table_name: str, column_name: str, data_type: str, db):
+
+    async with db.pool.acquire() as connection:
+        async with connection.cursor() as cursor:
+            # Проверка наличия столбца
+            await cursor.execute(f"SHOW COLUMNS FROM {table_name} LIKE '{column_name}'")
+            result = await cursor.fetchone()
+            if not result:
+                # Добавляем новый столбец
+                await cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {data_type}")
+                # Сохраняем метаданные
+                await cursor.execute("INSERT INTO table_metadata (table_name, column_name, data_type) VALUES (%s, %s, %s)", (table_name, column_name, data_type))
+                logger.info(f"Добавлен новый столбец {column_name} в таблицу {table_name}")
+
