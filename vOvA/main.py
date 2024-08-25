@@ -20,7 +20,7 @@ def process_element(element, translator, cyrillic_pattern):
             # Перевод текста
             translated = translator.translate(
                 text, src="ru", dest="uk"
-            ).text  # en, ru , ua
+            ).text  # en, ru , ua , it
             logger.info(f"Original: {text} | Translated: {translated}")
             # Замена текста в элементе
             element.string.replace_with(translated)
