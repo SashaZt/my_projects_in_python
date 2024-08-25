@@ -112,3 +112,37 @@ async def get_all_contacts(
         raise HTTPException(
             status_code=500, detail=f"Failed to retrieve contact data: {e}"
         )
+@router.get("/contact/{contact_id}")
+async def get_contact(contact_id: int, db=Depends(get_db)):
+    try:
+        contact = await db.get_contact_by_id(contact_id)
+        if not contact:
+            raise HTTPException(status_code=404, detail="Contact not found")
+        
+        additional_contacts = await db.get_additional_contacts(contact_id)
+        messengers_data = await db.get_messengers_data(contact_id)
+        payment_details = await db.get_payment_details(contact_id)
+        comments = await db.get_comments(contact_id)
+        
+        # Формируем ответ в формате заказчика
+        response_data = {
+            "contactId": contact_id,
+            "username": contact["username"],
+            "contactType": contact["contact_type"],
+            "contactStatus": contact["contact_status"],
+            "manager": contact["manager"],
+            "userphone": contact["userphone"],
+            "useremail": contact["useremail"],
+            "usersite": contact["usersite"],
+            "comment": contact["comment"],
+            "additionalContacts": additional_contacts,
+            "messengersData": messengers_data,
+            "paymentDetails": payment_details,
+            "comments": comments
+        }
+        
+        return response_data
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении данных контакта: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")

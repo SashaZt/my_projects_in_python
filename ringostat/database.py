@@ -83,103 +83,70 @@ class DatabaseInitializer:
             async with connection:
                 async with connection.cursor() as cursor:
                     try:
-                        # Создание таблицы Контактов
-                        await cursor.execute(
-                            """
-                        CREATE TABLE IF NOT EXISTS contacts (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            name VARCHAR(255),               # Имя
-                            surname VARCHAR(255),            # Фамилия
-                            formal_title VARCHAR(255)        # Обращение
-                        )"""
-                        )
-
-                        # Создание таблицы Телефонных Номеров
-                        await cursor.execute(
-                            """
-                        CREATE TABLE IF NOT EXISTS contacts_phone_numbers (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            contact_id INT,
-                            phone_number VARCHAR(255),       # Телефонный номер
-                            FOREIGN KEY (contact_id) REFERENCES contacts(id)
-                        )"""
-                        )
-
-                        # Создание таблицы Email
-                        await cursor.execute(
-                            """
-                        CREATE TABLE IF NOT EXISTS contacts_emails (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            contact_id INT,
-                            email VARCHAR(255),              # Электронный адрес
-                            FOREIGN KEY (contact_id) REFERENCES contacts(id)
-                        )"""
-                        )
-
-                        # Создание таблицы Банковских Счетов
-                        await cursor.execute(
-                            """
-                        CREATE TABLE IF NOT EXISTS contacts_bank_accounts (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            contact_id INT,
-                            bank_name VARCHAR(255),          # Название банка
-                            account_number VARCHAR(255),     # Номер счета
-                            currency VARCHAR(50),            # Валюта
-                            FOREIGN KEY (contact_id) REFERENCES contacts(id)
-                        )"""
-                        )
-
-                        # Создание таблицы Менеджеров
-                        await cursor.execute(
-                            """
-                        CREATE TABLE IF NOT EXISTS contact_managers (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            contact_id INT,
-                            manager_contact_id INT,          # ID контакта-менеджера
-                            FOREIGN KEY (contact_id) REFERENCES contacts(id),
-                            FOREIGN KEY (manager_contact_id) REFERENCES contacts(id)
-                        )"""
-                        )
-
-                        # Создание таблицы Статусов Контакта
-                        await cursor.execute(
-                            """
-                        CREATE TABLE IF NOT EXISTS contact_status (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            contact_id INT,
-                            status_description VARCHAR(255), # Описание статуса
-                            FOREIGN KEY (contact_id) REFERENCES contacts(id)
-                        )"""
-                        )
-
-                        # Создание таблицы Истории Взаимодействий
-                        await cursor.execute(
-                            """
-                        CREATE TABLE IF NOT EXISTS contacts_interaction_history (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            contact_id INT,
-                            interaction_type VARCHAR(255),   # Тип взаимодействия
-                            interaction_date DATETIME,       # Дата взаимодействия
-                            commentary VARCHAR(1024),        # Комментарии
-                            FOREIGN KEY (contact_id) REFERENCES contacts(id)
-                        )"""
-                        )
-
-                        # Создание таблицы Адресов
-                        await cursor.execute(
-                            """
-                        CREATE TABLE IF NOT EXISTS contacts_addresses (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            contact_id INT,
-                            address_line1 VARCHAR(255),      # Адресная строка 1
-                            address_line2 VARCHAR(255),      # Адресная строка 2
-                            city VARCHAR(255),               # Город
-                            state VARCHAR(255),              # Область/штат
-                            zip_code VARCHAR(50),            # Почтовый индекс
-                            country VARCHAR(50),             # Страна
-                            FOREIGN KEY (contact_id) REFERENCES contacts(id)
-                        )"""
-                        )
+                        await cursor.execute("""
+                            -- Создание таблицы для хранения информации о контактах
+                            CREATE TABLE IF NOT EXISTS contacts (
+                                id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор контакта, автоинкремент
+                                username VARCHAR(255) NOT NULL,  -- Имя пользователя
+                                contact_type VARCHAR(255) NOT NULL,  -- Тип контакта (например, физическое лицо, компания и т.д.)
+                                contact_status VARCHAR(255) NOT NULL,  -- Статус контакта (например, первый контакт, в работе и т.д.)
+                                manager VARCHAR(255),  -- Имя менеджера, ответственного за контакт
+                                userphone VARCHAR(20),  -- Телефонный номер контакта
+                                useremail VARCHAR(255),  -- Электронная почта контакта
+                                usersite VARCHAR(255),  -- Веб-сайт контакта
+                                comment TEXT  -- Комментарии к контакту
+                            );
+                        """)
+                                        
+                        await cursor.execute("""
+                            -- Создание таблицы для хранения информации о дополнительных контактах, связанных с основным контактом
+                            CREATE TABLE IF NOT EXISTS additional_contacts (
+                                id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор записи, автоинкремент
+                                contact_id INT,  -- Идентификатор основного контакта, внешний ключ
+                                name VARCHAR(255),  -- Имя дополнительного контакта
+                                position VARCHAR(255),  -- Должность дополнительного контакта
+                                phone VARCHAR(20),  -- Телефонный номер дополнительного контакта
+                                email VARCHAR(255),  -- Электронная почта дополнительного контакта
+                                FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE  -- Внешний ключ, ссылающийся на таблицу contacts, при удалении основного контакта все связанные записи удаляются
+                            );
+                        """)
+                                        
+                        await cursor.execute("""
+                            -- Создание таблицы для хранения информации о мессенджерах, связанных с контактом
+                            CREATE TABLE IF NOT EXISTS messengers_data (
+                                id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор записи, автоинкремент
+                                contact_id INT,  -- Идентификатор основного контакта, внешний ключ
+                                messenger VARCHAR(255),  -- Название мессенджера (например, Telegram, WhatsApp)
+                                link VARCHAR(255),  -- Ссылка на мессенджер
+                                FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE  -- Внешний ключ, ссылающийся на таблицу contacts, при удалении основного контакта все связанные записи удаляются
+                            );
+                        """)
+                                        
+                        await cursor.execute("""
+                            -- Создание таблицы для хранения платежных реквизитов, связанных с контактом
+                            CREATE TABLE IF NOT EXISTS payment_details (
+                                id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор записи, автоинкремент
+                                contact_id INT,  -- Идентификатор основного контакта, внешний ключ
+                                IBAN VARCHAR(255),  -- Номер банковского счета в формате IBAN
+                                bank_name VARCHAR(255),  -- Название банка
+                                SWIFT VARCHAR(255),  -- SWIFT-код банка
+                                account_type VARCHAR(255),  -- Тип счета (например, расчетный, сберегательный)
+                                currency VARCHAR(50),  -- Валюта счета
+                                FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE  -- Внешний ключ, ссылающийся на таблицу contacts, при удалении основного контакта все связанные записи удаляются
+                            );
+                        """)
+                                        
+                        await cursor.execute("""
+                            -- Создание таблицы для хранения комментариев, связанных с контактом
+                            CREATE TABLE IF NOT EXISTS comments (
+                                id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор записи, автоинкремент
+                                contact_id INT,  -- Идентификатор основного контакта, внешний ключ
+                                date DATE,  -- Дата комментария
+                                manager VARCHAR(255),  -- Имя менеджера, оставившего комментарий
+                                comment TEXT,  -- Текст комментария
+                                FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE  -- Внешний ключ, ссылающийся на таблицу contacts, при удалении основного контакта все связанные записи удаляются
+                            );
+                        """)
 
                         # Создание таблицы Вызовов
                         await cursor.execute(
@@ -338,6 +305,122 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при добавлении данных в таблицу calls: {e}")
             return False
 
+    async def get_comments(self, contact_id):
+        """Получить комментарии для данного контакта."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return []
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        "SELECT date, manager, comment FROM comments WHERE contact_id = %s",
+                        (contact_id,)
+                    )
+                    comments = await cursor.fetchall()
+                    return comments
+        except Exception as e:
+            logger.error(f"Ошибка при получении комментариев: {e}")
+            return []
+
+    async def get_payment_details(self, contact_id):
+        """Получить платежные реквизиты для данного контакта."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return []
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        "SELECT IBAN, bank_name, SWIFT, account_type, currency FROM payment_details WHERE contact_id = %s",
+                        (contact_id,)
+                    )
+                    payment_details = await cursor.fetchall()
+                    return payment_details
+        except Exception as e:
+            logger.error(f"Ошибка при получении платежных данных: {e}")
+            return []
+
+    async def get_additional_contacts(self, contact_id):
+        """Получить дополнительные контакты для данного контакта."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return []
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        "SELECT name, position, phone, email FROM additional_contacts WHERE contact_id = %s",
+                        (contact_id,)
+                    )
+                    additional_contacts = await cursor.fetchall()
+                    return additional_contacts
+        except Exception as e:
+            logger.error(f"Ошибка при получении дополнительных контактов: {e}")
+            return []
+
+    async def get_messengers_data(self, contact_id):
+        """Получить данные мессенджеров для данного контакта."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return []
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        "SELECT messenger, link FROM messengers_data WHERE contact_id = %s",
+                        (contact_id,)
+                    )
+                    messengers_data = await cursor.fetchall()
+                    return messengers_data
+        except Exception as e:
+            logger.error(f"Ошибка при получении данных мессенджеров: {e}")
+            return []
+
+    async def get_contact_by_id(self, contact_id):
+        """Получить данные контакта по ID."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return None
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute("SELECT * FROM contacts WHERE id = %s", (contact_id,))
+                    contact = await cursor.fetchone()
+                    return contact
+        except Exception as e:
+            logger.error(f"Ошибка при получении данных контакта: {e}")
+            return None
+
+    # Реализация методов для извлечения дополнительных данных аналогична.
+    # Например, метод get_additional_contacts:
+    async def get_additional_contacts(self, contact_id):
+        """Получить дополнительные контакты для данного контакта."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return []
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute("SELECT name, position, phone, email FROM additional_contacts WHERE contact_id = %s", (contact_id,))
+                    additional_contacts = await cursor.fetchall()
+                    return additional_contacts
+        except Exception as e:
+            logger.error(f"Ошибка при получении дополнительных контактов: {e}")
+            return []
+
     async def insert_contact(self, contact_data):
         """Добавление данных о контакте в таблицу contacts."""
         if self.pool is None:
@@ -350,26 +433,118 @@ class DatabaseInitializer:
                 async with connection.cursor() as cursor:
                     await cursor.execute(
                         """
-                        INSERT INTO contacts (name, surname, formal_title)
-                        VALUES (%s, %s, %s)
-                    """,
+                        INSERT INTO contacts (username, contact_type, contact_status, manager, userphone, useremail, usersite, comment)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
                         (
-                            contact_data["name"],
-                            contact_data["surname"],
-                            contact_data["formal_title"],
+                            contact_data["username"],  # Используем правильное название столбца: username
+                            contact_data["contact_type"],
+                            contact_data["contact_status"],
+                            contact_data["manager"],
+                            contact_data["userphone"],
+                            contact_data["useremail"],
+                            contact_data["usersite"],
+                            contact_data["comment"],
                         ),
                     )
                     await connection.commit()
-                    logger.info(
-                        f"Данные успешно добавлены в таблицу contacts: {contact_data}"
-                    )
-            return True
-        except asyncio.TimeoutError:
-            logger.error("Таймаут при попытке получить соединение из пула")
-            return False
+                    contact_id = cursor.lastrowid  # Получаем ID вставленного контакта
+                    logger.info(f"Данные успешно добавлены в таблицу contacts: {contact_data}")
+                    return contact_id
         except Exception as e:
             logger.error(f"Ошибка при добавлении данных в таблицу contacts: {e}")
             return False
+    async def insert_or_update_payment_details(self, payment_data):
+        """Вставка или обновление платежных данных."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return False
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        INSERT INTO payment_details (contact_id, IBAN, bank_name, SWIFT, account_type, currency)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            payment_data["contact_id"],
+                            payment_data["IBAN"],
+                            payment_data["BankName"],
+                            payment_data["SWIFT"],
+                            payment_data["AccountType"],
+                            payment_data["Currency"],
+                        ),
+                    )
+                    await connection.commit()
+                    logger.info(f"Платежные данные успешно добавлены: {payment_data}")
+                    return True
+        except Exception as e:
+            logger.error(f"Ошибка при добавлении платежных данных: {e}")
+            return False
+
+    async def insert_or_update_messenger_data(self, messenger_data):
+        """Вставка или обновление данных мессенджера."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return False
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor() as cursor:
+                    await cursor.execute(
+                        """
+                        INSERT INTO messengers_data (contact_id, messenger, link)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (
+                            messenger_data["contact_id"],
+                            messenger_data["messenger"],
+                            messenger_data["link"],
+                        ),
+                    )
+                    await connection.commit()
+                    logger.info(f"Данные мессенджера успешно добавлены: {messenger_data}")
+                    return True
+        except Exception as e:
+            logger.error(f"Ошибка при добавлении данных мессенджера: {e}")
+            return False
+
+    async def insert_or_update_additional_contact(self, additional_contact_data):
+        """Вставка или обновление дополнительного контакта."""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return False
+
+        try:
+            connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+            async with connection:
+                async with connection.cursor() as cursor:
+                    # Предположим, что здесь у нас нет уникального идентификатора для обновления
+                    await cursor.execute(
+                        """
+                        INSERT INTO additional_contacts (contact_id, name, position, phone, email)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (
+                            additional_contact_data["contact_id"],
+                            additional_contact_data["name"],
+                            additional_contact_data["position"],
+                            additional_contact_data["phone"],
+                            additional_contact_data["email"],
+                        ),
+                    )
+                    await connection.commit()
+                    logger.info(f"Дополнительный контакт успешно добавлен: {additional_contact_data}")
+                    return True
+        except Exception as e:
+            logger.error(f"Ошибка при добавлении дополнительного контакта: {e}")
+            return False
+
+
 
     async def insert_contact_phone_number(self, phone_data):
         """Добавление данных о телефонном номере в таблицу contacts_phone_numbers."""
