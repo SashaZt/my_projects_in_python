@@ -265,9 +265,10 @@ class DatabaseInitializer:
         except asyncio.TimeoutError:
             logger.error("Таймаут при попытке получить соединение из пула")
             return []
-
+    
+    """Добавление данных о вызове в таблицу calls."""
     async def insert_call_data(self, call_data):
-        """Добавление данных о вызове в таблицу calls."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -307,8 +308,9 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при добавлении данных в таблицу calls: {e}")
             return False
 
+    """Получить комментарии для данного контакта. по ТЗ"""
     async def get_comments(self, contact_id):
-        """Получить комментарии для данного контакта."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return []
@@ -326,9 +328,10 @@ class DatabaseInitializer:
         except Exception as e:
             logger.error(f"Ошибка при получении комментариев: {e}")
             return []
-
+    
+    """Получить платежные реквизиты для данного контакта. по ТЗ"""
     async def get_payment_details(self, contact_id):
-        """Получить платежные реквизиты для данного контакта."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return []
@@ -347,6 +350,7 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при получении платежных данных: {e}")
             return []
 
+    """Получить дополнительные контакты для данного контакта. по ТЗ"""
     async def get_additional_contacts(self, contact_id):
         """Получить дополнительные контакты для данного контакта."""
         if self.pool is None:
@@ -366,9 +370,10 @@ class DatabaseInitializer:
         except Exception as e:
             logger.error(f"Ошибка при получении дополнительных контактов: {e}")
             return []
-
+    
+    """Получить данные мессенджеров для данного контакта. по ТЗ"""
     async def get_messengers_data(self, contact_id):
-        """Получить данные мессенджеров для данного контакта."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return []
@@ -387,8 +392,9 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при получении данных мессенджеров: {e}")
             return []
 
+    """Получить данные контакта по ID. по ТЗ"""
     async def get_contact_by_id(self, contact_id):
-        """Получить данные контакта по ID."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return None
@@ -404,10 +410,9 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при получении данных контакта: {e}")
             return None
 
-    # Реализация методов для извлечения дополнительных данных аналогична.
-    # Например, метод get_additional_contacts:
+    """Получить дополнительные контакты для данного контакта. по ТЗ"""
     async def get_additional_contacts(self, contact_id):
-        """Получить дополнительные контакты для данного контакта."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return []
@@ -423,8 +428,9 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при получении дополнительных контактов: {e}")
             return []
 
+    """Добавление данных о контакте в таблицу contacts. по ТЗ"""
     async def insert_contact(self, contact_data):
-        """Добавление данных о контакте в таблицу contacts."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -456,8 +462,10 @@ class DatabaseInitializer:
         except Exception as e:
             logger.error(f"Ошибка при добавлении данных в таблицу contacts: {e}")
             return False
+    
+    """Вставка или обновление платежных данных. по ТЗ"""
     async def insert_or_update_payment_details(self, payment_data):
-        """Вставка или обновление платежных данных."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -487,8 +495,9 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при добавлении платежных данных: {e}")
             return False
 
+    """Вставка или обновление данных мессенджера. по ТЗ"""
     async def insert_or_update_messenger_data(self, messenger_data):
-        """Вставка или обновление данных мессенджера."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -515,8 +524,9 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при добавлении данных мессенджера: {e}")
             return False
 
+    """Вставка или обновление дополнительного контакта. по ТЗ"""
     async def insert_or_update_additional_contact(self, additional_contact_data):
-        """Вставка или обновление дополнительного контакта."""
+        
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -546,215 +556,6 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при добавлении дополнительного контакта: {e}")
             return False
 
-
-
-    async def insert_contact_phone_number(self, phone_data):
-        """Добавление данных о телефонном номере в таблицу contacts_phone_numbers."""
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return False
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        INSERT INTO contacts_phone_numbers (contact_id, phone_number)
-                        VALUES (%s, %s)
-                    """,
-                        (
-                            phone_data["contact_id"],
-                            phone_data["phone_number"],
-                        ),
-                    )
-                    await connection.commit()
-                    logger.info(
-                        f"Данные успешно добавлены в таблицу contacts_phone_numbers: {phone_data}"
-                    )
-            return True
-        except Exception as e:
-            logger.error(
-                f"Ошибка при добавлении данных в таблицу contacts_phone_numbers: {e}"
-            )
-            return False
-
-    async def insert_contact_email(self, email_data):
-        """Добавление данных о электронном адресе в таблицу contacts_emails."""
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return False
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        INSERT INTO contacts_emails (contact_id, email)
-                        VALUES (%s, %s)
-                    """,
-                        (
-                            email_data["contact_id"],
-                            email_data["email"],
-                        ),
-                    )
-                    await connection.commit()
-                    logger.info(
-                        f"Данные успешно добавлены в таблицу contacts_emails: {email_data}"
-                    )
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка при добавлении данных в таблицу contacts_emails: {e}")
-            return False
-
-    async def insert_contact_bank_account(self, bank_account_data):
-        """Добавление данных о банковском счете в таблицу contacts_bank_accounts."""
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return False
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        INSERT INTO contacts_bank_accounts (contact_id, bank_name, account_number, currency)
-                        VALUES (%s, %s, %s, %s)
-                    """,
-                        (
-                            bank_account_data["contact_id"],
-                            bank_account_data["bank_name"],
-                            bank_account_data["account_number"],
-                            bank_account_data["currency"],
-                        ),
-                    )
-                    await connection.commit()
-                    logger.info(
-                        f"Данные успешно добавлены в таблицу contacts_bank_accounts: {bank_account_data}"
-                    )
-            return True
-        except Exception as e:
-            logger.error(
-                f"Ошибка при добавлении данных в таблицу contacts_bank_accounts: {e}"
-            )
-            return False
-
-    async def insert_contact_manager(self, manager_data):
-        """Добавление данных о менеджере контакта в таблицу contact_managers."""
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return False
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        INSERT INTO contact_managers (contact_id, manager_contact_id)
-                        VALUES (%s, %s)
-                    """,
-                        (
-                            manager_data["contact_id"],
-                            manager_data["manager_contact_id"],
-                        ),
-                    )
-                    await connection.commit()
-                    logger.info(
-                        f"Данные успешно добавлены в таблицу contact_managers: {manager_data}"
-                    )
-            return True
-        except Exception as e:
-            logger.error(
-                f"Ошибка при добавлении данных в таблицу contact_managers: {e}"
-            )
-            return False
-
-    async def insert_contact_status(self, status_data):
-        """Добавление данных о статусе контакта в таблицу contact_status."""
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return False
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        INSERT INTO contact_status (contact_id, status_description)
-                        VALUES (%s, %s)
-                    """,
-                        (
-                            status_data["contact_id"],
-                            status_data["status_description"],
-                        ),
-                    )
-                    await connection.commit()
-                    logger.info(
-                        f"Данные успешно добавлены в таблицу contact_status: {status_data}"
-                    )
-            return True
-        except Exception as e:
-            logger.error(f"Ошибка при добавлении данных в таблицу contact_status: {e}")
-            return False
-
-    async def insert_contact_interaction_history(self, interaction_data):
-        """Добавление данных о взаимодействии контакта в таблицу contacts_interaction_history."""
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return False
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        INSERT INTO contacts_interaction_history (contact_id, interaction_type, interaction_date, commentary)
-                        VALUES (%s, %s, %s, %s)
-                    """,
-                        (
-                            interaction_data["contact_id"],
-                            interaction_data["interaction_type"],
-                            interaction_data["interaction_date"],
-                            interaction_data["commentary"],
-                        ),
-                    )
-                    await connection.commit()
-                    logger.info(
-                        f"Данные успешно добавлены в таблицу contacts_interaction_history: {interaction_data}"
-                    )
-            return True
-        except Exception as e:
-            logger.error(
-                f"Ошибка при добавлении данных в таблицу contacts_interaction_history: {e}"
-            )
-            return False
-
-    async def insert_contact_address(self, address_data):
-        """Добавление данных об адресе в таблицу contacts_addresses."""
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return False
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        INSERT INTO contacts_addresses (contact_id, address_line1, address_line2, city, state, zip_code, country)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """,
-                        (
-                            address_data["contact_id"],
-                            address_data["address_line1"],
-                            address_data["address_line2"],
-                            address_data["city"],
-                            address_data["state"],
-                            address_data["zip_code"],
-                            address_data["country"],
-                        ),
-                    )
-                    await connection.commit()
-                    logger.info(
-                        f"Данные успешно добавлены в таблицу contacts_addresses: {address_data}"
-                    )
-            return True
-        except Exception as e:
-            logger.error(
-                f"Ошибка при добавлении данных в таблицу contacts_addresses: {e}"
-            )
-            return False
 
 
 # Для тестирования модуля отдельно (можно удалить, если не нужно)
