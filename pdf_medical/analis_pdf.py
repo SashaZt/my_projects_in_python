@@ -638,6 +638,12 @@ def validity_text(text_list):
     # Регулярное выражение для формата "O422M2Z2Z62"
     exclude_pattern = re.compile(r"^O\d{3}M\d{1}Z\d{1}Z\d{2}$")
 
+    # Регулярное выражение для буквы и 3, 4 или 5 цифр
+    letter_and_digits_pattern = re.compile(r"^[A-Za-z]\d{3,5}$")
+
+    # Регулярное выражение для формата "буква цифра буква цифры"
+    letter_digit_letter_digits_pattern = re.compile(r"^[A-Za-z]\d[A-Za-z]\d+$")
+
     for text in text_list:
         processed_words = []
 
@@ -645,6 +651,12 @@ def validity_text(text_list):
         for word in text.split():
             # Условие для сохранения формата "O422M2Z2Z62" без обработки
             if exclude_pattern.match(word):
+                processed_words.append(word)
+            # Условие для формата "буква цифра буква цифры"
+            elif letter_digit_letter_digits_pattern.match(word):
+                processed_words.append(word)
+            # Условие для формата "буква и 3, 4 или 5 цифр"
+            elif letter_and_digits_pattern.match(word):
                 processed_words.append(word)
             # Условие для формата "4 заглавные буквы + одна цифра"
             elif four_caps_one_digit_pattern.match(word):
@@ -993,7 +1005,25 @@ def process_single_crop_area():
     crop_areas_58 = [(75, 2260, 800, 2300)]
     crop_areas_59 = [(835, 2260, 910, 2300)]
     crop_areas_60 = [(925, 2260, 1400, 2300)]
-    crop_areas = [(75, 2455, 900, 2550)]
+    crop_areas_63 = [(75, 2455, 900, 2550)]
+    crop_areas_66 = [(105, 2600, 300, 2645)]
+    crop_areas_66a = [(340, 2600, 540, 2645)]
+    crop_areas_66b = [(580, 2600, 750, 2645)]
+    crop_areas_66c = [(810, 2600, 990, 2645)]
+    crop_areas_66d = [(1045, 2600, 1220, 2645)]
+    crop_areas_66e = [(1280, 2600, 1450, 2645)]
+    crop_areas_66f = [(1510, 2600, 1650, 2645)]
+    crop_areas_66g = [(1745, 2600, 1900, 2645)]
+    crop_areas_66h = [(1980, 2600, 2165, 2645)]
+    crop_areas_66i = [(105, 2650, 300, 2690)]
+    crop_areas_69 = [(190, 2700, 380, 2745)]
+    crop_areas_76 = [(1800, 2750, 2080, 2795)]
+    crop_areas_76last = [(1605, 2805, 2055, 2840)]
+    crop_areas_76first = [(2145, 2805, 2300, 2840)]
+    crop_areas_81a = [(838, 2950, 890, 2985)]
+    crop_areas_81b = [(900, 2950, 1180, 2988)]
+    crop_areas = [(900, 2950, 1180, 2988)]
+
     scale_factor = 1  # Увеличение на 1.1
     image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению
     temp_path = "temp"  # Укажите временный путь для сохранения изображений
