@@ -50,11 +50,11 @@ headers = {
 # Параметры подключения к базе данных
 config = {"user": "", "password": "", "host": "", "database": ""}
 
-belarus_phone_patterns = {
+romania_phone_patterns = {
     "full": r"\b(80\d{9}|375\d{9}|\d{9})\b",
-    "split": r"(375\d{9})",
+    "split": r"(40\d{9})",
     "final": r"\b(\d{9})\b",
-    "codes": [375],
+    "codes": [40],
 }
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -433,7 +433,7 @@ def parsing(src, url):
                     valid_numbers = [
                         num
                         for num in phone_numbers_extracted
-                        if re.match(belarus_phone_patterns["final"], num)
+                        if re.match(romania_phone_patterns["final"], num)
                     ]
                     if valid_numbers:
                         clean_numbers = ", ".join(valid_numbers)
