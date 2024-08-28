@@ -12,18 +12,34 @@ from configuration.logger_setup import logger
 
 
 def get_html():
-    headers = {
-        "DNT": "1",
-        "Referer": "https://www.bizcaf.ro/foisor-patrat-cu-masa-si-banci-tip-picnic-rexal-ro_bizcafAd_2321294.dhtml",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-        "sec-ch-ua": '"Not)A;Brand";v="99", "Google Chrome";v="127", "Chromium";v="127"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
+    cookies = {
+        "osclass": "deha6f3qp881nk2segjnj5sh43",
+        "Eightenn_check": "true",
     }
 
-    response = requests.get("https://www.bizcaf.ro/", headers=headers)
+    headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
+        "cache-control": "no-cache",
+        # 'cookie': 'osclass=deha6f3qp881nk2segjnj5sh43; Eightenn_check=true',
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "referer": "https://www.e-devanzare.ro/search/iPage,3",
+        "sec-ch-ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    }
 
+    response = requests.get(
+        "https://www.e-devanzare.ro/search", cookies=cookies, headers=headers
+    )
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
@@ -80,9 +96,6 @@ def download_xml():
         print(f"Ошибка при скачивании файла: {response.status_code}")
 
 
-
-
-
 def fetch_and_save():
     url = "https://www.bizcaf.ro/"
     headers = {
@@ -122,7 +135,7 @@ def fetch_and_save():
 
 
 if __name__ == "__main__":
-    # get_html()
+    get_html()
     # get_json()
     # download_xml()
-    fetch_and_save()
+    # fetch_and_save()

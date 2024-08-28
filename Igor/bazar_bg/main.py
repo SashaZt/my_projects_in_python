@@ -528,5 +528,5 @@ def extract_publication_date(parser: HTMLParser) -> str:
 
 
 if __name__ == "__main__":
-    # download_and_parse_sitemaps()
+    download_and_parse_sitemaps()
     get_html(max_workers=10)  # Устанавливаем количество потоков
