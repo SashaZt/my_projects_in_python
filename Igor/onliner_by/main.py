@@ -42,7 +42,13 @@ headers = {
 }
 
 # Параметры подключения к базе данных
-config = {"user": "", "password": "", "host": "", "database": ""}
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
+}
+
 
 belarus_phone_patterns = {
     "full": r"\b(80\d{9}|375\d{9}|\d{9})\b",
@@ -152,7 +158,7 @@ def parsing(url_id, src, url, proxy, headers, cookies):
         location = None
         publication_date = None
         mail_address = None
-        phone_number = None
+        phone_numbers = set()
 
         with parsing_lock:
 
@@ -176,11 +182,6 @@ def parsing(url_id, src, url, proxy, headers, cookies):
                     print(
                         f'{datetime.datetime.now().strftime("%H:%M:%S")} - Код ошибки 403. Сайт нас подрезал.'
                     )
-                    proxies.remove(proxy)
-                    print(proxy)
-                    print(
-                        f'{datetime.datetime.now().strftime("%H:%M:%S")} - Осталось прокси {len(proxies)}'
-                    )
                     counter_error += 1
                     if counter_error == 10:
                         print(
@@ -201,11 +202,6 @@ def parsing(url_id, src, url, proxy, headers, cookies):
                     print(
                         f'{datetime.datetime.now().strftime("%H:%M:%S")} - Код ошибки 403. Сайт нас подрезал.'
                     )
-                    proxies.remove(proxy)
-                    print(proxy)
-                    print(
-                        f'{datetime.datetime.now().strftime("%H:%M:%S")} - Осталось прокси {len(proxies)}'
-                    )
                     counter_error += 1
                     if counter_error == 10:
                         print(
@@ -217,6 +213,7 @@ def parsing(url_id, src, url, proxy, headers, cookies):
 
                 if isinstance(json_data_number, list) and json_data_number:
                     phones = json_data_number[0]
+                    phone_numbers.add(phones)
                 # Извлечение данных
                 location_json = json_data_ad_data.get("location", {})
 
@@ -254,39 +251,22 @@ def parsing(url_id, src, url, proxy, headers, cookies):
                 logger.error(
                     f"Failed to fetch number for {url_id} with proxy {proxy}: {e}"
                 )
-                phones = []
 
-            if not phones:
+            if not phone_numbers:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
 
-            logger.info(f"| {url} | Номера - {phones} | Локация - {location} |")
-
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-            if location and publication_date and phones:
-                for phone_number in phones:
+            if location and publication_date and phone_numbers:
+                for phone_number in phone_numbers:
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
                     write_to_csv(data, csv_file_path)
-                # return True
-            # else:
-            #     missing_data = []
-            #     if not location:
-            #         missing_data.append("location")
-            #     if not publication_date:
-            #         missing_data.append("publication_date")
-            #     if not phones:
-            #         missing_data.append("phone_numbers")
-
-            #     logger.error(
-            #         f"Отсутствуют необходимые данные для URL: {url}. Недостающие данные: {', '.join(missing_data)}"
-            #     )
-            #     # return False
 
             # Разбиваем строку на переменные
             _, location, timestamp, link, mail_address, time_posted = data.split(";")
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 25  # id_site для 'https://abw.by/'
+            site_id = 30  # id_site для 'https://abw.by/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -342,9 +322,9 @@ def parsing(url_id, src, url, proxy, headers, cookies):
                     raise ValueError("Не удалось получить id_ogloszenia")
 
                 # Заполнение таблицы numbers, если номера телефонов присутствуют
-                if phones and id_ogloszenia:
+                if phone_numbers and id_ogloszenia:
                     phone_numbers_extracted, invalid_numbers = extract_phone_numbers(
-                        phones
+                        phone_numbers
                     )
                     valid_numbers = [
                         num
@@ -360,8 +340,9 @@ def parsing(url_id, src, url, proxy, headers, cookies):
                         "INSERT INTO numbers (id_ogloszenia, raw, correct) "
                         "VALUES (%s, %s, %s)"
                     )
-                    raw_numbers = ", ".join(phones)
+                    raw_numbers = ", ".join(phone_numbers)
                     numbers_data = (id_ogloszenia, raw_numbers, clean_numbers)
+                    logger.info(numbers_data)
                     cursor.execute(insert_numbers, numbers_data)
 
                     cnx.commit()
@@ -390,7 +371,6 @@ def parsing(url_id, src, url, proxy, headers, cookies):
 def fetch_url(
     url, proxies, headers, cookies, csv_file_successful, successful_urls, url_id
 ):
-    logger.info(url_id)
     fetch_lock = threading.Lock()  # Локальная
     counter_error = 0  # Счетчик ошибок
 
@@ -520,64 +500,7 @@ def extract_phone_numbers(data):
     return phone_numbers, invalid_numbers
 
 
-# Извлечение местоположения
-def extract_user_info(parser: HTMLParser) -> dict:
-    location = None
-    # Извлечение местоположения
-    location_row = parser.css_first(
-        "#container > div > div > div > div > div > div.vehicle-wrapper > div > div > div.vehicle-form__card.js-wrapper > div > div.vehicle-form__card-part.vehicle-form__card-part_data > div.vehicle-form__intro > div > div:nth-child(4) > div"
-    )
-
-    if location_row:
-        location = location_row.text(strip=True)
-
-    return location
-
-
-# Извлечение даты публикации
-def extract_publication_date(parser: HTMLParser) -> str:
-    locale.setlocale(
-        locale.LC_TIME, "ru_RU.UTF-8"
-    )  # Устанавливаем локаль на русский язык
-
-    date_element = parser.css_first(
-        "div > div.vehicle-form__card-part.vehicle-form__card-part_data > div.vehicle-form__intro > div > div:nth-child(1) > div"
-    )
-
-    if date_element:
-        date_element_text = date_element.text(strip=True)
-        logger.info(date_element_text)
-        # Разбиваем строку на составляющие
-        day, month, year = date_element_text.split(".")
-        formatted_date = f"{year}-{month}-{int(day):02d}"
-        return formatted_date
-
-    return "Дата не найдена"
-
-
 """Выполняет HTTP-запрос для получения номера телефона и имени пользователя."""
-
-
-def get_number(url_id, proxy, headers, cookies):
-    url = f"https://b.abw.by/api/v2/adverts/{url_id}/phones"
-
-    # Настраиваем прокси для запроса, если он указан
-    proxies = {"http": proxy, "https": proxy} if proxy else None
-
-    try:
-        # Выполняем HTTP-запрос с использованием requests
-        response = requests.get(url, proxies=proxies, headers=headers, cookies=cookies)
-        response.raise_for_status()  # Проверяем успешность запроса
-        # Извлекаем JSON из ответа
-        json_data = response.json()
-        # Извлекаем необходимые данные
-        user_name = json_data.get("title")
-        phones = json_data.get("phones", [])
-        return user_name, phones
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch number for {url_id} with proxy {proxy}: {e}")
-        return None, None
 
 
 if __name__ == "__main__":

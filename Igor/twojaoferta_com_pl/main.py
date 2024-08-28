@@ -4,6 +4,7 @@ from configuration.logger_setup import logger
 from selectolax.parser import HTMLParser
 from mysql.connector import errorcode
 import xml.etree.ElementTree as ET
+from bs4 import BeautifulSoup
 from pathlib import Path
 import mysql.connector
 import phonenumbers
@@ -12,22 +13,18 @@ import threading
 import datetime
 import requests
 import random
-import locale
 import csv
 import re
-import os
 
-import glob
 
 # Параметры подключения к базе данных
-config = {"user": "", "password": "", "host": "", "database": ""}
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
+}
 
-# belarus_phone_patterns = {
-#     "full": r"\b(80\d{9}|375\d{9}|\d{9})\b",
-#     "split": r"(375\d{9})",
-#     "final": r"\b(\d{9})\b",
-#     "codes": [375],
-# }
 
 polish_phone_patterns = {
     "full": r"\b(48\d{9}|\d{9})\b",
@@ -141,19 +138,20 @@ def get_successful_urls(csv_file_successful):
 
 
 def extract_phone_site(parser):
-    phone_pattern = re.compile(
-        r"\b\d{1,4}(?:[\s-]?\d{1,4}){0,3}\b"
-        # r"\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"
-    )
-    script_elements = parser.css("script")
+    # Используем метод select_one для поиска скрипта по указанному селектору
+    script_tag = parser.select_one("body > script:nth-child(16)")
 
-    for script_element in script_elements:
-        script_text = script_element.text()
-
-        if "this.phone" in script_text:
-
-            matches = phone_pattern.findall(script_text)
-            return matches
+    if script_tag:
+        script_text = script_tag.string
+        # Поиск строки с номером телефона
+        phone_match = re.search(r'this\.phone\s*=\s*"(.*?)"', script_text)
+        if phone_match:
+            phone_number = phone_match.group(1)
+            return phone_number
+        else:
+            return None
+    else:
+        return None
 
 
 def parsing(src, url):
@@ -161,16 +159,18 @@ def parsing(src, url):
     parsing_lock = threading.Lock()  # Локальная блокировка
 
     try:
+
         parser = HTMLParser(src)
+        soup = BeautifulSoup(src, "lxml")
         location = None
         publication_date = None
         mail_address = None
-        phone_number = None
         phone_numbers = set()
 
         with parsing_lock:
 
-            phone_numbers.update(extract_phone_site(parser))
+            phones = extract_phone_site(soup)
+            phone_numbers.add(phones)
             location = extract_user_info(parser)
             if not location:
                 logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
@@ -178,16 +178,12 @@ def parsing(src, url):
             publication_date = extract_publication_date(parser)
             if not publication_date:
                 logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
-            logger.info(
-                f"| {url} | Номера - {phone_numbers} | Локация - {location} | Дата публикации - {publication_date} "
-            )
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
 
             if location and publication_date and phone_numbers:
                 # logger.info(phones)
                 for phone_number in phone_numbers:
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-                    logger.info(data)
                     write_to_csv(data, csv_file_path)
 
             # Разбиваем строку на переменные
@@ -195,7 +191,7 @@ def parsing(src, url):
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 25  # id_site для 'twojaoferta.com.pl'
+            site_id = 33  # id_site для 'twojaoferta.com.pl'
 
             # Подключение к базе данных и запись данных
             try:
@@ -336,7 +332,8 @@ def fetch_url(url, proxies, headers, cookies, csv_file_successful, successful_ur
                 if counter_error == 10:
                     logger.error(f"Перезапуск из-за 10 ошибок 403. Прокси: {proxy}")
                     return None
-
+            elif response.status_code == 410:
+                return None
             else:
                 logger.error(f"Unexpected status code {response.status_code} for {url}")
 
@@ -419,7 +416,7 @@ def extract_phone_numbers(data):
 
 
 # Извлечение местоположения
-def extract_user_info(parser: HTMLParser) -> dict:
+def extract_user_info(parser):
     location = None
     # Поиск таблицы с информацией
     table_element = parser.css_first("table.table-borderless.table-sm")
@@ -443,7 +440,7 @@ def extract_user_info(parser: HTMLParser) -> dict:
 
 
 # Извлечение даты публикации
-def extract_publication_date(parser: HTMLParser) -> str:
+def extract_publication_date(parser):
     date_element = parser.css_first(
         "#classified__panel > p.small.text-muted > span:nth-child(1)"
     )
@@ -458,10 +455,10 @@ def extract_publication_date(parser: HTMLParser) -> str:
 
         return publication_date
 
-    return "Дата не найдена"
+    else:
+        return None
 
 
 if __name__ == "__main__":
-    # main()  # Запускаем основную функцию при выполнении скрипта напрямую
+    download_and_parse_xml()  # Запускаем основную функцию при выполнении скрипта напрямую
     get_html(max_workers=10)  # Устанавливаем количество потоков
-    # parsing_html()

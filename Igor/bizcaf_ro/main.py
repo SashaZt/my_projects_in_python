@@ -613,6 +613,6 @@ def get_html(max_workers=10, session=None):
 
 if __name__ == "__main__":
     session = create_session_with_ssl()
-    # total_pages = get_total_pages(session, load_proxies())
-    # collect_urls(total_pages)
+    total_pages = get_total_pages(session, load_proxies())
+    collect_urls(total_pages)
     get_html(max_workers=10, session=session)

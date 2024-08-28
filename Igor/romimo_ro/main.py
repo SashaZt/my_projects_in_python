@@ -7,14 +7,9 @@ import random
 import csv
 from selectolax.parser import HTMLParser
 from configuration.logger_setup import logger
-import ssl
 from requests.adapters import HTTPAdapter
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import pandas as pd
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from phonenumbers import NumberParseException
-from configuration.logger_setup import logger
-from selectolax.parser import HTMLParser
 from mysql.connector import errorcode
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -28,6 +23,13 @@ import re
 import gzip
 import shutil
 
+# Параметры подключения к базе данных
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
+}
 
 # Установка директорий для логов и данных
 
@@ -38,12 +40,22 @@ png_directory = data_directory / "png"
 data_directory.mkdir(parents=True, exist_ok=True)
 xml_directory.mkdir(parents=True, exist_ok=True)
 png_directory.mkdir(parents=True, exist_ok=True)
+
 csv_file_path = data_directory / "output.csv"
 csv_file_successful = data_directory / "urls_successful.csv"
+
+# Windows
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# Linux
 # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+
 # Параметры подключения к базе данных
-config = {"user": "", "password": "", "host": "", "database": ""}
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
+}
 
 romania_phone_patterns = {
     "full": r"\b((?:00|40)?\d{6,9})\b",  # Номер может начинаться с '00', '40', или без кода страны
@@ -74,6 +86,13 @@ headers = {
     "upgrade-insecure-requests": "1",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
 }
+# Параметры подключения к базе данных
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
+}
 
 
 def load_proxies():
@@ -87,6 +106,7 @@ def load_proxies():
 
 def extract_phone_site(parser, proxy, headers, cookies, url_id):
     proxies = {"http": proxy, "https": proxy} if proxy else None
+    encryptedphone = None
     # Находим элемент с ID 'EncryptedPhone'
     element = parser.css_first("#EncryptedPhone")
 
@@ -137,7 +157,8 @@ def extract_phone_site(parser, proxy, headers, cookies, url_id):
     extracted_text = pytesseract.image_to_string(image, config="digits")
 
     # Вывод извлеченных цифр
-    return extracted_text
+    phone = re.sub(r"\D", "", extracted_text)
+    return phone
 
 
 # Основная функция для загрузки и обработки карт сайта
@@ -232,17 +253,15 @@ def parsing(src, url, proxy, headers, cookies, url_id):
         location = None
         publication_date = None
         mail_address = None
-        phone_number = None
+        phone_numbers = set()
 
         with parsing_lock:
-            # # Прямое извлечение данных из JSON (интеграция get_number)
-            # number_url = f"https://b.abw.by/api/v2/adverts/{url_id}/phones"
-            # proxies = {"http": proxy, "https": proxy} if proxy else None
 
             phones = extract_phone_site(parser, proxy, headers, cookies, url_id)
+            phone_numbers.add(phones)
             if not phones:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
-            # logger.info(phones)
+            logger.info(url)
 
             location = extract_user_info(parser)
             # logger.info(location)
@@ -257,32 +276,17 @@ def parsing(src, url, proxy, headers, cookies, url_id):
             # logger.info(f"| {url} | Номера - {phones} | Локация - {location} |")
 
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-            if location and publication_date and phones:
+            if location and publication_date and phone_numbers:
                 # for phone_number in phones:
-                data = f'{phones};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-                logger.info(data)
+                data = f'{phone_numbers};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
                 write_to_csv(data, csv_file_path)
-                # return True
-            # else:
-            #     missing_data = []
-            #     if not location:
-            #         missing_data.append("location")
-            #     if not publication_date:
-            #         missing_data.append("publication_date")
-            #     if not phones:
-            #         missing_data.append("phone_numbers")
-
-            #     logger.error(
-            #         f"Отсутствуют необходимые данные для URL: {url}. Недостающие данные: {', '.join(missing_data)}"
-            #     )
-            #     # return False
 
             # Разбиваем строку на переменные
             _, location, timestamp, link, mail_address, time_posted = data.split(";")
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 25  # id_site для 'https://abw.by/'
+            site_id = 32  # id_site для 'https://abw.by/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -340,7 +344,7 @@ def parsing(src, url, proxy, headers, cookies, url_id):
                 # Заполнение таблицы numbers, если номера телефонов присутствуют
                 if phones and id_ogloszenia:
                     phone_numbers_extracted, invalid_numbers = extract_phone_numbers(
-                        phones
+                        phone_numbers
                     )
                     valid_numbers = [
                         num
@@ -356,7 +360,7 @@ def parsing(src, url, proxy, headers, cookies, url_id):
                         "INSERT INTO numbers (id_ogloszenia, raw, correct) "
                         "VALUES (%s, %s, %s)"
                     )
-                    raw_numbers = ", ".join(phones)
+                    raw_numbers = ", ".join(phone_numbers)
                     numbers_data = (id_ogloszenia, raw_numbers, clean_numbers)
                     cursor.execute(insert_numbers, numbers_data)
 
@@ -377,7 +381,7 @@ def parsing(src, url, proxy, headers, cookies, url_id):
                 cursor.close()
                 cnx.close()
                 print("Соединение с базой данных закрыто.")
-                shutil.rmtree(png_directory)
+
                 return True
     except Exception as e:
         logger.error(f"Ошибка при парсинге HTML для URL {url_id}: {e}")
@@ -408,10 +412,18 @@ def extract_publication_date(parser):
     # Извлекаем день, месяц и год из найденной даты
     day, month, year = match.group(1), match.group(2), match.group(3)
 
-    # Форматируем дату
-    formatted_date = f"{year}-{month}-{int(day):02d}"
+    try:
+        # Преобразуем в объект datetime
+        time_posted = datetime.datetime(int(year), int(month), int(day))
+    except ValueError:
+        return None  # Если возникает ошибка, возвращаем None
 
-    return formatted_date
+    # Проверяем, является ли time_posted объектом datetime.datetime
+    if isinstance(time_posted, datetime.datetime):
+        formatted_date = time_posted.strftime("%Y-%m-%d")
+        return formatted_date
+
+    return None
 
 
 def extract_phone_numbers(data):
@@ -562,3 +574,4 @@ def get_html(max_workers=10):
 if __name__ == "__main__":
     get_sitemap_xml()
     get_html(max_workers=10)  # Устанавливаем количество потоков
+    shutil.rmtree(png_directory)

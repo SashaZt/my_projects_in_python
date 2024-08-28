@@ -552,7 +552,7 @@ def extract_phone_numbers(data):
 
 
 # Извлечение местоположения
-def extract_user_info(parser: HTMLParser) -> dict:
+def extract_user_info(parser):
     location = None
     # Извлечение местоположения
     location_row = parser.css_first(
@@ -613,31 +613,6 @@ def extract_publication_date(parser):
                 return None
 
     return None
-
-
-"""Выполняет HTTP-запрос для получения номера телефона и имени пользователя."""
-
-
-def get_number(url_id, proxy, headers, cookies):
-    url = f"https://b.abw.by/api/v2/adverts/{url_id}/phones"
-
-    # Настраиваем прокси для запроса, если он указан
-    proxies = {"http": proxy, "https": proxy} if proxy else None
-
-    try:
-        # Выполняем HTTP-запрос с использованием requests
-        response = requests.get(url, proxies=proxies, headers=headers, cookies=cookies)
-        response.raise_for_status()  # Проверяем успешность запроса
-        # Извлекаем JSON из ответа
-        json_data = response.json()
-        # Извлекаем необходимые данные
-        user_name = json_data.get("title")
-        phones = json_data.get("phones", [])
-        return user_name, phones
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch number for {url_id} with proxy {proxy}: {e}")
-        return None, None
 
 
 if __name__ == "__main__":
