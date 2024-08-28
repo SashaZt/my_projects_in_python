@@ -25,11 +25,18 @@ import re
 import gzip
 import shutil
 
-bulgaria_phone_patterns = {
-    "full": r"\b((?:00|011|\+|00-|\+0)?359[\s-]?\d{6,9})\b",  # Номер может начинаться с '00', '011', '+', '00-', '+0' с кодом страны '359'
-    "split": r"(359\d{6,9})",  # Номера, начинающиеся с '359', и за ними от 6 до 9 цифр
-    "final": r"\b(\d{6,9})\b",  # Только от 6 до 9 цифр, если код страны отсутствует
-    "codes": [359],  # Код страны для Болгарии
+bulgarian_phone_patterns = {
+    "full": r"\b(359\d{8,9}|\d{8,9})\b",
+    "split": r"(359\d{8,9})",
+    "final": r"\b(\d{8,9})\b",
+    "codes": [359],
+}
+# Параметры подключения к базе данных
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
 }
 
 # Установка директорий для логов и данных
@@ -159,7 +166,7 @@ def fetch_url(
     counter_error = 0  # Счетчик ошибок
 
     if url in successful_urls:
-        logger.info(f"| Объявление уже было обработано, пропускаем. |")
+        logger.info("| Объявление уже было обработано, пропускаем. |")
         return
 
     while proxies:
@@ -293,10 +300,6 @@ def parsing(url_id, src, url, proxy, headers, cookies):
             if not phones:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
 
-            # phone_numbers_extracted = extract_phone_numbers(phones)
-            # if not phone_numbers_extracted:
-            #     logger.warning(f"Извлеченные номера телефонов пусты для URL: {url}")
-
             location = extract_user_info(parser)
             if not location:
                 logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
@@ -312,20 +315,6 @@ def parsing(url_id, src, url, proxy, headers, cookies):
                 for phone_number in phones:
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
                     write_to_csv(data, csv_file_path)
-                # return True
-            # else:
-            #     missing_data = []
-            #     if not location:
-            #         missing_data.append("location")
-            #     if not publication_date:
-            #         missing_data.append("publication_date")
-            #     if not phones:
-            #         missing_data.append("phone_numbers")
-
-            #     logger.error(
-            #         f"Отсутствуют необходимые данные для URL: {url}. Недостающие данные: {', '.join(missing_data)}"
-            #     )
-            #     # return False
 
             # Разбиваем строку на переменные
             _, location, timestamp, link, mail_address, time_posted = data.split(";")
@@ -437,25 +426,28 @@ def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
     phone_pattern = re.compile(
-        r"(\+375\d{9}|\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b)"
+        r"0\d{8}(?=0\d{8})|0\d{9}(?=0\d{9})|0\d{9}(?=0\d{8})|0\d{8}(?=0\d{9})|\+359[\s\.\-]?\d{3}[\s\.\-]?\d{3}[\s\.\-]?\d{3}|\+359[\s\.\-]?\d{1,2}[\s\.\-]?\d{3}[\s\.\-]?\d{2,4}|00359[\s\.\-]?\d{1,2}[\s\.\-]?\d{3}[\s\.\-]?\d{2,4}|359[\s\.\-]?\d{3}[\s\.\-]?\d{3}[\s\.\-]?\d{3}|359[\s\.\-]?\d{1,2}[\s\.\-]?\d{3}[\s\.\-]?\d{2,4}|0\d{3}[\s\.\-]?\d{2}[\s\.\-]?\d{2}[\s\.\-]?\d{2,4}|0\d{3}[\s\.\-]?\d{3}[\s\.\-]?\d{3,4}|0\d{2}[\s\.\-]?\d{3}[\s\.\-]?\d{2}[\s\.\-]?\d{2}|\(?0\d{1,2}\)?[\s\.\-]?\d{2,3}[\s\.\-]?\d{2,3}[\s\.\-]?\d{2,4}|\d{9,11}"
     )
     for entry in data:
         if isinstance(entry, str):
             matches = phone_pattern.findall(entry)
             for match in matches:
                 original_match = match
+                # print(original_match)
                 match = re.sub(r"[^\d]", "", match)
                 match = re.sub(r"^0+", "", match)
                 try:
-                    parsed_number = phonenumbers.parse(match, "BY")
+                    parsed_number = phonenumbers.parse(match, "BG")
                     # region = geocoder.description_for_number(parsed_number, "ru")  # Регион на русском языке
                     # operator = carrier.name_for_number(parsed_number, "ru")  # Оператор на русском языке
                     # print(f'parsed_number = {parsed_number} | Валид = {phonenumbers.is_valid_number(parsed_number)} | Регион = {region} | Оператор = {operator}')
                     if phonenumbers.is_valid_number(parsed_number):
-                        # national_number = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.NATIONAL)
-                        national_number = str(parsed_number.national_number)
+                        national_number = phonenumbers.format_number(
+                            parsed_number, phonenumbers.PhoneNumberFormat.NATIONAL
+                        )
                         national_number = re.sub(r"[^\d]", "", national_number)
                         national_number = re.sub(r"^0+", "", national_number)
+                        # print(f'national_number = {national_number}')
                         clean_number = "".join(filter(str.isdigit, national_number))
                         phone_numbers.add(clean_number)
                     else:
@@ -480,7 +472,7 @@ def extract_user_info(parser: HTMLParser) -> dict:
 
 
 # Извлечение даты публикации
-def extract_publication_date(parser: HTMLParser) -> str:
+def extract_publication_date(parser):
     locale.setlocale(
         locale.LC_TIME, "ru_RU.UTF-8"
     )  # Устанавливаем локаль на русский язык
@@ -518,15 +510,17 @@ def extract_publication_date(parser: HTMLParser) -> str:
             month = months.get(month)
 
             if month:
-                # Форматируем дату в нужный формат
-                formatted_date = f"{year}-{month}-{int(day):02d}"
-                return formatted_date
+                # Преобразуем дату в объект datetime
+                date_obj = datetime.datetime.strptime(
+                    f"{day} {month} {year}", "%d %m %Y"
+                )
+                return date_obj.strftime("%Y-%m-%d")
             else:
-                return "Месяц не распознан"
+                return None
 
-    return "Дата не найдена"
+    return None
 
 
 if __name__ == "__main__":
-    download_and_parse_sitemaps()
+    # download_and_parse_sitemaps()
     get_html(max_workers=10)  # Устанавливаем количество потоков

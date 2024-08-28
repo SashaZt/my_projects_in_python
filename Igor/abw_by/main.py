@@ -17,7 +17,12 @@ import csv
 import re
 
 # Параметры подключения к базе данных
-config = {"user": "", "password": "", "host": "", "database": ""}
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
+}
 
 belarus_phone_patterns = {
     "full": r"\b(80\d{9}|375\d{9}|\d{9})\b",
@@ -292,10 +297,6 @@ def parsing(url_id, src, url, proxy, headers, cookies):
             if not phones:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
 
-            # phone_numbers_extracted = extract_phone_numbers(phones)
-            # if not phone_numbers_extracted:
-            #     logger.warning(f"Извлеченные номера телефонов пусты для URL: {url}")
-
             location = extract_user_info(parser)
             if not location:
                 logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
@@ -311,27 +312,13 @@ def parsing(url_id, src, url, proxy, headers, cookies):
                 for phone_number in phones:
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
                     write_to_csv(data, csv_file_path)
-                # return True
-            # else:
-            #     missing_data = []
-            #     if not location:
-            #         missing_data.append("location")
-            #     if not publication_date:
-            #         missing_data.append("publication_date")
-            #     if not phones:
-            #         missing_data.append("phone_numbers")
-
-            #     logger.error(
-            #         f"Отсутствуют необходимые данные для URL: {url}. Недостающие данные: {', '.join(missing_data)}"
-            #     )
-            #     # return False
-
+            logger.info(data)
             # Разбиваем строку на переменные
             _, location, timestamp, link, mail_address, time_posted = data.split(";")
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 25  # id_site для 'https://abw.by/'
+            site_id = 27  # id_site для 'https://abw.by/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -579,7 +566,7 @@ def extract_user_info(parser: HTMLParser) -> dict:
 
 
 # Извлечение даты публикации
-def extract_publication_date(parser: HTMLParser) -> str:
+def extract_publication_date(parser):
     locale.setlocale(
         locale.LC_TIME, "ru_RU.UTF-8"
     )  # Устанавливаем локаль на русский язык
@@ -617,13 +604,15 @@ def extract_publication_date(parser: HTMLParser) -> str:
             month = months.get(month)
 
             if month:
-                # Форматируем дату в нужный формат
-                formatted_date = f"{year}-{month}-{int(day):02d}"
-                return formatted_date
+                # Преобразуем дату в объект datetime
+                date_obj = datetime.datetime.strptime(
+                    f"{day} {month} {year}", "%d %m %Y"
+                )
+                return date_obj.strftime("%Y-%m-%d")
             else:
-                return "Месяц не распознан"
+                return None
 
-    return "Дата не найдена"
+    return None
 
 
 """Выполняет HTTP-запрос для получения номера телефона и имени пользователя."""
@@ -652,5 +641,5 @@ def get_number(url_id, proxy, headers, cookies):
 
 
 if __name__ == "__main__":
-    # main()  # Запускаем основную функцию при выполнении скрипта напрямую
+    main()  # Запускаем основную функцию при выполнении скрипта напрямую
     get_html(max_workers=10)  # Устанавливаем количество потоков

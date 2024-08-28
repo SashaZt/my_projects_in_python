@@ -394,8 +394,7 @@ def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
     phone_pattern = re.compile(
-        r"\b\d{1,4}(?:[\s-]?\d{1,4}){0,3}\b"
-        # r"\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"
+        r"\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}"
     )
     for entry in data:
         if isinstance(entry, str):

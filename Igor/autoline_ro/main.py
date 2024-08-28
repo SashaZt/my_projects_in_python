@@ -48,8 +48,12 @@ headers = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
 }
 # Параметры подключения к базе данных
-config = {"user": "", "password": "", "host": "", "database": ""}
-
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
+}
 romania_phone_patterns = {
     "full": r"\b((?:00|40)?\d{6,9})\b",  # Номер может начинаться с '00', '40', или без кода страны
     "split": r"(40\d{6,9})",  # Номера, начинающиеся с '40', и за ними от 6 до 9 цифр
@@ -302,15 +306,18 @@ def extract_publication_date_and_location(parser):
                     "dec.": 12,
                 }
                 month_number = months.get(month.lower(), 0)
-                publication_date = f"{year}-{month_number:02d}-{int(day):02d}"
+                # Преобразуем в объект datetime
+                time_posted = datetime.datetime(int(year), month_number, int(day))
             except ValueError:
-                publication_date = today.strftime(
-                    "%Y-%m-%d"
-                )  # Если дата не распарсилась, используем текущую дату
-    else:
-        publication_date = today.strftime(
-            "%Y-%m-%d"
-        )  # Если дата не найдена, используем текущую дату
+                time_posted = (
+                    today  # Если дата не распарсилась, используем текущую дату
+                )
+
+        # Форматируем дату, если это объект datetime
+        if isinstance(time_posted, datetime.datetime):
+            publication_date = time_posted.strftime("%Y-%m-%d")
+        else:
+            return "Некорректный формат даты"
 
     # Ищем местоположение
     location_element = None
@@ -371,7 +378,7 @@ def parsing(src, url):
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 25  # id_site для 'https://abw.by/'
+            site_id = 28  # id_site для 'https://autoline.ro/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -581,7 +588,7 @@ def extract_phone_numbers(data):
                 match = re.sub(r"[^\d]", "", match)
                 match = re.sub(r"^0+", "", match)
                 try:
-                    parsed_number = phonenumbers.parse(match, "BY")
+                    parsed_number = phonenumbers.parse(match, "RO")
                     # region = geocoder.description_for_number(parsed_number, "ru")  # Регион на русском языке
                     # operator = carrier.name_for_number(parsed_number, "ru")  # Оператор на русском языке
                     # print(f'parsed_number = {parsed_number} | Валид = {phonenumbers.is_valid_number(parsed_number)} | Регион = {region} | Оператор = {operator}')
@@ -600,5 +607,5 @@ def extract_phone_numbers(data):
 
 
 if __name__ == "__main__":
-    main()
+    # main()
     get_html(max_workers=2)

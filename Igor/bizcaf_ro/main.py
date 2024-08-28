@@ -1,3 +1,4 @@
+from tkinter import NO
 import requests
 import random
 import csv
@@ -26,9 +27,14 @@ import locale
 import csv
 import re
 
-
 # Параметры подключения к базе данных
-config = {"user": "", "password": "", "host": "", "database": ""}
+config = {
+    "user": "python_mysql",
+    "password": "python_mysql",
+    "host": "localhost",
+    "database": "parsing",
+}
+
 
 romania_phone_patterns = {
     "full": r"\b((?:00|40)?\d{6,9})\b",  # Номер может начинаться с '00', '40', или без кода страны
@@ -237,7 +243,7 @@ def write_to_csv(data, filename):
 
 
 # Извлечение местоположения
-def extract_user_info(parser: HTMLParser) -> dict:
+def extract_user_info(parser):
     location = None
     # Извлечение местоположения
     location_row = parser.css_first(
@@ -250,43 +256,50 @@ def extract_user_info(parser: HTMLParser) -> dict:
     return location
 
 
-# Извлечение даты публикации
 def extract_publication_date(parser):
     # Находим элемент с классом 'detail-user'
     detail_user_element = parser.css_first("span.detail-user")
-    formatted_date = None
+
     if detail_user_element:
         # Извлекаем текст элемента
         text = detail_user_element.text(strip=True)
+
         # Ищем дату с помощью регулярного выражения
         date_match = re.search(r"(\d{2}) (\w+) (\d{4})", text)
+
         if date_match:
             day, month_str, year = date_match.groups()
 
             # Сопоставляем месяцы на румынском языке с их числовыми значениями
             months = {
-                "ianuarie": "01",
-                "februarie": "02",
-                "martie": "03",
-                "aprilie": "04",
-                "mai": "05",
-                "iunie": "06",
-                "iulie": "07",
-                "august": "08",
-                "septembrie": "09",
-                "octombrie": "10",
-                "noiembrie": "11",
-                "decembrie": "12",
+                "ianuarie": 1,
+                "februarie": 2,
+                "martie": 3,
+                "aprilie": 4,
+                "mai": 5,
+                "iunie": 6,
+                "iulie": 7,
+                "august": 8,
+                "septembrie": 9,
+                "octombrie": 10,
+                "noiembrie": 11,
+                "decembrie": 12,
             }
-            month = months.get(
-                month_str.lower(), "00"
-            )  # Если не найден месяц, вернется '00'
+            month = months.get(month_str.lower(), 0)  # Если не найден месяц, вернется 0
 
-            # Форматируем дату
-            formatted_date = f"{year}-{month}-{int(day):02d}"
-            return formatted_date
-    # Возвращаем пустую строку, если дата не найдена
-    return ""
+            try:
+                # Преобразуем в объект datetime
+                time_posted = datetime.datetime(int(year), month, int(day))
+
+                # Проверяем, является ли time_posted объектом datetime.datetime
+                if isinstance(time_posted, datetime.datetime):
+                    formatted_date = time_posted.strftime("%Y-%m-%d")
+                    return formatted_date
+            except ValueError:
+                return ""  # Если возникает ошибка, возвращаем пустую строку
+
+    # Возвращаем None, если дата не найдена или не распарсилась
+    return None
 
 
 def extract_phone_numbers(data):
@@ -335,6 +348,8 @@ def parsing(src, url):
         with parsing_lock:
 
             phones, location = extract_phone_site_and_location(parser)
+            phone_numbers = set()
+            phone_numbers.add(phones)
             if not phones:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
             if not location:
@@ -344,34 +359,21 @@ def parsing(src, url):
             if not publication_date:
                 logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
 
-            logger.info(f"| {url} | Номера - {phones} | Локация - {location} |")
+            logger.info(f"| {url} | Номера - {phone_numbers} | Локация - {location} |")
 
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-            if location and publication_date and phones:
-                # for phone_number in phones:
-                data = f'{phones};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-                write_to_csv(data, csv_file_path)
-                # return True
-            # else:
-            #     missing_data = []
-            #     if not location:
-            #         missing_data.append("location")
-            #     if not publication_date:
-            #         missing_data.append("publication_date")
-            #     if not phones:
-            #         missing_data.append("phone_numbers")
-
-            #     logger.error(
-            #         f"Отсутствуют необходимые данные для URL: {url}. Недостающие данные: {', '.join(missing_data)}"
-            #     )
-            #     # return False
+            if location and publication_date and phone_numbers:
+                for phone_number in phone_numbers:
+                    logger.info(phone_number)
+                    data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
+                    write_to_csv(data, csv_file_path)
 
             # Разбиваем строку на переменные
             _, location, timestamp, link, mail_address, time_posted = data.split(";")
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 25  # id_site для 'https://abw.by/'
+            site_id = 29  # id_site для 'https://abw.by/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -427,14 +429,14 @@ def parsing(src, url):
                     raise ValueError("Не удалось получить id_ogloszenia")
 
                 # Заполнение таблицы numbers, если номера телефонов присутствуют
-                if phones and id_ogloszenia:
+                if phone_numbers and id_ogloszenia:
                     phone_numbers_extracted, invalid_numbers = extract_phone_numbers(
-                        phones
+                        phone_numbers
                     )
                     valid_numbers = [
                         num
                         for num in phone_numbers_extracted
-                        if re.match(belarus_phone_patterns["final"], num)
+                        if re.match(romania_phone_patterns["final"], num)
                     ]
                     if valid_numbers:
                         clean_numbers = ", ".join(valid_numbers)
@@ -445,7 +447,7 @@ def parsing(src, url):
                         "INSERT INTO numbers (id_ogloszenia, raw, correct) "
                         "VALUES (%s, %s, %s)"
                     )
-                    raw_numbers = ", ".join(phones)
+                    raw_numbers = ", ".join(phone_numbers)
                     numbers_data = (id_ogloszenia, raw_numbers, clean_numbers)
                     cursor.execute(insert_numbers, numbers_data)
 
@@ -546,8 +548,8 @@ def get_successful_urls(csv_file_successful):
 
 def extract_phone_site_and_location(parser):
     # Инициализируем переменные для хранения результатов
-    phone_number = ""
-    location = ""
+    phone_number = None
+    location = None
 
     # Находим все элементы с классом 'feature' внутри 'td.rightbox'
     feature_elements = parser.css("td.rightbox .feature")

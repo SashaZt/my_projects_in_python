@@ -116,26 +116,36 @@ def get_total_pages():
         return 0
 
 
-def collect_urls_from_page(page_num, proxies, session):
+def collect_urls_from_page(page_num, proxies, cookies, headers):
     """Функция для сбора URL с одной страницы."""
     proxy = random.choice(proxies)
     proxies_dict = {"http": proxy, "https": proxy}
-    url = f"https://www.bizcaf.ro/anunturi/?pg={page_num}"
+    url = f"https://www.e-devanzare.ro/search/iPage,{page_num}"
     try:
-        response = session.get(url, headers=headers, proxies=proxies_dict, timeout=10)
+        response = requests.get(
+            url, headers=headers, cookies=cookies, proxies=proxies_dict, timeout=10
+        )
         if response.status_code == 200:
-            tree = HTMLParser(response.text)
+            parser = HTMLParser(response.text)
+            logger.info(url)
 
             # Используем CSS-селектор для поиска всех элементов <tr> с атрибутом itemprop="itemListElement"
-            tr_elements = tree.css('tr[itemprop="itemListElement"]')
+            tables = parser.css("table.table-no-border")
 
             urls = []
-            for tr in tr_elements:
-                # Внутри каждого <tr> ищем ссылку с атрибутом itemprop="url"
-                a_element = tr.css_first('a[itemprop="url"]')
-                if a_element:
-                    urls.append(a_element.attributes["href"])
+            for table in tables:
+                # В каждой таблице ищем заголовки h3
+                headers_h3 = table.css("h3")
 
+                for header in headers_h3:
+                    # В каждом заголовке h3 ищем ссылки <a>
+                    anchors = header.css("a")
+
+                    for anchor in anchors:
+                        # Извлекаем значение href
+                        href = anchor.attributes.get("href")
+                        if href:
+                            urls.append(href)
             return urls
         else:
             logger.error(
@@ -151,7 +161,6 @@ def collect_urls_from_page(page_num, proxies, session):
 def collect_urls(total_pages):
     """Проходит по страницам и собирает URL-адреса объявлений, записывая их в CSV файл с использованием многопоточности."""
     proxies = load_proxies()
-    session = create_session_with_ssl()
 
     # Загружаем успешные URL из csv_file_successful
     successful_urls = set()
@@ -161,7 +170,6 @@ def collect_urls(total_pages):
             successful_urls = {row[0] for row in reader}
 
     # Проверяем, существует ли файл и не пуст ли он, чтобы добавить заголовок
-    csv_file_path = Path("data/output.csv")
     file_exists = csv_file_path.exists()
     file_is_empty = csv_file_path.stat().st_size == 0 if file_exists else True
 
@@ -175,7 +183,7 @@ def collect_urls(total_pages):
         with ThreadPoolExecutor(max_workers=10) as executor:
             future_to_page = {
                 executor.submit(
-                    collect_urls_from_page, page_num, proxies, session
+                    collect_urls_from_page, page_num, proxies, cookies, headers
                 ): page_num
                 for page_num in range(1, total_pages + 1)
             }
@@ -205,7 +213,7 @@ def write_to_csv(data, filename):
 
 
 # Извлечение местоположения
-def extract_user_info(parser: HTMLParser) -> dict:
+def extract_user_info(parser: HTMLParser):
     location = None
     # Извлечение местоположения
     location_row = parser.css_first(
@@ -578,7 +586,7 @@ def get_html(max_workers=10, session=None):
 
 
 if __name__ == "__main__":
-    # session = create_session_with_ssl()
-    total_pages = get_total_pages()
-    # collect_urls(total_pages)
-    # get_html(max_workers=10, session=session)
+    # total_pages = get_total_pages()
+    total_pages = 4 
+    collect_urls(total_pages)
+    get_html(max_workers=10)
