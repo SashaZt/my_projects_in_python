@@ -430,7 +430,18 @@ def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
     phone_pattern = re.compile(
-        r"(\+375\d{9}|\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b)"
+        r"(\+40\d{9}|"  # Формат с +40 и 9 цифрами
+        r"00\s?40\d{9}|"  # Формат с 00 40 и 9 цифрами (пробел опционально)
+        r"011-40\d{9}|"  # Формат с 011-40 и 9 цифрами
+        r"0\d{9}|"  # Формат с 0 и 9 цифрами
+        r"\(0\d{2}\)\s?\d{6,7}|"  # Формат с (0xx) и 6-7 цифрами
+        r"\b\d{6,9}\b|"  # Простой формат с 6-9 цифрами
+        r"\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|"  # Формат типа xxx xxx xxx или xxx-xxx-xxx
+        r"\(\d{3}\)\s?\d{3}-\d{3}|"  # Формат (xxx) xxx-xxx
+        r"\b\d[\d\s\(\)\-]{6,}\b|"  # Общий формат, включающий цифры, пробелы, скобки и дефисы, длиной от 6 символов
+        r"\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|"  # Формат с любыми символами между тройками цифр
+        r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b"  # Формат типа 12 345 67 89
+        r")"
     )
     for entry in data:
         if isinstance(entry, str):
@@ -440,7 +451,7 @@ def extract_phone_numbers(data):
                 match = re.sub(r"[^\d]", "", match)
                 match = re.sub(r"^0+", "", match)
                 try:
-                    parsed_number = phonenumbers.parse(match, "BY")
+                    parsed_number = phonenumbers.parse(match, "RO")
                     # region = geocoder.description_for_number(parsed_number, "ru")  # Регион на русском языке
                     # operator = carrier.name_for_number(parsed_number, "ru")  # Оператор на русском языке
                     # print(f'parsed_number = {parsed_number} | Валид = {phonenumbers.is_valid_number(parsed_number)} | Регион = {region} | Оператор = {operator}')
@@ -572,6 +583,7 @@ def get_html(max_workers=10):
 
 
 if __name__ == "__main__":
-    get_sitemap_xml()
+    # get_sitemap_xml()
     get_html(max_workers=10)  # Устанавливаем количество потоков
-    shutil.rmtree(png_directory)
+    if png_directory.exists() and png_directory.is_dir():
+        shutil.rmtree(png_directory)
