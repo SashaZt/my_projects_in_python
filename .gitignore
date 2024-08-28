@@ -38,7 +38,7 @@ Thumbs.db
 *.log
 
 # Игнорирование разных файлов
-*.qz
+*.gz
 *.csv
 *.xlsx
 *.json
