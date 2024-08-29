@@ -43,6 +43,7 @@ png_directory.mkdir(parents=True, exist_ok=True)
 
 csv_file_path = data_directory / "output.csv"
 csv_file_successful = data_directory / "urls_successful.csv"
+csv_result = current_directory / "result.csv"
 
 # Windows
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
@@ -57,11 +58,11 @@ config = {
     "database": "parsing",
 }
 
-romania_phone_patterns = {
-    "full": r"\b((?:00|40)?\d{6,9})\b",  # Номер может начинаться с '00', '40', или без кода страны
-    "split": r"(40\d{6,9})",  # Номера, начинающиеся с '40', и за ними от 6 до 9 цифр
-    "final": r"\b(\d{6,9})\b",  # Только от 6 до 9 цифр, если код страны отсутствует
-    "codes": [40],  # Код страны для Румынии
+romanian_phone_patterns = {
+    "full": r"\b(40\d{9}|0\d{9}|\d{9})\b",
+    "split": r"(40\d{9}|0\d{9})",
+    "final": r"\b(\d{9})\b",
+    "codes": [40],
 }
 
 cookies = {
@@ -107,58 +108,131 @@ def load_proxies():
 def extract_phone_site(parser, proxy, headers, cookies, url_id):
     proxies = {"http": proxy, "https": proxy} if proxy else None
     encryptedphone = None
-    # Находим элемент с ID 'EncryptedPhone'
-    element = parser.css_first("#EncryptedPhone")
+    phone = None  # Инициализируем переменную phone как None
 
-    # Извлекаем значение атрибута 'value'
-    if element is not None:
-        encryptedphone = element.attributes.get("value")
+    try:
+        # Находим элемент с ID 'EncryptedPhone'
+        element = parser.css_first("#EncryptedPhone")
 
-    params = {
-        "Length": "8",
-    }
-    data = {
-        "EncryptedPhone": encryptedphone,
-        "body": "",
-        "X-Requested-With": "XMLHttpRequest",
-    }
+        # Извлекаем значение атрибута 'value'
+        if element is not None:
+            encryptedphone = element.attributes.get("value")
 
-    response = requests.post(
-        "https://www.romimo.ro/DetailAd/PhoneNumberImages",
-        params=params,
-        cookies=cookies,
-        headers=headers,
-        proxies=proxies,
-        data=data,
-    )
+        if not encryptedphone:
+            return None
 
-    # Ваша закодированная строка Base64
-    base64_string = response.text
+        params = {
+            "Length": "8",
+        }
+        data = {
+            "EncryptedPhone": encryptedphone,
+            "body": "",
+            "X-Requested-With": "XMLHttpRequest",
+        }
 
-    # Декодирование строки Base64 и сохранение изображения как PNG
-    decoded_data = base64.b64decode(base64_string)
-    file_name_png = png_directory / f"{url_id}.png"
-    with open(file_name_png, "wb") as file:
-        file.write(decoded_data)
+        response = requests.post(
+            "https://www.romimo.ro/DetailAd/PhoneNumberImages",
+            params=params,
+            cookies=cookies,
+            headers=headers,
+            proxies=proxies,
+            data=data,
+        )
 
-    # Открытие сохраненного изображения
-    image = Image.open(file_name_png)
-    # Преобразование изображения в оттенки серого
-    image = image.convert("L")
+        if response.status_code != 200 or not response.text:
+            return None
 
-    # Увеличение контрастности изображения
-    enhancer = ImageEnhance.Contrast(image)
-    image = enhancer.enhance(2)
+        # Ваша закодированная строка Base64
+        base64_string = response.text
 
-    # Применение порогового значения для улучшения четкости текста
-    image = image.point(lambda p: p > 128 and 255)
+        # Декодирование строки Base64 и сохранение изображения как PNG
+        decoded_data = base64.b64decode(base64_string)
+        file_name_png = png_directory / f"{url_id}.png"
+        with open(file_name_png, "wb") as file:
+            file.write(decoded_data)
 
-    # Использование pytesseract для извлечения текста
-    extracted_text = pytesseract.image_to_string(image, config="digits")
+        # Открытие сохраненного изображения
+        image = Image.open(file_name_png)
 
-    # Вывод извлеченных цифр
-    phone = re.sub(r"\D", "", extracted_text)
+        # Преобразование изображения в оттенки серого
+        image = image.convert("L")
+
+        # Увеличение контрастности изображения
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(2)
+
+        # Применение порогового значения для улучшения четкости текста
+        image = image.point(lambda p: p > 128 and 255)
+
+        # Использование pytesseract для извлечения текста
+        extracted_text = pytesseract.image_to_string(image, config="digits")
+
+        # Вывод извлеченных цифр
+        phone = re.sub(r"\D", "", extracted_text)
+
+        if not phone:
+            phone = None
+
+    except Exception as e:
+        # Логирование ошибки или вывод информации для отладки
+        logger.error(f"Ошибка при извлечении номера телефона: {e}")
+        phone = None
+
     return phone
+    # proxies = {"http": proxy, "https": proxy} if proxy else None
+    # encryptedphone = None
+    # # Находим элемент с ID 'EncryptedPhone'
+    # element = parser.css_first("#EncryptedPhone")
+
+    # # Извлекаем значение атрибута 'value'
+    # if element is not None:
+    #     encryptedphone = element.attributes.get("value")
+
+    # params = {
+    #     "Length": "8",
+    # }
+    # data = {
+    #     "EncryptedPhone": encryptedphone,
+    #     "body": "",
+    #     "X-Requested-With": "XMLHttpRequest",
+    # }
+
+    # response = requests.post(
+    #     "https://www.romimo.ro/DetailAd/PhoneNumberImages",
+    #     params=params,
+    #     cookies=cookies,
+    #     headers=headers,
+    #     proxies=proxies,
+    #     data=data,
+    # )
+
+    # # Ваша закодированная строка Base64
+    # base64_string = response.text
+
+    # # Декодирование строки Base64 и сохранение изображения как PNG
+    # decoded_data = base64.b64decode(base64_string)
+    # file_name_png = png_directory / f"{url_id}.png"
+    # with open(file_name_png, "wb") as file:
+    #     file.write(decoded_data)
+
+    # # Открытие сохраненного изображения
+    # image = Image.open(file_name_png)
+    # # Преобразование изображения в оттенки серого
+    # image = image.convert("L")
+
+    # # Увеличение контрастности изображения
+    # enhancer = ImageEnhance.Contrast(image)
+    # image = enhancer.enhance(2)
+
+    # # Применение порогового значения для улучшения четкости текста
+    # image = image.point(lambda p: p > 128 and 255)
+
+    # # Использование pytesseract для извлечения текста
+    # extracted_text = pytesseract.image_to_string(image, config="digits")
+
+    # # Вывод извлеченных цифр
+    # phone = re.sub(r"\D", "", extracted_text)
+    # return phone
 
 
 # Основная функция для загрузки и обработки карт сайта
@@ -233,7 +307,7 @@ def extract_user_info(parser):
     )
 
     if not div_element:
-        return ""  # Если элемент не найден, возвращаем пустую строку
+        return None  # Если элемент не найден, возвращаем пустую строку
 
     # Ищем все ссылки <a> с атрибутом itemprop="url" внутри найденного div
     links = div_element.css('a[itemprop="url"]')
@@ -245,7 +319,7 @@ def extract_user_info(parser):
 
 
 def parsing(src, url, proxy, headers, cookies, url_id):
-    csv_file_path = "result.csv"
+
     parsing_lock = threading.Lock()  # Локальная блокировка
 
     try:
@@ -279,14 +353,14 @@ def parsing(src, url, proxy, headers, cookies, url_id):
             if location and publication_date and phone_numbers:
                 # for phone_number in phones:
                 data = f'{phone_numbers};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-                write_to_csv(data, csv_file_path)
+                write_to_csv(data, csv_result)
 
             # Разбиваем строку на переменные
             _, location, timestamp, link, mail_address, time_posted = data.split(";")
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 32  # id_site для 'https://abw.by/'
+            site_id = 27  # id_site для 'https://abw.by/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -337,7 +411,7 @@ def parsing(src, url, proxy, headers, cookies, url_id):
                 if result:
                     id_ogloszenia = result[0]
                 else:
-                    print("Не удалось получить id_ogloszenia")
+                    logger.error("Не удалось получить id_ogloszenia")
                     # Пропустить обработку, если id не найден
                     raise ValueError("Не удалось получить id_ogloszenia")
 
@@ -349,7 +423,7 @@ def parsing(src, url, proxy, headers, cookies, url_id):
                     valid_numbers = [
                         num
                         for num in phone_numbers_extracted
-                        if re.match(romania_phone_patterns["final"], num)
+                        if re.match(romanian_phone_patterns["final"], num)
                     ]
                     if valid_numbers:
                         clean_numbers = ", ".join(valid_numbers)
@@ -365,22 +439,26 @@ def parsing(src, url, proxy, headers, cookies, url_id):
                     cursor.execute(insert_numbers, numbers_data)
 
                     cnx.commit()
-                    print("Данные успешно добавлены в таблицы numbers и ogloszenia.")
+                    logger.info(
+                        "Данные успешно добавлены в таблицы numbers и ogloszenia."
+                    )
                 else:
-                    print("Нет номеров телефонов для добавления в таблицу numbers.")
+                    logger.error(
+                        "Нет номеров телефонов для добавления в таблицу numbers."
+                    )
 
             except mysql.connector.Error as err:
                 if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                    print("Ошибка доступа: Неверное имя пользователя или пароль")
+                    logger.error("Ошибка доступа: Неверное имя пользователя или пароль")
                 elif err.errno == errorcode.ER_BAD_DB_ERROR:
-                    print("Ошибка базы данных: База данных не существует")
+                    logger.error("Ошибка базы данных: База данных не существует")
                 else:
-                    print(err)
+                    logger.error(err)
                 return False
             finally:
                 cursor.close()
                 cnx.close()
-                print("Соединение с базой данных закрыто.")
+                logger.info("Соединение с базой данных закрыто.")
 
                 return True
     except Exception as e:
@@ -430,20 +508,10 @@ def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
     phone_pattern = re.compile(
-        r"(\+40\d{9}|"  # Формат с +40 и 9 цифрами
-        r"00\s?40\d{9}|"  # Формат с 00 40 и 9 цифрами (пробел опционально)
-        r"011-40\d{9}|"  # Формат с 011-40 и 9 цифрами
-        r"0\d{9}|"  # Формат с 0 и 9 цифрами
-        r"\(0\d{2}\)\s?\d{6,7}|"  # Формат с (0xx) и 6-7 цифрами
-        r"\b\d{6,9}\b|"  # Простой формат с 6-9 цифрами
-        r"\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|"  # Формат типа xxx xxx xxx или xxx-xxx-xxx
-        r"\(\d{3}\)\s?\d{3}-\d{3}|"  # Формат (xxx) xxx-xxx
-        r"\b\d[\d\s\(\)\-]{6,}\b|"  # Общий формат, включающий цифры, пробелы, скобки и дефисы, длиной от 6 символов
-        r"\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|"  # Формат с любыми символами между тройками цифр
-        r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b"  # Формат типа 12 345 67 89
-        r")"
+        r"(\+40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|00\s?40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|011-40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|800\s?\d{3}[\s-]?\d{3}\b)"
     )
     for entry in data:
+        entry = re.sub(r"\D", "", entry)
         if isinstance(entry, str):
             matches = phone_pattern.findall(entry)
             for match in matches:
@@ -552,8 +620,6 @@ def write_to_csv(data, filename):
 def get_html(max_workers=10):
     """Основная функция для обработки списка URL с использованием многопоточности."""
     proxies = load_proxies()  # Загружаем список всех прокси
-    csv_file_path = Path("data/output.csv")
-    csv_file_successful = Path("data/urls_successful.csv")
 
     # Получение списка уже успешных URL
     successful_urls = get_successful_urls(csv_file_successful)
@@ -583,7 +649,7 @@ def get_html(max_workers=10):
 
 
 if __name__ == "__main__":
-    # get_sitemap_xml()
+    get_sitemap_xml()
     get_html(max_workers=10)  # Устанавливаем количество потоков
     if png_directory.exists() and png_directory.is_dir():
         shutil.rmtree(png_directory)

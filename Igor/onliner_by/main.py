@@ -56,6 +56,15 @@ belarus_phone_patterns = {
     "final": r"\b(\d{9})\b",
     "codes": [375],
 }
+# Установка директорий для логов и данных
+current_directory = Path.cwd()
+data_directory = current_directory / "data"
+data_directory.mkdir(parents=True, exist_ok=True)
+
+output_gz_file = data_directory / "cars-1.xml.gz"
+output_xml_file = data_directory / "cars-1.xml"
+output_csv_file = data_directory / "output.csv"
+csv_file_successful = data_directory / "urls_successful.csv"
 
 """Читает и форматирует прокси-серверы из файла."""
 
@@ -70,9 +79,7 @@ def load_proxies():
 
 def download_and_extract_gz():
     url = "https://ab.onliner.by/sitemap/cars-1.xml.gz"
-    output_gz_file = Path("data/cars-1.xml.gz")
-    output_xml_file = Path("data/cars-1.xml")
-    output_csv_file = Path("data/output.csv")
+
     proxies = load_proxies()  # Загружаем список всех прокси
     proxy = random.choice(proxies)  # Выбираем случайный прокси
     proxies_dict = {"http": proxy, "https": proxy}
@@ -266,7 +273,7 @@ def parsing(url_id, src, url, proxy, headers, cookies):
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 30  # id_site для 'https://abw.by/'
+            site_id = 27  # id_site для 'https://abw.by/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -435,13 +442,11 @@ def fetch_url(
 def get_html(max_workers=10):
     """Основная функция для обработки списка URL с использованием многопоточности."""
     proxies = load_proxies()  # Загружаем список всех прокси
-    csv_file_path = Path("data/output.csv")
-    csv_file_successful = Path("data/urls_successful.csv")
 
     # Получение списка уже успешных URL
     successful_urls = get_successful_urls(csv_file_successful)
 
-    urls_df = pd.read_csv(csv_file_path)
+    urls_df = pd.read_csv(output_csv_file)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [

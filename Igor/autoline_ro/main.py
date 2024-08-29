@@ -54,11 +54,11 @@ config = {
     "host": "localhost",
     "database": "parsing",
 }
-romania_phone_patterns = {
-    "full": r"\b((?:00|40)?\d{6,9})\b",  # Номер может начинаться с '00', '40', или без кода страны
-    "split": r"(40\d{6,9})",  # Номера, начинающиеся с '40', и за ними от 6 до 9 цифр
-    "final": r"\b(\d{6,9})\b",  # Только от 6 до 9 цифр, если код страны отсутствует
-    "codes": [40],  # Код страны для Румынии
+romanian_phone_patterns = {
+    "full": r"\b(40\d{9}|0\d{9}|\d{9})\b",
+    "split": r"(40\d{9}|0\d{9})",
+    "final": r"\b(\d{9})\b",
+    "codes": [40],
 }
 
 # Установка директорий для логов и данных
@@ -441,7 +441,7 @@ def parsing(src, url):
                     valid_numbers = [
                         num
                         for num in phone_numbers_extracted
-                        if re.match(romania_phone_patterns["final"], num)
+                        if re.match(romanian_phone_patterns["final"], num)
                     ]
                     if valid_numbers:
                         clean_numbers = ", ".join(valid_numbers)

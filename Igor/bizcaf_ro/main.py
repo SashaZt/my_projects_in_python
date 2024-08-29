@@ -36,11 +36,11 @@ config = {
 }
 
 
-romania_phone_patterns = {
-    "full": r"\b((?:00|40)?\d{6,9})\b",  # Номер может начинаться с '00', '40', или без кода страны
-    "split": r"(40\d{6,9})",  # Номера, начинающиеся с '40', и за ними от 6 до 9 цифр
-    "final": r"\b(\d{6,9})\b",  # Только от 6 до 9 цифр, если код страны отсутствует
-    "codes": [40],  # Код страны для Румынии
+romanian_phone_patterns = {
+    "full": r"\b(40\d{9}|0\d{9}|\d{9})\b",
+    "split": r"(40\d{9}|0\d{9})",
+    "final": r"\b(\d{9})\b",
+    "codes": [40],
 }
 
 
@@ -52,6 +52,7 @@ data_directory.mkdir(parents=True, exist_ok=True)
 # Файлы для записи и проверки URL
 csv_file_path = data_directory / "output.csv"
 csv_file_successful = data_directory / "urls_successful.csv"
+csv_result = current_directory / "result.csv"
 
 cookies = {
     "PHPSESSID": "6sriqfh8gtur218g3pm8m1d7j0",
@@ -199,7 +200,6 @@ def collect_urls(total_pages):
             successful_urls = {row[0] for row in reader}
 
     # Проверяем, существует ли файл и не пуст ли он, чтобы добавить заголовок
-    csv_file_path = Path("data/output.csv")
     file_exists = csv_file_path.exists()
     file_is_empty = csv_file_path.stat().st_size == 0 if file_exists else True
 
@@ -305,21 +305,14 @@ def extract_publication_date(parser):
 def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
+    # phone_pattern = re.compile(
+    #     r"(\+40\d{9}|00\s?40\d{9}|011-40\d{9}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b)"
+    # )
     phone_pattern = re.compile(
-        r"(\+40\d{9}|"  # Формат с +40 и 9 цифрами
-        r"00\s?40\d{9}|"  # Формат с 00 40 и 9 цифрами (пробел опционально)
-        r"011-40\d{9}|"  # Формат с 011-40 и 9 цифрами
-        r"0\d{9}|"  # Формат с 0 и 9 цифрами
-        r"\(0\d{2}\)\s?\d{6,7}|"  # Формат с (0xx) и 6-7 цифрами
-        r"\b\d{6,9}\b|"  # Простой формат с 6-9 цифрами
-        r"\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|"  # Формат типа xxx xxx xxx или xxx-xxx-xxx
-        r"\(\d{3}\)\s?\d{3}-\d{3}|"  # Формат (xxx) xxx-xxx
-        r"\b\d[\d\s\(\)\-]{6,}\b|"  # Общий формат, включающий цифры, пробелы, скобки и дефисы, длиной от 6 символов
-        r"\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|"  # Формат с любыми символами между тройками цифр
-        r"\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b"  # Формат типа 12 345 67 89
-        r")"
+        r"(\+40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|00\s?40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|011-40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|800\s?\d{3}[\s-]?\d{3}\b)"
     )
     for entry in data:
+        entry = re.sub(r"\D", "", entry)
         if isinstance(entry, str):
             matches = phone_pattern.findall(entry)
             for match in matches:
@@ -346,7 +339,6 @@ def extract_phone_numbers(data):
 
 
 def parsing(src, url):
-    csv_file_path = "result.csv"
     parsing_lock = threading.Lock()  # Локальная блокировка
 
     try:
@@ -361,30 +353,27 @@ def parsing(src, url):
             phones, location = extract_phone_site_and_location(parser)
             phone_numbers = set()
             phone_numbers.add(phones)
+
             if not phones:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
             if not location:
                 logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
             publication_date = extract_publication_date(parser)
-            logger.info(publication_date)
             if not publication_date:
                 logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
-
-            logger.info(f"| {url} | Номера - {phone_numbers} | Локация - {location} |")
 
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
             if location and publication_date and phone_numbers:
                 for phone_number in phone_numbers:
-                    logger.info(phone_number)
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-                    write_to_csv(data, csv_file_path)
+                    write_to_csv(data, csv_result)
 
             # Разбиваем строку на переменные
             _, location, timestamp, link, mail_address, time_posted = data.split(";")
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 29  # id_site для 'https://abw.by/'
+            site_id = 28  # id_site для 'https://abw.by/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -447,7 +436,7 @@ def parsing(src, url):
                     valid_numbers = [
                         num
                         for num in phone_numbers_extracted
-                        if re.match(romania_phone_patterns["final"], num)
+                        if re.match(romanian_phone_patterns["final"], num)
                     ]
                     if valid_numbers:
                         clean_numbers = ", ".join(valid_numbers)
@@ -463,22 +452,26 @@ def parsing(src, url):
                     cursor.execute(insert_numbers, numbers_data)
 
                     cnx.commit()
-                    print("Данные успешно добавлены в таблицы numbers и ogloszenia.")
+                    logger.info(
+                        "Данные успешно добавлены в таблицы numbers и ogloszenia."
+                    )
                 else:
-                    print("Нет номеров телефонов для добавления в таблицу numbers.")
+                    logger.error(
+                        "Нет номеров телефонов для добавления в таблицу numbers."
+                    )
 
             except mysql.connector.Error as err:
                 if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                    print("Ошибка доступа: Неверное имя пользователя или пароль")
+                    logger.error("Ошибка доступа: Неверное имя пользователя или пароль")
                 elif err.errno == errorcode.ER_BAD_DB_ERROR:
-                    print("Ошибка базы данных: База данных не существует")
+                    logger.error("Ошибка базы данных: База данных не существует")
                 else:
-                    print(err)
+                    logger.error(err)
                 return False
             finally:
                 cursor.close()
                 cnx.close()
-                print("Соединение с базой данных закрыто.")
+                logger.info("Соединение с базой данных закрыто.")
                 return True
     except Exception as e:
         logger.error(f"Ошибка при парсинге HTML для URL : {e}")
@@ -584,8 +577,6 @@ def extract_phone_site_and_location(parser):
             zone_element = feature.css_first("b")
             if zone_element:
                 location += ", " + zone_element.text(strip=True)
-    logger.info(phone_number)
-    logger.info(location)
     # Возвращаем номер телефона и местоположение
     return phone_number, location
 
@@ -593,8 +584,6 @@ def extract_phone_site_and_location(parser):
 def get_html(max_workers=10, session=None):
     """Основная функция для обработки списка URL с использованием многопоточности."""
     proxies = load_proxies()  # Загружаем список всех прокси
-    csv_file_path = Path("data/output.csv")
-    csv_file_successful = Path("data/urls_successful.csv")
 
     # Получение списка уже успешных URL
     successful_urls = get_successful_urls(csv_file_successful)
@@ -624,6 +613,6 @@ def get_html(max_workers=10, session=None):
 
 if __name__ == "__main__":
     session = create_session_with_ssl()
-    # total_pages = get_total_pages(session, load_proxies())
-    # collect_urls(total_pages)
+    total_pages = get_total_pages(session, load_proxies())
+    collect_urls(total_pages)
     get_html(max_workers=10, session=session)
