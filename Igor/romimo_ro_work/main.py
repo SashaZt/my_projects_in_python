@@ -23,14 +23,6 @@ import re
 import gzip
 import shutil
 
-# Параметры подключения к базе данных
-config = {
-    "user": "python_mysql",
-    "password": "python_mysql",
-    "host": "localhost",
-    "database": "parsing",
-}
-
 # Установка директорий для логов и данных
 
 current_directory = Path.cwd()
@@ -86,13 +78,6 @@ headers = {
     "sec-fetch-user": "?1",
     "upgrade-insecure-requests": "1",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-}
-# Параметры подключения к базе данных
-config = {
-    "user": "python_mysql",
-    "password": "python_mysql",
-    "host": "localhost",
-    "database": "parsing",
 }
 
 

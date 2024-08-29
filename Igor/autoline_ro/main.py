@@ -54,11 +54,121 @@ config = {
     "host": "localhost",
     "database": "parsing",
 }
-romanian_phone_patterns = {
-    "full": r"\b(40\d{9}|0\d{9}|\d{9})\b",
-    "split": r"(40\d{9}|0\d{9})",
-    "final": r"\b(\d{9})\b",
-    "codes": [40],
+regex_patterns = {
+    "Россия и Казахстан": {
+        "full": r"\b(7\d{10}|8\d{10}|\d{10})\b",
+        "split": r"(7\d{10}|8\d{10})",
+        "final": r"\b(\d{10})\b",
+        "codes": [7, 8],
+    },
+    "Румыния": {
+        "full": r"\b(40\d{9}|0\d{9}|\d{9})\b",
+        "split": r"(40\d{9}|0\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [40],
+    },
+    "Чили": {
+        "full": r"\b(56\d{8,9}|\d{8,9})\b",
+        "split": r"(56\d{8,9})",
+        "final": r"\b(\d{8,9})\b",
+        "codes": [56],
+    },
+    "Хорватия": {
+        "full": r"\b(385\d{8,9}|\d{8,9})\b",
+        "split": r"(385\d{8,9})",
+        "final": r"\b(\d{8,9})\b",
+        "codes": [385],
+    },
+    "Узбекистан": {
+        "full": r"\b(998\d{9}|0\d{9}|\d{9})\b",
+        "split": r"(998\d{9}|0\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [998],
+    },
+    "Сербия": {
+        "full": r"\b(381\d{8,9}|\d{8,9})\b",
+        "split": r"(381\d{8,9})",
+        "final": r"\b(\d{8,9})\b",
+        "codes": [381],
+    },
+    "Черногория": {
+        "full": r"\b(382\d{8}|0\d{8}|\d{8})\b",
+        "split": r"(382\d{8}|0\d{8})",
+        "final": r"\b(\d{8})\b",
+        "codes": [382],
+    },
+    "Босния и Герцеговина": {
+        "full": r"\b(387\d{8}|0\d{8}|\d{8})\b",
+        "split": r"(387\d{8}|0\d{8})",
+        "final": r"\b(\d{8})\b",
+        "codes": [387],
+    },
+    "Болгария": {
+        "full": r"\b(359\d{8,9}|\d{8,9})\b",
+        "split": r"(359\d{8,9})",
+        "final": r"\b(\d{8,9})\b",
+        "codes": [359],
+    },
+    "Беларусь": {
+        "full": r"\b(80\d{9}|375\d{9}|\d{9})\b",
+        "split": r"(375\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [375],
+    },
+    "Польша": {
+        "full": r"\b(48\d{9}|\d{9})\b",
+        "split": r"(48\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [48],
+    },
+    "Испания": {
+        "full": r"\b(34\d{9}|\d{9})\b",
+        "split": r"(34\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [34],
+    },
+    "Таджикистан": {
+        "full": r"\b(992\d{9}|\d{9})\b",
+        "split": r"(992\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [992],
+    },
+    "Грузия": {
+        "full": r"\b(995\d{9}|0\d{9}|\d{9})\b",
+        "split": r"(995\d{9}|0\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [995],
+    },
+    "Колумбия": {
+        "full": r"\b(57\d{10}|0\d{10}|\d{10})\b",
+        "split": r"(57\d{10}|0\d{10})",
+        "final": r"\b(\d{10})\b",
+        "codes": [57],
+    },
+    "Панама": {
+        "full": r"\b(507\d{7,8}|\d{7,8})\b",
+        "split": r"(507\d{7,8})",
+        "final": r"\b(\d{7,8})\b",
+        "codes": [507],
+    },
+    "Мексика": {
+        "full": r"\b(521\d{10}|52\d{10}|\d{10})\b",
+        "split": r"(521\d{10}|52\d{10})",
+        "final": r"\b(\d{10})\b",
+        "codes": [52, 521],
+    },
+    "Азербайджан": {
+        "full": r"\b(994\d{9}|8\d{9}|\d{9})\b",
+        "split": r"(994\d{9}|8\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [994],
+    },
+    "Португалия": {
+        "full": r"\b(351\d{9}|\d{9})\b",
+        "split": r"(351\d{9})",
+        "final": r"\b(\d{9})\b",
+        "codes": [351],
+    },
 }
 
 # Установка директорий для логов и данных
@@ -67,6 +177,10 @@ temp_directory = "temp"
 temp_path = current_directory / temp_directory
 data_directory = current_directory / "data"
 data_directory.mkdir(parents=True, exist_ok=True)
+
+csv_file_path = data_directory / "output.csv"
+csv_file_successful = data_directory / "urls_successful.csv"
+csv_result = current_directory / "result.csv"
 
 """Читает и форматирует прокси-серверы из файла."""
 
@@ -205,8 +319,6 @@ def filter_urls_in_csv(csv_file_path):
 
 def main():
     url = "https://autoline.ro/sitemap.xml"
-    data_directory = Path("data_directory")
-    data_directory.mkdir(parents=True, exist_ok=True)
 
     session = requests.Session()
     processor = SitemapProcessor(session, data_directory)
@@ -217,7 +329,6 @@ def main():
 
     all_urls = processor.extract_urls_from_files()
 
-    csv_file_path = Path("data/output.csv")
     logger.info(f"Writing {len(all_urls)} URLs to {csv_file_path}")
     with open(csv_file_path, "w", newline="", encoding="utf-8") as csvfile:
         writer = csv.writer(csvfile)
@@ -343,7 +454,6 @@ def extract_publication_date_and_location(parser):
 
 
 def parsing(src, url):
-    csv_file_path = "result.csv"
     parsing_lock = threading.Lock()  # Локальная блокировка
 
     try:
@@ -356,6 +466,7 @@ def parsing(src, url):
         with parsing_lock:
 
             phones = extract_phone_site(parser)
+            logger.info(phones)
             if not phones:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
 
@@ -365,20 +476,20 @@ def parsing(src, url):
             if not publication_date:
                 logger.warning(f"Не удалось извлечь дату публикации для URL: {url}")
 
-            logger.info(f"| {url} | Номера - {phones} | Локация - {location} |")
+            # logger.info(f"| {url} | Номера - {phones} | Локация - {location} |")
 
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
             if location and publication_date and phones:
                 for phone_number in phones:
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
-                    write_to_csv(data, csv_file_path)
+                    write_to_csv(data, csv_result)
 
             # Разбиваем строку на переменные
             _, location, timestamp, link, mail_address, time_posted = data.split(";")
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 28  # id_site для 'https://autoline.ro/'
+            site_id = 29  # id_site для 'https://autoline.ro/'
 
             # Подключение к базе данных и запись данных
             try:
@@ -429,7 +540,7 @@ def parsing(src, url):
                 if result:
                     id_ogloszenia = result[0]
                 else:
-                    print("Не удалось получить id_ogloszenia")
+                    logger.error("Не удалось получить id_ogloszenia")
                     # Пропустить обработку, если id не найден
                     raise ValueError("Не удалось получить id_ogloszenia")
 
@@ -441,7 +552,7 @@ def parsing(src, url):
                     valid_numbers = [
                         num
                         for num in phone_numbers_extracted
-                        if re.match(romanian_phone_patterns["final"], num)
+                        if re.match(regex_patterns["final"], num)
                     ]
                     if valid_numbers:
                         clean_numbers = ", ".join(valid_numbers)
@@ -457,22 +568,26 @@ def parsing(src, url):
                     cursor.execute(insert_numbers, numbers_data)
 
                     cnx.commit()
-                    print("Данные успешно добавлены в таблицы numbers и ogloszenia.")
+                    # logger.info(
+                    #     "Данные успешно добавлены в таблицы numbers и ogloszenia."
+                    # )
                 else:
-                    print("Нет номеров телефонов для добавления в таблицу numbers.")
+                    logger.error(
+                        "Нет номеров телефонов для добавления в таблицу numbers."
+                    )
 
             except mysql.connector.Error as err:
                 if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-                    print("Ошибка доступа: Неверное имя пользователя или пароль")
+                    logger.error("Ошибка доступа: Неверное имя пользователя или пароль")
                 elif err.errno == errorcode.ER_BAD_DB_ERROR:
-                    print("Ошибка базы данных: База данных не существует")
+                    logger.error("Ошибка базы данных: База данных не существует")
                 else:
-                    print(err)
+                    logger.error(err)
                 return False
             finally:
                 cursor.close()
                 cnx.close()
-                print("Соединение с базой данных закрыто.")
+                # logger.info("Соединение с базой данных закрыто.")
                 return True
     except Exception as e:
         logger.error(f"Ошибка при парсинге HTML для URL  {e}")
@@ -539,11 +654,9 @@ def fetch_url(url, proxies, headers, cookies, csv_file_successful, successful_ur
     return None
 
 
-def get_html(max_workers=2):
+def get_html(max_workers=10):
     """Основная функция для обработки списка URL с использованием многопоточности."""
     proxies = load_proxies()  # Загружаем список всех прокси
-    csv_file_path = Path("data/output.csv")
-    csv_file_successful = Path("data/urls_successful.csv")
 
     # Получение списка уже успешных URL
     successful_urls = get_successful_urls(csv_file_successful)
@@ -578,7 +691,7 @@ def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
     phone_pattern = re.compile(
-        r"(\+375\d{9}|\d{3}\s\d{3}\s\d{3}|\(\d{3}\)\s\d{3}\-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|\+\d{2}[-\s]?\d{3}[-\s]?\d{3}[-\s]?\d{3}\b)"
+        r"(\+40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|00\s?40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|011-40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|800\s?\d{3}[\s-]?\d{3}\b)"
     )
     for entry in data:
         if isinstance(entry, str):
@@ -608,4 +721,4 @@ def extract_phone_numbers(data):
 
 if __name__ == "__main__":
     # main()
-    get_html(max_workers=2)
+    get_html(max_workers=10)

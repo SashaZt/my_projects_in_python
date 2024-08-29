@@ -1,4 +1,3 @@
-from tkinter import NO
 import requests
 import random
 import csv
@@ -9,21 +8,15 @@ import ssl
 from requests.adapters import HTTPAdapter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from phonenumbers import NumberParseException
 from configuration.logger_setup import logger
-from selectolax.parser import HTMLParser
 from mysql.connector import errorcode
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import mysql.connector
 import phonenumbers
-import pandas as pd
 import threading
 import datetime
-import requests
-import random
-import locale
 import csv
 import re
 
