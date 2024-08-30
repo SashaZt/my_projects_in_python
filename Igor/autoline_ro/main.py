@@ -385,7 +385,7 @@ def extract_publication_date_and_location(parser):
     return publication_date, location, country_name
 
 
-def parsing(src, url):
+def parsing(src, url, csv_file_successful):
     parsing_lock = threading.Lock()  # Локальная блокировка
 
     try:
@@ -527,6 +527,7 @@ def parsing(src, url):
                 cursor.close()
                 cnx.close()
                 # logger.info("Соединение с базой данных закрыто.")
+                write_to_csv(url, csv_file_successful)
                 return True
     except Exception as e:
         logger.error(f"Ошибка при парсинге HTML для URL  {e}")
@@ -558,12 +559,12 @@ def fetch_url(url, proxies, headers, cookies, csv_file_successful, successful_ur
             # response.raise_for_status()
             if response.status_code == 200:
                 src = response.text
-                success = parsing(src, url)
-                if success:
-                    with fetch_lock:
-                        successful_urls.add(url)
-                        write_to_csv(url, csv_file_successful)
-                return
+                success = parsing(src, url, csv_file_successful)
+                # if success:
+                #     with fetch_lock:
+                #         successful_urls.add(url)
+                #         write_to_csv(url, csv_file_successful)
+                # return
 
             elif response.status_code == 403:
                 logger.error(f"Код ошибки 403. Прокси заблокирован: {proxy}")
