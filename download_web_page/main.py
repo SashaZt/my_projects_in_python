@@ -13,36 +13,42 @@ from configuration.logger_setup import logger
 
 def get_html():
     cookies = {
-        "ci_session": "a%3A4%3A%7Bs%3A10%3A%5C%22session_id%5C%22%3Bs%3A32%3A%5C%22084dce2dcb7e33677a3da4296925fc9a%5C%22%3Bs%3A10%3A%5C%22ip_address%5C%22%3Bs%3A7%3A%5C%220.0.0.0%5C%22%3Bs%3A10%3A%5C%22user_agent%5C%22%3Bs%3A111%3A%5C%22Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%29+AppleWebKit%2F537.36+%28KHTML%2C+like+Gecko%29+Chrome%2F128.0.0.0+Safari%2F537.36%5C%22%3Bs%3A13%3A%5C%22last_activity%5C%22%3Bi%3A1725004760%3B%7D084104efe43c9d462e911378840e850b",
+        "PODID": "app0",
+        "currency": "EUR",
+        "language": "en",
+        "cf_clearance": "fFTvUNYvkNDJp6l3Wyc_7pVC.4R9VuWD7eXKgcMapeo-1725012260-1.2.1.1-fK8MkAHBDTjOFRLR295P6vw6yIroW79SC7mAApE1SGf4L8CJIw7642edRNnu3sVUOSj4.25ok2drdOeGW4ENM7a0heJYqUhzTwrDjplxp2Qh.9018vIHeq556DFabpIuu9e1DZRhxktOWgCvnhAcKUUFhTkcwPiQeonyiQtY24MNrs7vtumH6DTPAKOhA2mNQ7fHr85K22HlDqeGULwR9iRbCjyjjLHM44KjoxQguGpbiHRoSKFPcpPqs3nVNgBSgYehfNqqtGOL4ELERmv19Y1fIjdomw_1QeJcmuCQMwkgFqAt1NjV9QoMXngwK_.KnBTO3DrMY723mUwWtORsflQjdUAh.GatFgWxtlGKFkWhqLiXKIAFY0zeJLPcDtZ2Uo2khlBKh_ixAc4lyX6EH8bb66jSV3iaRNDf1.CxscLzTPgM_HiZr_lbVx4G9Dd6",
+        "SESSION": "eeda5cc4-e16c-43c4-a1d3-2b221b9a8411.app-0",
+        "beforeUnloadTime": "1725012465978",
+        "unloadTime": "1725012466123",
     }
 
     headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        # 'Cookie': 'ci_session=a%3A4%3A%7Bs%3A10%3A%5C%22session_id%5C%22%3Bs%3A32%3A%5C%22084dce2dcb7e33677a3da4296925fc9a%5C%22%3Bs%3A10%3A%5C%22ip_address%5C%22%3Bs%3A7%3A%5C%220.0.0.0%5C%22%3Bs%3A10%3A%5C%22user_agent%5C%22%3Bs%3A111%3A%5C%22Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%29+AppleWebKit%2F537.36+%28KHTML%2C+like+Gecko%29+Chrome%2F128.0.0.0+Safari%2F537.36%5C%22%3Bs%3A13%3A%5C%22last_activity%5C%22%3Bi%3A1725004760%3B%7D084104efe43c9d462e911378840e850b',
-        "DNT": "1",
-        "Pragma": "no-cache",
-        "Referer": "https://goszakup.gov.kz/ru/announce/index/10791510?tab=documents",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "same-origin",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
+        "cache-control": "no-cache",
+        # 'cookie': 'PODID=app0; currency=EUR; language=en; cf_clearance=fFTvUNYvkNDJp6l3Wyc_7pVC.4R9VuWD7eXKgcMapeo-1725012260-1.2.1.1-fK8MkAHBDTjOFRLR295P6vw6yIroW79SC7mAApE1SGf4L8CJIw7642edRNnu3sVUOSj4.25ok2drdOeGW4ENM7a0heJYqUhzTwrDjplxp2Qh.9018vIHeq556DFabpIuu9e1DZRhxktOWgCvnhAcKUUFhTkcwPiQeonyiQtY24MNrs7vtumH6DTPAKOhA2mNQ7fHr85K22HlDqeGULwR9iRbCjyjjLHM44KjoxQguGpbiHRoSKFPcpPqs3nVNgBSgYehfNqqtGOL4ELERmv19Y1fIjdomw_1QeJcmuCQMwkgFqAt1NjV9QoMXngwK_.KnBTO3DrMY723mUwWtORsflQjdUAh.GatFgWxtlGKFkWhqLiXKIAFY0zeJLPcDtZ2Uo2khlBKh_ixAc4lyX6EH8bb66jSV3iaRNDf1.CxscLzTPgM_HiZr_lbVx4G9Dd6; SESSION=eeda5cc4-e16c-43c4-a1d3-2b221b9a8411.app-0; beforeUnloadTime=1725012465978; unloadTime=1725012466123',
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
         "sec-ch-ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
+        "sec-ch-ua-arch": '"x86"',
+        "sec-ch-ua-bitness": '"64"',
+        "sec-ch-ua-full-version": '"128.0.6613.85"',
+        "sec-ch-ua-full-version-list": '"Chromium";v="128.0.6613.85", "Not;A=Brand";v="24.0.0.0", "Google Chrome";v="128.0.6613.85"',
         "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-model": '""',
         "sec-ch-ua-platform": '"Windows"',
-    }
-
-    params = {
-        "tab": "protocols",
+        "sec-ch-ua-platform-version": '"15.0.0"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://goszakup.gov.kz/ru/announce/index/10791510",
-        params=params,
+        "https://aleo.com/pl/firma/-abis-sp-z-oo-platforma-zakupowa-abispl-art-biurowe-i-szkolne-warszawa",
         cookies=cookies,
         headers=headers,
     )
