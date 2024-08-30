@@ -13,32 +13,38 @@ from configuration.logger_setup import logger
 
 def get_html():
     cookies = {
-        "osclass": "deha6f3qp881nk2segjnj5sh43",
-        "Eightenn_check": "true",
+        "ci_session": "a%3A4%3A%7Bs%3A10%3A%5C%22session_id%5C%22%3Bs%3A32%3A%5C%22084dce2dcb7e33677a3da4296925fc9a%5C%22%3Bs%3A10%3A%5C%22ip_address%5C%22%3Bs%3A7%3A%5C%220.0.0.0%5C%22%3Bs%3A10%3A%5C%22user_agent%5C%22%3Bs%3A111%3A%5C%22Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%29+AppleWebKit%2F537.36+%28KHTML%2C+like+Gecko%29+Chrome%2F128.0.0.0+Safari%2F537.36%5C%22%3Bs%3A13%3A%5C%22last_activity%5C%22%3Bi%3A1725004760%3B%7D084104efe43c9d462e911378840e850b",
     }
 
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-        "cache-control": "no-cache",
-        # 'cookie': 'osclass=deha6f3qp881nk2segjnj5sh43; Eightenn_check=true',
-        "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "referer": "https://www.e-devanzare.ro/search/iPage,3",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        # 'Cookie': 'ci_session=a%3A4%3A%7Bs%3A10%3A%5C%22session_id%5C%22%3Bs%3A32%3A%5C%22084dce2dcb7e33677a3da4296925fc9a%5C%22%3Bs%3A10%3A%5C%22ip_address%5C%22%3Bs%3A7%3A%5C%220.0.0.0%5C%22%3Bs%3A10%3A%5C%22user_agent%5C%22%3Bs%3A111%3A%5C%22Mozilla%2F5.0+%28Windows+NT+10.0%3B+Win64%3B+x64%29+AppleWebKit%2F537.36+%28KHTML%2C+like+Gecko%29+Chrome%2F128.0.0.0+Safari%2F537.36%5C%22%3Bs%3A13%3A%5C%22last_activity%5C%22%3Bi%3A1725004760%3B%7D084104efe43c9d462e911378840e850b',
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Referer": "https://goszakup.gov.kz/ru/announce/index/10791510?tab=documents",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
         "sec-ch-ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+    }
+
+    params = {
+        "tab": "protocols",
     }
 
     response = requests.get(
-        "https://www.e-devanzare.ro/search", cookies=cookies, headers=headers
+        "https://goszakup.gov.kz/ru/announce/index/10791510",
+        params=params,
+        cookies=cookies,
+        headers=headers,
     )
     # Проверка кода ответа
     if response.status_code == 200:

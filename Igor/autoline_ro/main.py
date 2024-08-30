@@ -54,122 +54,13 @@ config = {
     "host": "localhost",
     "database": "parsing",
 }
-regex_patterns = {
-    "Россия и Казахстан": {
-        "full": r"\b(7\d{10}|8\d{10}|\d{10})\b",
-        "split": r"(7\d{10}|8\d{10})",
-        "final": r"\b(\d{10})\b",
-        "codes": [7, 8],
-    },
-    "Румыния": {
-        "full": r"\b(40\d{9}|0\d{9}|\d{9})\b",
-        "split": r"(40\d{9}|0\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [40],
-    },
-    "Чили": {
-        "full": r"\b(56\d{8,9}|\d{8,9})\b",
-        "split": r"(56\d{8,9})",
-        "final": r"\b(\d{8,9})\b",
-        "codes": [56],
-    },
-    "Хорватия": {
-        "full": r"\b(385\d{8,9}|\d{8,9})\b",
-        "split": r"(385\d{8,9})",
-        "final": r"\b(\d{8,9})\b",
-        "codes": [385],
-    },
-    "Узбекистан": {
-        "full": r"\b(998\d{9}|0\d{9}|\d{9})\b",
-        "split": r"(998\d{9}|0\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [998],
-    },
-    "Сербия": {
-        "full": r"\b(381\d{8,9}|\d{8,9})\b",
-        "split": r"(381\d{8,9})",
-        "final": r"\b(\d{8,9})\b",
-        "codes": [381],
-    },
-    "Черногория": {
-        "full": r"\b(382\d{8}|0\d{8}|\d{8})\b",
-        "split": r"(382\d{8}|0\d{8})",
-        "final": r"\b(\d{8})\b",
-        "codes": [382],
-    },
-    "Босния и Герцеговина": {
-        "full": r"\b(387\d{8}|0\d{8}|\d{8})\b",
-        "split": r"(387\d{8}|0\d{8})",
-        "final": r"\b(\d{8})\b",
-        "codes": [387],
-    },
-    "Болгария": {
-        "full": r"\b(359\d{8,9}|\d{8,9})\b",
-        "split": r"(359\d{8,9})",
-        "final": r"\b(\d{8,9})\b",
-        "codes": [359],
-    },
-    "Беларусь": {
-        "full": r"\b(80\d{9}|375\d{9}|\d{9})\b",
-        "split": r"(375\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [375],
-    },
-    "Польша": {
-        "full": r"\b(48\d{9}|\d{9})\b",
-        "split": r"(48\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [48],
-    },
-    "Испания": {
-        "full": r"\b(34\d{9}|\d{9})\b",
-        "split": r"(34\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [34],
-    },
-    "Таджикистан": {
-        "full": r"\b(992\d{9}|\d{9})\b",
-        "split": r"(992\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [992],
-    },
-    "Грузия": {
-        "full": r"\b(995\d{9}|0\d{9}|\d{9})\b",
-        "split": r"(995\d{9}|0\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [995],
-    },
-    "Колумбия": {
-        "full": r"\b(57\d{10}|0\d{10}|\d{10})\b",
-        "split": r"(57\d{10}|0\d{10})",
-        "final": r"\b(\d{10})\b",
-        "codes": [57],
-    },
-    "Панама": {
-        "full": r"\b(507\d{7,8}|\d{7,8})\b",
-        "split": r"(507\d{7,8})",
-        "final": r"\b(\d{7,8})\b",
-        "codes": [507],
-    },
-    "Мексика": {
-        "full": r"\b(521\d{10}|52\d{10}|\d{10})\b",
-        "split": r"(521\d{10}|52\d{10})",
-        "final": r"\b(\d{10})\b",
-        "codes": [52, 521],
-    },
-    "Азербайджан": {
-        "full": r"\b(994\d{9}|8\d{9}|\d{9})\b",
-        "split": r"(994\d{9}|8\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [994],
-    },
-    "Португалия": {
-        "full": r"\b(351\d{9}|\d{9})\b",
-        "split": r"(351\d{9})",
-        "final": r"\b(\d{9})\b",
-        "codes": [351],
-    },
+romanian_phone_patterns = {
+    "full": r"\b(40\d{9}|0\d{9}|\d{9})\b",
+    "split": r"(40\d{9}|0\d{9})",
+    "final": r"\b(\d{9})\b",
+    "codes": [40],
 }
+
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -180,7 +71,7 @@ data_directory.mkdir(parents=True, exist_ok=True)
 
 csv_file_path = data_directory / "output.csv"
 csv_file_successful = data_directory / "urls_successful.csv"
-csv_result = current_directory / "result.csv"
+
 
 """Читает и форматирует прокси-серверы из файла."""
 
@@ -223,36 +114,72 @@ class SitemapProcessor:
     """Загружает файл по указанному URL и сохраняет его в заданную директорию."""
 
     def download_file(self, url):
-
+        max_retries = 10  # Максимальное количество попыток
+        counter_error = 0  # Счетчик ошибок
         proxies = load_proxies()
+
         if not proxies:
             logger.error("No proxies available")
             raise ValueError("Proxy list is empty")
 
-        proxy = random.choice(proxies)  # Выбираем случайный прокси
-        proxies_dict = {"http": proxy, "https": proxy}
-
         file_name = Path(url).name
         save_path = self.save_directory / file_name
 
-        try:
-            response = self.session.get(
-                url,
-                proxies=proxies_dict,
-                headers=headers,  # Убедитесь, что переменная headers определена
-                cookies=cookies,  # Убедитесь, что переменная cookies определена
-            )
-            response.raise_for_status()
+        while proxies and counter_error < max_retries:
+            proxy = random.choice(proxies)  # Выбираем случайный прокси
+            proxies_dict = {"http": proxy, "https": proxy}
 
-            with open(save_path, "wb") as file:
-                file.write(response.content)
+            try:
+                response = self.session.get(
+                    url,
+                    proxies=proxies_dict,
+                    headers=headers,
+                    cookies=cookies,
+                    stream=True,  # Используем потоковую загрузку, чтобы избежать проблем с чтением больших файлов
+                )
+                if response.status_code == 200:
+                    with open(save_path, "wb") as file:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            file.write(chunk)
 
-            logger.info(f"Successfully downloaded {url} to {save_path}")
-            return save_path
+                    logger.info(f"Successfully downloaded {url} to {save_path}")
+                    return save_path
+                elif response.status_code == 403:
+                    logger.error(f"Код ошибки 403. Прокси заблокирован: {proxy}")
+                    proxies.remove(proxy)  # Удаляем заблокированный прокси
+                    print(
+                        f'{datetime.datetime.now().strftime("%H:%M:%S")} - Осталось прокси: {len(proxies)}'
+                    )
+                    counter_error += 1
+                    if counter_error >= max_retries:
+                        logger.error(f"Перезапуск из-за 10 ошибок 403. Прокси: {proxy}")
+                        return None
+                else:
+                    logger.error(
+                        f"Unexpected status code {response.status_code} for {url}"
+                    )
+                    counter_error += 1
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Failed to download {url} using proxy {proxy}: {e}")
-            raise
+            except requests.exceptions.TooManyRedirects:
+                logger.error("Произошла ошибка: Exceeded 30 redirects. Пропуск.")
+                counter_error += 1
+            except (requests.exceptions.ProxyError, requests.exceptions.Timeout):
+                proxies.remove(proxy)
+                logger.error(f"Прокси удален из-за ошибки: {proxy}")
+                print(
+                    f'{datetime.datetime.now().strftime("%H:%M:%S")} - Осталось прокси: {len(proxies)}'
+                )
+            except Exception as e:
+                logger.error(f"Failed to download {url} using proxy {proxy}: {e}")
+                counter_error += 1
+                if counter_error >= max_retries:
+                    logger.error(f"Max retries reached for {url} using proxy {proxy}.")
+                    raise
+
+        if not proxies:
+            logger.error("No more proxies available. Failed to download the file.")
+        else:
+            raise Exception(f"Failed to download {url} after {max_retries} attempts.")
 
     def fetch_and_parse_xml(self, url):
         """Загружает XML файл по указанному URL и парсит его содержимое."""
@@ -371,23 +298,30 @@ def extract_phone_site(parser):
         if href.startswith("tel:"):
             phone_number = href.replace("tel:", "").strip()
             phone_numbers.append(phone_number)
-    logger.info(phone_numbers)
     return phone_numbers
 
 
 def extract_publication_date_and_location(parser):
+    # Инициализация переменных
+    publication_date = None
+    location = None
+    country_name = None
+
     # Селектор для основного блока
     block_selector = "#content > div.sales-full-container.sfc-status-active > div.sales-full-container__main > div.sf-wrapper.ecommerce-item.sf-wrapper_with-menu > div.sf-wrapper-main.sf-wrapper__main > div.sf-descr > div.sf-main > div.sf-data.sf-data-main > div.block"
     block_element = parser.css_first(block_selector)
 
     if not block_element:
-        return None, None  # Возвращаем None, если основной блок не найден
+        return (
+            publication_date,
+            location,
+            country_name,
+        )  # Возвращаем None, если основной блок не найден
 
     # Получаем текущую дату
     today = datetime.datetime.today()
 
-    # Ищем дату публикации
-    date_element = None
+    # Поиск даты публикации
     for item in block_element.css("div.item"):
         field = item.css_first("span.field")
         if field and "Data publicării:" in field.text():
@@ -424,14 +358,10 @@ def extract_publication_date_and_location(parser):
                     today  # Если дата не распарсилась, используем текущую дату
                 )
 
-        # Форматируем дату, если это объект datetime
-        if isinstance(time_posted, datetime.datetime):
+            # Форматируем дату
             publication_date = time_posted.strftime("%Y-%m-%d")
-        else:
-            return "Некорректный формат даты"
 
-    # Ищем местоположение
-    location_element = None
+    # Поиск местоположения
     for item in block_element.css("div.item"):
         field = item.css_first("span.field")
         if field and "Locul de amplasare:" in field.text():
@@ -445,12 +375,14 @@ def extract_publication_date_and_location(parser):
             location = (
                 f"{country_element.text(strip=True)},{city_element.text(strip=True)}"
             )
-        else:
-            location = None
-    else:
-        location = None
 
-    return publication_date, location
+    # Нахождение элемента с помощью селектора CSS для страны
+    country_div = parser.css_first("div.info-container > div.countries > div.country")
+    if country_div:
+        # Извлечение текста и очистка от лишних пробелов
+        country_name = country_div.text(strip=True).lower()
+
+    return publication_date, location, country_name
 
 
 def parsing(src, url):
@@ -466,11 +398,14 @@ def parsing(src, url):
         with parsing_lock:
 
             phones = extract_phone_site(parser)
-            logger.info(phones)
             if not phones:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
 
-            publication_date, location = extract_publication_date_and_location(parser)
+            publication_date, location, country_name = (
+                extract_publication_date_and_location(parser)
+            )
+            logger.info(f"{publication_date} | {location} | {country_name}")
+
             if not location:
                 logger.warning(f"Не удалось извлечь местоположение для URL: {url}")
             if not publication_date:
@@ -481,6 +416,7 @@ def parsing(src, url):
             data = f'{None};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
             if location and publication_date and phones:
                 for phone_number in phones:
+                    csv_result = current_directory / f"result_{country_name}.csv"
                     data = f'{phone_number};{location};{datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")};{url};{mail_address};{publication_date}'
                     write_to_csv(data, csv_result)
 
@@ -545,36 +481,39 @@ def parsing(src, url):
                     raise ValueError("Не удалось получить id_ogloszenia")
 
                 # Заполнение таблицы numbers, если номера телефонов присутствуют
-                if phones and id_ogloszenia:
-                    phone_numbers_extracted, invalid_numbers = extract_phone_numbers(
-                        phones
-                    )
-                    valid_numbers = [
-                        num
-                        for num in phone_numbers_extracted
-                        if re.match(regex_patterns["final"], num)
-                    ]
-                    if valid_numbers:
-                        clean_numbers = ", ".join(valid_numbers)
+                if country_name == "românia":
+                    logger.info(f"Страна {country_name} пишем в БД")
+
+                    if phones and id_ogloszenia:
+                        phone_numbers_extracted, invalid_numbers = (
+                            extract_phone_numbers(phones)
+                        )
+                        valid_numbers = [
+                            num
+                            for num in phone_numbers_extracted
+                            if re.match(romanian_phone_patterns["final"], num)
+                        ]
+                        if valid_numbers:
+                            clean_numbers = ", ".join(valid_numbers)
+                        else:
+                            clean_numbers = "invalid"
+
+                        insert_numbers = (
+                            "INSERT INTO numbers (id_ogloszenia, raw, correct) "
+                            "VALUES (%s, %s, %s)"
+                        )
+                        raw_numbers = ", ".join(phones)
+                        numbers_data = (id_ogloszenia, raw_numbers, clean_numbers)
+                        cursor.execute(insert_numbers, numbers_data)
+
+                        cnx.commit()
+                        # logger.info(
+                        #     "Данные успешно добавлены в таблицы numbers и ogloszenia."
+                        # )
                     else:
-                        clean_numbers = "invalid"
-
-                    insert_numbers = (
-                        "INSERT INTO numbers (id_ogloszenia, raw, correct) "
-                        "VALUES (%s, %s, %s)"
-                    )
-                    raw_numbers = ", ".join(phones)
-                    numbers_data = (id_ogloszenia, raw_numbers, clean_numbers)
-                    cursor.execute(insert_numbers, numbers_data)
-
-                    cnx.commit()
-                    # logger.info(
-                    #     "Данные успешно добавлены в таблицы numbers и ogloszenia."
-                    # )
-                else:
-                    logger.error(
-                        "Нет номеров телефонов для добавления в таблицу numbers."
-                    )
+                        logger.error(
+                            "Нет номеров телефонов для добавления в таблицу numbers."
+                        )
 
             except mysql.connector.Error as err:
                 if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
@@ -690,10 +629,14 @@ def get_html(max_workers=10):
 def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
+    # phone_pattern = re.compile(
+    #     r"(\+40\d{9}|00\s?40\d{9}|011-40\d{9}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b)"
+    # )
     phone_pattern = re.compile(
         r"(\+40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|00\s?40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|011-40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|800\s?\d{3}[\s-]?\d{3}\b)"
     )
     for entry in data:
+        entry = re.sub(r"\D", "", entry)
         if isinstance(entry, str):
             matches = phone_pattern.findall(entry)
             for match in matches:
@@ -720,5 +663,5 @@ def extract_phone_numbers(data):
 
 
 if __name__ == "__main__":
-    # main()
+    main()
     get_html(max_workers=10)

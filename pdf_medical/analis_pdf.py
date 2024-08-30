@@ -8,6 +8,8 @@ import re
 import json
 import os
 import shutil
+from collections import defaultdict
+
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
@@ -594,10 +596,6 @@ def generate_keys():
     return keys
 
 
-def scale_crop_areas(crop_areas, scale_factor):
-    return [tuple(int(coord * scale_factor) for coord in area) for area in crop_areas]
-
-
 # def validity_text(text_list):
 #     """
 #     Принимает список строк, делит каждую строку на слова с помощью wordninja.split,
@@ -1127,12 +1125,23 @@ def split_on_capitals(text):
     return re.findall(r"[0-9]+|[A-Z][a-z]*|[A-Z]+(?=[A-Z]|$)", text)
 
 
+def scale_crop_area(crop_area, scale_factor):
+    # Убедимся, что crop_area имеет 4 элемента
+    if len(crop_area) != 4:
+        raise ValueError(
+            "crop_area должен содержать ровно 4 элемента: (left, top, right, bottom)"
+        )
+    return tuple(int(coord * scale_factor) for coord in crop_area)
+
+
 # На весь список ПОКА ЗАКРЫТА она
 def process_image():
+    # Коэффициент масштабирования
+    scale_factor = 1  # Увеличение на 1.1
     image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению
     temp_path = "temp"  # Укажите временный путь для сохранения изображений
     crop_areas = {
-        "01": [(90, 71, 800, 255)],
+        "01": [(75, 70, 800, 255)],
         "3a": [(1620, 70, 2320, 120)],
         "3b": [(1620, 120, 2320, 170)],
         "4": [(2320, 120, 2475, 170)],
@@ -1162,27 +1171,72 @@ def process_image():
         "38a": [(110, 610, 1290, 660)],
         "38b": [(110, 660, 1290, 710)],
         "38c": [(110, 710, 1290, 760)],
+        "38d": [(110, 760, 1290, 810)],
+        "38e": [(90, 810, 1290, 850)],
+        "39a": [(1340, 660, 1410, 845)],
+        "39b": [(1430, 660, 1650, 845)],
+        "39c": [(1650, 660, 1708, 845)],
+        "40a": [(1717, 660, 1793, 845)],
+        "40b": [(1805, 660, 2030, 845)],
+        "40c": [(2040, 660, 2088, 845)],
+        "41": [(2100, 660, 2175, 845)],
+        "41a": [(2190, 660, 2410, 845)],
+        "41b": [(2410, 660, 2465, 845)],
+        "42": [(75, 900, 200, 1900)],
+        "43": [(220, 900, 750, 1900)],
+        "44": [(945, 901, 1355, 1900)],
+        "45": [(1390, 899, 1560, 1900)],
+        "46": [(1730, 900, 1790, 1900)],
+        "47": [(1850, 901, 2030, 1900)],
+        "47a": [(2032, 901, 2085, 1900)],
+        "28": [(78, 1965, 180, 2000)],
+        "gre_dat": [(1400, 1965, 1560, 2000)],
+        "totals": [(1920, 1970, 2030, 2000)],
+        "50": [(75, 2060, 700, 2120)],
+        "51": [(760, 2065, 1150, 2120)],
+        "52": [(1190, 2065, 1240, 2120)],
+        "53": [(1275, 2065, 1330, 2120)],
+        "55": [(1780, 2065, 1888, 2120)],
+        "55a": [(1895, 2065, 1943, 2120)],
+        "56": [(2040, 2015, 2400, 2060)],
+        "58": [(75, 2260, 800, 2300)],
+        "59": [(835, 2260, 910, 2300)],
+        "60": [(925, 2260, 1400, 2300)],
+        "63": [(75, 2455, 900, 2550)],
+        "66": [(105, 2600, 300, 2645)],
+        "66a": [(340, 2600, 540, 2645)],
+        "66b": [(580, 2600, 750, 2645)],
+        "66c": [(810, 2600, 990, 2645)],
+        "66d": [(1045, 2600, 1220, 2645)],
+        "66e": [(1280, 2600, 1450, 2645)],
+        "66f": [(1510, 2600, 1650, 2645)],
+        "66g": [(1745, 2600, 1900, 2645)],
+        "66h": [(1980, 2600, 2165, 2645)],
+        "66i": [(105, 2650, 300, 2690)],
+        "69": [(190, 2700, 380, 2745)],
+        "76": [(1800, 2750, 2080, 2795)],
+        "76last": [(1605, 2805, 2055, 2840)],
+        "76first": [(2145, 2805, 2300, 2840)],
+        "81a": [(838, 2950, 890, 2985)],
+        "81b": [(900, 2950, 1180, 2988)],
     }
 
     # Открываем изображение
     image = Image.open(image_path)
 
     all_texts = {}
-    exclude_keys = [
-        "3a",
-        "1",
-        "9a",
-    ]  # Пример: добавьте сюда ключи, которые вы хотите пропустить
 
     # Пример использования функции split_on_capitals
     for key, areas in crop_areas.items():
         for i, crop_area in enumerate(areas):
+            # Масштабируем каждый список
+            scaled_area = scale_crop_area(
+                crop_area, scale_factor
+            )  # Передаем кортеж, а не список
             # Обрезаем изображение до заданной области
-            cropped_image = image.crop(crop_area)
-
+            cropped_image = image.crop(scaled_area)
             # Улучшаем обрезанное изображение
             cropped_image = enhance_image(cropped_image)
-
             # Сохраняем обрезанное изображение для визуализации
             filename_cropped_image = os.path.join(
                 temp_path, f"cropped_image_{key}_{i+1}.png"
@@ -1200,42 +1254,57 @@ def process_image():
 
             custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist} -c preserve_interword_spaces=1"
 
+            # Извлекаем текст из обрезанного изображения
             text = pytesseract.image_to_string(
                 cropped_image, config=custom_config, lang="eng"
             )
-
-            # Чистим текст и удаляем пустые строки
             cleaned_text = [
                 clean_text(line) for line in text.strip().split("\n") if line
             ]
-            logger.info(f"Оригинал: {cleaned_text}")
+            logger.info(f"До обработки: {cleaned_text}")
 
-            # Если в списке одно значение, и ключ не в списке исключений, применяем функцию разделения текста на основе заглавных букв
-            if len(cleaned_text) == 1:
-                all_texts[key] = split_on_capitals(cleaned_text[0])
-                logger.info(f"Разделенный текст для ключа {key}: {all_texts[key]}")
-            else:
-                all_texts[key] = cleaned_text
+            # Очистка и проверка текста
+            cleaned_text = validity_text(cleaned_text)
+            logger.info(f"Результирующие данные: {cleaned_text}")
+
+            # Сохраняем результат в all_texts
+            if key not in all_texts:
+                all_texts[key] = []
+            all_texts[key].extend(cleaned_text)
 
     # Сохраняем изображение с нарисованной областью обрезки
     filename_outlined = os.path.join(temp_path, "outlined_image.png")
     image.save(filename_outlined)
 
-    # Создаем DataFrame для структурирования данных
-    max_rows = max(len(column_texts) for column_texts in all_texts.values())
-    data = {
-        key: column_texts + [""] * (max_rows - len(column_texts))
-        for key, column_texts in all_texts.items()
-    }
-    logger.info(data)
-    return data
+    # Проверяем, есть ли данные в all_texts перед созданием DataFrame
+    if all_texts:
+        max_rows = max(len(column_texts) for column_texts in all_texts.values())
+        data = defaultdict(
+            list
+        )  # Используем defaultdict для автоматического создания списков
+
+        for key, column_texts in all_texts.items():
+            # Убираем пустые строки
+            cleaned_texts = [text for text in column_texts if text.strip()]
+            if cleaned_texts:
+                # Если есть непустые строки, добавляем их в data
+                data[key].extend(cleaned_texts)
+
+        # Приводим data к обычному словарю для вывода
+        data = dict(data)
+        logger.info(data)
+        return data
+    else:
+        logger.error("Нет данных для обработки. Словарь all_texts пуст.")
+        return {}
 
 
 if __name__ == "__main__":
     pdf_path = "01.pdf"
     # write_json(pdf_path)
-    # save_high_resolution_screenshot(pdf_path)
+    save_high_resolution_screenshot(pdf_path)
     # anali_pdf_02(pdf_path, test_page_no=0)
-    process_single_crop_area()
+    # process_single_crop_area()
+    process_image()
     # extract_text_from_image()
     # update_json_with_image_data()
