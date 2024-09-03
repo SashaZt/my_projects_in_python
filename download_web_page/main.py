@@ -13,32 +13,23 @@ from configuration.logger_setup import logger
 
 def get_html():
     cookies = {
-        "nuka-fp": "e15f95c4-84f6-4b8b-8b4b-8f4ea9505f79",
-        "login_2fa": "e15f95c4-84f6-4b8b-8b4b-8f4ea9505f79",
-        "__uzma": "8319a3d2-e332-4445-a1ea-7de538d8368d",
-        "__uzmb": "1724935081",
-        "__uzme": "5674",
-        "njuskalo_privacy_policy": "12",
-        "didomi_token": "eyJ1c2VyX2lkIjoiMTkxOWUyNDgtZDkwOS02ZTZhLTlmNWQtOTExZDM4YTRjMDQzIiwiY3JlYXRlZCI6IjIwMjQtMDgtMjlUMTI6Mzg6MDEuMzYwWiIsInVwZGF0ZWQiOiIyMDI0LTA4LTI5VDEyOjM4OjAyLjYyMloiLCJ2ZW5kb3JzIjp7ImVuYWJsZWQiOlsiZ29vZ2xlIiwiYW1hem9uIiwiYzppbnRvd293aW4tcWF6dDV0R2kiLCJjOmhvdGphciIsImM6bmV3LXJlbGljIiwiYzpjb21tMTAwIiwiYzpsaXZlY2hhdCIsImM6Ym9va2l0c2gtS2I4bmJBRGgiLCJjOmNvbW0xMDB2aS13ZG1NbTRKNiIsImM6Ym9va2l0bGEtTWFSZ2dtUE4iLCJjOmRvdG1ldHJpYy1nYjJmaktDSiIsImM6c3R5cmlhLXFoVWNra1plIiwiYzppc2xvbmxpbmUtRjlHQmdwUWgiLCJjOnhpdGktQjN3Ym5KS1IiLCJjOmV0YXJnZXQtV3dFakFRM0ciLCJjOmdvb2dsZWFuYS0yM2RkY3JEaCIsImM6bnVrYXJlY29tLXdra0JkcU04IiwiYzptaWRhcy1lQm5UR1hMRiIsImM6Z29vZ2xlYW5hLTRUWG5KaWdSIiwiYzpwaWFub2h5YnItUjNWS0MycjQiLCJjOnBpbnRlcmVzdCIsImM6dGVsdW0ta3c0RG1wUGsiLCJjOmdlbWl1c3NhLW1ja2lRYW5LIiwiYzppbnN1cmFkcy1KZ0NGNnBtWCIsImM6aG90amFyLVpMUExleFZiIiwiYzpnb29nbGVhbmEtOGlIR1JDdFUiLCJjOm9wdGltYXhtZS1OSFhlUWNDayIsImM6ZGlkb21pLW5rR2pHZHhqIiwiYzpzbWFydGFkc2UtN1dNOFhnVEYiLCJjOmNyaXRlb3NhLWdqcGNybWdCIiwiYzpnb29nbGVhZHYtWlo5ZTdZZGkiLCJjOm5qdXNrYWxvbi1BWWNOTmFpdyIsImM6Ymlkc3dpdGNoLUV0YjdMYTRSIiwiYzphZGFnaW8tRllnZjR3UkQiLCJjOm5qdXNrYWxvbi1BN2NQVmVFYSIsImM6YW1hem9uYWQtQzJ5bk5VbjkiLCJjOnlhaG9vYWRlLW1SSFFraG1VIiwiYzptZHByaW1pcy1XTVpBUm13NiIsImM6YW1hem9uLUw4NHRKUXg0IiwiYzpkaWRvbWkiXX0sInB1cnBvc2VzIjp7ImVuYWJsZWQiOlsiZGV2aWNlX2NoYXJhY3RlcmlzdGljcyIsImdlb2xvY2F0aW9uX2RhdGEiLCJvZ2xhc2l2YWNrLVE0RDlibVRHIiwiYXVkaWVuY2VtLWhKeGFlR3JSIiwiYW5hbHl0aWNzLXhHSHhHcFRMIl19LCJ2ZW5kb3JzX2xpIjp7ImVuYWJsZWQiOlsiZ29vZ2xlIiwiYzpib3hub3dkLTN4TmlKamZCIl19LCJ2ZXJzaW9uIjoyLCJhYyI6IkFrdUFFQUZrQkpZQS5Ba3VBRUFGa0JKWUEifQ==",
-        "euconsent-v2": "CQEHUQAQEHUQAAHABBENBDFsAP_gAEPgAAAAKYtV_G__bWlr8X73aftkeY1P9_h77sQxBhfJE-4FzLvW_JwXx2ExNA36tqIKmRIAu3bBIQNlGJDUTVCgaogVryDMak2coTNKJ6BkiFMRe2dYCF5vmwtj-QKY5vr991dx2B-t7dr83dzyz4VHn3a5_2a0WJCdA5-tDfv9bROb-9IOd_x8v4v8_F_rE2_eT1l_tevp7D9-cts7_XW-9_fff79Ln_-uB_--Cl4BJhoVEAZYEhIQaBhBAgBUFYQEUCAAAAEgaICAEwYFOwMAl1hIgBACgAGCAEAAKMgAQAAAQAIRABAAUCAACAQKAAMACAYCAAgYAAQASAgEAAIDoEKYEECgWACRmREKYEIQCQQEtlQgkAQIK4QhFngAQCImCgAAAAAKwABAWCwOJJASoSCBLiDaAAAgAQCCACoQScmAAIAzZag8GTaMrSANHzBIhpgGACOgAgJk.f_wACHwAAAAA",
-        "nuka-recommender-fp": "e15f95c4-84f6-4b8b-8b4b-8f4ea9505f79",
-        "nuka-ppid": "964b08c6-ca4d-491e-8222-42ea7ec74aba",
-        "df_uid": "21e6b96a-9ed5-4b80-8dc0-881dc343099d",
-        "njuskalo_adblock_detected": "true",
-        "PHPSESSID": "7f9e4fd69fda7daa6a902053fa561f69",
-        "__uzmc": "2438582369546",
-        "__uzmd": "1725281909",
+        "AMCVS_A3995F265DFB8C020A495E71%40AdobeOrg": "1",
+        "didomi_token": "eyJ1c2VyX2lkIjoiMTkxYjZjOGYtNzY1NC02OWY0LWFkYzgtOTU2M2I2OWE3NTczIiwiY3JlYXRlZCI6IjIwMjQtMDktMDNUMDc6Mjg6MjkuNTQxWiIsInVwZGF0ZWQiOiIyMDI0LTA5LTAzVDA3OjI4OjMwLjk3OVoiLCJ2ZW5kb3JzIjp7ImVuYWJsZWQiOlsiZ29vZ2xlIiwiYzpob3RqYXIiLCJjOmdvb2dsZWFuYS00VFhuSmlnUiIsImM6dHJvdml0IiwiYzpicmF6ZSJdfSwicHVycG9zZXMiOnsiZW5hYmxlZCI6WyJnZW9sb2NhdGlvbl9kYXRhIiwiYW5hbHl0aWNzLUhwQkpycks3Il19LCJ2ZXJzaW9uIjoyLCJhYyI6IkFGbUFDQUZrLkFBQUEifQ==",
+        "euconsent-v2": "CQEXy8AQEXy8AAHABBENBFFoAP_AAAAAAAAAF5wBQAIAAtABkAFsBeYAAABSUAGAAIKalIAMAAQU1IQAYAAgpqOgAwABBTUJABgACCmo.f_gAAAAAAAAA",
+        "jhtAuthToken": "Bearer%20eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3ODQ2NTExMDUwNTkzMTA4IiwiaXAiOiIxOTMuMjQuMjIxLjM0IiwiZXhwIjoxNzI1MzUzODA3LCJpYXQiOjE3MjUzNTAyMDd9.gu59JOp9HHWKCjULXIjscNidz8LoX9f%2BAy8rzGftkAw%3D",
+        "AMCV_A3995F265DFB8C020A495E71%40AdobeOrg": "179643557%7CMCIDTS%7C19970%7CMCMID%7C06790549973647704871454466574375462332%7CMCAID%7CNONE%7CMCOPTOUT-1725357407s%7CNONE%7CvVersion%7C5.5.0",
+        "datadome": "zpl~f4Z7MhqXBnGCqrMV1MlDw5dpPkNkBA7QRWQAIb~n45JafzJAzTTWQtCf7z_WJ6eFhVgyEz8UddeoweuY_FgcZYhbH6XgBW7aWy8BY7Zf6GthtWRS9WKjmfqov8Nn",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
         "cache-control": "no-cache",
-        # 'cookie': 'nuka-fp=e15f95c4-84f6-4b8b-8b4b-8f4ea9505f79; login_2fa=e15f95c4-84f6-4b8b-8b4b-8f4ea9505f79; __uzma=8319a3d2-e332-4445-a1ea-7de538d8368d; __uzmb=1724935081; __uzme=5674; njuskalo_privacy_policy=12; didomi_token=eyJ1c2VyX2lkIjoiMTkxOWUyNDgtZDkwOS02ZTZhLTlmNWQtOTExZDM4YTRjMDQzIiwiY3JlYXRlZCI6IjIwMjQtMDgtMjlUMTI6Mzg6MDEuMzYwWiIsInVwZGF0ZWQiOiIyMDI0LTA4LTI5VDEyOjM4OjAyLjYyMloiLCJ2ZW5kb3JzIjp7ImVuYWJsZWQiOlsiZ29vZ2xlIiwiYW1hem9uIiwiYzppbnRvd293aW4tcWF6dDV0R2kiLCJjOmhvdGphciIsImM6bmV3LXJlbGljIiwiYzpjb21tMTAwIiwiYzpsaXZlY2hhdCIsImM6Ym9va2l0c2gtS2I4bmJBRGgiLCJjOmNvbW0xMDB2aS13ZG1NbTRKNiIsImM6Ym9va2l0bGEtTWFSZ2dtUE4iLCJjOmRvdG1ldHJpYy1nYjJmaktDSiIsImM6c3R5cmlhLXFoVWNra1plIiwiYzppc2xvbmxpbmUtRjlHQmdwUWgiLCJjOnhpdGktQjN3Ym5KS1IiLCJjOmV0YXJnZXQtV3dFakFRM0ciLCJjOmdvb2dsZWFuYS0yM2RkY3JEaCIsImM6bnVrYXJlY29tLXdra0JkcU04IiwiYzptaWRhcy1lQm5UR1hMRiIsImM6Z29vZ2xlYW5hLTRUWG5KaWdSIiwiYzpwaWFub2h5YnItUjNWS0MycjQiLCJjOnBpbnRlcmVzdCIsImM6dGVsdW0ta3c0RG1wUGsiLCJjOmdlbWl1c3NhLW1ja2lRYW5LIiwiYzppbnN1cmFkcy1KZ0NGNnBtWCIsImM6aG90amFyLVpMUExleFZiIiwiYzpnb29nbGVhbmEtOGlIR1JDdFUiLCJjOm9wdGltYXhtZS1OSFhlUWNDayIsImM6ZGlkb21pLW5rR2pHZHhqIiwiYzpzbWFydGFkc2UtN1dNOFhnVEYiLCJjOmNyaXRlb3NhLWdqcGNybWdCIiwiYzpnb29nbGVhZHYtWlo5ZTdZZGkiLCJjOm5qdXNrYWxvbi1BWWNOTmFpdyIsImM6Ymlkc3dpdGNoLUV0YjdMYTRSIiwiYzphZGFnaW8tRllnZjR3UkQiLCJjOm5qdXNrYWxvbi1BN2NQVmVFYSIsImM6YW1hem9uYWQtQzJ5bk5VbjkiLCJjOnlhaG9vYWRlLW1SSFFraG1VIiwiYzptZHByaW1pcy1XTVpBUm13NiIsImM6YW1hem9uLUw4NHRKUXg0IiwiYzpkaWRvbWkiXX0sInB1cnBvc2VzIjp7ImVuYWJsZWQiOlsiZGV2aWNlX2NoYXJhY3RlcmlzdGljcyIsImdlb2xvY2F0aW9uX2RhdGEiLCJvZ2xhc2l2YWNrLVE0RDlibVRHIiwiYXVkaWVuY2VtLWhKeGFlR3JSIiwiYW5hbHl0aWNzLXhHSHhHcFRMIl19LCJ2ZW5kb3JzX2xpIjp7ImVuYWJsZWQiOlsiZ29vZ2xlIiwiYzpib3hub3dkLTN4TmlKamZCIl19LCJ2ZXJzaW9uIjoyLCJhYyI6IkFrdUFFQUZrQkpZQS5Ba3VBRUFGa0JKWUEifQ==; euconsent-v2=CQEHUQAQEHUQAAHABBENBDFsAP_gAEPgAAAAKYtV_G__bWlr8X73aftkeY1P9_h77sQxBhfJE-4FzLvW_JwXx2ExNA36tqIKmRIAu3bBIQNlGJDUTVCgaogVryDMak2coTNKJ6BkiFMRe2dYCF5vmwtj-QKY5vr991dx2B-t7dr83dzyz4VHn3a5_2a0WJCdA5-tDfv9bROb-9IOd_x8v4v8_F_rE2_eT1l_tevp7D9-cts7_XW-9_fff79Ln_-uB_--Cl4BJhoVEAZYEhIQaBhBAgBUFYQEUCAAAAEgaICAEwYFOwMAl1hIgBACgAGCAEAAKMgAQAAAQAIRABAAUCAACAQKAAMACAYCAAgYAAQASAgEAAIDoEKYEECgWACRmREKYEIQCQQEtlQgkAQIK4QhFngAQCImCgAAAAAKwABAWCwOJJASoSCBLiDaAAAgAQCCACoQScmAAIAzZag8GTaMrSANHzBIhpgGACOgAgJk.f_wACHwAAAAA; nuka-recommender-fp=e15f95c4-84f6-4b8b-8b4b-8f4ea9505f79; nuka-ppid=964b08c6-ca4d-491e-8222-42ea7ec74aba; df_uid=21e6b96a-9ed5-4b80-8dc0-881dc343099d; njuskalo_adblock_detected=true; PHPSESSID=7f9e4fd69fda7daa6a902053fa561f69; __uzmc=2438582369546; __uzmd=1725281909',
+        # 'cookie': 'AMCVS_A3995F265DFB8C020A495E71%40AdobeOrg=1; didomi_token=eyJ1c2VyX2lkIjoiMTkxYjZjOGYtNzY1NC02OWY0LWFkYzgtOTU2M2I2OWE3NTczIiwiY3JlYXRlZCI6IjIwMjQtMDktMDNUMDc6Mjg6MjkuNTQxWiIsInVwZGF0ZWQiOiIyMDI0LTA5LTAzVDA3OjI4OjMwLjk3OVoiLCJ2ZW5kb3JzIjp7ImVuYWJsZWQiOlsiZ29vZ2xlIiwiYzpob3RqYXIiLCJjOmdvb2dsZWFuYS00VFhuSmlnUiIsImM6dHJvdml0IiwiYzpicmF6ZSJdfSwicHVycG9zZXMiOnsiZW5hYmxlZCI6WyJnZW9sb2NhdGlvbl9kYXRhIiwiYW5hbHl0aWNzLUhwQkpycks3Il19LCJ2ZXJzaW9uIjoyLCJhYyI6IkFGbUFDQUZrLkFBQUEifQ==; euconsent-v2=CQEXy8AQEXy8AAHABBENBFFoAP_AAAAAAAAAF5wBQAIAAtABkAFsBeYAAABSUAGAAIKalIAMAAQU1IQAYAAgpqOgAwABBTUJABgACCmo.f_gAAAAAAAAA; jhtAuthToken=Bearer%20eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3ODQ2NTExMDUwNTkzMTA4IiwiaXAiOiIxOTMuMjQuMjIxLjM0IiwiZXhwIjoxNzI1MzUzODA3LCJpYXQiOjE3MjUzNTAyMDd9.gu59JOp9HHWKCjULXIjscNidz8LoX9f%2BAy8rzGftkAw%3D; AMCV_A3995F265DFB8C020A495E71%40AdobeOrg=179643557%7CMCIDTS%7C19970%7CMCMID%7C06790549973647704871454466574375462332%7CMCAID%7CNONE%7CMCOPTOUT-1725357407s%7CNONE%7CvVersion%7C5.5.0; datadome=zpl~f4Z7MhqXBnGCqrMV1MlDw5dpPkNkBA7QRWQAIb~n45JafzJAzTTWQtCf7z_WJ6eFhVgyEz8UddeoweuY_FgcZYhbH6XgBW7aWy8BY7Zf6GthtWRS9WKjmfqov8Nn',
         "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "referer": "https://www.njuskalo.hr/prodaja-kuca",
+        "referer": "https://www.yaencontre.com/",
         "sec-ch-ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
@@ -51,7 +42,7 @@ def get_html():
     }
 
     response = requests.get(
-        "https://www.njuskalo.hr/nekretnine/prodaja-demerje-brezovica-3-3-kuce-nizu-useljenje-12-2024-oglas-44016956",
+        "https://www.yaencontre.com/venta/piso/inmueble-46261-105869332",
         cookies=cookies,
         headers=headers,
     )

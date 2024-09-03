@@ -1,5 +1,5 @@
-from loguru import logger
 from pathlib import Path
+from loguru import logger
 
 current_directory = Path.cwd()
 

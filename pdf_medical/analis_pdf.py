@@ -474,7 +474,7 @@ def write_json(pdf_path):
 
 def save_high_resolution_screenshot(pdf_path):
     resolution = 300
-    page_number = 57  # Номер страницы (начиная с 0)
+    page_number = 0  # Номер страницы (начиная с 0)
     output_image_path = "high_res_screenshot.png"
 
     with pdfplumber.open(pdf_path) as pdf:
@@ -1020,7 +1020,7 @@ def process_single_crop_area():
     crop_areas_76first = [(2145, 2805, 2300, 2840)]
     crop_areas_81a = [(838, 2950, 890, 2985)]
     crop_areas_81b = [(900, 2950, 1180, 2988)]
-    crop_areas = [(900, 2950, 1180, 2988)]
+    crop_areas = [(1980, 2600, 2210, 2645)]
 
     scale_factor = 1  # Увеличение на 1.1
     image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению
@@ -1300,11 +1300,11 @@ def process_image():
 
 
 if __name__ == "__main__":
-    pdf_path = "01.pdf"
+    pdf_path = "02.pdf"
     # write_json(pdf_path)
     save_high_resolution_screenshot(pdf_path)
     # anali_pdf_02(pdf_path, test_page_no=0)
-    # process_single_crop_area()
-    process_image()
+    process_single_crop_area()
+    # process_image()
     # extract_text_from_image()
     # update_json_with_image_data()

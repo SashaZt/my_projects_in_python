@@ -17,6 +17,8 @@ import random
 import json
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 
 # Параметры подключения к базе данных
@@ -38,9 +40,7 @@ current_directory = Path.cwd()
 temp_directory = "temp"
 temp_path = current_directory / temp_directory
 data_directory = current_directory / "data"
-href_directory = current_directory / "href"
 data_directory.mkdir(parents=True, exist_ok=True)
-href_directory.mkdir(parents=True, exist_ok=True)
 csv_file_path = data_directory / "output.csv"
 csv_file_successful = data_directory / "urls_successful.csv"
 csv_file_categories = data_directory / "urls_categories.csv"
@@ -184,9 +184,10 @@ def get_url(url):
     return None
 
 
-def collect_links_by_category(url, pages, lock, page_file):
-    # Открываем файл для записи ссылок
-    with open(page_file, "w", encoding="utf-8") as f:
+def collect_links_by_category(url, pages, lock):
+    try:
+        # Открываем файл для записи ссылок
+        # with open(page_file, "w", encoding="utf-8") as f:
         # Проходим по всем страницам от 1 до pages
         for page in range(1, pages + 1):
             # Формируем URL для текущей страницы
@@ -196,7 +197,7 @@ def collect_links_by_category(url, pages, lock, page_file):
             )
 
             # Получаем HTML-код страницы
-            with lock:
+            with lock:  # Если get_url использует общий ресурс, требующий блокировки
                 soup = get_url(url=page_url)
 
             # Проверяем, загрузилась ли страница корректно
@@ -227,7 +228,6 @@ def collect_links_by_category(url, pages, lock, page_file):
                 link = title.find("a", href=True)
                 if link:
                     href = f'https://www.njuskalo.hr{link["href"]}'
-                    f.write(href + "\n")
                     # Получаем HTML-код страницы товара
                     product_soup = get_url(href)
 
@@ -239,6 +239,8 @@ def collect_links_by_category(url, pages, lock, page_file):
                         logger.info(
                             f'{datetime.datetime.now().strftime("%H:%M:%S")} - Не удалось загрузить страницу товара {href}.'
                         )
+    except Exception as e:
+        logger.error(f"Ошибка при обработке URL {url}: {e}")
 
 
 def get_successful_urls(csv_file_successful):
@@ -475,9 +477,6 @@ def parsing(soup, url):
 def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
-    # phone_pattern = re.compile(
-    #     r"(\+40\d{9}|00\s?40\d{9}|011-40\d{9}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b)"
-    # )
     phone_pattern = re.compile(
         r"(\+385\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|00\s?385\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|011-385\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|0\d{8,9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|800\s?\d{3}[\s-]?\d{3}\b)"
     )
@@ -491,9 +490,6 @@ def extract_phone_numbers(data):
                 match = re.sub(r"^0+", "", match)
                 try:
                     parsed_number = phonenumbers.parse(match, "HR")
-                    # region = geocoder.description_for_number(parsed_number, "ru")  # Регион на русском языке
-                    # operator = carrier.name_for_number(parsed_number, "ru")  # Оператор на русском языке
-                    # print(f'parsed_number = {parsed_number} | Валид = {phonenumbers.is_valid_number(parsed_number)} | Регион = {region} | Оператор = {operator}')
                     if phonenumbers.is_valid_number(parsed_number):
                         # national_number = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.NATIONAL)
                         national_number = str(parsed_number.national_number)
@@ -510,74 +506,63 @@ def extract_phone_numbers(data):
 
 # Основная функция, которая обрабатывает URL в отдельном потоке
 def main_thread(url, thread_id, lock):
-    url_id = url.split("/")[-1]
-    page_file = href_directory / f"{url_id}.csv"
-    # Получаем HTML-код страницы категории
-    with lock:
-        soup = get_url(url=url)
-
-    # Находим элемент, содержащий количество объявлений
-    entity_meta = soup.find("div", {"class": "entity-list-meta"})
-    if not entity_meta:
-        logger.error(
-            f"Не удалось найти div с классом 'entity-list-meta' для URL: {url}"
-        )
-        return
-
-    # Извлекаем количество объявлений
-    count_str = entity_meta.find("strong", {"class": "entities-count"}).text
     try:
-        count = int(count_str)
-    except ValueError:
-        logger.error(
-            f"Не удалось преобразовать количество объявлений в целое число: {count_str}"
-        )
-        return
+        # Получаем HTML-код страницы категории
+        with lock:
+            soup = get_url(url=url)
 
-    # Рассчитываем количество страниц
-    pages = count // 25 if count > 10000 else (count // 25) + 1
-    logger.info(f"Calculated Pages for URL {url}: {pages}")
-    # Запускаем функцию для сбора ссылок по всем страницам категории
-    collect_links_by_category(url, pages, lock, page_file)
+        # Находим элемент, содержащий количество объявлений
+        entity_meta = soup.find("div", {"class": "entity-list-meta"})
+        if not entity_meta:
+            logger.error(
+                f"Не удалось найти div с классом 'entity-list-meta' для URL: {url}"
+            )
+            return
+
+        # Извлекаем количество объявлений
+        count_str = entity_meta.find("strong", {"class": "entities-count"}).text
+        try:
+            count = int(count_str)
+        except ValueError:
+            logger.error(
+                f"Не удалось преобразовать количество объявлений в целое число: {count_str}"
+            )
+            return
+
+        # Рассчитываем количество страниц
+        pages = count // 25 if count > 10000 else (count // 25) + 1
+        logger.info(f"Calculated Pages for URL {url}: {pages}")
+
+        # Запускаем функцию для сбора ссылок по всем страницам категории
+        collect_links_by_category(url, pages, lock)
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке URL {url} в потоке {thread_id}: {e}")
 
 
 def main():
     # Открываем файл csv_file_categories в режиме чтения, считываем его содержимое и разбиваем на строки.
     urls = open(csv_file_categories, "r", encoding="utf-8").read().splitlines()
 
-    # Инициализируем пустой список для хранения потоков.
-    threads = []
-
     # Создаем объект Lock для синхронизации потоков.
     lock = Lock()
 
-    # Проходим по всем URL-ам из файла.
-    for i, url in enumerate(urls):
-        # Создаем новый поток, который будет выполнять функцию main_thread с аргументами: URL, индекс и объект lock.
-        thread = threading.Thread(target=main_thread, args=(url, i, lock))
+    # Ограничиваем количество одновременно работающих потоков, например, до 5
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # Запускаем выполнение функции main_thread в пуле потоков.
+        futures = [
+            executor.submit(main_thread, url, i, lock) for i, url in enumerate(urls)
+        ]
 
-        # Добавляем созданный поток в список threads.
-        threads.append(thread)
-
-        # Запускаем выполнение потока.
-        thread.start()
-
-    # Ожидаем завершения работы всех потоков.
-    for thread in threads:
-        # Вызываем метод join, чтобы основной поток ожидал завершения каждого потока в списке threads.
-        thread.join()
+        # Ожидаем завершения всех задач (потоков)
+        for future in as_completed(futures):
+            try:
+                # Если нужно, можно обработать результат или исключение здесь
+                future.result()
+            except Exception as e:
+                logger.error(f"Возникла ошибка при выполнении потока: {e}")
 
 
 # Эта часть кода проверяет, является ли текущий скрипт основным модулем, и если да, то запускает функцию main().
 if __name__ == "__main__":
     main()
-
-
-# Получаем категории
-# urls_categories = fetch_category_urls()
-# logger.info("Categories URLs:", urls_categories)
-# save_to_csv(urls_categories)
-# Получаем данные пагинации для каждой категории
-# fetch_pagination_details()
-# logger.info("Pagination Details:", pagination_details)
-# r_c()
