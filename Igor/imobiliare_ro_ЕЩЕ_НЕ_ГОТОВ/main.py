@@ -117,13 +117,23 @@ def extract_urls_and_save_to_csv():
                 all_urls.append(loc)
 
     logger.info("Обработка третьей ссылки")
-    response = requests.get(sitemap_urls[2])
+    response = requests.get(
+        sitemap_urls[2],
+        proxies=proxies_dict,
+        headers=headers,
+        cookies=cookies,
+    )
     tree = ET.ElementTree(ET.fromstring(response.content))
     root = tree.getroot()
 
     for sitemap in root.findall("{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap"):
         loc = sitemap.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc").text
-        response = requests.get(loc)
+        response = requests.get(
+            loc,
+            proxies=proxies_dict,
+            headers=headers,
+            cookies=cookies,
+        )
         sub_tree = ET.ElementTree(ET.fromstring(response.content))
         sub_root = sub_tree.getroot()
 
@@ -139,13 +149,72 @@ def extract_urls_and_save_to_csv():
         for url in all_urls:
             writer.writerow([url])
 
-    # # Сохранение успешных URL в отдельный CSV файл (если требуется)
-    # with csv_file_successful.open("w", newline="") as file:
-    #     writer = csv.writer(file)
-    #     writer.writerow(["url"])
-    #     for url in all_urls:
-    #         writer.writerow([url])
+def parsing():
+    # Парсим HTML
+    soup = BeautifulSoup(html_content, 'html.parser')
 
+    # Находим все div с атрибутом wire:initial-data
+    divs_with_data = soup.find_all('div', {'wire:initial-data': True})
+
+    phone_numbers = []
+
+    for div in divs_with_data:
+        try:
+            # Извлекаем значение атрибута wire:initial-data
+            wire_data_encoded = div['wire:initial-data']
+
+            # Декодируем HTML сущности
+            wire_data_decoded = html.unescape(wire_data_encoded)
+
+            # Удаляем некорректные экранированные символы
+            wire_data_decoded = re.sub(r'\\(?!["\\/bfnrt])', r'\\\\', wire_data_decoded)
+
+            # Заменяем одинарные обратные слеши на двойные
+            wire_data_decoded = wire_data_decoded.replace('\\', '\\\\')
+
+            # Преобразуем строку в JSON
+            wire_data_json = json.loads(wire_data_decoded)
+
+            # Проверяем наличие ключа unmaskedMainPhoneNumber
+            if 'unmaskedMainPhoneNumber' in wire_data_json.get('serverMemo', {}).get('data', {}):
+                # Сохранение JSON-объекта в файл
+                with open("found_data.json", "w", encoding="utf-8") as json_file:
+                    json.dump(wire_data_json, json_file, ensure_ascii=False, indent=4)
+                # Извлекаем номер телефона
+                phone_number = wire_data_json['serverMemo']['data']['unmaskedMainPhoneNumber']
+                print(f"Телефон: {phone_number}")
+
+                # Извлекаем "Pipera" из translated_properties -> ro -> location -> title
+                location_title = wire_data_json['serverMemo']['data'].get('listingResult', {}).get('_source', {}).get(
+                    'translated_properties', {}).get('ro', {}).get('location', {}).get('title')
+                if location_title:
+                    print(f"Местоположение: {location_title}")
+
+                # Извлекаем "Bucureşti" из translated_properties -> ro -> location_depth_1 -> title
+                location_depth_1_title = wire_data_json['serverMemo']['data'].get('listingResult', {}).get('_source',
+                                                                                                           {}).get(
+                    'translated_properties', {}).get('ro', {}).get('location_depth_1', {}).get('title')
+                if location_depth_1_title:
+                    print(f"Город: {location_depth_1_title}")
+                # Извлекаем значение created_at из JSON
+                created_at_str = wire_data_json.get('serverMemo', {}).get('data', {}).get('listingResult', {}).get(
+                    '_source', {}).get('created_at')
+
+                if created_at_str:
+                    # Преобразуем строку в объект datetime
+                    time_posted = datetime.datetime.strptime(created_at_str, "%Y-%m-%d %H:%M:%S")
+
+                    # Приводим к нужному формату
+                    formatted_date = time_posted.strftime("%Y-%m-%d")
+
+                    print(f"Дата публикации: {formatted_date}")
+
+                break  # Останавливаем цикл, как только находим первый номер и нужные данные
+        except json.JSONDecodeError as e:
+            print(f"Ошибка обработки элемента: {e}")
+        except Exception as e:
+            print(f"Неожиданная ошибка: {e}")
 
 if __name__ == "__main__":
-    extract_urls_and_save_to_csv()
+    # extract_urls_and_save_to_csv()
+
