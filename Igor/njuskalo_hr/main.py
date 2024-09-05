@@ -53,9 +53,9 @@ cookies = {
     "euconsent-v2": "CQEHUQAQEHUQAAHABBENBDFsAP_gAEPgAAAAKYtV_G__bWlr8X73aftkeY1P9_h77sQxBhfJE-4FzLvW_JwXx2ExNA36tqIKmRIAu3bBIQNlGJDUTVCgaogVryDMak2coTNKJ6BkiFMRe2dYCF5vmwtj-QKY5vr991dx2B-t7dr83dzyz4VHn3a5_2a0WJCdA5-tDfv9bROb-9IOd_x8v4v8_F_rE2_eT1l_tevp7D9-cts7_XW-9_fff79Ln_-uB_--Cl4BJhoVEAZYEhIQaBhBAgBUFYQEUCAAAAEgaICAEwYFOwMAl1hIgBACgAGCAEAAKMgAQAAAQAIRABAAUCAACAQKAAMACAYCAAgYAAQASAgEAAIDoEKYEECgWACRmREKYEIQCQQEtlQgkAQIK4QhFngAQCImCgAAAAAKwABAWCwOJJASoSCBLiDaAAAgAQCCACoQScmAAIAzZag8GTaMrSANHzBIhpgGACOgAgJk.f_wACHwAAAAA",
     "df_uid": "21e6b96a-9ed5-4b80-8dc0-881dc343099d",
     "njuskalo_adblock_detected": "true",
-    "PHPSESSID": "451cad51d518605334aad22aaf741cc9",
-    "__uzmc": "8816656818501",
-    "__uzmd": "1725194450",
+    "PHPSESSID": "4fc054989ed52b750c9a3fac25bf66c3",
+    "__uzmc": "5793086531618",
+    "__uzmd": "1725519243",
 }
 
 
@@ -368,7 +368,7 @@ def parsing(soup, url):
             date_part, time_part = timestamp.split(" ")
 
             # Параметры для вставки в таблицу
-            site_id = 31  # id_site для 'https://abw.by/'
+            site_id = 27  # id_site для 'https://abw.by/'
 
             # Подключение к базе данных и запись данных
             try:
