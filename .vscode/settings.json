@@ -55,7 +55,8 @@
     "explorer.confirmDelete": false,
     "editor.largeFileOptimizations": false,
     "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true
     },
     "terminal.integrated.enablePersistentSessions": false,
     "terminal.integrated.stickyScroll.enabled": true,
