@@ -1,24 +1,18 @@
 import requests
 from bs4 import BeautifulSoup
-from threading import Lock
 from configuration.logger_setup import logger
 import random
 from pathlib import Path
 import csv
 from phonenumbers import NumberParseException
 from mysql.connector import errorcode
-from threading import Lock
 import mysql.connector
 import phonenumbers
 import threading
-import requests
 import datetime
-import random
 import json
-import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from threading import Lock
 
 
 # Параметры подключения к базе данных
@@ -96,13 +90,13 @@ def save_to_csv(urls_categories):
     logger.info(f"Data has been written to {csv_file_categories}")
 
 
-# Функция для чтения URL категорий из CSV
-def read_urls_from_csv(csv_file_path):
-    urls_categories = []
-    with open(csv_file_path, "r", encoding="utf-8") as csvfile:
-        reader = csv.reader(csvfile)
-        urls_categories = [row[0] for row in reader]
-    return urls_categories
+# # Функция для чтения URL категорий из CSV
+# def read_urls_from_csv(csv_file_path):
+#     urls_categories = []
+#     with open(csv_file_path, "r", encoding="utf-8") as csvfile:
+#         reader = csv.reader(csvfile)
+#         urls_categories = [row[0] for row in reader]
+#     return urls_categories
 
 
 def get_url(url):
@@ -243,15 +237,15 @@ def collect_links_by_category(url, pages, lock):
         logger.error(f"Ошибка при обработке URL {url}: {e}")
 
 
-def get_successful_urls(csv_file_successful):
-    """Читает успешные URL из CSV-файла и возвращает их в виде множества."""
-    if not Path(csv_file_successful).exists():
-        return set()
+# def get_successful_urls():
+#     """Читает успешные URL из CSV-файла и возвращает их в виде множества."""
+#     if not Path(csv_file_successful).exists():
+#         return set()
 
-    with open(csv_file_successful, mode="r", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        successful_urls = {row[0] for row in reader if row}
-    return successful_urls
+#     with open(csv_file_successful, mode="r", encoding="utf-8") as f:
+#         reader = csv.reader(f)
+#         successful_urls = {row[0] for row in reader if row}
+#     return successful_urls
 
 
 def write_to_csv(data, filename):

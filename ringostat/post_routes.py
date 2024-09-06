@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 from database import DatabaseInitializer
 from configuration.logger_setup import logger
-from fastapi import FastAPI, Request, Query, Depends, HTTPException
+from fastapi import FastAPI, Request, Query, Depends, HTTPException, APIRouter,  UploadFile, File, Body
+
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from loguru import logger
@@ -19,6 +19,13 @@ from typing import Optional, Dict, Any
 from fastapi import Query
 
 router = APIRouter()
+
+
+
+# Путь для сохранения файлов
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)  # Создаем директорию, если её нет
+
 
 async def get_db():
     db_initializer = DatabaseInitializer()
@@ -216,3 +223,94 @@ async def add_column_if_not_exists(table_name: str, column_name: str, data_type:
                 await cursor.execute("INSERT INTO table_metadata (table_name, column_name, data_type) VALUES (%s, %s, %s)", (table_name, column_name, data_type))
                 logger.info(f"Добавлен новый столбец {column_name} в таблицу {table_name}")
 
+# Модель данных для задачи
+class TaskModel(BaseModel):
+    title: str
+    status: str
+    note: str
+    initiator: str
+    performers: List[str]
+    reviewers: List[str]
+    startTime: datetime
+    endTime: datetime
+    controlTime: datetime
+    contacts: List[int] = []
+    statements: List[int] = []
+    documents: List[str] = []
+
+# Маршрут для сохранения задачи
+# @router.post("/task")
+# async def save_task(
+#     task: TaskModel,  # Убрали Body(...)
+#     files: Optional[List[UploadFile]] = File(None),
+#     db=Depends(get_db)
+# ):
+#     try:
+#         task_id = await db.save_task_data(task.dict(exclude={"documents"}))
+#         await db.save_contacts(task_id, task.contacts)
+#         await db.save_statements(task_id, task.statements)
+
+#         if files:
+#             for file in files:
+#                 file_path = UPLOAD_DIR / file.filename
+#                 with open(file_path, "wb") as f:
+#                     f.write(await file.read())
+#                 await db.save_document({
+#                     "task_id": task_id,
+#                     "file_name": file.filename,
+#                     "file_path": str(file_path)
+#                 })
+
+#         return JSONResponse(status_code=200, content={"status": "success", "taskId": task_id})
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Error saving task: {e}")
+
+@router.post("/task")
+async def save_task(
+    request: Request,
+    files: Optional[List[UploadFile]] = File(None),
+    db=Depends(get_db)
+):
+    try:
+        # Декодируем JSON тело
+        task_data = await request.json()
+
+        # Преобразуем данные задачи в модель
+        task = TaskModel(**task_data)
+
+        task_id = await db.save_task_data(task.dict(exclude={"documents"}))
+
+        # Проверка и создание контактов, если они не существуют
+        for contact_id in task.contacts:
+            contact_exists = await db.contact_exists(contact_id)
+            if not contact_exists:
+                # Создаем новый контакт, если его нет
+                await db.create_contact(contact_id)
+
+        # Проверка и создание заявок, если они не существуют
+        for statement_id in task.statements:
+            statement_exists = await db.statement_exists(statement_id)
+            if not statement_exists:
+                # Создаем новую заявку, если её нет
+                await db.create_statement(statement_id, f"Заявка {statement_id}")
+
+        await db.save_contacts(task_id, task.contacts)
+        await db.save_statements(task_id, task.statements)
+
+        # Сохранение файлов
+        if files:
+            for file in files:
+                file_path = UPLOAD_DIR / file.filename
+                with open(file_path, "wb") as f:
+                    f.write(await file.read())
+                await db.save_document({
+                    "task_id": task_id,
+                    "file_name": file.filename,
+                    "file_path": str(file_path)
+                })
+
+        return JSONResponse(status_code=200, content={"status": "success", "taskId": task_id})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error saving task: {e}")

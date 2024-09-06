@@ -5,7 +5,8 @@ import wordninja
 import argparse
 import re
 import pytesseract
-import os
+
+# import os
 from collections import defaultdict
 import pdfplumber
 import platform
@@ -17,17 +18,17 @@ import pdfplumber
 current_directory = Path.cwd()
 
 logging_directory = "logging"
-temp_directory = "temp"
+# temp_directory = "temp"
 logging_directory = current_directory / logging_directory
-temp_directory = current_directory / temp_directory
+# temp_directory = current_directory / temp_directory
 logging_directory.mkdir(parents=True, exist_ok=True)
-temp_directory.mkdir(parents=True, exist_ok=True)
+# temp_directory.mkdir(parents=True, exist_ok=True)
 
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-current_directory = os.getcwd()
-temp_path = os.path.join(current_directory, "temp")
+# current_directory = os.getcwd()
+# temp_path = os.path.join(current_directory, "temp")
 
 
 # def validity_text(text_list):
@@ -165,10 +166,13 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
     scale_factor = 1  # Увеличение на 1.1
     # Открываем PDF с помощью pdfplumber
     with pdfplumber.open(pdf_path) as pdf:
+        Path(temp_path).mkdir(
+            parents=True, exist_ok=True
+        )  # Укажите временный путь для сохранения изображений
         for page_no, page in enumerate(pdf.pages):
-            logger.info(page_no)
+            # logger.info(page_no)
             logger.info(page)
-            temp_path = "temp"  # Укажите временный путь для сохранения изображений
+
             image_path = save_high_resolution_screenshot(pdf_path, page_no)
 
             crop_areas = {
@@ -292,7 +296,7 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
                     cleaned_text = [
                         clean_text(line) for line in text.strip().split("\n") if line
                     ]
-                    logger.info(cleaned_text)
+                    # logger.info(cleaned_text)
                     # logger.info(f"До обработки: {cleaned_text}")
 
                     # Очистка и проверка текста
@@ -783,10 +787,10 @@ def main():
         print("Unsupported operating system")
         return
 
-    current_directory = os.getcwd()
+    current_directory = Path.cwd()
     timestamp = str(int(time.time()))
-    temp_path = os.path.join(current_directory, "temp", timestamp)
-
+    temp_path = Path(current_directory) / "temp" / timestamp
+    logger.info(temp_path)
     # Преобразуем аргумент scale_factor в float
     scale_factor = args.scale_factor
 

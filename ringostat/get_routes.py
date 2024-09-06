@@ -227,3 +227,48 @@ async def get_filtered_contacts(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+@router.get("/task/{task_id}")
+async def get_task_by_id(task_id: int, db=Depends(get_db)):
+    try:
+        # Получаем данные задания по ID
+        task = await db.get_task_by_id(task_id)
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+
+        # Получаем документы, связанные с задачей
+        documents = await db.get_documents_by_task_id(task_id)
+
+        # Проверка наличия всех полей и установка значений по умолчанию
+        performers = task.get("performers", "")  # Исполнители
+        if isinstance(performers, str):
+            performers = performers.split(",")  # Преобразуем строку исполнителей в список
+
+        reviewer = task.get("reviewer", None)  # Проверяющий
+        initiator = task.get("initiator", None)  # Инициатор
+
+        # Проверяем наличие временных полей, и если есть, форматируем их, иначе возвращаем None
+        start_time = task.get("start_time")
+        end_time = task.get("end_time")
+        control_time = task.get("control_time")
+
+        start_time_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ') if start_time else None
+        end_time_str = end_time.strftime('%Y-%m-%dT%H:%M:%SZ') if end_time else None
+        control_time_str = control_time.strftime('%Y-%m-%dT%H:%M:%SZ') if control_time else None
+
+        response_data = {
+            "id": task.get("id"),
+            "title": task.get("title", "Без названия"),  # Устанавливаем значение по умолчанию, если нет названия
+            "status": task.get("status", "Не указан"),  # Статус задачи
+            "note": task.get("note", ""),  # Заметки
+            "initiator": initiator,  # Инициатор
+            "performers": performers,  # Список исполнителей
+            "reviewer": reviewer,  # Проверяющий
+            "startTime": start_time_str,  # Время начала
+            "endTime": end_time_str,  # Время окончания
+            "controlTime": control_time_str,  # Время контроля
+            "documents": documents  # Связанные документы
+        }
+
+        return JSONResponse(status_code=200, content=response_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching task: {e}")

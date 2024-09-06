@@ -5,29 +5,39 @@ import wordninja
 import argparse
 import re
 import pytesseract
-import os
 from collections import defaultdict
 import pdfplumber
 import platform
 import time
 from pathlib import Path
 import pdfplumber
+from dotenv import dotenv_values
 
+# Загружаем переменные окружения из .env файла
+env_values = dotenv_values(".env")
 
-current_directory = Path.cwd()
+# current_directory = Path.cwd()
 
-logging_directory = "logging"
-temp_directory = "temp"
-logging_directory = current_directory / logging_directory
-temp_directory = current_directory / temp_directory
-logging_directory.mkdir(parents=True, exist_ok=True)
+# logging_directory = "logging"
+# temp_directory = "temp"
+# logging_directory = current_directory / logging_directory
+# temp_directory = current_directory / temp_directory
+# logging_directory.mkdir(parents=True, exist_ok=True)
+# temp_directory.mkdir(parents=True, exist_ok=True)
+
+# Получаем пути из переменных окружения, используя Path
+temp_directory = Path(env_values["TEMP_PATH"])
+json_directory = Path(env_values["JSON_PATH"])
+pdf_directory = Path(env_values["PDF_PATH"])
+log_directory = Path(env_values["LOG_PATH"])
+# Создаём директории, если их нет
 temp_directory.mkdir(parents=True, exist_ok=True)
-
+json_directory.mkdir(parents=True, exist_ok=True)
+pdf_directory.mkdir(parents=True, exist_ok=True)
+log_directory.mkdir(parents=True, exist_ok=True)
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-current_directory = os.getcwd()
-temp_path = os.path.join(current_directory, "temp")
 
 
 # def validity_text(text_list):
@@ -166,10 +176,11 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
     # Открываем PDF с помощью pdfplumber
     with pdfplumber.open(pdf_path) as pdf:
         for page_no, page in enumerate(pdf.pages):
-            logger.info(page_no)
+            # logger.info(page_no)
             logger.info(page)
-            temp_path = "temp"  # Укажите временный путь для сохранения изображений
-            image_path = save_high_resolution_screenshot(pdf_path, page_no)
+            Path(temp_path).mkdir(parents=True, exist_ok=True)
+
+            image_path = save_high_resolution_screenshot(pdf_path, page_no, temp_path)
 
             crop_areas = {
                 "01": [(75, 70, 800, 255)],
@@ -269,9 +280,10 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
                     # Улучшаем обрезанное изображение
                     cropped_image = enhance_image(cropped_image)
                     # Сохраняем обрезанное изображение для визуализации
-                    filename_cropped_image = os.path.join(
-                        temp_path, f"cropped_image_{key}_{i+1}.png"
+                    filename_cropped_image = (
+                        temp_path / f"cropped_image_{key}_{i+1}.png"
                     )
+
                     cropped_image.save(filename_cropped_image)
 
                     # Рисуем прямоугольник на оригинальном изображении для визуализации
@@ -279,9 +291,9 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
                     draw.rectangle(crop_area, outline="red", width=2)
 
                     # Все символы, включая буквы, цифры и специальные символы
-                    whitelist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,."
+                    # whitelist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,."
 
-                    custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist} -c preserve_interword_spaces=1"
+                    # custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist} -c preserve_interword_spaces=1"
 
                     # Извлекаем текст из обрезанного изображения
                     # text = pytesseract.image_to_string(
@@ -292,7 +304,7 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
                     cleaned_text = [
                         clean_text(line) for line in text.strip().split("\n") if line
                     ]
-                    logger.info(cleaned_text)
+                    # logger.info(cleaned_text)
                     # logger.info(f"До обработки: {cleaned_text}")
 
                     # Очистка и проверка текста
@@ -305,7 +317,8 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
                     all_texts[key].extend(cleaned_text)
 
             # Сохраняем изображение с нарисованной областью обрезки
-            filename_outlined = os.path.join(temp_path, "outlined_image.png")
+            filename_outlined = temp_path / "outlined_image.png"
+
             image.save(filename_outlined)
 
             # Проверяем, есть ли данные в all_texts перед созданием DataFrame
@@ -725,10 +738,11 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
 #         image.save(output_image_path)
 #         print(f"Скриншот сохранен: {output_image_path}")
 #     return output_image_path
-def save_high_resolution_screenshot(pdf_path, page_no):
+def save_high_resolution_screenshot(pdf_path, page_no, temp_path):
+
     resolution = 300
     # page_number = 0  # Номер страницы (начиная с 0)
-    output_image_path = "high_res_screenshot.png"
+    output_image_path = temp_path / "high_res_screenshot.png"
 
     with pdfplumber.open(pdf_path) as pdf:
         page = pdf.pages[page_no]
@@ -783,9 +797,9 @@ def main():
         print("Unsupported operating system")
         return
 
-    current_directory = os.getcwd()
+    # current_directory = Path.cwd()
     timestamp = str(int(time.time()))
-    temp_path = os.path.join(current_directory, "temp", timestamp)
+    temp_path = Path(temp_directory) / timestamp
 
     # Преобразуем аргумент scale_factor в float
     scale_factor = args.scale_factor
