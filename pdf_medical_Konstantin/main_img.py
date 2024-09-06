@@ -13,28 +13,21 @@ from pathlib import Path
 import pdfplumber
 from dotenv import dotenv_values
 
-# Загружаем переменные окружения из .env файла
-env_values = dotenv_values(".env")
+from configuration.configurat import TEMP_PATH, JSON_PATH, PDF_PATH, LOG_PATH
 
-# current_directory = Path.cwd()
 
-# logging_directory = "logging"
-# temp_directory = "temp"
-# logging_directory = current_directory / logging_directory
-# temp_directory = current_directory / temp_directory
-# logging_directory.mkdir(parents=True, exist_ok=True)
-# temp_directory.mkdir(parents=True, exist_ok=True)
+# Используем пути из config.py
+temp_directory = Path(TEMP_PATH)
+json_directory = Path(JSON_PATH)
+pdf_directory = Path(PDF_PATH)
+log_directory = Path(LOG_PATH)
 
-# Получаем пути из переменных окружения, используя Path
-temp_directory = Path(env_values["TEMP_PATH"])
-json_directory = Path(env_values["JSON_PATH"])
-pdf_directory = Path(env_values["PDF_PATH"])
-log_directory = Path(env_values["LOG_PATH"])
 # Создаём директории, если их нет
 temp_directory.mkdir(parents=True, exist_ok=True)
 json_directory.mkdir(parents=True, exist_ok=True)
 pdf_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
+
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
@@ -773,9 +766,10 @@ def save_high_resolution_screenshot(pdf_path, page_no, temp_path):
 
 
 def main():
+    # Создаем парсер аргументов
     parser = argparse.ArgumentParser(description="PDF analysis script")
-    parser.add_argument("pdf_path", help="Full path to the PDF file")
-    parser.add_argument("output_path", help="Full path to the output JSON file")
+    parser.add_argument("pdf_filename", help="PDF file name")
+    parser.add_argument("output_filename", help="Output JSON file name")
     parser.add_argument(
         "scale_factor", type=float, help="Scaling factor for image processing"
     )
@@ -783,13 +777,18 @@ def main():
     args = parser.parse_args()
 
     # Определяем пути для различных операционных систем и устанавливаем путь к Tesseract
+    pdf_directory = Path(PDF_PATH)
+    json_directory = Path(JSON_PATH)
+
     if platform.system() == "Linux":
-        pdf_path = args.pdf_path
-        output_path = args.output_path
+        # Формируем пути к PDF и JSON файлам на основе аргументов
+        pdf_path = pdf_directory / args.pdf_filename
+        output_path = json_directory / args.output_filename
         pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
     elif platform.system() == "Windows":
-        pdf_path = args.pdf_path
-        output_path = args.output_path
+        # Формируем пути к PDF и JSON файлам на основе аргументов
+        pdf_path = pdf_directory / args.pdf_filename
+        output_path = json_directory / args.output_filename
         pytesseract.pytesseract.tesseract_cmd = (
             r"C:\Program Files\Tesseract-OCR\tesseract.exe"
         )
