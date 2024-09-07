@@ -1,4 +1,4 @@
-TEMP_PATH = "C:/Temp/project/temp"
-JSON_PATH = "C:/Temp/project/json"
-PDF_PATH = "C:/Temp/project/pdf"
-LOG_PATH = "C:/Temp/project/logging"
+TEMP_PATH = "C:/my_projects_in_python/pdf_medical_Konstantin/temp"
+JSON_PATH = "C:/my_projects_in_python/pdf_medical_Konstantin/json"
+PDF_PATH = "C:/my_projects_in_python/pdf_medical_Konstantin/pdf"
+LOG_PATH = "C:/my_projects_in_python/pdf_medical_Konstantin/logging"

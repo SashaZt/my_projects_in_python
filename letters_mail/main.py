@@ -276,37 +276,56 @@ def format_email_date(date_str):
 def main():
     env_values = load_env_variables()
 
-    IMAP_SERVER = "outlook.office365.com"
     EMAIL_ACCOUNT = env_values["EMAIL_ACCOUNT"]
     EMAIL_PASSWORD = env_values["EMAIL_PASSWORD"]
+
+    pattern_email = r"(?<=@)[\w.-]+"
+    domain = re.search(pattern_email, EMAIL_ACCOUNT).group()
+
+    if domain == "outlook.com":
+        IMAP_SERVER = "outlook.office365.com"
+    elif domain == "gmail.com":
+        IMAP_SERVER = "imap.gmail.com"
+    else:
+        raise ValueError(f"Unknown domain: {domain}")
+
     SAVE_DIR = env_values.get("SAVE_DIR", "emails")
-    OUTPUT_DIR = "extracted_texts"  # Директория для сохранения текстов
 
     user_directory = create_directory_for_user(EMAIL_ACCOUNT, SAVE_DIR)
 
-    # create_directory(OUTPUT_DIR)
+    try:
+        mail = connect_to_mail_server(IMAP_SERVER, EMAIL_ACCOUNT, EMAIL_PASSWORD)
+        logger.info(f"Successfully connected to {IMAP_SERVER}")
+    except imaplib.IMAP4.error as e:
+        logger.error(f"Failed to connect: {e}")
+        if domain == "gmail.com":
+            logger.info(
+                "If you're using Gmail, ensure that IMAP access is enabled in your account settings."
+            )
+            logger.info(
+                "Additionally, if you have 2FA enabled, use an app-specific password."
+            )
+        raise
 
-    # mail = connect_to_mail_server(IMAP_SERVER, EMAIL_ACCOUNT, EMAIL_PASSWORD)
+    sender_email = "sales@manyvids.com"
+    email_ids = fetch_emails(mail, sender_email)
+    if email_ids:
+        for email in email_ids:
+            email_id = email["id"]
+            file_name_mail = email["file_name"]
+            # Проверяем, существует ли уже файл
+            file_path = Path(user_directory) / file_name_mail
+            if file_path.exists():
+                logger.info(
+                    f"Файл {file_name_mail} уже существует. Пропускаем скачивание."
+                )
+                continue
 
-    # sender_email = "sales@manyvids.com"
-    # email_ids = fetch_emails(mail, sender_email)
-    # if email_ids:
-    #     for email in email_ids:
-    #         email_id = email["id"]
-    #         file_name_mail = email["file_name"]
-    #         # Проверяем, существует ли уже файл
-    #         file_path = Path(user_directory) / file_name_mail
-    #         if file_path.exists():
-    #             logger.info(
-    #                 f"Файл {file_name_mail} уже существует. Пропускаем скачивание."
-    #             )
-    #             continue
-
-    #         # Сохраняем письмо, если файл не существует
-    #         save_email(mail, email_id, user_directory, file_name_mail)
-    #         time.sleep(1)  # Добавляем паузу между скачиваниями
-    # else:
-    #     logger.error(f"Нет писем от {sender_email}")
+            # Сохраняем письмо, если файл не существует
+            save_email(mail, email_id, user_directory, file_name_mail)
+            time.sleep(1)  # Добавляем паузу между скачиваниями
+    else:
+        logger.error(f"Нет писем от {sender_email}")
     email_data = process_all_emails(user_directory)
     output_csv = "output.csv"
 

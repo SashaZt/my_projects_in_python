@@ -209,16 +209,30 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
                 "38d": [(110, 760, 1290, 810)],
                 "38e": [(90, 810, 1290, 850)],
                 "39a": [(1340, 660, 1410, 845)],
-                "39b": [(1430, 660, 1650, 845)],
+                "39b": [(1658, 660, 1708, 845)],
                 "39c": [(1650, 660, 1708, 845)],
                 "40a": [(1717, 660, 1793, 845)],
                 "40b": [(1805, 660, 2030, 845)],
                 "40c": [(2040, 660, 2088, 845)],
                 "41": [(2100, 660, 2175, 845)],
-                "41a": [(2190, 660, 2410, 845)],
-                "41b": [(2410, 660, 2465, 845)],
-                "42": [(75, 900, 200, 1900)],
-                "43": [(220, 900, 750, 1900)],
+                "41a": [(2190, 660, 2405, 845)],
+                "41b": [(2412, 660, 2465, 845)],
+                "42_1": [(75, 900, 200, 940)],
+                "42_2": [(75, 940, 200, 1000)],
+                "42_3": [(75, 1000, 200, 1040)],
+                "42_4": [(75, 1040, 200, 1100)],
+                "42_5": [(75, 1100, 200, 1140)],
+                "42_6": [(75, 1140, 200, 1200)],
+                "42_7": [(75, 1200, 200, 1240)],
+                "42_8": [(75, 1240, 200, 1300)],
+                "43_1": [(220, 900, 940, 940)],
+                "43_2": [(220, 940, 940, 1000)],
+                "43_3": [(220, 1000, 940, 1040)],
+                "43_4": [(220, 1040, 940, 1100)],
+                "43_5": [(220, 1100, 940, 1140)],
+                "43_6": [(220, 1140, 940, 1200)],
+                "43_7": [(220, 1200, 940, 1240)],
+                "43_8": [(220, 1240, 940, 1300)],
                 "44": [(945, 901, 1355, 1900)],
                 "45": [(1390, 899, 1560, 1900)],
                 "46": [(1730, 900, 1790, 1900)],
@@ -264,10 +278,10 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
             # Пример использования функции split_on_capitals
             for key, areas in crop_areas.items():
                 for i, crop_area in enumerate(areas):
+
                     # Масштабируем каждый список
-                    scaled_area = scale_crop_area(
-                        crop_area, scale_factor
-                    )  # Передаем кортеж, а не список
+                    scaled_area = scale_crop_area(crop_area, scale_factor)
+                    # Передаем кортеж, а не список
                     # Обрезаем изображение до заданной области
                     cropped_image = image.crop(scaled_area)
                     # Улучшаем обрезанное изображение
@@ -292,13 +306,26 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
                     # text = pytesseract.image_to_string(
                     #     cropped_image, config=custom_config, lang="eng"
                     # )
-                    text = pytesseract.image_to_string(cropped_image)
+                    keys_all_text = ["42", "43", "44", "45", "46", "47", "47a"]
+                    if key in keys_all_text:
+                        # Все символы, включая буквы, цифры и специальные символы
+                        whitelist = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789,."
+
+                        custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist} -c preserve_interword_spaces=1"
+
+                        text = pytesseract.image_to_string(
+                            cropped_image, config=custom_config, lang="eng"
+                        )
+                    else:
+                        text = pytesseract.image_to_string(cropped_image)
+
+                    # logger.info(f"{key}")
+                    # logger.info(f"Текст:{text}")
 
                     cleaned_text = [
                         clean_text(line) for line in text.strip().split("\n") if line
                     ]
-                    # logger.info(cleaned_text)
-                    # logger.info(f"До обработки: {cleaned_text}")
+                    # logger.info(f"Очищенный текст {cleaned_text}")
 
                     # Очистка и проверка текста
                     # cleaned_text = validity_text(cleaned_text)
@@ -317,20 +344,23 @@ def process_image(pdf_path, output_path, temp_path, scale_factor):
             # Проверяем, есть ли данные в all_texts перед созданием DataFrame
             if all_texts:
                 max_rows = max(len(column_texts) for column_texts in all_texts.values())
-                data = defaultdict(
-                    list
-                )  # Используем defaultdict для автоматического создания списков
+                data = defaultdict(list)
+                # Используем defaultdict для автоматического создания списков
 
                 for key, column_texts in all_texts.items():
+
                     # Убираем пустые строки
-                    cleaned_texts = [text for text in column_texts if text.strip()]
-                    if cleaned_texts:
-                        # Если есть непустые строки, добавляем их в data
-                        data[key].extend(cleaned_texts)
+                    # cleaned_texts = [text for text in column_texts if text.strip()]
+                    cleaned_texts = column_texts  # Без изменения списка
+
+                    # if cleaned_texts:
+                    logger.info(cleaned_texts)
+                    # Если есть непустые строки, добавляем их в data
+                    data[key].extend(cleaned_texts)
 
                 # Приводим data к обычному словарю для вывода
                 data = dict(data)
-                logger.info(data)
+                # logger.info(data)
                 # Добавляем результат для текущей страницы в итоговый словарь
                 final_result[f"Page:{page_no + 1}"] = data
 
