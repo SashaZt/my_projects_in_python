@@ -288,7 +288,9 @@ def main():
         IMAP_SERVER = "imap.gmail.com"
     else:
         raise ValueError(f"Unknown domain: {domain}")
-
+    logger.info(IMAP_SERVER)
+    logger.info(EMAIL_ACCOUNT)
+    logger.info(EMAIL_PASSWORD)
     SAVE_DIR = env_values.get("SAVE_DIR", "emails")
 
     user_directory = create_directory_for_user(EMAIL_ACCOUNT, SAVE_DIR)
@@ -297,14 +299,26 @@ def main():
         mail = connect_to_mail_server(IMAP_SERVER, EMAIL_ACCOUNT, EMAIL_PASSWORD)
         logger.info(f"Successfully connected to {IMAP_SERVER}")
     except imaplib.IMAP4.error as e:
-        logger.error(f"Failed to connect: {e}")
+        logger.error(f"Ошибка подключения: {e}")
+        logger.error(f"Проверьте настройки IMAP для {EMAIL_ACCOUNT}")
+
+        # Проверка для Gmail
         if domain == "gmail.com":
             logger.info(
-                "If you're using Gmail, ensure that IMAP access is enabled in your account settings."
+                "Если вы используете Gmail, убедитесь, что доступ через IMAP включен в настройках вашей учетной записи."
             )
             logger.info(
-                "Additionally, if you have 2FA enabled, use an app-specific password."
+                "Кроме того, если у вас включена двухфакторная аутентификация (2FA), используйте пароль приложения."
             )
+
+        # Проверка для Outlook
+        elif domain == "outlook.com":
+            logger.info(
+                "Если вы используете Outlook, убедитесь, что IMAP включен. "
+                "Также рассмотрите использование пароля приложения, если включена двухфакторная аутентификация (2FA)."
+            )
+
+        # Проброс исключения дальше
         raise
 
     sender_email = "sales@manyvids.com"

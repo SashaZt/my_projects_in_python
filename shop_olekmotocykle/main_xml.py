@@ -71,4 +71,4 @@ def delete():
 if __name__ == "__main__":
     get_xml()
     parsing_xml()
-    delete()
+    # delete()
