@@ -1,14 +1,13 @@
 from urllib.parse import urlparse
+import pandas as pd
+import csv
 from configuration.logger_setup import logger
 import asyncio
-import csv
 import random
 import re
-from collections import defaultdict
 from datetime import datetime
 import json
 import html
-import csv
 import requests
 from bs4 import BeautifulSoup
 import os
@@ -58,7 +57,7 @@ def load_proxies():
     file_path = "1000 ip.txt"
     with open(file_path, "r", encoding="utf-8") as file:
         proxies = [line.strip() for line in file]
-    logger.info(f"Загружено {len(proxies)} прокси.")
+    # logger.info(f"Загружено {len(proxies)} прокси.")
     return proxies
 
 
@@ -89,9 +88,7 @@ def get_requests(url):
 
 
 def pars(site):
-    # user_profile = os.environ.get("USERPROFILE")
-    # new_folder_path = os.path.join(user_profile, "prom")
-    files_html = glob.glob(os.path.join(html_directory, "*.html"))
+    files_html = list(html_directory.glob("*.html"))
 
     if os.path.exists(products_csv):
         # Если существует, удаляем
@@ -160,6 +157,65 @@ def pars(site):
                     writer.writerow(product)
 
 
+# def analis_product(site):
+#     all_url = urlparse(site)
+#     # Извлекаем часть доменного имени с субдоменами
+#     domain_parts = all_url.netloc.split(".")
+#     subdomain = None
+#     if len(domain_parts) >= 2:
+#         subdomain = domain_parts[0]
+#     subdomain_csv = data_directory / f"{subdomain}.csv"
+#     # user_profile = os.environ.get("USERPROFILE")
+#     # new_folder_path = os.path.join(user_profile, "prom")
+#     data = []
+#     # with open('products.csv', 'r', encoding='windows-1251') as f:
+#     with open(products_csv, "r", encoding="utf-8") as f:
+#         reader = csv.reader(f, delimiter=";")
+#         for row in reader:
+#             data.append(row)
+#     stats_by_year_and_product = defaultdict(lambda: defaultdict(int))
+
+#     product_urls = {}  # для хранения URL каждого продукта
+#     unique_years = sorted({date.split(".")[-1] for date, _, _ in data}, reverse=True)
+
+#     # unique_years = sorted({date.split('.')[-1] for date, _, _ in data}, reverse=True)
+#     total_by_year = defaultdict(int)  # Итого по каждому году
+#     grand_total = 0  # Общий итог по всем продуктам и всем годам
+#     # with open(f'{subdomain}.csv', 'w', newline='', encoding='windows-1251') as f:
+#     with open(subdomain_csv, "w", newline="", encoding="utf-8") as f:
+#         writer = csv.writer(f, delimiter=";")
+#         # writer.writerow(['Название продукта', 'url', 'unique_years','Итого'])
+#         writer.writerow(["Название продукта", "url"] + unique_years + ["Итого"])
+#         for row in data:
+#             date, url, product_name = row
+#             years = date
+#             stats_by_year_and_product[product_name][years] += 1
+#             product_urls[product_name] = url  # сохраняем URL продукта
+#         for product_name, stats in stats_by_year_and_product.items():
+#             row = [
+#                 product_name,
+#                 product_urls.get(product_name, "No URL"),
+#             ]  # извлекаем URL из словаря product_urls
+#             total_for_product = 0  # сумма отзывов для данного продукта по всем годам
+#             for year in unique_years:
+#                 count_for_year = stats.get(year, 0)
+#                 row.append(count_for_year)
+#                 total_for_product += count_for_year
+#                 total_by_year[
+#                     year
+#                 ] += count_for_year  # обновляем итоговую сумму по каждому году
+#             row.append(total_for_product)  # добавляем колонку "Итого" в каждую строку
+#             grand_total += total_for_product  # суммируем все отзывы для общего итога
+#             writer.writerow(row)
+#         writer.writerow(
+#             ["", ""] + [total_by_year[year] for year in unique_years] + [grand_total]
+#         )
+#     # """На финале раскомментировать"""
+#     # if os.path.exists(new_folder_path):
+#     #     shutil.rmtree(new_folder_path)
+#     print("Все удачно выполнено")
+
+
 def analis_product(site):
     all_url = urlparse(site)
     # Извлекаем часть доменного имени с субдоменами
@@ -167,55 +223,63 @@ def analis_product(site):
     subdomain = None
     if len(domain_parts) >= 2:
         subdomain = domain_parts[0]
-    subdomain_csv = data_directory / f"{subdomain}.csv"
-    # user_profile = os.environ.get("USERPROFILE")
-    # new_folder_path = os.path.join(user_profile, "prom")
+    subdomain_excel = current_directory / f"{subdomain}.xlsx"  # Для сохранения в Excel
     data = []
-    # with open('products.csv', 'r', encoding='windows-1251') as f:
+
+    # Чтение данных из CSV
     with open(products_csv, "r", encoding="utf-8") as f:
         reader = csv.reader(f, delimiter=";")
         for row in reader:
             data.append(row)
-    stats_by_year_and_product = defaultdict(lambda: defaultdict(int))
 
+    stats_by_year_and_product = defaultdict(lambda: defaultdict(int))
     product_urls = {}  # для хранения URL каждого продукта
     unique_years = sorted({date.split(".")[-1] for date, _, _ in data}, reverse=True)
-
-    # unique_years = sorted({date.split('.')[-1] for date, _, _ in data}, reverse=True)
     total_by_year = defaultdict(int)  # Итого по каждому году
     grand_total = 0  # Общий итог по всем продуктам и всем годам
-    # with open(f'{subdomain}.csv', 'w', newline='', encoding='windows-1251') as f:
-    with open(subdomain_csv, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f, delimiter=";")
-        # writer.writerow(['Название продукта', 'url', 'unique_years','Итого'])
-        writer.writerow(["Название продукта", "url"] + unique_years + ["Итого"])
-        for row in data:
-            date, url, product_name = row
-            years = date
-            stats_by_year_and_product[product_name][years] += 1
-            product_urls[product_name] = url  # сохраняем URL продукта
-        for product_name, stats in stats_by_year_and_product.items():
-            row = [
-                product_name,
-                product_urls.get(product_name, "No URL"),
-            ]  # извлекаем URL из словаря product_urls
-            total_for_product = 0  # сумма отзывов для данного продукта по всем годам
-            for year in unique_years:
-                count_for_year = stats.get(year, 0)
-                row.append(count_for_year)
-                total_for_product += count_for_year
-                total_by_year[
-                    year
-                ] += count_for_year  # обновляем итоговую сумму по каждому году
-            row.append(total_for_product)  # добавляем колонку "Итого" в каждую строку
-            grand_total += total_for_product  # суммируем все отзывы для общего итога
-            writer.writerow(row)
-        writer.writerow(
-            ["", ""] + [total_by_year[year] for year in unique_years] + [grand_total]
-        )
-    # """На финале раскомментировать"""
-    # if os.path.exists(new_folder_path):
-    #     shutil.rmtree(new_folder_path)
+
+    rows = []  # Здесь будут храниться все строки для DataFrame
+
+    # Обработка данных
+    for row in data:
+        date, url, product_name = row
+        years = date
+        stats_by_year_and_product[product_name][years] += 1
+        product_urls[product_name] = url  # сохраняем URL продукта
+
+    # Формирование данных для записи в Excel
+    for product_name, stats in stats_by_year_and_product.items():
+        row = [
+            product_name,
+            product_urls.get(product_name, "No URL"),
+        ]  # Извлекаем URL из словаря product_urls
+        total_for_product = 0  # Сумма отзывов для данного продукта по всем годам
+        for year in unique_years:
+            count_for_year = stats.get(year, 0)
+            row.append(count_for_year)
+            total_for_product += count_for_year
+            total_by_year[
+                year
+            ] += count_for_year  # обновляем итоговую сумму по каждому году
+        row.append(total_for_product)  # Добавляем колонку "Итого"
+        grand_total += total_for_product  # Суммируем все отзывы для общего итога
+        rows.append(row)  # Добавляем строку в общий список
+
+    # Добавляем строку с итогами по каждому году и общим итогом
+    rows.append(
+        ["", ""] + [total_by_year[year] for year in unique_years] + [grand_total]
+    )
+
+    # Создаем DataFrame и записываем его в Excel
+    columns = ["Название продукта", "url"] + unique_years + ["Итого"]
+    df = pd.DataFrame(rows, columns=columns)
+
+    # Сохранение в Excel
+    df.to_excel(subdomain_excel, index=False, engine="openpyxl")
+    logger.info(f"Данные успешно записаны в {subdomain_excel}")
+    """На финале раскомментировать"""
+    if os.path.exists(data_directory):
+        shutil.rmtree(data_directory)
     print("Все удачно выполнено")
 
 
@@ -263,7 +327,7 @@ def asyncio_run():
                         url = row[0]
                         tasks.append(fetch(session, url, coun, proxies_dict))
                     await asyncio.gather(*tasks)
-                    print(f"Completed {coun} requests")
+                    logger.info(f"Выполнено {coun} запросов")
                     await asyncio.sleep(1)  # Пауза на 10 секунд после каждых 100 URL
 
     asyncio.run(main())
@@ -272,7 +336,7 @@ def asyncio_run():
 if __name__ == "__main__":
     print("Вставьте ссылку на сайт!")
     site = input()
-    # get_requests(site)
-    # asyncio_run()
-    # pars(site)
+    get_requests(site)
+    asyncio_run()
+    pars(site)
     analis_product(site)
