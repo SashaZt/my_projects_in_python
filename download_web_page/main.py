@@ -14,44 +14,26 @@ from configuration.logger_setup import logger
 def get_html():
 
     cookies = {
-        "PODID": "app0",
-        "currency": "EUR",
-        "language": "en",
-        "SESSION": "eeda5cc4-e16c-43c4-a1d3-2b221b9a8411.app-0",
-        "beforeUnloadTime": "1725012465978",
-        "unloadTime": "1725012466123",
-        "cf_clearance": "uO_9Q0ltGzdCJtfg8IHmM2Cb.8ifsy18fZQO5vEO7ow-1725444391-1.2.1.1-t.5fXdX_4bS4ETu4zErizDgE7Vy7plKpW1WHdDUCpdBb1AEdUFiufnr1G3PvUgV9QqqWK8P9RC15T7P_oDdgIN46kl.Avs8oAlxRANMFnljckwlFBgdza25DOnirIiKcl7tPP4mPngXMV0H.Tifa179fVhu7VKhmMCnuR.NdiayABXJpt33sF3vZrQgfgFNfZWLVHQSkdefGyyce2hejOFBD7.dHsdwJRXtGp_mbu79YhXZYyRxzV3mEFvFdOxIiQZuLAKVynW5odxvuhPddJ7gFPINEIU72OPilaESa4vDp..gbaV3_nrYjai.qo5cRzTAP0FuiEPTsW79TYsSfip.p9Av3BWkO6.QfKrGT57PpOSYN8hWj066_Jls9Oz3a2on_G3hAu8CI4N.f5yIPEzo2GPYMPiE8CmaWkdxD_pzX5k9KGOr6UUrcxBJBMCyY",
+        "isMobileDevice": "0",
+        ".cdneshopsid": "yiJb0XR6wEVzPM+5hYqBBffDR+zZOc+IbKF+C5opvqqWZ7zJ5apz1o+5TQSMJjimh2ciM8mE9M3BuciApQ|003",
+        "_ga": "GA1.2.508426758.1725959759",
+        "_gid": "GA1.2.1979942024.1725959759",
+        "_gat_UA-232962489-1": "1",
+        "cf_clearance": "OdPqRpb_EgMk_Ser_weJx7o6.5iswFevi9tH55nmWlc-1725959759-1.2.1.1-CMiZSyC0WFyq_zvNrW1qIr2qrmI69AXPQqjWvig3s0LpEQiJjN90UdhTa.siTdobWtZ8cqD7k6LWAWYVvkHKVzfOKgXTP6ZvL6NHoQwWz2plfCEUnYFkRylgUnnfIuY3E_S0fidDnsDaZLpMrX1Ncg9au5lENrYnqi7eMAn828QkZ31kpVK9ip6NtBgi3qcjF4dndLCWSBcmGxoO8BGhXmiTYg9w0Gveg.jrH15IXza_TKHcDdtBzZ_LhdZ0F8TEN1BStYHIg5nHJhjCu84.hXmcsNfvTYx4OlklFMu75DsUYZeSHVp.4X9TqI6.SrPiJVp7UcUAiNV3MPIRxt4n44BcazBRw_w87NjmOyOThCLZ13JEp5NIrODUAZUR.wO49KR5fyPr4YsLSSYWnD58mw",
+        "_clck": "1x3nc8a%7C2%7Cfp2%7C0%7C1714",
+        "_clsk": "160g9l0%7C1725959760625%7C1%7C1%7Cw.clarity.ms%2Fcollect",
+        "config-message-9a416f1c-aecf-4d89-8458-ad39f3a31671": "hidden",
+        "cookieSettings": "granted",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
-        "cache-control": "no-cache",
-        # 'cookie': 'PODID=app0; currency=EUR; language=en; SESSION=eeda5cc4-e16c-43c4-a1d3-2b221b9a8411.app-0; beforeUnloadTime=1725012465978; unloadTime=1725012466123; cf_clearance=uO_9Q0ltGzdCJtfg8IHmM2Cb.8ifsy18fZQO5vEO7ow-1725444391-1.2.1.1-t.5fXdX_4bS4ETu4zErizDgE7Vy7plKpW1WHdDUCpdBb1AEdUFiufnr1G3PvUgV9QqqWK8P9RC15T7P_oDdgIN46kl.Avs8oAlxRANMFnljckwlFBgdza25DOnirIiKcl7tPP4mPngXMV0H.Tifa179fVhu7VKhmMCnuR.NdiayABXJpt33sF3vZrQgfgFNfZWLVHQSkdefGyyce2hejOFBD7.dHsdwJRXtGp_mbu79YhXZYyRxzV3mEFvFdOxIiQZuLAKVynW5odxvuhPddJ7gFPINEIU72OPilaESa4vDp..gbaV3_nrYjai.qo5cRzTAP0FuiEPTsW79TYsSfip.p9Av3BWkO6.QfKrGT57PpOSYN8hWj066_Jls9Oz3a2on_G3hAu8CI4N.f5yIPEzo2GPYMPiE8CmaWkdxD_pzX5k9KGOr6UUrcxBJBMCyY',
-        "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "referer": "https://aleo.com/int/companies/company-services/financial-and-consulting-services/legal-services",
-        "sec-ch-ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
-        "sec-ch-ua-arch": '"x86"',
-        "sec-ch-ua-bitness": '"64"',
-        "sec-ch-ua-full-version": '"128.0.6613.114"',
-        "sec-ch-ua-full-version-list": '"Chromium";v="128.0.6613.114", "Not;A=Brand";v="24.0.0.0", "Google Chrome";v="128.0.6613.114"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-ch-ua-platform-version": '"15.0.0"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
+        "accept-language": "ru",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://aleo.com/int/company/radoslaw-pac-kancelaria-prawno-windykacyjna-fonsuris-niegoszowice",
-        cookies=cookies,
+        "https://shop.olekmotocykle.com/acerbis-nowy-towar-2024-02-lampa-przednia-elba-ow,3,1339,192618",
         headers=headers,
     )
     # Проверка кода ответа
