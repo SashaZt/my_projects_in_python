@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import time
 import os
+from configuration.logger_setup import logger
 
 current_directory = os.getcwd()
 
@@ -10,7 +11,7 @@ current_directory = os.getcwd()
 
 
 def get_xml():
-    print("Качаем файл XML")
+    logger.info("Качаем файл XML")
     url = "https://pim.olekmotocykle.com/xml?id=85&hash=be0525b9258c18c3452ee7bd80bcf32e591b48a4ca3574f2fd0d80b8a3f450b6"
     response = requests.get(url)
     filename_xml = os.path.join(current_directory, "output.xml")
@@ -57,7 +58,7 @@ def parsing_xml():
     # Запись данных в .xlsx файл
     filename_xlsx = os.path.join(current_directory, "output.xlsx")
     df.to_excel(filename_xlsx, index=False)
-    print(f"Файл сохранен {filename_xlsx}")
+    logger.info(f"Файл сохранен {filename_xlsx}")
 
 
 def delete():
@@ -70,5 +71,5 @@ def delete():
 
 if __name__ == "__main__":
     get_xml()
-    parsing_xml()
+    # parsing_xml()
     # delete()
