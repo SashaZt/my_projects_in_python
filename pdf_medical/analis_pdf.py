@@ -854,7 +854,7 @@ def extract_text_from_image():
 
 def process_single_crop_area():
 
-    crop_areas = [(1895, 2065, 1944, 2120)]
+    crop_areas = [(2215, 2650, 2465, 2690)]
 
     scale_factor = 1  # Увеличение на 1.1
     image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению

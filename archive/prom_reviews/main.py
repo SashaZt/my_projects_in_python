@@ -26,6 +26,7 @@ html_directory.mkdir(parents=True, exist_ok=True)
 
 url_csv = data_directory / "urls.csv"
 products_csv = data_directory / "products.csv"
+
 cookies = {
     "evoauth": "wbca764ed2b9a4d68a80cb9da2765a7b8",
     "cid": "295631840821182912240168823420841329403",
@@ -54,7 +55,7 @@ headers = {
 
 def load_proxies():
     """Загружает список прокси-серверов из файла."""
-    file_path = "1000 ip.txt"
+    file_path = "proxy.txt"
     with open(file_path, "r", encoding="utf-8") as file:
         proxies = [line.strip() for line in file]
     # logger.info(f"Загружено {len(proxies)} прокси.")
@@ -155,65 +156,6 @@ def pars(site):
                     product.append(url_no_category)
                     product.append(name_no_category)
                     writer.writerow(product)
-
-
-# def analis_product(site):
-#     all_url = urlparse(site)
-#     # Извлекаем часть доменного имени с субдоменами
-#     domain_parts = all_url.netloc.split(".")
-#     subdomain = None
-#     if len(domain_parts) >= 2:
-#         subdomain = domain_parts[0]
-#     subdomain_csv = data_directory / f"{subdomain}.csv"
-#     # user_profile = os.environ.get("USERPROFILE")
-#     # new_folder_path = os.path.join(user_profile, "prom")
-#     data = []
-#     # with open('products.csv', 'r', encoding='windows-1251') as f:
-#     with open(products_csv, "r", encoding="utf-8") as f:
-#         reader = csv.reader(f, delimiter=";")
-#         for row in reader:
-#             data.append(row)
-#     stats_by_year_and_product = defaultdict(lambda: defaultdict(int))
-
-#     product_urls = {}  # для хранения URL каждого продукта
-#     unique_years = sorted({date.split(".")[-1] for date, _, _ in data}, reverse=True)
-
-#     # unique_years = sorted({date.split('.')[-1] for date, _, _ in data}, reverse=True)
-#     total_by_year = defaultdict(int)  # Итого по каждому году
-#     grand_total = 0  # Общий итог по всем продуктам и всем годам
-#     # with open(f'{subdomain}.csv', 'w', newline='', encoding='windows-1251') as f:
-#     with open(subdomain_csv, "w", newline="", encoding="utf-8") as f:
-#         writer = csv.writer(f, delimiter=";")
-#         # writer.writerow(['Название продукта', 'url', 'unique_years','Итого'])
-#         writer.writerow(["Название продукта", "url"] + unique_years + ["Итого"])
-#         for row in data:
-#             date, url, product_name = row
-#             years = date
-#             stats_by_year_and_product[product_name][years] += 1
-#             product_urls[product_name] = url  # сохраняем URL продукта
-#         for product_name, stats in stats_by_year_and_product.items():
-#             row = [
-#                 product_name,
-#                 product_urls.get(product_name, "No URL"),
-#             ]  # извлекаем URL из словаря product_urls
-#             total_for_product = 0  # сумма отзывов для данного продукта по всем годам
-#             for year in unique_years:
-#                 count_for_year = stats.get(year, 0)
-#                 row.append(count_for_year)
-#                 total_for_product += count_for_year
-#                 total_by_year[
-#                     year
-#                 ] += count_for_year  # обновляем итоговую сумму по каждому году
-#             row.append(total_for_product)  # добавляем колонку "Итого" в каждую строку
-#             grand_total += total_for_product  # суммируем все отзывы для общего итога
-#             writer.writerow(row)
-#         writer.writerow(
-#             ["", ""] + [total_by_year[year] for year in unique_years] + [grand_total]
-#         )
-#     # """На финале раскомментировать"""
-#     # if os.path.exists(new_folder_path):
-#     #     shutil.rmtree(new_folder_path)
-#     print("Все удачно выполнено")
 
 
 def analis_product(site):
