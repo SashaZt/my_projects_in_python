@@ -29,7 +29,7 @@ json_output = data_directory / "url_img.json"
 
 def get_xml():
     logger.info("Качаем файл XML")
-    url = "https://pim.olekmotocykle.com/xml?id=85&hash=be0525b9258c18c3452ee7bd80bcf32e591b48a4ca3574f2fd0d80b8a3f450b6"
+    url = "https://pim.olekmotocykle.com/xml?id=109&hash=2427e6499332bca0f4a0f2687025cc520421d0a727cfe165875974fad723eb69"
     response = requests.get(url)
     if response.status_code == 200:
         with open(xml_output, "wb") as file:

@@ -346,7 +346,7 @@ def parsing(src, url):
             phones, location = extract_phone_site_and_location(parser)
             phone_numbers = set()
             phone_numbers.add(phones)
-
+            logger.info(phones)
             if not phones:
                 logger.warning(f"Не удалось извлечь номера телефонов для URL: {url}")
             if not location:
@@ -556,8 +556,33 @@ def extract_phone_site_and_location(parser):
         if "Telefon:" in feature.text(strip=True):
             phone_element = feature.css_first("div#cell_t_int_bizcaf b")
             if phone_element:
-                raw_phone = phone_element.text(strip=True)
-                phone_number = re.sub(r"\D", "", raw_phone)
+                # Извлекаем весь текст из элемента <b>
+                full_text = phone_element.html  # Это вернет весь HTML элемента <b>
+
+                # Извлекаем текст до тега <simbiz>
+                raw_phone = re.split(r"<simbiz>", full_text)[
+                    0
+                ].strip()  # Текст до <simbiz>
+                logger.info(f"Основная часть телефона: {raw_phone}")
+
+                # Извлекаем текст внутри тега <simbiz>
+                simb_element = phone_element.css_first("simbiz")
+                if simb_element:
+                    simb_text = simb_element.text(strip=True)
+
+                    # Проверяем, больше ли 4 цифр в simb_text, и удаляем первую цифру, если нужно
+                    if len(simb_text) > 4:
+                        simb_text = simb_text[1:]  # Удаляем первую цифру
+                    logger.info(f"Часть телефона из <simbiz>: {simb_text}")
+
+                    # Объединяем основную часть и текст внутри <simbiz>
+                    full_phone = raw_phone + simb_text
+                else:
+                    full_phone = raw_phone
+
+                # Удаляем все нецифровые символы для получения финального номера
+                phone_number = re.sub(r"\D", "", full_phone)
+                logger.info(f"Полный номер телефона: {phone_number}")
 
         # Проверяем, содержит ли элемент текст "Localitate:"
         if "Localitate:" in feature.text(strip=True):
@@ -570,6 +595,7 @@ def extract_phone_site_and_location(parser):
             zone_element = feature.css_first("b")
             if zone_element:
                 location += ", " + zone_element.text(strip=True)
+
     # Возвращаем номер телефона и местоположение
     return phone_number, location
 
@@ -606,6 +632,6 @@ def get_html(max_workers=10, session=None):
 
 if __name__ == "__main__":
     session = create_session_with_ssl()
-    total_pages = get_total_pages(session, load_proxies())
-    collect_urls(total_pages)
+    # total_pages = get_total_pages(session, load_proxies())
+    # collect_urls(total_pages)
     get_html(max_workers=10, session=session)

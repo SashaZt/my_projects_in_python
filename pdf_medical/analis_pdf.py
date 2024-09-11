@@ -854,7 +854,9 @@ def extract_text_from_image():
 
 def process_single_crop_area():
 
-    crop_areas = [(2215, 2650, 2465, 2690)]
+    crop_areas = [(1510, 2600, 1545, 2645)]
+    crop_areas = [(1545, 2600, 1713, 2645)]
+    crop_areas = [(1713, 2600, 1740, 2645)]
 
     scale_factor = 1  # Увеличение на 1.1
     image_path = "high_res_screenshot.png"  # Укажите путь к вашему изображению
@@ -885,6 +887,7 @@ def process_single_crop_area():
     custom_config = f"--oem 3 --psm 6 -c tessedit_char_whitelist={whitelist} -c preserve_interword_spaces=1"
 
     text = pytesseract.image_to_string(cropped_image, config=custom_config, lang="eng")
+
     cleaned_text = [clean_text(line) for line in text.strip().split("\n") if line]
     logger.info(f"До обработки: {cleaned_text}")
     cleaned_text = validity_text(cleaned_text)
