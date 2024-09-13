@@ -9,62 +9,52 @@ import ssl
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 from configuration.logger_setup import logger
+import random
+
+
+def load_proxies():
+    """Загружает список прокси-серверов из файла."""
+    file_path = "1000 ip.txt"
+    with open(file_path, "r", encoding="utf-8") as file:
+        proxies = [line.strip() for line in file]
+    logger.info(f"Загружено {len(proxies)} прокси.")
+    return proxies
 
 
 def get_html():
+    proxies = load_proxies()  # Загружаем список всех прокси
+    proxy = random.choice(proxies)  # Выбираем случайный прокси
+    proxies_dict = {"http": proxy, "https": proxy}
 
     cookies = {
-        "form_key": "7MtDJOzkzcuHmy6c",
-        "mage-cache-storage": "{}",
-        "mage-cache-storage-section-invalidation": "{}",
-        "recently_viewed_product": "{}",
-        "recently_viewed_product_previous": "{}",
-        "recently_compared_product": "{}",
-        "recently_compared_product_previous": "{}",
-        "product_data_storage": "{}",
-        "mage-messages": "",
-        "__zlcmid": "1Nin0vbbCzKn1Ud",
-        "PHPSESSID": "mqjbab3a98jo4kgor561lqjc30",
-        "form_key": "7MtDJOzkzcuHmy6c",
-        "wp_ga4_customerGroup": "NOT%20LOGGED%20IN",
-        "mage-cache-sessid": "true",
-        "cf_clearance": "hRKdUJSICMdE72WhFjqvYeI.4e8TAT7y8AQKSAm1tVo-1726138367-1.2.1.1-HKdYZzZyxAxVDZViJimOArngckzybxgJlpBztM7YeOo1RamPj.mVzwSMiLVWSQamT106mDpSR.TJHHy.jIqVtshf7YHxkM5rH1wIL2PUxr6PZf2xHaWoP9_mO0G8Eu7G9gLc5nZeELsF2i.DQMzzCqy4kn_RtP6le8k7FrnLjQT9oMQk8YR4dVobGa07AATfqXHQ1kpneTz.x2f4kVsZmvbP7movvP0.XZgzvo4moIQc6fT5KrMyeY17fg0beZjIsUdWiq3YIjLgdxKJyltqsnhV2snoWXpmZ0dCOALk20AGDYPL1PueYCeddeH9YqRPMTfFmx4YhXVym2cetqMUqBeSvJv.8NVEhOTIYuJaMuKaZe_Hh7WRJKC9U5ud9Ia2gBpIDSxi3Yo7fi7yXaa8hqo8f9wsfJLsg1kPkfRVNx4yas3WPizc7XiL3A8eaDpu",
-        "private_content_version": "c841d603e43faa40da7b52b5f2a5e92d",
-        "section_data_ids": "{}",
+        "PHPSESSID": "730dc0a4626c6a26f96032a603aea285",
+        "newgorod2": "%CB%FE%E1%FB%E5+%E3%EE%F0%EE%E4%E0",
     }
 
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        "content-type": "application/x-www-form-urlencoded",
-        # 'cookie': 'form_key=7MtDJOzkzcuHmy6c; mage-cache-storage={}; mage-cache-storage-section-invalidation={}; recently_viewed_product={}; recently_viewed_product_previous={}; recently_compared_product={}; recently_compared_product_previous={}; product_data_storage={}; mage-messages=; __zlcmid=1Nin0vbbCzKn1Ud; PHPSESSID=mqjbab3a98jo4kgor561lqjc30; form_key=7MtDJOzkzcuHmy6c; wp_ga4_customerGroup=NOT%20LOGGED%20IN; mage-cache-sessid=true; cf_clearance=hRKdUJSICMdE72WhFjqvYeI.4e8TAT7y8AQKSAm1tVo-1726138367-1.2.1.1-HKdYZzZyxAxVDZViJimOArngckzybxgJlpBztM7YeOo1RamPj.mVzwSMiLVWSQamT106mDpSR.TJHHy.jIqVtshf7YHxkM5rH1wIL2PUxr6PZf2xHaWoP9_mO0G8Eu7G9gLc5nZeELsF2i.DQMzzCqy4kn_RtP6le8k7FrnLjQT9oMQk8YR4dVobGa07AATfqXHQ1kpneTz.x2f4kVsZmvbP7movvP0.XZgzvo4moIQc6fT5KrMyeY17fg0beZjIsUdWiq3YIjLgdxKJyltqsnhV2snoWXpmZ0dCOALk20AGDYPL1PueYCeddeH9YqRPMTfFmx4YhXVym2cetqMUqBeSvJv.8NVEhOTIYuJaMuKaZe_Hh7WRJKC9U5ud9Ia2gBpIDSxi3Yo7fi7yXaa8hqo8f9wsfJLsg1kPkfRVNx4yas3WPizc7XiL3A8eaDpu; private_content_version=c841d603e43faa40da7b52b5f2a5e92d; section_data_ids={}',
-        "dnt": "1",
-        "origin": "https://www.govets.com",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "referer": "https://www.govets.com/nc-minerals-066514000011-310-52405891.html?__cf_chl_tk=91VnE3wEK.Ly01B3IzNYSi2WaxdC_zs4n8aRZfSS27o-1726138367-0.0.1.1-5460",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        # 'Cookie': 'PHPSESSID=730dc0a4626c6a26f96032a603aea285; newgorod2=%CB%FE%E1%FB%E5+%E3%EE%F0%EE%E4%E0',
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
         "sec-ch-ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
-        "sec-ch-ua-arch": '"x86"',
-        "sec-ch-ua-bitness": '"64"',
-        "sec-ch-ua-full-version": '"128.0.6613.121"',
-        "sec-ch-ua-full-version-list": '"Chromium";v="128.0.6613.121", "Not;A=Brand";v="24.0.0.0", "Google Chrome";v="128.0.6613.121"',
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
         "sec-ch-ua-platform": '"Windows"',
-        "sec-ch-ua-platform-version": '"15.0.0"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
     }
 
-    response = requests.post(
-        "https://www.govets.com/nc-minerals-066514000011-310-52405891.html",
+    response = requests.get(
+        "https://1000dosok.ru/",
         cookies=cookies,
         headers=headers,
+        proxies=proxies_dict,
     )
     # Проверка кода ответа
     if response.status_code == 200:

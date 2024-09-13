@@ -10,6 +10,7 @@ import time
 import os
 import random
 import requests
+import re
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -214,6 +215,7 @@ while True:
     elif user_input == 2:
         get_xml()
         parsing_xml()
+        generate_json()
     elif user_input == 3:
         download_images_from_json()
     elif user_input == 0:

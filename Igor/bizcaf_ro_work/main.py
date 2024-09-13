@@ -19,6 +19,8 @@ import threading
 import datetime
 import csv
 import re
+from phonenumbers import PhoneNumberMatcher, NumberParseException
+
 
 # Параметры подключения к базе данных
 config = {
@@ -298,36 +300,24 @@ def extract_publication_date(parser):
 def extract_phone_numbers(data):
     phone_numbers = set()
     invalid_numbers = []
-    # phone_pattern = re.compile(
-    #     r"(\+40\d{9}|00\s?40\d{9}|011-40\d{9}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b)"
-    # )
-    phone_pattern = re.compile(
-        r"(\+40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|00\s?40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|011-40\s?\d{3}[\s-]?\d{3}[\s-]?\d{3}|0\d{9}|\(0\d{2}\)\s?\d{6,7}|\b\d{6,9}\b|\b\d{3}[\s-]?\d{3}[\s-]?\d{3}\b|\(\d{3}\)\s?\d{3}-\d{3}|\b\d[\d\s\(\)\-]{6,}\b|\d{3}[^0-9a-zA-Z]*\d{3}[^0-9a-zA-Z]*\d{3}|\b\d{2}\s\d{3}\s\d{2}\s\d{2}\b|800\s?\d{3}[\s-]?\d{3}\b)"
-    )
+
+    # Обрабатываем каждый элемент из списка data
     for entry in data:
-        entry = re.sub(r"\D", "", entry)
-        if isinstance(entry, str):
-            matches = phone_pattern.findall(entry)
-            for match in matches:
-                original_match = match
-                match = re.sub(r"[^\d]", "", match)
-                match = re.sub(r"^0+", "", match)
-                try:
-                    parsed_number = phonenumbers.parse(match, "RO")
-                    # region = geocoder.description_for_number(parsed_number, "ru")  # Регион на русском языке
-                    # operator = carrier.name_for_number(parsed_number, "ru")  # Оператор на русском языке
-                    # print(f'parsed_number = {parsed_number} | Валид = {phonenumbers.is_valid_number(parsed_number)} | Регион = {region} | Оператор = {operator}')
-                    if phonenumbers.is_valid_number(parsed_number):
-                        # national_number = phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.NATIONAL)
-                        national_number = str(parsed_number.national_number)
-                        national_number = re.sub(r"[^\d]", "", national_number)
-                        national_number = re.sub(r"^0+", "", national_number)
-                        clean_number = "".join(filter(str.isdigit, national_number))
-                        phone_numbers.add(clean_number)
-                    else:
-                        invalid_numbers.append(original_match)
-                except NumberParseException:
-                    invalid_numbers.append(original_match)
+        # Используем PhoneNumberMatcher для поиска номеров в тексте
+        for match in PhoneNumberMatcher(entry, "RO"):  # Обрабатываем румынские номера
+            try:
+                parsed_number = phonenumbers.parse(match.raw_string, "RO")
+                if phonenumbers.is_valid_number(parsed_number):
+                    # Извлекаем национально значимый номер (только цифры)
+                    clean_number = phonenumbers.national_significant_number(
+                        parsed_number
+                    )
+                    phone_numbers.add(clean_number)
+                else:
+                    invalid_numbers.append(match.raw_string)
+            except NumberParseException:
+                invalid_numbers.append(match.raw_string)
+
     return phone_numbers, invalid_numbers
 
 
