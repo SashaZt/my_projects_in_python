@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 import random
+import time
 
 cookies = {
     "PHPSESSID": "730dc0a4626c6a26f96032a603aea285",
@@ -37,7 +38,7 @@ xml_directory.mkdir(parents=True, exist_ok=True)
 png_directory.mkdir(parents=True, exist_ok=True)
 
 csv_main_categories_urls = data_directory / "main_categories_urls.csv"
-csv_file_successful = data_directory / "urls_successful.csv"
+csv_all_urls_category = data_directory / "all_urls_category.csv"
 csv_result = current_directory / "result.csv"
 
 
@@ -59,7 +60,7 @@ def get_main_categories_urls():
         "https://1000dosok.ru/",
         cookies=cookies,
         headers=headers,
-        proxies=proxies_dict,
+        # proxies=proxies_dict,
     )
     # Проверка кода ответа
     if response.status_code == 200:
@@ -93,7 +94,7 @@ def get_urls_from_csv():
         # Проверяем, существует ли файл
         csv_path = Path(csv_main_categories_urls)
         if not csv_path.exists():
-            logger.error(f"Файл {file_path} не существует.")
+            logger.error(f"Файл {csv_path} не существует.")
             return []
 
         # Чтение CSV файла
@@ -101,22 +102,59 @@ def get_urls_from_csv():
 
         # Проверяем наличие столбца 'url'
         if "url" not in df.columns:
-            logger.error(f"В файле {file_path} нет столбца 'url'.")
+            logger.error(f"В файле {csv_path} нет столбца 'url'.")
             return []
 
         # Возвращаем список URL
         urls = df["url"].tolist()
-        logger.info(f"Из файла {file_path} было извлечено {len(urls)} URL.")
+        logger.info(f"Из файла {csv_path} было извлечено {len(urls)} URL.")
         return urls
 
     except Exception as e:
-        logger.error(f"Ошибка при чтении файла {file_path}: {e}")
+        logger.error(f"Ошибка при чтении файла {csv_path}: {e}")
         return []
 
 
 def get_allurls_category():
-    response = requests.get("https://1000dosok.ru/", cookies=cookies, headers=headers)
+    urls = get_urls_from_csv()
+    all_category = set()
+    for url in urls:
+        try:
+            logger.info(f"Обрабатываем URL: {url}")
+
+            # Выполняем запрос по URL
+            response = requests.get(url, cookies=cookies, headers=headers)
+
+            if response.status_code != 200:
+                logger.error(
+                    f"Не удалось получить страницу по URL {url}, статус код: {response.status_code}"
+                )
+                continue  # Не прерываем цикл, а переходим к следующему URL
+
+            # Парсим HTML с помощью BeautifulSoup
+            soup = BeautifulSoup(response.text, "html.parser")
+            # Находим элемент <p> с нужным стилем и классом
+            p_element = soup.find(
+                "p", style="margin-left:70; margin-top:0;margin-left:90", class_="r"
+            )
+
+            # Проверяем, найден ли элемент
+            if p_element:
+                # Ищем все теги <a> внутри найденного параграфа
+                for a in p_element.find_all("a"):
+                    # Проверяем, есть ли перед тегом <a> текстовый узел с символом "•"
+                    if a.previous_sibling and "•" in a.previous_sibling:
+                        href = f"https://1000dosok.ru{a.get('href')}"
+                        all_category.add(href)
+
+        except Exception as e:
+            logger.error(f"Ошибка при обработке URL {url}: {e}")
+        time.sleep(5)  # Задержка между запросами
+    # Создание DataFrame и сохранение в 'url_category.csv'
+    df = pd.DataFrame({"url": list(all_category)})
+    df.to_csv(csv_all_urls_category, index=False)
 
 
 if __name__ == "__main__":
-    get_main_categories_urls()
+    # get_main_categories_urls()
+    get_allurls_category()
