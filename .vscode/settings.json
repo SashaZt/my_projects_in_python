@@ -74,7 +74,7 @@
     "editor.wordWrap": "on",
     "security.workspace.trust.banner": "never",
     "python.analysis.typeCheckingMode": "off",
-    "python.analysis.autoImportCompletions": true,
+    "python.analysis.autoImportCompletions": false,
     "editor.hover.enabled": true,
     "editor.mouseWheelZoom": true,
     "editor.formatOnPaste": true,

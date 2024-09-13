@@ -473,7 +473,7 @@ def write_json(pdf_path):
 
 
 def save_high_resolution_screenshot(pdf_path):
-    resolution = 300
+    resolution = 600
     page_number = 0  # Номер страницы (начиная с 0)
     output_image_path = "high_res_screenshot.png"
 
@@ -1141,7 +1141,7 @@ if __name__ == "__main__":
     # write_json(pdf_path)
     save_high_resolution_screenshot(pdf_path)
     # anali_pdf_02(pdf_path, test_page_no=0)
-    process_single_crop_area()
+    # process_single_crop_area()
     # process_image()
     # extract_text_from_image()
     # update_json_with_image_data()
