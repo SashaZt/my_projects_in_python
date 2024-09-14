@@ -37,17 +37,17 @@ async def log_middleware(request: Request, call_next):
     logger.debug(f"Response status: {response.status_code}")
     return response
 
-# Пример ручного добавления заголовков для маршрута GET
-@app.get("/contacts")
-async def get_contacts():
-    return JSONResponse(
-        content={"message": "Contacts list"},
-        headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type"
-        },
-    )
+# # Пример ручного добавления заголовков для маршрута GET
+# @app.get("/contacts")
+# async def get_contacts():
+#     return JSONResponse(
+#         content={"message": "Contacts list"},
+#         headers={
+#             "Access-Control-Allow-Origin": "*",
+#             "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+#             "Access-Control-Allow-Headers": "Authorization, Content-Type"
+#         },
+#     )
 
 # Подключение маршрутов
 app.include_router(post_router)
@@ -57,4 +57,5 @@ app.include_router(put_router)
 if __name__ == "__main__":
     logger.debug("Запуск FastAPI сервера")
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=5000, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=5000,ssl_keyfile="/root/ringostat/key.pem",
+                ssl_certfile="/root/ringostat/cert.pem", log_level="debug")

@@ -217,6 +217,10 @@ async def get_filtered_contacts(
             "data": contacts,
             "totalPages": total_pages,
             "currentPage": page
+        },headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type"
         })
 
     except Exception as e:

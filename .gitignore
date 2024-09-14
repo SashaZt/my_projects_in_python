@@ -58,6 +58,7 @@ Thumbs.db
 *.mp4
 *.ico
 *.db
+*.pem
 *.session-journal
 # Здесь мы игнорируем все .txt файлы...
 *.txt
