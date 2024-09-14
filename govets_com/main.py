@@ -446,7 +446,7 @@ def fetch_url(url, headers, cookies, csv_file_successful, successful_urls):
         logger.error(f"Произошла ошибка: {e}")
 
 
-def get_html(cookies, max_workers=15):
+def get_html(cookies, max_workers):
     # Получение списка уже успешных URL
     successful_urls = get_successful_urls(csv_file_successful)
 
@@ -534,7 +534,8 @@ while True:
     if user_input == 1:
         main(cookies)
     elif user_input == 2:
-        result = get_html(cookies, max_workers=15)
+        max_workers = int(input("Введите количество потоков: "))
+        result = get_html(cookies, max_workers)
         if result == 403:
             logger.info("Ошибка 403, Обнови cookies")
             continue  # Возвращаемся к выбору действий
