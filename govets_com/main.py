@@ -1,4 +1,5 @@
 from pathlib import Path
+import pandas as pd
 import requests
 import gzip
 import shutil
@@ -18,7 +19,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import xml.etree.ElementTree as ET
-import pandas as pd
+
 import threading
 import datetime
 import json
@@ -58,17 +59,44 @@ SITEMAP_INDEX_URL = (
 )
 
 
+# def load_all_cookies_from_file() -> dict:
+#     # Открываем файл и загружаем данные как JSON
+#     with txt_cookies.open("r", encoding="utf-8") as f:
+#         cookies_data = json.load(f)
+
+#     # Создаем пустой словарь для всех cookies
+#     cookies = {}
+
+
+#     # Итерируем по списку cookies и сохраняем их в словарь
+#     for cookie in cookies_data:
+#         cookies[cookie["name"]] = cookie["value"]
+#     return cookies
 def load_all_cookies_from_file() -> dict:
-    # Открываем файл и загружаем данные как JSON
-    with txt_cookies.open("r", encoding="utf-8") as f:
-        cookies_data = json.load(f)
-
-    # Создаем пустой словарь для всех cookies
+    # Открываем файл и читаем содержимое построчно
     cookies = {}
+    with txt_cookies.open("r", encoding="utf-8") as f:
+        for line in f:
+            # Игнорируем пустые строки и скобки
+            line = line.strip()
+            if not line or line in ["{", "}"]:
+                continue
 
-    # Итерируем по списку cookies и сохраняем их в словарь
-    for cookie in cookies_data:
-        cookies[cookie["name"]] = cookie["value"]
+            # Убираем лишние запятые в конце строки
+            if line.endswith(","):
+                line = line[:-1]
+
+            # Разделяем ключ и значение
+            if ":" in line:
+                name, value = line.split(":", 1)
+
+                # Убираем пробелы и кавычки
+                name = name.strip().strip("'").strip('"')
+                value = value.strip().strip("'").strip('"')
+
+                # Добавляем куку в словарь
+                cookies[name] = value
+
     return cookies
 
 
@@ -450,10 +478,51 @@ def get_html(cookies, max_workers=15):
 # if __name__ == "__main__":
 #     main()
 #     get_html(max_workers=15)
+def remove_successful_urls():
+    # Проверяем, если файл с успешными URL пустой
+    if csv_file_successful.stat().st_size == 0:
+        logger.info("Файл urls_successful.csv пуст, ничего не делаем.")
+        return
+
+    # Загружаем данные из обоих CSV файлов
+    try:
+        # Читаем csv_url_products с заголовком
+        df_products = pd.read_csv(csv_url_products)
+
+        # Читаем csv_file_successful без заголовка и присваиваем имя столбцу
+        df_successful = pd.read_csv(csv_file_successful, header=None, names=["url"])
+    except FileNotFoundError as e:
+        logger.error(f"Ошибка: {e}")
+        return
+
+    # Проверка на наличие столбца 'url' в df_products
+    if "url" not in df_products.columns:
+        logger.info("Файл url_products.csv не содержит колонку 'url'.")
+        return
+
+    # Удаляем успешные URL из списка продуктов
+    initial_count = len(df_products)
+    df_products = df_products[~df_products["url"].isin(df_successful["url"])]
+    final_count = len(df_products)
+
+    # Если были удалены какие-то записи
+    if initial_count != final_count:
+        # Перезаписываем файл csv_url_products
+        df_products.to_csv(csv_url_products, index=False)
+        logger.info(
+            f"Удалено {initial_count - final_count} записей из {csv_url_products.name}."
+        )
+
+        # Очищаем файл csv_file_successful
+        open(csv_file_successful, "w").close()
+        logger.info(f"Файл {csv_file_successful.name} очищен.")
+    else:
+        print("Не было найдено совпадающих URL для удаления.")
 
 
 while True:
     cookies = load_all_cookies_from_file()
+    remove_successful_urls()
     # Запрос ввода от пользователя
     print(
         "Введите 1 для получения всех ссылок"

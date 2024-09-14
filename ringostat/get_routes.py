@@ -1,22 +1,15 @@
-from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import JSONResponse
-from fastapi.encoders import jsonable_encoder
 from configuration.logger_setup import logger
-from fastapi import FastAPI, Request, Query, Depends, HTTPException
+from fastapi import FastAPI, Request, Query, Depends, HTTPException, APIRouter
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from loguru import logger
 from pathlib import Path
 import json
 from datetime import datetime
 from database import DatabaseInitializer  # Импорт класса для работы с базой данных
 from contextlib import asynccontextmanager
-from configuration.logger_setup import logger  # Настройка логирования
 from typing import List, Optional, Dict, Any
 import aiomysql
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
-from fastapi import Query
 import dependencies  # Импортируем модуль для доступа к db_initializer
 
 
@@ -143,7 +136,11 @@ async def get_contact(contact_id: int, db=Depends(get_db)):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-
+# Маршрут для HEAD-запроса
+@router.head("/contacts")
+async def head_contacts():
+    return {"message": "Contacts list"}
+    
 @router.get("/contacts")
 async def get_filtered_contacts(
     searchString: Optional[str] = None,
