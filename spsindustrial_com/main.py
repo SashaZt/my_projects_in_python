@@ -3,85 +3,96 @@ import pandas as pd
 import requests
 import xml.etree.ElementTree as ET
 import random
-import gzip
-import shutil
 import csv
-import random
-import sys
-import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 from configuration.logger_setup import logger
 from bs4 import BeautifulSoup
-import re
-import base64
 from io import BytesIO
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import xml.etree.ElementTree as ET
-
 import threading
-import datetime
 import json
 
-# Установка директорий для логов и данных
+
+# Получаем текущую директорию
 current_directory = Path.cwd()
-temp_directory = "temp"
-temp_path = current_directory / temp_directory
-data_directory = current_directory / "data"
-gz_directory = current_directory / "gz"
-xml_directory = current_directory / "xml"
-# html_directory = current_directory / "html"
 
+# Загружаем файл конфигурации
+config_directory = current_directory / "configuration"
+config_file = config_directory / "config_directory.json"
+with open(config_file, "r", encoding="utf-8") as f:
+    config = json.load(f)
+
+
+# Установка директорий на основе конфигурационного файла
+temp_directory = current_directory / config["temp_directory"]
+data_directory = current_directory / config["data_directory"]
+logging_directory = current_directory / config["logging_directory"]
+
+# Создание директорий, если их нет
+temp_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
-gz_directory.mkdir(parents=True, exist_ok=True)
-xml_directory.mkdir(parents=True, exist_ok=True)
-# html_directory.mkdir(parents=True, exist_ok=True)
+logging_directory.mkdir(parents=True, exist_ok=True)
 
+# Указываем файлы для дальнейшего использования
 xml_sitemap = data_directory / "sitemap_index.xml"
 csv_url_site_maps = data_directory / "url_site_maps.csv"
 csv_url_products = data_directory / "url_products.csv"
 csv_file_successful = data_directory / "urls_successful.csv"
 csv_result = data_directory / "result.csv"
+file_proxies = current_directory / "configuration" / "proxies.txt"
+
+# Файлы для сохранения cookies и headers
+# Перед использованием используй код из файла save_cookies_headers.py
+cookies_file = current_directory / "configuration" / "cookies.json"
+headers_file = current_directory / "configuration" / "headers.json"
+
+# Загрузка cookies из JSON файла
+with open(cookies_file, "r", encoding="utf-8") as f:
+    cookies = json.load(f)
+
+# Загрузка headers из JSON файла
+with open(headers_file, "r", encoding="utf-8") as f:
+    headers = json.load(f)
 
 
-cookies = {
-    "LanguageId": "1033",
-    "auth": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiJhbm9ueW1vdXMiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL2V4cGlyYXRpb24iOiI2Mzg2MjIwMTIzNTA2OTY3NDUiLCJsb2dpbnNlc3Npb25pZCI6ImFhM2ZmMDBiLTgzMzQtNDZmOC1hYmZjLWE1MjViZWI2NjEwZSIsInAiOiIxIiwibmJmIjoxNzI2MzQ1MjM1LCJleHAiOjE3MjY2MDQ0MzUsImlhdCI6MTcyNjM0NTIzNX0.zapAQ4niib1NsmBek8HjEyIGHcHN5Rk6G6SdtrrzMkQ",
-}
-
-headers = {
-    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "accept-language": "ru,en;q=0.9,uk;q=0.8",
-    "cache-control": "no-cache",
-    # 'cookie': 'LanguageId=1033; auth=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1laWQiOiJhbm9ueW1vdXMiLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL2V4cGlyYXRpb24iOiI2Mzg2MjIwMTIzNTA2OTY3NDUiLCJsb2dpbnNlc3Npb25pZCI6ImFhM2ZmMDBiLTgzMzQtNDZmOC1hYmZjLWE1MjViZWI2NjEwZSIsInAiOiIxIiwibmJmIjoxNzI2MzQ1MjM1LCJleHAiOjE3MjY2MDQ0MzUsImlhdCI6MTcyNjM0NTIzNX0.zapAQ4niib1NsmBek8HjEyIGHcHN5Rk6G6SdtrrzMkQ',
-    "dnt": "1",
-    "pragma": "no-cache",
-    "priority": "u=0, i",
-    "sec-ch-ua": '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "document",
-    "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "same-origin",
-    "sec-fetch-user": "?1",
-    "upgrade-insecure-requests": "1",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-}
+# def load_proxies():
+#     file_path = "1000 ip.txt"
+#     # Загрузка списка прокси из файла
+#     # with open(file_proxies, "r", encoding="utf-8") as file:
+#     with open(file_path, "r", encoding="utf-8") as file:
+#         proxies = [line.strip() for line in file]
+#     return proxies
 
 
+# Загрузка прокси
 def load_proxies():
-    file_path = "1000 ip.txt"
-    # Загрузка списка прокси из файла
-    with open(file_path, "r", encoding="utf-8") as file:
-        proxies = [line.strip() for line in file]
-    return proxies
+
+    # Проверяем, существует ли файл с прокси и не пуст ли он
+    if file_proxies.exists() and file_proxies.stat().st_size > 0:
+        # Открываем файл с прокси в режиме чтения с указанием кодировки utf-8
+        with file_proxies.open("r", encoding="utf-8") as file:
+            # Читаем файл построчно, удаляя пробелы с начала и конца строки.
+            # Игнорируем пустые строки и собираем оставшиеся строки в список
+            proxies = [line.strip() for line in file if line.strip()]
+        # Возвращаем список прокси
+        return proxies
+    else:
+        # Если файл не существует или пуст, выводим сообщение и возвращаем None
+        # logger.error("Файл с прокси не найден или пуст.")
+        return None
 
 
 # Функция для скачивания XML по URL
 def download_xml(url):
     proxies = load_proxies()  # Загружаем список всех прокси
-    proxy = random.choice(proxies)  # Выбираем случайный прокси
-    proxies_dict = {"http": proxy, "https": proxy}
+
+    if proxies:
+        proxy = random.choice(proxies)  # Выбираем случайный прокси
+        proxies_dict = {"http": proxy, "https": proxy}
+        logger.info(f"Используем прокси: {proxy}")
+    else:
+        proxies_dict = None  # Если прокси нет, делаем запрос без прокси
+        # print("Прокси не используем")
 
     response = requests.get(
         url,
@@ -96,125 +107,233 @@ def download_xml(url):
 
 # Функция для парсинга основного sitemap и получения ссылок на другие sitemaps
 def parse_main_sitemap(xml_content):
+    # Инициализируем пустой список для хранения ссылок на подкарты (sitemaps)
     sitemap_urls = []
+
+    # Парсим XML контент и создаем корневой элемент дерева XML
     root = ET.fromstring(xml_content)
+
+    # Находим все элементы <sitemap> в XML, используя пространство имен "sitemap"
     for sitemap in root.findall("{http://www.sitemaps.org/schemas/sitemap/0.9}sitemap"):
+        # В каждом элементе <sitemap> находим элемент <loc>, который содержит ссылку
         loc = sitemap.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc").text
+        # Добавляем ссылку в список
         sitemap_urls.append(loc)
+
+    # Логируем количество найденных ссылок на подкарты
     logger.info(len(sitemap_urls))
+
+    # Возвращаем список собранных ссылок
     return sitemap_urls
 
 
 # Функция для парсинга каждого подкарты и получения всех URL
 def parse_sub_sitemap(xml_content):
+    # Инициализируем пустой список для хранения ссылок на страницы
     urls = []
+
+    # Парсим XML контент и создаем корневой элемент дерева XML
     root = ET.fromstring(xml_content)
+
+    # Находим все элементы <url> в XML, используя пространство имен "sitemaps.org"
     for url in root.findall("{http://www.sitemaps.org/schemas/sitemap/0.9}url"):
+        # В каждом элементе <url> находим элемент <loc>, который содержит ссылку на страницу
         loc = url.find("{http://www.sitemaps.org/schemas/sitemap/0.9}loc").text
+        # Добавляем ссылку в список
         urls.append(loc)
+
+    # Возвращаем список всех собранных ссылок на страницы
     return urls
 
 
 # Основная функция для сбора всех URL из sitemaps
 def collect_sitemap_urls():
+    # URL основного файла sitemap
     main_sitemap_url = "https://www.spsindustrial.com/sitemap.xml"
-    # Скачиваем и разбираем основной sitemap
+
+    # Скачиваем XML содержимое основного sitemap
     main_sitemap_content = download_xml(main_sitemap_url)
+
+    # Парсим основной sitemap и извлекаем ссылки на подкарты
     sitemap_urls = parse_main_sitemap(main_sitemap_content)
 
+    # Инициализируем пустой список для хранения всех URL
     all_urls = []
 
-    # Скачиваем и разбираем каждую подкарту
+    # Для каждой ссылки на подкарту:
     for sitemap_url in sitemap_urls:
+        # Скачиваем XML содержимое подкарты
         sitemap_content = download_xml(sitemap_url)
+
+        # Парсим подкарту и извлекаем все URL
         urls = parse_sub_sitemap(sitemap_content)
+
+        # Добавляем извлеченные URL в общий список
         all_urls.extend(urls)
 
-    # Записываем все ссылки в CSV файл
+    # Создаем DataFrame из списка URL
     df = pd.DataFrame(all_urls, columns=["url"])
+
+    # Записываем DataFrame в CSV файл
     df.to_csv(csv_url_products, index=False)
-    print(f"Ссылки успешно записаны в {csv_url_products}")
+
+    # Логируем успешное завершение операции с указанием имени файла
+    logger.info(f"Ссылки успешно записаны в {csv_url_products}")
 
 
 def get_successful_urls(csv_file_successful):
     """Читает успешные URL из CSV-файла и возвращает их в виде множества."""
+
+    # Проверяем, существует ли указанный CSV-файл
     if not Path(csv_file_successful).exists():
+        # Если файл не найден, возвращаем пустое множество
         return set()
 
+    # Открываем CSV-файл в режиме чтения с указанием кодировки utf-8
     with open(csv_file_successful, mode="r", encoding="utf-8") as f:
         reader = csv.reader(f)
+
+        # Читаем строки из файла и собираем первый элемент каждой строки (URL) в множество
+        # Пустые строки игнорируются
         successful_urls = {row[0] for row in reader if row}
+
+    # Возвращаем множество успешных URL
     return successful_urls
 
 
 def get_html(max_workers):
-    # Получение списка уже успешных URL
+    # Получение списка уже успешных URL из CSV-файла
     successful_urls = get_successful_urls(csv_file_successful)
-    proxies = load_proxies()  # Загружаем список всех прокси
-    urls_df = pd.read_csv(csv_url_products)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            executor.submit(
-                fetch_url,
-                url,
-                proxies,  # Передаем весь список прокси
-                csv_file_successful,
-                successful_urls,
-            )
-            for count, url in enumerate(urls_df["url"], start=1)
-        ]
 
-        for future in as_completed(futures):
-            try:
-                result = future.result()  # Получаем результат выполнения задачи
-                if result == 403:
-                    return (
-                        403  # Возвращаем ошибку 403 для обработки в основной программе
-                    )
-            except Exception as e:
-                logger.error(f"Error occurred: {e}")
+    # Загрузка списка всех прокси из файла
+    proxies = load_proxies()
+
+    # Чтение всех URL из CSV файла с продуктами
+    urls_df = pd.read_csv(csv_url_products)
+
+    # Если прокси есть, используем их
+    if proxies and len(proxies) > 0:
+        logger.info("Прокси загружены, используем прокси для запросов.")
+
+        # Используем ThreadPoolExecutor для многопоточной обработки URL с прокси
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    fetch_url,  # Функция, которая будет выполняться в потоке
+                    url,  # URL для запроса
+                    proxies,  # Передаем список прокси
+                    csv_file_successful,  # Файл для записи успешных URL
+                    successful_urls,  # Множество уже успешных URL
+                )
+                for count, url in enumerate(
+                    urls_df["url"], start=1
+                )  # Перебираем URL из DataFrame
+            ]
+
+            # Обрабатываем задачи по мере их завершения
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+
+                    # Если результат равен 403, возвращаем код 403 для обработки в основной программе
+                    if result == 403:
+                        return 403
+                except Exception as e:
+                    logger.error(f"Error occurred: {e}")
+
+    # Если прокси нет, выполняем запросы без прокси
+    else:
+        logger.warning(
+            "Прокси не загружены или пусты. Запросы будут выполнены без прокси."
+        )
+
+        # Используем ThreadPoolExecutor для многопоточной обработки URL без прокси
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    fetch_url,  # Функция, которая будет выполняться в потоке
+                    url,  # URL для запроса
+                    None,  # Не передаем прокси
+                    csv_file_successful,  # Файл для записи успешных URL
+                    successful_urls,  # Множество уже успешных URL
+                )
+                for count, url in enumerate(
+                    urls_df["url"], start=1
+                )  # Перебираем URL из DataFrame
+            ]
+
+            # Обрабатываем задачи по мере их завершения
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+
+                    # Если результат равен 403, возвращаем код 403 для обработки в основной программе
+                    if result == 403:
+                        return 403
+                except Exception as e:
+                    logger.error(f"Error occurred: {e}")
 
 
 def fetch_url(url, proxies, csv_file_successful, successful_urls):
-    fetch_lock = threading.Lock()  # Локальная
+    fetch_lock = (
+        threading.Lock()
+    )  # Лок для синхронизации записи в общий ресурс (множество и файл)
 
+    # Проверяем, был ли уже обработан данный URL
     if url in successful_urls:
         logger.info(f"| Объявление уже было обработано, пропускаем. |")
         return
-    proxy = random.choice(proxies)  # Выбираем случайный прокси
-    proxies_dict = {"http": proxy, "https": proxy}
+
+    # Если прокси есть, выбираем случайный
+    if proxies and len(proxies) > 0:
+        proxy = random.choice(proxies)  # Выбираем случайный прокси
+        proxies_dict = {"http": proxy, "https": proxy}
+        # logger.info(f"Используем прокси: {proxy}")
+    else:
+        # Если прокси не загружены или их нет, делаем запрос без прокси
+        proxies_dict = None
+        # logger.info("Прокси не используем")
+
     try:
+        # Отправляем GET-запрос с использованием заголовков, cookies и прокси (если есть)
         response = requests.get(
             url,
-            headers=headers,
-            cookies=cookies,
-            proxies=proxies_dict,
-            timeout=60,  # Тайм-аут для предотвращения зависания
+            headers=headers,  # Заголовки для запроса
+            cookies=cookies,  # Cookies для запроса
+            proxies=proxies_dict,  # Прокси, если указаны
+            timeout=60,  # Тайм-аут на 60 секунд, чтобы избежать зависания
         )
-        logger.info(url)
-        # response.raise_for_status()
+
+        # Если статус-код 200, то запрос успешен
         if response.status_code == 200:
+            # Парсим HTML с использованием BeautifulSoup
             soup = BeautifulSoup(response.text, "html.parser")
-            success = parsing(soup, url, csv_file_successful)
+
+            # Выполняем парсинг и записываем успех
+            success = parsing(soup, url)
+
             if success:
+                # Если парсинг успешен, добавляем URL в список успешных с использованием локального замка
                 with fetch_lock:
-                    successful_urls.add(url)
-                    write_to_csv(url, csv_file_successful)
+                    successful_urls.add(url)  # Добавляем URL в множество
+                    write_to_csv(url, csv_file_successful)  # Записываем URL в CSV файл
             return
 
+        # Если возвращен статус-код 403, доступ запрещен
         elif response.status_code == 403:
             logger.error("Ошибка 403: доступ запрещен. Возвращаемся к выбору действий.")
-            return 403  # Возвращаем специальный код ошибки 403
+            return 403  # Возвращаем код 403 для обработки в основном коде
+
+        # Если получен любой другой код ошибки, логируем его
         else:
             logger.error(f"Ошибка {response.status_code}")
 
+    # Обрабатываем любые исключения, возникающие в процессе
     except Exception as e:
         logger.error(f"Произошла ошибка: {e}")
 
 
-def parsing(soup, url, csv_file_successful):
-    parsing_lock = threading.Lock()  # Локальная блокировка
-
+def parsing(soup, url):
     try:
         page_title = None
         price = None
@@ -332,10 +451,64 @@ def remove_successful_urls():
         print("Не было найдено совпадающих URL для удаления.")
 
 
-if __name__ == "__main__":
-    # Пример использования
+def cookies_headers():
+    # Директория для конфигурации
+    # Пути к файлам
+    raw_cookies_file = config_directory / "raw_cookies.txt"
+    cookies_file = config_directory / "cookies.json"
+    headers_file = config_directory / "headers.json"
 
-    # collect_sitemap_urls()
+    # Чтение данных из файла raw_cookies.txt
+    with open(raw_cookies_file, "r", encoding="utf-8") as f:
+        raw_data = f.read()
+
+    # Выполнение кода из файла для создания переменных cookies и headers
+    exec(raw_data)
+
+    # Сохранение cookies в JSON файл
+    with open(cookies_file, "w", encoding="utf-8") as f:
+        json.dump(cookies, f, ensure_ascii=False, indent=4)
+
+    # Сохранение headers в JSON файл
+    with open(headers_file, "w", encoding="utf-8") as f:
+        json.dump(headers, f, ensure_ascii=False, indent=4)
+
+    logger.info(f"Cookies сохранены в {cookies_file}")
+    logger.info(f"Headers сохранены в {headers_file}")
+
+
+# if __name__ == "__main__":
+#     # Пример использования
+
+#     collect_sitemap_urls()
+#     remove_successful_urls()
+#     max_workers = 50
+#     result = get_html(max_workers)
+
+while True:
+
     remove_successful_urls()
-    max_workers = 50
-    result = get_html(max_workers)
+    # Запрос ввода от пользователя
+    print(
+        "Введите 1 для получения всех ссылок"
+        "\nВведите 2 для получения данных в csv"
+        "\nВведите 0 для закрытия программы"
+    )
+    user_input = int(input("Выберите действие: "))
+
+    if user_input == 1:
+        cookies_headers()
+        collect_sitemap_urls()
+    elif user_input == 2:
+        cookies_headers()
+        max_workers = int(input("Введите количество потоков: "))
+        result = get_html(max_workers)
+
+        if result == 403:
+            logger.info("Ошибка 403, Обнови cookies")
+            continue  # Возвращаемся к выбору действий
+    elif user_input == 0:
+        print("Программа завершена.")
+        break  # Выход из цикла, завершение программы
+    else:
+        print("Неверный ввод, пожалуйста, введите корректный номер действия.")
