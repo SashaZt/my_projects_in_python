@@ -44,6 +44,7 @@ csv_url_products = data_directory / "url_products.csv"
 csv_file_successful = data_directory / "urls_successful.csv"
 csv_result = data_directory / "result.csv"
 txt_cookies = current_directory / "cookies.txt"
+file_proxies = current_directory / "configuration" / "proxies.txt"
 
 
 headers = {
@@ -59,19 +60,24 @@ SITEMAP_INDEX_URL = (
 )
 
 
-# def load_all_cookies_from_file() -> dict:
-#     # Открываем файл и загружаем данные как JSON
-#     with txt_cookies.open("r", encoding="utf-8") as f:
-#         cookies_data = json.load(f)
+# Загрузка прокси
+def load_proxies():
 
-#     # Создаем пустой словарь для всех cookies
-#     cookies = {}
+    # Проверяем, существует ли файл с прокси и не пуст ли он
+    if file_proxies.exists() and file_proxies.stat().st_size > 0:
+        # Открываем файл с прокси в режиме чтения с указанием кодировки utf-8
+        with file_proxies.open("r", encoding="utf-8") as file:
+            # Читаем файл построчно, удаляя пробелы с начала и конца строки.
+            # Игнорируем пустые строки и собираем оставшиеся строки в список
+            proxies = [line.strip() for line in file if line.strip()]
+        # Возвращаем список прокси
+        return proxies
+    else:
+        # Если файл не существует или пуст, выводим сообщение и возвращаем None
+        # logger.error("Файл с прокси не найден или пуст.")
+        return None
 
 
-#     # Итерируем по списку cookies и сохраняем их в словарь
-#     for cookie in cookies_data:
-#         cookies[cookie["name"]] = cookie["value"]
-#     return cookies
 def load_all_cookies_from_file() -> dict:
     # Открываем файл и читаем содержимое построчно
     cookies = {}
@@ -412,16 +418,26 @@ def parsing(soup, url, csv_file_successful):
         logger.error(ex)
 
 
-def fetch_url(url, headers, cookies, csv_file_successful, successful_urls):
+def fetch_url(url, headers, cookies, csv_file_successful, successful_urls, proxies):
     fetch_lock = threading.Lock()  # Локальная
 
     if url in successful_urls:
         logger.info(f"| Объявление уже было обработано, пропускаем. |")
         return
+    # Если прокси есть, выбираем случайный
+    if proxies and len(proxies) > 0:
+        proxy = random.choice(proxies)  # Выбираем случайный прокси
+        proxies_dict = {"http": proxy, "https": proxy}
+        # logger.info(f"Используем прокси: {proxy}")
+    else:
+        # Если прокси не загружены или их нет, делаем запрос без прокси
+        proxies_dict = None
+        # logger.info("Прокси не используем")
 
     try:
         response = requests.get(
             url,
+            proxies=proxies_dict,
             headers=headers,
             cookies=cookies,
             timeout=60,  # Тайм-аут для предотвращения зависания
@@ -449,30 +465,58 @@ def fetch_url(url, headers, cookies, csv_file_successful, successful_urls):
 def get_html(cookies, max_workers):
     # Получение списка уже успешных URL
     successful_urls = get_successful_urls(csv_file_successful)
-
+    proxies = load_proxies()
     urls_df = pd.read_csv(csv_url_products)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            executor.submit(
-                fetch_url,
-                url,
-                headers,
-                cookies,
-                csv_file_successful,
-                successful_urls,
-            )
-            for count, url in enumerate(urls_df["url"], start=1)
-        ]
+    if proxies and len(proxies) > 0:
+        logger.info("Прокси загружены, используем прокси для запросов.")
 
-        for future in as_completed(futures):
-            try:
-                result = future.result()  # Получаем результат выполнения задачи
-                if result == 403:
-                    return (
-                        403  # Возвращаем ошибку 403 для обработки в основной программе
-                    )
-            except Exception as e:
-                logger.error(f"Error occurred: {e}")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    fetch_url,
+                    url,
+                    headers,
+                    cookies,
+                    csv_file_successful,
+                    successful_urls,
+                    proxies,
+                )
+                for count, url in enumerate(urls_df["url"], start=1)
+            ]
+
+            for future in as_completed(futures):
+                try:
+                    result = future.result()  # Получаем результат выполнения задачи
+                    if result == 403:
+                        return 403  # Возвращаем ошибку 403 для обработки в основной программе
+                except Exception as e:
+                    logger.error(f"Error occurred: {e}")
+    # Если прокси нет, выполняем запросы без прокси
+    else:
+        logger.warning(
+            "Прокси не загружены или пусты. Запросы будут выполнены без прокси."
+        )
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [
+                executor.submit(
+                    fetch_url,
+                    url,
+                    headers,
+                    cookies,
+                    csv_file_successful,
+                    successful_urls,
+                    None,
+                )
+                for count, url in enumerate(urls_df["url"], start=1)
+            ]
+
+            for future in as_completed(futures):
+                try:
+                    result = future.result()  # Получаем результат выполнения задачи
+                    if result == 403:
+                        return 403  # Возвращаем ошибку 403 для обработки в основной программе
+                except Exception as e:
+                    logger.error(f"Error occurred: {e}")
 
 
 # if __name__ == "__main__":

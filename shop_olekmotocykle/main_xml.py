@@ -144,23 +144,39 @@ def download_image_with_retries(url, image_path, image_name, max_retries=3):
         )
 
 
+# # Функция для формирования имени файла
+# def format_image_name(ean, index, image_urls, url):
+#     if ean is None:
+#         # Извлекаем оригинальное имя файла из URL, если ean отсутствует
+#         original_filename = os.path.basename(url)
+#         if len(image_urls) > 1:
+#             return f"{os.path.splitext(original_filename)[0]}_{index + 1}.jpg"
+#         else:
+#             return original_filename
+#     else:
+#         # Заменяем символ '/' на '-' в ean
+#         sanitized_ean = re.sub(r"/", "-", ean)
+#         if len(image_urls) > 1:
+#             return f"{sanitized_ean}_{index + 1}.jpg"
+#         else:
+#             return f"{sanitized_ean}.jpg"
+
 # Функция для формирования имени файла
 def format_image_name(ean, index, image_urls, url):
     if ean is None:
         # Извлекаем оригинальное имя файла из URL, если ean отсутствует
         original_filename = os.path.basename(url)
-        if len(image_urls) > 1:
+        if len(image_urls) > 1 and index > 0:
             return f"{os.path.splitext(original_filename)[0]}_{index + 1}.jpg"
         else:
             return original_filename
     else:
         # Заменяем символ '/' на '-' в ean
         sanitized_ean = re.sub(r"/", "-", ean)
-        if len(image_urls) > 1:
+        if len(image_urls) > 1 and index > 0:
             return f"{sanitized_ean}_{index + 1}.jpg"
         else:
             return f"{sanitized_ean}.jpg"
-
 
 # Основная функция для загрузки изображений из JSON
 def download_images_from_json():
@@ -218,6 +234,7 @@ while True:
         generate_json()
     elif user_input == 3:
         download_images_from_json()
+        generate_json()
     elif user_input == 0:
         print("Программа завершена.")
         break  # Выход из цикла, завершение программы
