@@ -5,7 +5,9 @@ import gzip
 import shutil
 import csv
 import random
-import sys
+import os
+import time
+
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
@@ -78,32 +80,91 @@ def load_proxies():
         return None
 
 
-def load_all_cookies_from_file() -> dict:
-    # Открываем файл и читаем содержимое построчно
-    cookies = {}
-    with txt_cookies.open("r", encoding="utf-8") as f:
-        for line in f:
-            # Игнорируем пустые строки и скобки
-            line = line.strip()
-            if not line or line in ["{", "}"]:
-                continue
+# # Функция для читания cookies с сайта curlconverter.com
+# def load_all_cookies_from_file() -> dict:
+#     # Открываем файл и читаем содержимое построчно
+#     cookies = {}
+#     with txt_cookies.open("r", encoding="utf-8") as f:
+#         for line in f:
+#             # Игнорируем пустые строки и скобки
+#             line = line.strip()
+#             if not line or line in ["{", "}"]:
+#                 continue
 
-            # Убираем лишние запятые в конце строки
-            if line.endswith(","):
-                line = line[:-1]
+#             # Убираем лишние запятые в конце строки
+#             if line.endswith(","):
+#                 line = line[:-1]
 
-            # Разделяем ключ и значение
-            if ":" in line:
-                name, value = line.split(":", 1)
+#             # Разделяем ключ и значение
+#             if ":" in line:
+#                 name, value = line.split(":", 1)
 
-                # Убираем пробелы и кавычки
-                name = name.strip().strip("'").strip('"')
-                value = value.strip().strip("'").strip('"')
+#                 # Убираем пробелы и кавычки
+#                 name = name.strip().strip("'").strip('"')
+#                 value = value.strip().strip("'").strip('"')
 
-                # Добавляем куку в словарь
-                cookies[name] = value
+#                 # Добавляем куку в словарь
+#                 cookies[name] = value
 
-    return cookies
+
+#     return cookies
+def load_all_cookies_from_downloads() -> dict:
+    VALID_COOKIE_KEYS = {
+        "__zlcmid",
+        "wp_ga4_customerGroup",
+        "PHPSESSID",
+        "mage-cache-storage",
+        "mage-cache-storage-section-invalidation",
+        "mage-cache-sessid",
+        "form_key",
+        "recently_viewed_product",
+        "recently_viewed_product_previous",
+        "recently_compared_product",
+        "recently_compared_product_previous",
+        "product_data_storage",
+        "cf_clearance",
+        "mage-messages",
+        "private_content_version",
+        "section_data_ids",
+    }
+    # Получаем путь к папке загрузок из переменной окружения
+    downloads_dir = os.environ.get("DOWNLOADS_DIR")
+
+    if downloads_dir is None:
+        # Если переменная окружения не установлена, используем папку по умолчанию
+        home_dir = Path.home()
+        downloads_dir = home_dir / "Downloads"
+    else:
+        downloads_dir = Path(downloads_dir)
+
+    # Путь к файлу cookies.json
+    cookies_file = downloads_dir / "cookies.json"
+
+    try:
+        with cookies_file.open("r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Убираем префикс 'cookies = ' и любые начальные пробелы
+        content = content.strip()
+        if content.startswith("cookies ="):
+            content = content[len("cookies =") :].strip()
+
+        # Парсим содержимое как JSON
+        cookies = json.loads(content)
+
+        # Оставляем только необходимые ключи
+        filtered_cookies = {k: v for k, v in cookies.items() if k in VALID_COOKIE_KEYS}
+
+        # Удаляем файл после чтения
+        cookies_file.unlink()
+        logger.info(filtered_cookies)
+        return filtered_cookies
+    except json.JSONDecodeError as e:
+        logger.error(f"Ошибка при парсинге JSON: {e}")
+        return {}
+    except FileNotFoundError:
+        logger.error(f"Файл {cookies_file} не найден.")
+        return {}
 
 
 def download_file(url, output_path, cookies):
@@ -564,25 +625,61 @@ def remove_successful_urls():
         print("Не было найдено совпадающих URL для удаления.")
 
 
+# Рабочий
+# while True:
+#     # cookies = load_all_cookies_from_file()
+#     cookies = load_all_cookies_from_downloads
+#     remove_successful_urls()
+#     # Запрос ввода от пользователя
+#     print(
+#         "Введите 1 для получения всех ссылок"
+#         "\nВведите 2 для получения данных в csv"
+#         "\nВведите 0 для закрытия программы"
+#     )
+#     user_input = int(input("Выберите действие: "))
+
+#     if user_input == 1:
+#         main(cookies)
+#     elif user_input == 2:
+#         max_workers = int(input("Введите количество потоков: "))
+#         result = get_html(cookies, max_workers)
+#         if result == 403:
+#             logger.info("Ошибка 403, Обнови cookies")
+#             continue  # Возвращаемся к выбору действий
+#     elif user_input == 0:
+#         print("Программа завершена.")
+#         break  # Выход из цикла, завершение программы
+#     else:
+#         print("Неверный ввод, пожалуйста, введите корректный номер действия.")
+
 while True:
-    cookies = load_all_cookies_from_file()
+    # cookies = load_all_cookies_from_file()
+    cookies = load_all_cookies_from_downloads()
     remove_successful_urls()
+
     # Запрос ввода от пользователя
     print(
         "Введите 1 для получения всех ссылок"
-        "\nВведите 2 для получения данных в csv"
+        "\nВведите 2 для получения данных в csv и автоматического перезапуска каждые 30 минут"
         "\nВведите 0 для закрытия программы"
     )
     user_input = int(input("Выберите действие: "))
 
     if user_input == 1:
+        cookies = load_all_cookies_from_downloads()
+        remove_successful_urls()
         main(cookies)
     elif user_input == 2:
         max_workers = int(input("Введите количество потоков: "))
-        result = get_html(cookies, max_workers)
-        if result == 403:
-            logger.info("Ошибка 403, Обнови cookies")
-            continue  # Возвращаемся к выбору действий
+        while True:
+            cookies = load_all_cookies_from_downloads()
+            remove_successful_urls()
+            result = get_html(cookies, max_workers)
+            if result == 403:
+                logger.info("Ошибка 403, Обнови cookies")
+                break  # Прерываем автоматический перезапуск при ошибке
+            print("Ожидание 30 минут до следующего перезапуска...")
+            time.sleep(1800)  # Пауза в 30 минут перед следующим запуском
     elif user_input == 0:
         print("Программа завершена.")
         break  # Выход из цикла, завершение программы
