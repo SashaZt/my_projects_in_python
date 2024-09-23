@@ -100,114 +100,219 @@ async def ringostat_post(request: Request):
 
     return JSONResponse(status_code=200, content={"status": "success", "data": data})
 
-@router.post("/contact")
-async def handle_contact(request: Request):
-    db = await get_db()
+@router.post("/contacts")
+async def post_filtered_contacts(
+    request: Request,
+    mini: bool = Query(False, description="Возвращать только id и organization"),
+    db=Depends(get_db)
+):
     try:
-        data = await request.json()
-        logger.debug(f"Получены JSON данные: {data}")
+        # Проверяем, есть ли тело запроса
+        if mini:
+            # Если mini=True, выбираем только id и organization
+            columns = "id, username"
+            query = f"SELECT {columns} FROM contacts"
+            parameters = []
 
-        contact_id = data.get("contactId")
-        mode = data.get("mode")
+            # Выполнение запроса
+            async with db.pool.acquire() as connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    logger.debug(f"Executing query: {query} with parameters: {parameters}")
+                    await cursor.execute(query, parameters)
+                    contacts = await cursor.fetchall()
 
-        # Статические поля, которые всегда должны быть в таблице
-        static_fields = {
-            "username": "VARCHAR(255)",
-            "contact_type": "VARCHAR(255)",
-            "contact_status": "VARCHAR(255)",
-            "manager": "VARCHAR(255)",
-            "userphone": "VARCHAR(20)",
-            "useremail": "VARCHAR(255)",
-            "usersite": "VARCHAR(255)",
-            "comment": "TEXT"
-        }
+            # Формирование итогового ответа
+            return JSONResponse(status_code=200, content={"data": contacts})
 
-        # Проверка на наличие новых полей в данных
-        for key in data.keys():
-            if key not in static_fields:
-                # Если поле не является статическим, проверяем его наличие в БД и добавляем при необходимости
-                await add_column_if_not_exists("contacts", key, "VARCHAR(255)", db)
+        else:
+            # Обычная фильтрация через тело запроса
+            try:
+                data = await request.json()
+            except Exception as e:
+                logger.error(f"Ошибка парсинга JSON: {e}")
+                raise HTTPException(status_code=400, detail="Invalid JSON data")
+            
+            searchString = data.get("searchString", "").strip()
+            statusFilter = data.get("statusFilter", "").strip()
+            contactFilter = data.get("contactFilter", "").strip()
+            dateRange = data.get("dateRange", {})
+            start = dateRange.get("start", None)
+            end = dateRange.get("end", None)
+            activeRecords = data.get("activeRecords", "").strip()
+            limit = data.get("limit", 10)
+            page = data.get("page", 1)
+            sortBy = data.get("sortBy", "").strip()
+            sortOrder = data.get("sortOrder", "asc").strip()
 
-        if mode == "new" or not contact_id:
-            # Создание нового контакта
-            new_contact_data = {
-                "username": data["username"],
-                "contact_type": data["contactType"],
-                "contact_status": data["contactStatus"],
-                "manager": data["manager"],
-                "userphone": data["userphone"],
-                "useremail": data["useremail"],
-                "usersite": data["usersite"],
-                "comment": data.get("comment", "")
-            }
+            contact_columns = await db.get_dynamic_columns("contacts")
+            columns = ", ".join(contact_columns)
 
-            # Добавляем динамические данные
-            for key in data.keys():
-                if key not in static_fields:
-                    new_contact_data[key] = data[key]
+            # Формирование базового SQL-запроса
+            query = f"SELECT {columns} FROM contacts WHERE 1=1"
+            parameters = []
 
-            contact_id = await db.insert_contact(new_contact_data)
-            logger.info(f"Создан новый контакт с ID {contact_id}")
+            if searchString:
+                query += " AND (LOWER(username) LIKE LOWER(%s) OR LOWER(userphone) LIKE LOWER(%s) OR LOWER(useremail) LIKE LOWER(%s))"
+                search_pattern = f"%{searchString}%"
+                parameters.extend([search_pattern, search_pattern, search_pattern])
 
-        elif mode == "edit" and contact_id:
-            # Обновление существующего контакта
-            update_contact_data = {
-                "id": contact_id,
-                "username": data["username"],
-                "contact_type": data["contactType"],
-                "contact_status": data["contactStatus"],
-                "manager": data["manager"],
-                "userphone": data["userphone"],
-                "useremail": data["useremail"],
-                "usersite": data["usersite"],
-                "comment": data.get("comment", "")
-            }
+            if statusFilter:
+                query += " AND contact_status = %s"
+                parameters.append(statusFilter)
 
-            # Добавляем динамические данные
-            for key in data.keys():
-                if key not in static_fields:
-                    update_contact_data[key] = data[key]
+            if contactFilter:
+                query += " AND contact_type = %s"
+                parameters.append(contactFilter)
 
-            success = await db.update_contact(update_contact_data)
-            if success:
-                logger.info(f"Контакт с ID {contact_id} обновлен")
-            else:
-                raise Exception(f"Не удалось обновить контакт с ID {contact_id}")
+            if start and end:
+                query += " AND created_at BETWEEN %s AND %s"
+                parameters.extend([start, end])
 
-        # Обработка дополнительных данных
-        if contact_id:
-            # Добавляем/обновляем дополнительные контакты
-            additional_contacts = data.get("additionalContacts", [])
-            for additional_contact in additional_contacts:
-                additional_contact["contact_id"] = contact_id
-                await db.insert_or_update_additional_contact(additional_contact)
+            if activeRecords:
+                query += " AND active = %s"
+                parameters.append(activeRecords)
 
-            # Добавляем/обновляем данные мессенджеров
-            messengers_data = data.get("messengersData", [])
-            for messenger in messengers_data:
-                messenger["contact_id"] = contact_id
-                await db.insert_or_update_messenger_data(messenger)
+            # Добавление условий сортировки
+            if sortBy:
+                query += f" ORDER BY {sortBy} {sortOrder}"
 
-            # Добавляем/обновляем платежные данные
-            payment_details = data.get("paymentDetails", [])
-            for payment in payment_details:
-                payment["contact_id"] = contact_id
-                await db.insert_or_update_payment_details(payment)
+            # Добавление условий пагинации
+            offset = (page - 1) * limit
+            query += " LIMIT %s OFFSET %s"
+            parameters.extend([limit, offset])
 
-        return JSONResponse(status_code=200, content={"status": "success", "contactId": contact_id})
+            # Выполнение запроса
+            async with db.pool.acquire() as connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    logger.debug(f"Executing query: {query} with parameters: {parameters}")
+                    await cursor.execute(query, parameters)
+                    contacts = await cursor.fetchall()
 
-    except json.JSONDecodeError:
-        logger.error("Ошибка декодирования JSON данных")
-        return JSONResponse(
-            status_code=400,
-            content={"status": "failure", "message": "Invalid JSON data"},
-        )
+            # Формирование итогового ответа
+            return JSONResponse(status_code=200, content={
+                "data": contacts,
+                "totalPages": (total_records['COUNT(*)'] // limit) + 1,
+                "currentPage": page
+            })
+
     except Exception as e:
-        logger.error(f"Ошибка обработки данных: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"status": "failure", "message": f"Failed to process data: {e}"},
-        )
+        logger.error(f"Ошибка при получении списка контактов: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+
+# @router.post("/contact")
+# async def handle_contact(request: Request):
+#     db = await get_db()
+#     try:
+#         data = await request.json()
+#         logger.debug(f"Получены JSON данные: {data}")
+
+#         contact_id = data.get("contactId")
+#         mode = data.get("mode")
+
+#         # Статические поля, которые всегда должны быть в таблице
+#         static_fields = {
+#             "username": "VARCHAR(255)",
+#             "contact_type": "VARCHAR(255)",
+#             "contact_status": "VARCHAR(255)",
+#             "manager": "VARCHAR(255)",
+#             "userphone": "VARCHAR(20)",
+#             "useremail": "VARCHAR(255)",
+#             "usersite": "VARCHAR(255)",
+#             "comment": "TEXT"
+#         }
+
+#         # Проверка на наличие новых полей в данных
+#         for key in data.keys():
+#             if key not in static_fields:
+#                 # Если поле не является статическим, проверяем его наличие в БД и добавляем при необходимости
+#                 await add_column_if_not_exists("contacts", key, "VARCHAR(255)", db)
+
+#         if mode == "new" or not contact_id:
+#             # Создание нового контакта
+#             new_contact_data = {
+#                 "username": data["username"],
+#                 "contact_type": data["contactType"],
+#                 "contact_status": data["contactStatus"],
+#                 "manager": data["manager"],
+#                 "userphone": data["userphone"],
+#                 "useremail": data["useremail"],
+#                 "usersite": data["usersite"],
+#                 "comment": data.get("comment", "")
+#             }
+
+#             # Добавляем динамические данные
+#             for key in data.keys():
+#                 if key not in static_fields:
+#                     new_contact_data[key] = data[key]
+
+#             contact_id = await db.insert_contact(new_contact_data)
+#             logger.info(f"Создан новый контакт с ID {contact_id}")
+
+#         elif mode == "edit" and contact_id:
+#             # Обновление существующего контакта
+#             update_contact_data = {
+#                 "id": contact_id,
+#                 "username": data["username"],
+#                 "contact_type": data["contactType"],
+#                 "contact_status": data["contactStatus"],
+#                 "manager": data["manager"],
+#                 "userphone": data["userphone"],
+#                 "useremail": data["useremail"],
+#                 "usersite": data["usersite"],
+#                 "comment": data.get("comment", "")
+#             }
+
+#             # Добавляем динамические данные
+#             for key in data.keys():
+#                 if key not in static_fields:
+#                     update_contact_data[key] = data[key]
+
+#             success = await db.update_contact(update_contact_data)
+#             if success:
+#                 logger.info(f"Контакт с ID {contact_id} обновлен")
+#             else:
+#                 raise Exception(f"Не удалось обновить контакт с ID {contact_id}")
+
+#         # Обработка дополнительных данных
+#         if contact_id:
+#             # Добавляем/обновляем дополнительные контакты
+#             additional_contacts = data.get("additionalContacts", [])
+#             for additional_contact in additional_contacts:
+#                 additional_contact["contact_id"] = contact_id
+#                 await db.insert_or_update_additional_contact(additional_contact)
+
+#             # Добавляем/обновляем данные мессенджеров
+#             messengers_data = data.get("messengersData", [])
+#             for messenger in messengers_data:
+#                 messenger["contact_id"] = contact_id
+#                 await db.insert_or_update_messenger_data(messenger)
+
+#             # Добавляем/обновляем платежные данные
+#             payment_details = data.get("paymentDetails", [])
+#             for payment in payment_details:
+#                 payment["contact_id"] = contact_id
+#                 await db.insert_or_update_payment_details(payment)
+
+#         return JSONResponse(status_code=200, content={"status": "success", "contactId": contact_id})
+
+#     except json.JSONDecodeError:
+#         logger.error("Ошибка декодирования JSON данных")
+#         return JSONResponse(
+#             status_code=400,
+#             content={"status": "failure", "message": "Invalid JSON data"},
+#         )
+#     except Exception as e:
+#         logger.error(f"Ошибка обработки данных: {e}")
+#         return JSONResponse(
+#             status_code=500,
+#             content={"status": "failure", "message": f"Failed to process data: {e}"},
+#         )
+
+
+
+
 """Добавление нового столбца в таблицу, если его еще нет"""
 async def add_column_if_not_exists(table_name: str, column_name: str, data_type: str, db):
 

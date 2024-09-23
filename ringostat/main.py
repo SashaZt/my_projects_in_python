@@ -37,18 +37,6 @@ async def log_middleware(request: Request, call_next):
     logger.debug(f"Response status: {response.status_code}")
     return response
 
-# # Пример ручного добавления заголовков для маршрута GET
-# @app.get("/contacts")
-# async def get_contacts():
-#     return JSONResponse(
-#         content={"message": "Contacts list"},
-#         headers={
-#             "Access-Control-Allow-Origin": "*",
-#             "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
-#             "Access-Control-Allow-Headers": "Authorization, Content-Type"
-#         },
-#     )
-
 # Подключение маршрутов
 app.include_router(post_router)
 app.include_router(get_router)

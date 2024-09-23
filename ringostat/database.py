@@ -98,7 +98,7 @@ class DatabaseInitializer:
                             -- Создание таблицы для хранения информации о контактах
                             CREATE TABLE IF NOT EXISTS contacts (
                                 id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор контакта, автоинкремент
-                                username VARCHAR(255) NOT NULL,  -- Имя пользователя
+                                username VARCHAR(255) NOT NULL,  -- Организация
                                 contact_type VARCHAR(255) NOT NULL,  -- Тип контакта (например, физическое лицо, компания и т.д.)
                                 contact_status VARCHAR(255) NOT NULL,  -- Статус контакта (например, первый контакт, в работе и т.д.)
                                 manager VARCHAR(255),  -- Имя менеджера, ответственного за контакт
