@@ -9,45 +9,71 @@ import re
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+from pathlib import Path
+from configuration.logger_setup import logger
+from aiohttp import BasicAuth
 
-current_directory = os.getcwd()
+
+# Получаем текущую директорию
+current_directory = Path.cwd()
 # Создайте полный путь к папке temp
-temp_path = os.path.join(current_directory, "temp")
-list_path = os.path.join(temp_path, "list")
-product_path = os.path.join(temp_path, "product")
-img_path = os.path.join(temp_path, "img")
-cookies_path = os.path.join(temp_path, "cookies")
+temp_path = current_directory / "temp"
+configuration_path = current_directory / "configuration"
+list_path = temp_path / "list"
+product_path = temp_path / "product"
+img_path = temp_path / "img"
+cookies_path = temp_path / "cookies"
+# Установка директорий на основе конфигурационного файла
+# Создание директорий, если их нет
+temp_path.mkdir(parents=True, exist_ok=True)
+list_path.mkdir(parents=True, exist_ok=True)
+product_path.mkdir(parents=True, exist_ok=True)
+img_path.mkdir(parents=True, exist_ok=True)
+cookies_path.mkdir(parents=True, exist_ok=True)
+configuration_path.mkdir(parents=True, exist_ok=True)
 
 
-def load_proxy():
-    if getattr(sys, "frozen", False):
-        # Если приложение 'заморожено' с помощью PyInstaller
-        application_path = os.path.dirname(sys.executable)
-    else:
-        # Обычный режим выполнения (например, во время разработки)
-        application_path = os.path.dirname(os.path.abspath(__file__))
+csv_file_categories = list_path / "categories.csv"
+csv_file_data = list_path / "data.csv"
+txt_file_proxies = configuration_path / "roman.txt"
 
-    filename_proxy = os.path.join(application_path, "proxi.json")
-    if not os.path.exists(filename_proxy):
-        print("Нету файла с прокси-серверами!!!!!!!!!!!!!!!!!!!!!!!!!")
-        time.sleep(3)
-        sys.exit(1)  # Завершаем выполнение скрипта с кодом ошибки 1
-    else:
-        with open(filename_proxy, "r") as file:
-            proxies = json.load(file)
-        proxy = random.choice(proxies)
-        proxy_host, proxy_port, proxy_user, proxy_pass = proxy
-        formatted_proxy_http = (
-            f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
-        )
-        formatted_proxy_https = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"  # Измените, если https требует другой прокси
 
-        # Для requests
-        proxies_dict = {"http": formatted_proxy_http, "https": formatted_proxy_https}
+# def load_proxy():
+#     if getattr(sys, "frozen", False):
+#         # Если приложение 'заморожено' с помощью PyInstaller
+#         application_path = os.path.dirname(sys.executable)
+#     else:
+#         # Обычный режим выполнения (например, во время разработки)
+#         application_path = os.path.dirname(os.path.abspath(__file__))
 
-        # Для aiohttp (если вам нужен только один прокси, верните formatted_proxy_http или formatted_proxy_https)
-        # Возвращаем оба формата для удобства
-        return proxies_dict, formatted_proxy_http
+#     filename_proxy = os.path.join(application_path, "proxi.json")
+#     if not os.path.exists(filename_proxy):
+#         print("Нету файла с прокси-серверами!!!!!!!!!!!!!!!!!!!!!!!!!")
+#         time.sleep(3)
+#         sys.exit(1)  # Завершаем выполнение скрипта с кодом ошибки 1
+#     else:
+#         with open(filename_proxy, "r") as file:
+#             proxies = json.load(file)
+#         proxy = random.choice(proxies)
+#         proxy_host, proxy_port, proxy_user, proxy_pass = proxy
+#         formatted_proxy_http = (
+#             f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
+#         )
+#         formatted_proxy_https = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"  # Измените, если https требует другой прокси
+
+#         # Для requests
+#         proxies_dict = {"http": formatted_proxy_http, "https": formatted_proxy_https}
+
+
+#         # Для aiohttp (если вам нужен только один прокси, верните formatted_proxy_http или formatted_proxy_https)
+#         # Возвращаем оба формата для удобства
+#         return proxies_dict, formatted_proxy_http
+def load_proxies():
+    """Загружает список прокси-серверов из файла."""
+    with open(txt_file_proxies, "r", encoding="utf-8") as file:
+        proxies = [line.strip() for line in file]
+    logger.info(f"Загружено {len(proxies)} прокси.")
+    return proxies
 
 
 def load_config():
@@ -60,7 +86,7 @@ def load_config():
 
     filename_config = os.path.join(application_path, "config.json")
     if not os.path.exists(filename_config):
-        print("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
+        logger.error("Нету файла config.json конфигурации!!!!!!!!!!!!!!!!!!!!!!!")
         time.sleep(3)
         sys.exit(1)
     else:
@@ -97,8 +123,7 @@ def get_categories_to_html_file():
     response = requests.get(url, headers=headers)
     if response.status_code == 200:
         src = response.text
-        filename_config = os.path.join(list_path, "categories.csv")
-        with open(filename_config, "w", newline="") as csvfile:
+        with open(csv_file_categories, "w", newline="") as csvfile:
             writer = csv.writer(csvfile)
             soup = BeautifulSoup(src, "lxml")
             table_treee = soup.find("td", attrs={"class": "boxContentsMainNoBorder"})
@@ -110,33 +135,33 @@ def get_categories_to_html_file():
             for url in url_all:
                 writer.writerow([url])
     else:
-        print(response.status_code)
+        logger.error(response.status_code)
 
 
 def get_urls_product():
     config = load_config()
     headers = config["headers"]
-    filename_config = os.path.join(list_path, "categories.csv")
-
-    with open(filename_config, newline="", encoding="utf-8") as files:
+    proxies = load_proxies()
+    with open(csv_file_categories, newline="", encoding="utf-8") as files:
         urls = list(csv.reader(files, delimiter=" ", quotechar="|"))
         count = 0
+
         for url in urls:
-            """Универсальное использование прокси-серверов"""
-            proxies_requests, proxy_aiohttp = load_proxy()
+            proxy = random.choice(proxies)  # Выбираем случайный прокси
+            proxies_dict = {"http": proxy, "https": proxy}
             count += 1
-            response = requests.get(url[0], headers=headers, proxies=proxies_requests)
+            response = requests.get(url[0], headers=headers, proxies=proxies_dict)
             src = response.text
             soup = BeautifulSoup(src, "lxml")
-            group = (
-                soup.find_all("a", attrs={"class": "nodecoration"})[1]
-                .text.replace(" - ", "_")
-                .replace(",", "")
-                .replace(".", "")
-                .replace("  ", " ")
-                .replace(" ", "_")
-                .replace("/", "_")
-            )
+            # group = (
+            #     soup.find_all("a", attrs={"class": "nodecoration"})[1]
+            #     .text.replace(" - ", "_")
+            #     .replace(",", "")
+            #     .replace(".", "")
+            #     .replace("  ", " ")
+            #     .replace(" ", "_")
+            #     .replace("/", "_")
+            # )
             table_pagin = int(
                 soup.find("td", attrs={"class": "boxContentsMainNoBorder"})
                 .find("td", attrs={"valign": "middle"})
@@ -146,17 +171,16 @@ def get_urls_product():
             all_urls = []
             count = 0
             for i in range(1, amount_page + 2):
-                """Универсальное использование прокси-серверов"""
-                proxies_requests, proxy_aiohttp = load_proxy()
+                proxy = random.choice(proxies)  # Выбираем случайный прокси
+                proxies_dict = {"http": proxy, "https": proxy}
                 count += 1
-                print(f"{count} из {amount_page + 2}")
-                pause_time = random.randint(1, 10)
-                filename = os.path.join(list_path, "data.csv")
+                logger.info(f"{count} из {amount_page + 2}")
+                pause_time = random.randint(1, 5)
                 if i == 1:
                     response = requests.get(
                         url[0],
                         headers=headers,
-                        proxies=proxies_requests,
+                        proxies=proxies_dict,
                     )
 
                     src = response.text
@@ -174,21 +198,21 @@ def get_urls_product():
                             href = a_tag["href"]
                             if "towar.php" in href:
                                 url_to_write = "http://www.wmmotor.pl/hurtownia/" + href
-                                with open(filename, "a", newline="") as csvfile:
+                                with open(csv_file_data, "a", newline="") as csvfile:
                                     writer = csv.writer(csvfile)
                                     writer.writerow(
                                         [url_to_write]
                                     )  # добавление URL в csv
-                print(f"Пауза {pause_time}")
+                logger.info(f"Пауза {pause_time}")
                 time.sleep(pause_time)
 
                 if i > 1:
-                    """Универсальное использование прокси-серверов"""
-                    proxies_requests, proxy_aiohttp = load_proxy()
+                    proxy = random.choice(proxies)  # Выбираем случайный прокси
+                    proxies_dict = {"http": proxy, "https": proxy}
                     response = requests.get(
                         f"{url[0]}&page={i}",
                         headers=headers,
-                        proxies=proxies_requests,
+                        proxies=proxies_dict,
                     )
                     src = response.text
                     soup = BeautifulSoup(src, "lxml")
@@ -206,12 +230,12 @@ def get_urls_product():
                             if "towar.php" in href:
                                 url_to_write = "http://www.wmmotor.pl/hurtownia/" + href
                                 # all_urls.append('http://www.wmmotor.pl/hurtownia/' + href)
-                                with open(filename, "a", newline="") as csvfile:
+                                with open(csv_file_data, "a", newline="") as csvfile:
                                     writer = csv.writer(csvfile)
                                     writer.writerow(
                                         [url_to_write]
                                     )  # добавление URL в csv
-                print(f"Пауза {pause_time}")
+                logger.info(f"Пауза {pause_time}")
                 time.sleep(pause_time)
 
 
@@ -221,27 +245,43 @@ def get_asio():
     import csv
     import os
 
-    async def fetch(session, url, coun):
+    # Основная функция для загрузки данных
+
+    async def fetch(session, url, coun, proxy, proxy_auth):
         config = load_config()
         headers = config["headers"]
-        """Универсальное использование прокси-серверов"""
-        proxies_requests, proxy_aiohttp = load_proxy()
 
+        # Определение имени файла для сохранения
         filename = os.path.join(product_path, f"data_{coun}.html")
+
+        # Проверка наличия файла, если его нет, делаем запрос
         if not os.path.exists(filename):
             async with session.get(
-                url, headers=headers, proxy=proxy_aiohttp
+                url, headers=headers, proxy=proxy, proxy_auth=proxy_auth
             ) as response:
                 with open(filename, "w", encoding="utf-8") as file:
                     file.write(await response.text())
 
+    # Асинхронная основная функция
     async def main():
         filename = os.path.join(list_path, "data.csv")
         coun = 0
+        proxies = load_proxies()
+
         async with aiohttp.ClientSession() as session:
             with open(filename, newline="", encoding="utf-8") as files:
                 urls = list(csv.reader(files, delimiter=" ", quotechar="|"))
+
                 for i in range(0, len(urls), 100):
+                    proxy = random.choice(proxies)  # Выбираем случайный прокси
+                    proxy_url = proxy.split("@")[
+                        -1
+                    ]  # Получаем URL без авторизационной части (IP:port)
+                    login, password = (
+                        proxy.split("@")[0].replace("http://", "").split(":")
+                    )  # Извлекаем логин и пароль
+                    proxy_auth = BasicAuth(login, password)
+
                     tasks = []
                     for row in urls[i : i + 100]:
                         coun += 1
@@ -250,7 +290,17 @@ def get_asio():
                             product_path, f"data_{coun}.html"
                         )
                         if not os.path.exists(filename_to_check):
-                            tasks.append(fetch(session, url, coun))
+                            # Добавляем задание для выполнения запроса
+                            tasks.append(
+                                fetch(
+                                    session,
+                                    url,
+                                    coun,
+                                    f"http://{proxy_url}",
+                                    proxy_auth,
+                                )
+                            )
+
                     if tasks:
                         await asyncio.gather(*tasks)
                         print(f"Completed {coun} requests")
@@ -421,117 +471,82 @@ def get_cookies():
     import json
     import os
     import random
+    import re
     from datetime import datetime
     from asyncio import sleep
     import aiofiles
-    import aiohttp
-    from aiohttp import BasicAuth
     from playwright.async_api import TimeoutError
     from playwright.async_api import async_playwright
 
-    current_directory = os.getcwd()
-    temp_directory = "temp"
-    # Создайте полный путь к папке temp
-
-    daily_sales_path = os.path.join(temp_path, "daily_sales")
-    payout_history_path = os.path.join(temp_path, "payout_history")
-    pending_custom_path = os.path.join(temp_path, "pending_custom")
-    chat_path = os.path.join(temp_path, "chat")
-
-    async def update_session_cookies(session, cookies):
-        for cookie in cookies:
-            session.cookie_jar.update_cookies({cookie["name"]: cookie["value"]})
-
     async def save_cookies(page):
         cookies = await page.context.cookies()
-        # Убедитесь, что mvtoken корректен и не является объектом корутины
         filename = os.path.join(cookies_path, "cookies.json")
         async with aiofiles.open(filename, "w") as f:
             await f.write(json.dumps(cookies))
-        # print(f"Сохранены куки для {identifier}")
         return filename
 
     async def run(playwright):
-        # async with aiohttp.ClientSession() as session:
         browsers_path = os.path.join(current_directory, "pw-browsers")
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
         browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
         url = "http://www.wmmotor.pl/hurtownia/drzewo.php"
-        """Вход на страницу с логин и пароль"""
+
         try:
-            await page.goto(url, wait_until="networkidle", timeout=60000)  # 60 секунд
+            await page.goto(url, wait_until="networkidle", timeout=60000)
         except TimeoutError:
-            print(f"Страница не загрузилась 60 секунд.")
+            print(f"Страница не загрузилась за 60 секунд.")
+            return
+
         try:
-            # Ожидаем появления элемента h1 с текстом "Login to ManyVids"
+            # Ввод логина и пароля
             print("Вставьте логин, почту")
             fldEmail = "kupujwpl@gmail.com"
-            # fldEmail = str(input())
             print("Вставьте пароль")
             fldPassword = "8T1cekQFO2"
-            # fldPassword = str(input())
+
             fldEmail_xpath = '//input[@name="fldEmail"]'
             fldPassword_xpath = '//input[@name="fldPassword"]'
             fldSaveEmail_xpath = '//input[@name="fldSaveEmail"]'
-            # Ожидаем появления элементов формы на странице
+
             await page.wait_for_selector(fldEmail_xpath, state="visible")
             await page.wait_for_selector(fldPassword_xpath, state="visible")
             await page.wait_for_selector(fldSaveEmail_xpath, state="visible")
-            # Кликаем по чекбоксу, чтобы изменить его состояние
+
             await page.click(fldSaveEmail_xpath)
-            # Вводим логин и пароль
             await page.fill(fldEmail_xpath, fldEmail)
             await page.fill(fldPassword_xpath, fldPassword)
-            # Находим input элемент по имени
+
             input_element = await page.query_selector('input[name="fldResult"]')
 
             """Решаем математическую задачу"""
-
             if input_element:
-                # Для получения родительского элемента используем XPath и функцию evaluate
                 text_content = await page.evaluate(
                     """(input) => {
-                    const parentTd = input.closest('td'); // Находим ближайший родительский элемент td
-                    return parentTd ? parentTd.textContent : ''; // Возвращаем текстовое содержимое элемента td или пустую строку
+                    const parentTd = input.closest('td');
+                    return parentTd ? parentTd.textContent : '';
                 }""",
                     input_element,
                 )
 
-                # Применяем регулярное выражение к текстовому содержимому
                 match_plus = re.search(
                     r"Podaj wynik działania: (\d+) \+ (\d+) =", text_content
                 )
-                match_minux = re.search(
+                match_minus = re.search(
                     r"Podaj wynik działania: (\d+) \- (\d+) =", text_content
                 )
 
                 if match_plus:
-                    # Извлекаем числа из найденного совпадения
                     num1, num2 = map(int, match_plus.groups())
-
-                    # Вычисляем результат
                     int_result = num1 + num2
-
-                    # Выводим и/или вводим результат обратно в форму
                     print(f"Результат: {int_result}")
-                    await input_element.fill(
-                        str(int_result)
-                    )  # Заполняем поле результатом
-                elif match_minux:
-                    # Извлекаем числа из найденного совпадения
-                    num1, num2 = map(int, match_minux.groups())  # Исправлено здесь
-
-                    # Вычисляем результат
+                    await input_element.fill(str(int_result))
+                elif match_minus:
+                    num1, num2 = map(int, match_minus.groups())
                     int_result = num1 - num2
-
-                    # Выводим и/или вводим результат обратно в форму
                     print(f"Результат: {int_result}")
-                    await input_element.fill(
-                        str(int_result)
-                    )  # Заполняем поле результатом
-
+                    await input_element.fill(str(int_result))
             else:
                 print("Элемент не найден.")
 
@@ -547,8 +562,6 @@ def get_cookies():
             print("Страница не загрузилась")
 
         filename = await save_cookies(page)
-
-        """Закрываем"""
         await browser.close()
 
     async def main():

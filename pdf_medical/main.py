@@ -9,7 +9,22 @@ import shutil
 import argparse
 import platform
 import time
+from pathlib import Path
+import random
+from configuration.logger_setup import logger
+from configuration.configurat import TEMP_PATH, JSON_PATH, PDF_PATH, LOG_PATH
 
+# Используем пути из config.py
+temp_directory = Path(TEMP_PATH)
+json_directory = Path(JSON_PATH)
+pdf_directory = Path(PDF_PATH)
+log_directory = Path(LOG_PATH)
+
+# Создаём директории, если их нет
+temp_directory.mkdir(parents=True, exist_ok=True)
+json_directory.mkdir(parents=True, exist_ok=True)
+pdf_directory.mkdir(parents=True, exist_ok=True)
+log_directory.mkdir(parents=True, exist_ok=True)
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
@@ -45,7 +60,7 @@ def save_high_resolution_screenshot(pdf_path, page_no, temp_path):
 
         # Сохраняем изображение в файл
         image.save(output_image_path)
-        print(f"Скриншот сохранен для страницы: {page_no}")
+        logger.info(f"Скриншот сохранен для страницы: {page_no}")
 
 
 def enhance_image(image):
@@ -373,32 +388,91 @@ def write_json(pdf_path, output_path, temp_path):
         json.dump(results, json_file, ensure_ascii=False, indent=4)
 
 
+def clear_temp_directory(temp_path: Path):
+    # Проверяем, существует ли директория
+    if temp_path.exists() and temp_path.is_dir():
+        # Проходим по всем элементам в директории
+        for item in temp_path.iterdir():
+            # Если элемент — файл, удаляем
+            if item.is_file():
+                item.unlink()
+            # Если элемент — директория, рекурсивно удаляем её содержимое и саму директорию
+            elif item.is_dir():
+                clear_temp_directory(item)  # Рекурсивно очищаем подкаталог
+                item.rmdir()  # Удаляем пустую директорию
+    else:
+        print(f"Путь {temp_path} не существует или не является директорией")
+
+
+# def main():
+#     parser = argparse.ArgumentParser(description="PDF analysis script")
+#     parser.add_argument("pdf_path", help="Full path to the PDF file")
+#     parser.add_argument("output_path", help="Full path to the output JSON file")
+#     args = parser.parse_args()
+
+#     # Определяем пути для различных операционных систем и устанавливаем путь к Tesseract
+#     if platform.system() == "Linux":
+#         pdf_path = args.pdf_path
+#         output_path = args.output_path
+#         pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
+#     elif platform.system() == "Windows":
+#         pdf_path = args.pdf_path
+#         output_path = args.output_path
+#         pytesseract.pytesseract.tesseract_cmd = (
+#             r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+#         )
+#     else:
+#         print("Unsupported operating system")
+#         return
+#     timestamp = str(int(time.time()))
+#     random_number = random.randint(100, 999)
+#     temp_path = Path(temp_directory) / f"{timestamp}_{random_number}"
+#     write_json(pdf_path, output_path, temp_path)
+#     logger.info(f"Результаты сохранены в {output_path}")
+#     clear_temp_directory(temp_path)
+#     logger.info(f"Папка {temp_path} удалена!!!")
+
+
 def main():
+    # Создаем парсер аргументов
     parser = argparse.ArgumentParser(description="PDF analysis script")
-    parser.add_argument("pdf_path", help="Full path to the PDF file")
-    parser.add_argument("output_path", help="Full path to the output JSON file")
+    parser.add_argument("pdf_filename", help="PDF file name")
+    parser.add_argument("output_filename", help="Output JSON file name")
+    parser.add_argument(
+        "scale_factor", type=float, help="Scaling factor for image processing"
+    )
+
     args = parser.parse_args()
 
     # Определяем пути для различных операционных систем и устанавливаем путь к Tesseract
     if platform.system() == "Linux":
-        pdf_path = args.pdf_path
-        output_path = args.output_path
+        # Формируем пути к PDF и JSON файлам на основе аргументов
+        pdf_path = pdf_directory / args.pdf_filename
+        output_path = json_directory / args.output_filename
         pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
     elif platform.system() == "Windows":
-        pdf_path = args.pdf_path
-        output_path = args.output_path
+        # Формируем пути к PDF и JSON файлам на основе аргументов
+        pdf_path = pdf_directory / args.pdf_filename
+        output_path = json_directory / args.output_filename
         pytesseract.pytesseract.tesseract_cmd = (
             r"C:\Program Files\Tesseract-OCR\tesseract.exe"
         )
     else:
         print("Unsupported operating system")
         return
-    current_directory = os.getcwd()
-    temp_path = os.path.join(current_directory, "temp")
+
+    # current_directory = Path.cwd()
     timestamp = str(int(time.time()))
-    temp_path = os.path.join("temp", timestamp)
+    random_number = random.randint(100, 999)
+    temp_path = Path(temp_directory) / f"{timestamp}_{random_number}"
+
+    # Преобразуем аргумент scale_factor в float
+    scale_factor = args.scale_factor
+
+    # Вызываем process_image с переданным scale_factor
     write_json(pdf_path, output_path, temp_path)
-    print(f"Results saved to {output_path}")
+    shutil.rmtree(temp_path)
+    logger.info(f"Папка {temp_path} удалена!!!")
 
 
 if __name__ == "__main__":
