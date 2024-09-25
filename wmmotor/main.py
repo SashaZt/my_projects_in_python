@@ -12,6 +12,7 @@ import pandas as pd
 from pathlib import Path
 from configuration.logger_setup import logger
 from aiohttp import BasicAuth
+from configuration.logger_setup import logger
 
 
 # Получаем текущую директорию
@@ -38,36 +39,6 @@ csv_file_data = list_path / "data.csv"
 txt_file_proxies = configuration_path / "roman.txt"
 
 
-# def load_proxy():
-#     if getattr(sys, "frozen", False):
-#         # Если приложение 'заморожено' с помощью PyInstaller
-#         application_path = os.path.dirname(sys.executable)
-#     else:
-#         # Обычный режим выполнения (например, во время разработки)
-#         application_path = os.path.dirname(os.path.abspath(__file__))
-
-#     filename_proxy = os.path.join(application_path, "proxi.json")
-#     if not os.path.exists(filename_proxy):
-#         print("Нету файла с прокси-серверами!!!!!!!!!!!!!!!!!!!!!!!!!")
-#         time.sleep(3)
-#         sys.exit(1)  # Завершаем выполнение скрипта с кодом ошибки 1
-#     else:
-#         with open(filename_proxy, "r") as file:
-#             proxies = json.load(file)
-#         proxy = random.choice(proxies)
-#         proxy_host, proxy_port, proxy_user, proxy_pass = proxy
-#         formatted_proxy_http = (
-#             f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"
-#         )
-#         formatted_proxy_https = f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}"  # Измените, если https требует другой прокси
-
-#         # Для requests
-#         proxies_dict = {"http": formatted_proxy_http, "https": formatted_proxy_https}
-
-
-#         # Для aiohttp (если вам нужен только один прокси, верните formatted_proxy_http или formatted_proxy_https)
-#         # Возвращаем оба формата для удобства
-#         return proxies_dict, formatted_proxy_http
 def load_proxies():
     """Загружает список прокси-серверов из файла."""
     with open(txt_file_proxies, "r", encoding="utf-8") as file:
@@ -303,7 +274,7 @@ def get_asio():
 
                     if tasks:
                         await asyncio.gather(*tasks)
-                        print(f"Completed {coun} requests")
+                        logger.info(f"Выполнено {coun} запросов")
                         await asyncio.sleep(5)
 
     asyncio.run(main())
@@ -357,7 +328,7 @@ def parsing_products():
                     symbol = table_product.text.split("Symbol: ")[1].split("\n")[0]
                 except:
                     symbol = None
-                    print(f"Нет symbol")
+                    logger.error(f"Нет symbol")
 
                 try:
                     price_netto = (
@@ -368,7 +339,7 @@ def parsing_products():
                     )
                 except:
                     price_netto = None
-                    print(f"Нет price_netto")
+                    logger.error(f"Нет price_netto")
 
                 try:
                     price_brutto = (
@@ -379,7 +350,7 @@ def parsing_products():
                     )
                 except:
                     price_brutto = None
-                    print(f"Нет price_brutto")
+                    logger.error(f"Нет price_brutto")
 
                 urls_photo = []
                 photos = soup.find_all("a", attrs={"rel": "lightbox[galeria]"})
@@ -401,7 +372,6 @@ def parsing_products():
                 except AttributeError:
                     # Если элемент не найден, soup.find() вернёт None, что приведёт к AttributeError при попытке вызвать .get_text()
                     category = None
-                # print(category)
                 try:
                     opis_tovaru = table_product.find_all("td", attrs={"valign": "top"})[
                         1
@@ -409,40 +379,6 @@ def parsing_products():
                 except:
                     opis_tovaru = None
 
-                # coun = 0
-                # for u in urls_photo:
-                #     pause_time = random.randint(1, 2)
-                #     """Настройка прокси серверов случайных"""
-                #     proxy = random.choice(proxies)
-                #     proxy_host = proxy[0]
-                #     proxy_port = proxy[1]
-                #     proxy_user = proxy[2]
-                #     proxy_pass = proxy[3]
-
-                #     proxi = {
-                #         "http": f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}",
-                #         "https": f"http://{proxy_user}:{proxy_pass}@{proxy_host}:{proxy_port}",
-                #     }
-
-                # if len(urls_photo) > 1 and coun > 0:
-                #     file_path = f'c:\\data_wmmotor\\img\\{symbol}_{coun}.jpg'
-                # else:
-                #     file_path = f'c:\\data_wmmotor\\img\\{symbol}.jpg'
-
-                # if len(urls_photo) > 1 and coun > 0:
-                #     file_name = f'{symbol}_{coun}.jpg'
-                # else:
-                #     file_name = f'{symbol}.jpg'
-                #
-                # file_path = os.path.join(img_path, file_name)
-                # if not os.path.exists(file_path):
-                #     try:
-                #         img_data = requests.get(u, headers=headers, cookies=cookies, proxies=proxi)
-                #         with open(file_path, 'wb') as file_img:
-                #             file_img.write(img_data.content)
-                #     except:
-                #         print(f"Ошибка при выполнении запроса для URL: {u}")
-                # coun += 1
 
                 values = [
                     product_name,
@@ -486,24 +422,33 @@ def get_cookies():
         return filename
 
     async def run(playwright):
-        browsers_path = os.path.join(current_directory, "pw-browsers")
-        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+        # current_directory = os.getcwd()  # Получаем текущий каталог
+        # browsers_path = os.path.join(current_directory, "pw-browsers")
+        # if os.path.exists(browsers_path):
+        #     os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+        # else:
+        #     os.environ.pop("PLAYWRIGHT_BROWSERS_PATH", None)  # Удаляем переменную, если она установлена
         browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
+        
+        
+        # browser = await playwright.chromium.launch(headless=False)
+        # context = await browser.new_context()
+        # page = await context.new_page()
         url = "http://www.wmmotor.pl/hurtownia/drzewo.php"
 
         try:
             await page.goto(url, wait_until="networkidle", timeout=60000)
         except TimeoutError:
-            print(f"Страница не загрузилась за 60 секунд.")
+            logger.error(f"Страница не загрузилась за 60 секунд.")
             return
 
         try:
             # Ввод логина и пароля
-            print("Вставьте логин, почту")
+            logger.info("Вставьте логин, почту")
             fldEmail = "kupujwpl@gmail.com"
-            print("Вставьте пароль")
+            logger.info("Вставьте пароль")
             fldPassword = "8T1cekQFO2"
 
             fldEmail_xpath = '//input[@name="fldEmail"]'
@@ -540,15 +485,15 @@ def get_cookies():
                 if match_plus:
                     num1, num2 = map(int, match_plus.groups())
                     int_result = num1 + num2
-                    print(f"Результат: {int_result}")
+                    logger.info(f"Результат: {int_result}")
                     await input_element.fill(str(int_result))
                 elif match_minus:
                     num1, num2 = map(int, match_minus.groups())
                     int_result = num1 - num2
-                    print(f"Результат: {int_result}")
+                    logger.info(f"Результат: {int_result}")
                     await input_element.fill(str(int_result))
             else:
-                print("Элемент не найден.")
+                logger.error("Элемент не найден.")
 
             """Нажимаем кнопку ZALOGUJ"""
             flinkButton_xpath = '//a[@class="linkButton"]'
@@ -559,7 +504,7 @@ def get_cookies():
 
             await sleep(5)
         except TimeoutError:
-            print("Страница не загрузилась")
+            logger.error("Страница не загрузилась")
 
         filename = await save_cookies(page)
         await browser.close()
