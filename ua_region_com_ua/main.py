@@ -27,8 +27,8 @@ file_proxy = configuration_directory / "roman.txt"
 
 
 cookies = {
+    "PHPSESSID": "994gpk9m3pm3v0b33t8lv5m3nv",
     "G_ENABLED_IDPS": "google",
-    "PHPSESSID": "qrv15skogbamtogk5kb75t09l9",
 }
 
 headers = {
