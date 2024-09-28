@@ -3,7 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from configuration.logger_setup import logger
 import os
-from typing import Optional, Dict, Any, List  
+from typing import Optional, Dict, Any, List
 from asyncio import TimeoutError, wait_for
 
 
@@ -85,16 +85,19 @@ class DatabaseInitializer:
                     try:
                         # Таблица метаданных
                         """Эта таблица будет использоваться для хранения информации о динамически добавляемых столбцах. Это позволяет вашему приложению отслеживать, какие дополнительные столбцы были добавлены в каждую таблицу, и каков их тип данных."""
-                        await cursor.execute("""
+                        await cursor.execute(
+                            """
                             CREATE TABLE IF NOT EXISTS table_metadata (
                                 id INT AUTO_INCREMENT PRIMARY KEY,  # Уникальный идентификатор для каждой записи. AUTO_INCREMENT автоматически увеличивает значение с каждой новой записью.
                                 table_name VARCHAR(255) NOT NULL,   # Название таблицы, к которой относится данная запись (например, 'contacts'). Используем тип VARCHAR(255), так как название таблицы - это строка.
                                 column_name VARCHAR(255) NOT NULL,  # Название столбца, который добавляется динамически. Также используем тип VARCHAR(255), так как это строка.
                                 data_type VARCHAR(50) NOT NULL      # Тип данных для данного столбца (например, 'VARCHAR(255)', 'INT', 'DATETIME'). Мы используем тип VARCHAR(50), так как тип данных - это тоже строка, и обычно его длина не превышает 50 символов.
                             );
-                        """)
+                        """
+                        )
 
-                        await cursor.execute("""
+                        await cursor.execute(
+                            """
                             -- Создание таблицы для хранения информации о контактах
                             CREATE TABLE IF NOT EXISTS contacts (
                                 id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор контакта, автоинкремент
@@ -108,10 +111,11 @@ class DatabaseInitializer:
                                 comment TEXT,  -- Комментарии к контакту
                                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- Дата и время создания контакта
                             );
-                        """)
+                        """
+                        )
 
-                                        
-                        await cursor.execute("""
+                        await cursor.execute(
+                            """
                             -- Создание таблицы для хранения информации о дополнительных контактах, связанных с основным контактом
                             CREATE TABLE IF NOT EXISTS additional_contacts (
                                 id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор записи, автоинкремент
@@ -122,9 +126,11 @@ class DatabaseInitializer:
                                 email VARCHAR(255),  -- Электронная почта дополнительного контакта
                                 FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE  -- Внешний ключ, ссылающийся на таблицу contacts, при удалении основного контакта все связанные записи удаляются
                             );
-                        """)
-                                        
-                        await cursor.execute("""
+                        """
+                        )
+
+                        await cursor.execute(
+                            """
                             -- Создание таблицы для хранения информации о мессенджерах, связанных с контактом
                             CREATE TABLE IF NOT EXISTS messengers_data (
                                 id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор записи, автоинкремент
@@ -133,9 +139,11 @@ class DatabaseInitializer:
                                 link VARCHAR(255),  -- Ссылка на мессенджер
                                 FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE  -- Внешний ключ, ссылающийся на таблицу contacts, при удалении основного контакта все связанные записи удаляются
                             );
-                        """)
-                                        
-                        await cursor.execute("""
+                        """
+                        )
+
+                        await cursor.execute(
+                            """
                             -- Создание таблицы для хранения платежных реквизитов, связанных с контактом
                             CREATE TABLE IF NOT EXISTS payment_details (
                                 id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор записи, автоинкремент
@@ -147,9 +155,11 @@ class DatabaseInitializer:
                                 currency VARCHAR(50),  -- Валюта счета
                                 FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE  -- Внешний ключ, ссылающийся на таблицу contacts, при удалении основного контакта все связанные записи удаляются
                             );
-                        """)
-                                        
-                        await cursor.execute("""
+                        """
+                        )
+
+                        await cursor.execute(
+                            """
                             -- Создание таблицы для хранения комментариев, связанных с контактом
                             CREATE TABLE IF NOT EXISTS comments (
                                 id INT AUTO_INCREMENT PRIMARY KEY,  -- Уникальный идентификатор записи, автоинкремент
@@ -159,8 +169,10 @@ class DatabaseInitializer:
                                 comment TEXT,  -- Текст комментария
                                 FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE  -- Внешний ключ, ссылающийся на таблицу contacts, при удалении основного контакта все связанные записи удаляются
                             );
-                        """)
-                        await cursor.execute("""
+                        """
+                        )
+                        await cursor.execute(
+                            """
                             CREATE TABLE IF NOT EXISTS tasks (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             title VARCHAR(255),
@@ -172,46 +184,49 @@ class DatabaseInitializer:
                             start_time DATETIME,
                             end_time DATETIME,
                             control_time DATETIME
-                        );
-
-                                             """)
-                        await cursor.execute("""
+                        );"""
+                        )
+                        await cursor.execute(
+                            """
                             CREATE TABLE IF NOT EXISTS task_contacts (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             task_id INT,
                             contact_id INT,
                             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
                             FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
-                        );
-                                             """)
-                        await cursor.execute("""
+                        );"""
+                        )
+                        await cursor.execute(
+                            """
                             CREATE TABLE IF NOT EXISTS task_documents (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             task_id INT,
                             file_name VARCHAR(255),
                             file_path TEXT,
                             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-                        );
+                        );"""
+                        )
 
-                                             """)
-                        
                         # Сначала создаем таблицу statements
-                        await cursor.execute("""
+                        await cursor.execute(
+                            """
                         CREATE TABLE IF NOT EXISTS statements (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             statement_text TEXT  -- Пример поля для заявок
                             );
-                        """)
+                        """
+                        )
 
-                        await cursor.execute("""
+                        await cursor.execute(
+                            """
                             CREATE TABLE IF NOT EXISTS task_statements (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             task_id INT,
                             statement_id INT,
                             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
                             FOREIGN KEY (statement_id) REFERENCES statements(id) ON DELETE CASCADE
-                        );
-                                             """)
+                        );"""
+                        )
 
                         # Создание таблицы Вызовов
                         await cursor.execute(
@@ -233,6 +248,16 @@ class DatabaseInitializer:
                         )
                         """
                         )
+                        # Создаем таблицу config, если она еще не существует
+                        await cursor.execute(
+                            """
+                        CREATE TABLE IF NOT EXISTS config (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            config_key VARCHAR(255) NOT NULL,
+                            config_value TEXT NOT NULL
+                        );
+                        """
+                        )
 
                         logger.info("Таблицы созданы или уже существуют")
                     except Exception as e:
@@ -248,6 +273,7 @@ class DatabaseInitializer:
             logger.info("Пул соединений закрыт")
 
     """Получение всех данных о контактах с возможностью фильтрации."""
+
     async def get_all_contact_data(self, filters: Optional[Dict[str, Any]] = None):
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
@@ -327,10 +353,11 @@ class DatabaseInitializer:
         except asyncio.TimeoutError:
             logger.error("Таймаут при попытке получить соединение из пула")
             return []
-    
+
     """Добавление данных о вызове в таблицу calls."""
+
     async def insert_call_data(self, call_data):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -371,8 +398,9 @@ class DatabaseInitializer:
             return False
 
     """Получить комментарии для данного контакта. по ТЗ"""
+
     async def get_comments(self, contact_id):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return []
@@ -383,17 +411,18 @@ class DatabaseInitializer:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute(
                         "SELECT date, manager, comment FROM comments WHERE contact_id = %s",
-                        (contact_id,)
+                        (contact_id,),
                     )
                     comments = await cursor.fetchall()
                     return comments
         except Exception as e:
             logger.error(f"Ошибка при получении комментариев: {e}")
             return []
-    
+
     """Получить платежные реквизиты для данного контакта. по ТЗ"""
+
     async def get_payment_details(self, contact_id):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return []
@@ -404,7 +433,7 @@ class DatabaseInitializer:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute(
                         "SELECT IBAN, bank_name, SWIFT, account_type, currency FROM payment_details WHERE contact_id = %s",
-                        (contact_id,)
+                        (contact_id,),
                     )
                     payment_details = await cursor.fetchall()
                     return payment_details
@@ -413,6 +442,7 @@ class DatabaseInitializer:
             return []
 
     """Получить дополнительные контакты для данного контакта. по ТЗ"""
+
     async def get_additional_contacts(self, contact_id):
         """Получить дополнительные контакты для данного контакта."""
         if self.pool is None:
@@ -425,17 +455,18 @@ class DatabaseInitializer:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute(
                         "SELECT name, position, phone, email FROM additional_contacts WHERE contact_id = %s",
-                        (contact_id,)
+                        (contact_id,),
                     )
                     additional_contacts = await cursor.fetchall()
                     return additional_contacts
         except Exception as e:
             logger.error(f"Ошибка при получении дополнительных контактов: {e}")
             return []
-    
+
     """Получить данные мессенджеров для данного контакта. по ТЗ"""
+
     async def get_messengers_data(self, contact_id):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return []
@@ -446,7 +477,7 @@ class DatabaseInitializer:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute(
                         "SELECT messenger, link FROM messengers_data WHERE contact_id = %s",
-                        (contact_id,)
+                        (contact_id,),
                     )
                     messengers_data = await cursor.fetchall()
                     return messengers_data
@@ -455,8 +486,9 @@ class DatabaseInitializer:
             return []
 
     """Получить данные контакта по ID. по ТЗ"""
+
     async def get_contact_by_id(self, contact_id):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return None
@@ -465,7 +497,9 @@ class DatabaseInitializer:
             connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
             async with connection:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
-                    await cursor.execute("SELECT * FROM contacts WHERE id = %s", (contact_id,))
+                    await cursor.execute(
+                        "SELECT * FROM contacts WHERE id = %s", (contact_id,)
+                    )
                     contact = await cursor.fetchone()
                     return contact
         except Exception as e:
@@ -473,8 +507,9 @@ class DatabaseInitializer:
             return None
 
     """Получить дополнительные контакты для данного контакта. по ТЗ"""
+
     async def get_additional_contacts(self, contact_id):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return []
@@ -483,7 +518,10 @@ class DatabaseInitializer:
             connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
             async with connection:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
-                    await cursor.execute("SELECT name, position, phone, email FROM additional_contacts WHERE contact_id = %s", (contact_id,))
+                    await cursor.execute(
+                        "SELECT name, position, phone, email FROM additional_contacts WHERE contact_id = %s",
+                        (contact_id,),
+                    )
                     additional_contacts = await cursor.fetchall()
                     return additional_contacts
         except Exception as e:
@@ -491,8 +529,9 @@ class DatabaseInitializer:
             return []
 
     """Добавление данных о контакте в таблицу contacts. по ТЗ"""
+
     async def insert_contact(self, contact_data):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -507,7 +546,9 @@ class DatabaseInitializer:
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         (
-                            contact_data["username"],  # Используем правильное название столбца: username
+                            contact_data[
+                                "username"
+                            ],  # Используем правильное название столбца: username
                             contact_data["contact_type"],
                             contact_data["contact_status"],
                             contact_data["manager"],
@@ -519,11 +560,14 @@ class DatabaseInitializer:
                     )
                     await connection.commit()
                     contact_id = cursor.lastrowid  # Получаем ID вставленного контакта
-                    logger.info(f"Данные успешно добавлены в таблицу contacts: {contact_data}")
+                    logger.info(
+                        f"Данные успешно добавлены в таблицу contacts: {contact_data}"
+                    )
                     return contact_id
         except Exception as e:
             logger.error(f"Ошибка при добавлении данных в таблицу contacts: {e}")
             return False
+
     async def save_statements(self, task_id: int, statements: List[int]):
         """Сохранение заявок, связанных с задачей"""
         if self.pool is None:
@@ -533,33 +577,31 @@ class DatabaseInitializer:
             async with self.pool.acquire() as connection:
                 async with connection.cursor() as cursor:
                     # Удаляем существующие заявки для данной задачи
-                    await cursor.execute("DELETE FROM task_statements WHERE task_id = %s", (task_id,))
-                    
+                    await cursor.execute(
+                        "DELETE FROM task_statements WHERE task_id = %s", (task_id,)
+                    )
+
                     # Добавляем новые заявки
                     for statement_id in statements:
-                        await cursor.execute("""
+                        await cursor.execute(
+                            """
                             INSERT INTO task_statements (task_id, statement_id)
                             VALUES (%s, %s)
-                        """, (task_id, statement_id))
-                
+                        """,
+                            (task_id, statement_id),
+                        )
+
                 await connection.commit()
         except Exception as e:
             raise Exception(f"Ошибка при сохранении заявок для задачи: {e}")
-    async def contact_exists(self, contact_id: int) -> bool:
-        """Проверяем, существует ли контакт с данным ID"""
-        if self.pool is None:
-            raise Exception("Пул соединений не инициализирован.")
 
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    # Выполняем запрос для проверки существования контакта
-                    await cursor.execute("SELECT id FROM contacts WHERE id = %s", (contact_id,))
-                    result = await cursor.fetchone()
-                    return result is not None
-        except Exception as e:
-            raise Exception(f"Ошибка при проверке контакта: {e}")
-    async def create_contact(self, contact_id: int, username: str = "Новый контакт", contact_type: str = "Тип", contact_status: str = "Новый"):
+    async def create_contact(
+        self,
+        contact_id: int,
+        username: str = "Новый контакт",
+        contact_type: str = "Тип",
+        contact_status: str = "Новый",
+    ):
         """Создаем новый контакт в таблице contacts"""
         if self.pool is None:
             raise Exception("Пул соединений не инициализирован.")
@@ -568,13 +610,17 @@ class DatabaseInitializer:
             async with self.pool.acquire() as connection:
                 async with connection.cursor() as cursor:
                     # Создаем новый контакт
-                    await cursor.execute("""
+                    await cursor.execute(
+                        """
                         INSERT INTO contacts (id, username, contact_type, contact_status, manager, userphone, useremail, usersite, comment)
                         VALUES (%s, %s, %s, %s, 'Менеджер', '0000000000', 'email@example.com', 'website.com', 'Автоматически создан контакт')
-                    """, (contact_id, username, contact_type, contact_status))
+                    """,
+                        (contact_id, username, contact_type, contact_status),
+                    )
                     await connection.commit()
         except Exception as e:
             raise Exception(f"Ошибка при создании контакта: {e}")
+
     async def save_contacts(self, task_id: int, contacts: List[int]):
         """Сохранение контактов, связанных с задачей"""
         if self.pool is None:
@@ -584,21 +630,28 @@ class DatabaseInitializer:
             async with self.pool.acquire() as connection:
                 async with connection.cursor() as cursor:
                     # Удаляем существующие контакты для данной задачи (если нужно обновить контакты)
-                    await cursor.execute("DELETE FROM task_contacts WHERE task_id = %s", (task_id,))
-                    
+                    await cursor.execute(
+                        "DELETE FROM task_contacts WHERE task_id = %s", (task_id,)
+                    )
+
                     # Добавляем новые контакты
                     for contact_id in contacts:
-                        await cursor.execute("""
+                        await cursor.execute(
+                            """
                             INSERT INTO task_contacts (task_id, contact_id)
                             VALUES (%s, %s)
-                        """, (task_id, contact_id))
-                
+                        """,
+                            (task_id, contact_id),
+                        )
+
                 await connection.commit()
         except Exception as e:
             raise Exception(f"Ошибка при сохранении контактов для задачи: {e}")
+
     """Вставка или обновление платежных данных. по ТЗ"""
+
     async def insert_or_update_payment_details(self, payment_data):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -629,8 +682,9 @@ class DatabaseInitializer:
             return False
 
     """Вставка или обновление данных мессенджера. по ТЗ"""
+
     async def insert_or_update_messenger_data(self, messenger_data):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -651,15 +705,18 @@ class DatabaseInitializer:
                         ),
                     )
                     await connection.commit()
-                    logger.info(f"Данные мессенджера успешно добавлены: {messenger_data}")
+                    logger.info(
+                        f"Данные мессенджера успешно добавлены: {messenger_data}"
+                    )
                     return True
         except Exception as e:
             logger.error(f"Ошибка при добавлении данных мессенджера: {e}")
             return False
 
     """Вставка или обновление дополнительного контакта. по ТЗ"""
+
     async def insert_or_update_additional_contact(self, additional_contact_data):
-        
+
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -683,11 +740,14 @@ class DatabaseInitializer:
                         ),
                     )
                     await connection.commit()
-                    logger.info(f"Дополнительный контакт успешно добавлен: {additional_contact_data}")
+                    logger.info(
+                        f"Дополнительный контакт успешно добавлен: {additional_contact_data}"
+                    )
                     return True
         except Exception as e:
             logger.error(f"Ошибка при добавлении дополнительного контакта: {e}")
             return False
+
     async def get_dynamic_columns(self, table_name: str):
         """Получает список всех столбцов в таблице, включая динамически добавленные."""
         if self.pool is None:
@@ -700,30 +760,38 @@ class DatabaseInitializer:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
                     await cursor.execute(f"SHOW COLUMNS FROM {table_name}")
                     columns = await cursor.fetchall()
-                    column_names = [column['Field'] for column in columns]
+                    column_names = [column["Field"] for column in columns]
                     return column_names
         except Exception as e:
             logger.error(f"Ошибка при получении столбцов таблицы {table_name}: {e}")
             return []
+
     async def get_documents_by_task_id(self, task_id: int) -> List[dict]:
         """Получение документов, связанных с задачей по её ID"""
         if self.pool is None:
             raise Exception("Пул соединений не инициализирован.")
-        
+
         try:
             async with self.pool.acquire() as connection:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
                     # Получаем документы, связанные с задачей
-                    await cursor.execute("""
+                    await cursor.execute(
+                        """
                         SELECT file_name, file_path 
                         FROM task_documents 
                         WHERE task_id = %s
-                    """, (task_id,))
+                    """,
+                        (task_id,),
+                    )
                     documents = await cursor.fetchall()
 
-                    return [{"file_name": doc["file_name"], "file_path": doc["file_path"]} for doc in documents]
+                    return [
+                        {"file_name": doc["file_name"], "file_path": doc["file_path"]}
+                        for doc in documents
+                    ]
         except Exception as e:
             raise Exception(f"Ошибка при получении документов для задачи: {e}")
+
     async def get_task_by_id(self, task_id: int) -> Optional[dict]:
         """Получение задания по его ID"""
         if self.pool is None:
@@ -735,20 +803,31 @@ class DatabaseInitializer:
             async with connection:
                 async with connection.cursor(aiomysql.DictCursor) as cursor:
                     # Запрос к базе данных для получения задания по ID
-                    await cursor.execute("SELECT * FROM tasks WHERE id = %s", (task_id,))
+                    await cursor.execute(
+                        "SELECT * FROM tasks WHERE id = %s", (task_id,)
+                    )
                     task = await cursor.fetchone()
 
                     if task is None:
                         return None
 
                     # Получение связанных данных (контакты, заявки, документы)
-                    await cursor.execute("SELECT contact_id FROM task_contacts WHERE task_id = %s", (task_id,))
+                    await cursor.execute(
+                        "SELECT contact_id FROM task_contacts WHERE task_id = %s",
+                        (task_id,),
+                    )
                     contacts = await cursor.fetchall()
 
-                    await cursor.execute("SELECT statement_id FROM task_statements WHERE task_id = %s", (task_id,))
+                    await cursor.execute(
+                        "SELECT statement_id FROM task_statements WHERE task_id = %s",
+                        (task_id,),
+                    )
                     statements = await cursor.fetchall()
 
-                    await cursor.execute("SELECT file_name, file_path FROM task_documents WHERE task_id = %s", (task_id,))
+                    await cursor.execute(
+                        "SELECT file_name, file_path FROM task_documents WHERE task_id = %s",
+                        (task_id,),
+                    )
                     documents = await cursor.fetchall()
 
                     # Возвращаем структуру данных задачи
@@ -758,14 +837,28 @@ class DatabaseInitializer:
                         "status": task["status"],
                         "note": task["note"],
                         "initiator": task["initiator"],
-                        "performers": task["performers"].split(','),  # Преобразуем строку в список
-                        "reviewers": task["reviewers"].split(','),  # Преобразуем строку в список
-                        "startTime": task["start_time"].strftime('%Y-%m-%dT%H:%M:%S'),
-                        "endTime": task["end_time"].strftime('%Y-%m-%dT%H:%M:%S'),
-                        "controlTime": task["control_time"].strftime('%Y-%m-%dT%H:%M:%S'),
-                        "contacts": [contact['contact_id'] for contact in contacts],
-                        "statements": [statement['statement_id'] for statement in statements],
-                        "documents": [{"file_name": doc["file_name"], "file_path": doc["file_path"]} for doc in documents]
+                        "performers": task["performers"].split(
+                            ","
+                        ),  # Преобразуем строку в список
+                        "reviewers": task["reviewers"].split(
+                            ","
+                        ),  # Преобразуем строку в список
+                        "startTime": task["start_time"].strftime("%Y-%m-%dT%H:%M:%S"),
+                        "endTime": task["end_time"].strftime("%Y-%m-%dT%H:%M:%S"),
+                        "controlTime": task["control_time"].strftime(
+                            "%Y-%m-%dT%H:%M:%S"
+                        ),
+                        "contacts": [contact["contact_id"] for contact in contacts],
+                        "statements": [
+                            statement["statement_id"] for statement in statements
+                        ],
+                        "documents": [
+                            {
+                                "file_name": doc["file_name"],
+                                "file_path": doc["file_path"],
+                            }
+                            for doc in documents
+                        ],
                     }
 
                     return task_data
@@ -782,26 +875,34 @@ class DatabaseInitializer:
             async with self.pool.acquire() as connection:
                 async with connection.cursor() as cursor:
                     # SQL-запрос для вставки данных задачи
-                    await cursor.execute("""
+                    await cursor.execute(
+                        """
                         INSERT INTO tasks (title, status, note, initiator, performers, reviewers, start_time, end_time, control_time)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        task_data['title'],
-                        task_data['status'],
-                        task_data['note'],
-                        task_data['initiator'],
-                        ','.join(task_data['performers']),  # Преобразуем список в строку
-                        ','.join(task_data['reviewers']),   # Преобразуем список в строку
-                        task_data['startTime'],
-                        task_data['endTime'],
-                        task_data['controlTime']
-                    ))
+                    """,
+                        (
+                            task_data["title"],
+                            task_data["status"],
+                            task_data["note"],
+                            task_data["initiator"],
+                            ",".join(
+                                task_data["performers"]
+                            ),  # Преобразуем список в строку
+                            ",".join(
+                                task_data["reviewers"]
+                            ),  # Преобразуем список в строку
+                            task_data["startTime"],
+                            task_data["endTime"],
+                            task_data["controlTime"],
+                        ),
+                    )
                     # Получаем ID вставленной записи
                     await connection.commit()
                     task_id = cursor.lastrowid
                     return task_id
         except Exception as e:
             raise Exception(f"Ошибка при сохранении данных задачи: {e}")
+
     async def statement_exists(self, statement_id: int) -> bool:
         """Проверяем, существует ли заявка с данным ID"""
         if self.pool is None:
@@ -810,11 +911,14 @@ class DatabaseInitializer:
         try:
             async with self.pool.acquire() as connection:
                 async with connection.cursor() as cursor:
-                    await cursor.execute("SELECT id FROM statements WHERE id = %s", (statement_id,))
+                    await cursor.execute(
+                        "SELECT id FROM statements WHERE id = %s", (statement_id,)
+                    )
                     result = await cursor.fetchone()
                     return result is not None
         except Exception as e:
             raise Exception(f"Ошибка при проверке заявки: {e}")
+
     async def create_statement(self, statement_id: int, statement_text: str):
         """Создаем новую заявку в таблице statements"""
         if self.pool is None:
@@ -824,13 +928,16 @@ class DatabaseInitializer:
             async with self.pool.acquire() as connection:
                 async with connection.cursor() as cursor:
                     # Создаем новую заявку
-                    await cursor.execute("""
+                    await cursor.execute(
+                        """
                         INSERT INTO statements (id, statement_text) VALUES (%s, %s)
-                    """, (statement_id, statement_text))
+                    """,
+                        (statement_id, statement_text),
+                    )
                     await connection.commit()
         except Exception as e:
             raise Exception(f"Ошибка при создании заявки: {e}")
-        
+
     async def contact_exists(self, contact_id: int) -> bool:
         """Проверяем, существует ли контакт с данным ID"""
         if self.pool is None:
@@ -840,11 +947,63 @@ class DatabaseInitializer:
             async with self.pool.acquire() as connection:
                 async with connection.cursor() as cursor:
                     # Выполняем запрос для проверки существования контакта
-                    await cursor.execute("SELECT id FROM contacts WHERE id = %s", (contact_id,))
+                    await cursor.execute(
+                        "SELECT id FROM contacts WHERE id = %s", (contact_id,)
+                    )
                     result = await cursor.fetchone()
                     return result is not None
         except Exception as e:
             raise Exception(f"Ошибка при проверке контакта: {e}")
+
+    async def save_config_to_db(self, config_data: Dict[str, str]):
+        """Сохраняет конфигурационные данные в таблицу config в формате ключ-значение"""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return False
+
+        try:
+            async with self.pool.acquire() as connection:
+                async with connection.cursor() as cursor:
+                    # Очищаем существующие конфигурационные данные
+                    await cursor.execute("TRUNCATE TABLE config")
+
+                    # Сохраняем новые конфигурационные данные
+                    for key, value in config_data.items():
+                        await cursor.execute(
+                            """
+                            INSERT INTO config (config_key, config_value)
+                            VALUES (%s, %s)
+                        """,
+                            (key, value),
+                        )
+
+                await connection.commit()
+                logger.info("Конфигурационные данные успешно сохранены")
+                return True
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении конфигурационных данных: {e}")
+            return False
+
+    async def get_config(self) -> Dict[str, str]:
+        """Получает конфигурационные данные из таблицы config"""
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return {}
+
+        try:
+            async with self.pool.acquire() as connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute("SELECT config_key, config_value FROM config")
+                    result = await cursor.fetchall()
+
+                    # Преобразуем результат в словарь
+                    config_data = {
+                        row["config_key"]: row["config_value"] for row in result
+                    }
+                    return config_data
+        except Exception as e:
+            logger.error(f"Ошибка при получении конфигурационных данных: {e}")
+            return {}
 
 
 # Для тестирования модуля отдельно (можно удалить, если не нужно)

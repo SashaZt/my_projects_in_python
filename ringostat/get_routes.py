@@ -23,6 +23,7 @@ async def get_db():
     await db_initializer.init_db()
     return db_initializer
 
+
 @router.get("/calls")
 async def get_calls(request: Request):
     db = await get_db()
@@ -64,6 +65,7 @@ async def get_calls(request: Request):
             status_code=500, content={"status": "failure", "message": str(e)}
         )
 
+
 # РАБОЧИЙ КОД БЫЛ
 # @router.get("/contacts")
 # async def get_all_contacts(
@@ -98,6 +100,7 @@ async def get_calls(request: Request):
 #         logger.info(f"Данные успешно получены из всех таблиц contacts_: {result}")
 #         return {"status": "success", "data": result}
 
+
 #     except Exception as e:
 #         logger.error(f"Ошибка при получении данных из всех таблиц contacts_: {e}")
 #         raise HTTPException(
@@ -109,16 +112,16 @@ async def get_contact(contact_id: int, db=Depends(get_db)):
         contact = await db.get_contact_by_id(contact_id)
         if not contact:
             raise HTTPException(status_code=404, detail="Contact not found")
-        
+
         additional_contacts = await db.get_additional_contacts(contact_id)
         messengers_data = await db.get_messengers_data(contact_id)
         payment_details = await db.get_payment_details(contact_id)
         comments = await db.get_comments(contact_id)
-        
+
         # Преобразование datetime в строку
         for key, value in contact.items():
             if isinstance(value, datetime):
-                contact[key] = value.strftime('%d.%m.%Y %H:%M:%S')
+                contact[key] = value.strftime("%d.%m.%Y %H:%M:%S")
 
         response_data = {
             "contactId": contact_id,
@@ -126,9 +129,9 @@ async def get_contact(contact_id: int, db=Depends(get_db)):
             "additionalContacts": additional_contacts,
             "messengersData": messengers_data,
             "paymentDetails": payment_details,
-            "comments": comments
+            "comments": comments,
         }
-        
+
         return JSONResponse(status_code=200, content=response_data)
 
     except Exception as e:
@@ -141,7 +144,7 @@ async def get_contact(contact_id: int, db=Depends(get_db)):
 # async def head_contacts():
 #     return {"message": "Contacts list"}
 
-# РАбочий    
+# РАбочий
 # @router.get("/contacts")
 # async def get_filtered_contacts(
 #     searchString: Optional[str] = None,
@@ -228,6 +231,7 @@ async def get_contact(contact_id: int, db=Depends(get_db)):
 #         logger.error(f"Ошибка при получении списка контактов: {e}")
 #         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
 @router.get("/contacts")
 async def get_filtered_contacts(
     mini: bool = Query(False, description="Возвращать только id и organization"),
@@ -241,7 +245,7 @@ async def get_filtered_contacts(
     page: int = 1,
     sortBy: Optional[str] = None,
     sortOrder: Optional[str] = "asc",
-    db=Depends(get_db)
+    db=Depends(get_db),
 ):
     try:
         # Если параметр mini=True, выбираем только id и organization
@@ -294,31 +298,34 @@ async def get_filtered_contacts(
                 # Если mini=False, преобразуем даты в читаемый формат
                 if not mini:
                     for contact in contacts:
-                        if isinstance(contact.get('created_at'), datetime):
-                            contact['created_at'] = contact['created_at'].strftime('%d.%m.%Y')
+                        if isinstance(contact.get("created_at"), datetime):
+                            contact["created_at"] = contact["created_at"].strftime(
+                                "%d.%m.%Y"
+                            )
 
         # Получаем общее количество записей
         async with db.pool.acquire() as connection:
             async with connection.cursor() as cursor:
                 await cursor.execute("SELECT COUNT(*) FROM contacts WHERE 1=1")
                 total_records = await cursor.fetchone()
-                total_pages = (total_records['COUNT(*)'] // limit) + 1
+                total_pages = (total_records["COUNT(*)"] // limit) + 1
 
         # Формирование итогового ответа
-        return JSONResponse(status_code=200, content={
-            "data": contacts,
-            "totalPages": total_pages,
-            "currentPage": page
-        }, headers={
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
-            "Access-Control-Allow-Headers": "Authorization, Content-Type"
-        })
+        return JSONResponse(
+            status_code=200,
+            content={"data": contacts, "totalPages": total_pages, "currentPage": page},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+                "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            },
+        )
 
     except Exception as e:
         logger.error(f"Ошибка при получении списка контактов: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-    
+
+
 @router.get("/task/{task_id}")
 async def get_task_by_id(task_id: int, db=Depends(get_db)):
     try:
@@ -333,7 +340,9 @@ async def get_task_by_id(task_id: int, db=Depends(get_db)):
         # Проверка наличия всех полей и установка значений по умолчанию
         performers = task.get("performers", "")  # Исполнители
         if isinstance(performers, str):
-            performers = performers.split(",")  # Преобразуем строку исполнителей в список
+            performers = performers.split(
+                ","
+            )  # Преобразуем строку исполнителей в список
 
         reviewer = task.get("reviewer", None)  # Проверяющий
         initiator = task.get("initiator", None)  # Инициатор
@@ -343,13 +352,19 @@ async def get_task_by_id(task_id: int, db=Depends(get_db)):
         end_time = task.get("end_time")
         control_time = task.get("control_time")
 
-        start_time_str = start_time.strftime('%Y-%m-%dT%H:%M:%SZ') if start_time else None
-        end_time_str = end_time.strftime('%Y-%m-%dT%H:%M:%SZ') if end_time else None
-        control_time_str = control_time.strftime('%Y-%m-%dT%H:%M:%SZ') if control_time else None
+        start_time_str = (
+            start_time.strftime("%Y-%m-%dT%H:%M:%SZ") if start_time else None
+        )
+        end_time_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ") if end_time else None
+        control_time_str = (
+            control_time.strftime("%Y-%m-%dT%H:%M:%SZ") if control_time else None
+        )
 
         response_data = {
             "id": task.get("id"),
-            "title": task.get("title", "Без названия"),  # Устанавливаем значение по умолчанию, если нет названия
+            "title": task.get(
+                "title", "Без названия"
+            ),  # Устанавливаем значение по умолчанию, если нет названия
             "status": task.get("status", "Не указан"),  # Статус задачи
             "note": task.get("note", ""),  # Заметки
             "initiator": initiator,  # Инициатор
@@ -358,10 +373,35 @@ async def get_task_by_id(task_id: int, db=Depends(get_db)):
             "startTime": start_time_str,  # Время начала
             "endTime": end_time_str,  # Время окончания
             "controlTime": control_time_str,  # Время контроля
-            "documents": documents  # Связанные документы
+            "documents": documents,  # Связанные документы
         }
 
         return JSONResponse(status_code=200, content=response_data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching task: {e}")
 
+
+# Добавление в `get_routes.py`
+
+
+@router.get("/getconfig")
+async def get_config(db=Depends(get_db)):
+    """Получает конфигурационные данные для формы 'Задачи'."""
+    try:
+        # Получаем конфигурационные данные из базы данных
+        config_data = await db.get_config()
+
+        if not config_data:
+            raise HTTPException(
+                status_code=404, detail="Конфигурационные данные не найдены"
+            )
+
+        return JSONResponse(
+            status_code=200, content={"status": "success", "data": config_data}
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении конфигурационных данных: {e}")
+        raise HTTPException(
+            status_code=500, detail="Ошибка при получении конфигурационных данных"
+        )
