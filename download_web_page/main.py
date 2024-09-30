@@ -36,34 +36,32 @@ def get_html():
     proxies_dict = {"http": proxy, "https": proxy}
 
     cookies = {
-        "PHPSESSID": "c95e174e4800458653c20b9dc207596e",
+        "G_ENABLED_IDPS": "google",
+        "PHPSESSID": "ghjh4kef1sircto610lnisq8a5",
     }
 
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        # 'cookie': 'PHPSESSID=c95e174e4800458653c20b9dc207596e',
-        "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "referer": "https://clarity-project.info/edr/37542726",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        # 'Cookie': 'G_ENABLED_IDPS=google; PHPSESSID=ghjh4kef1sircto610lnisq8a5',
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Referer": "https://www.ua-region.com.ua/comments/01353858",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
         "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://clarity-project.info/edr/37542726/finances",
-        cookies=cookies,
-        headers=headers,
-        proxies=proxies_dict,
+        "https://www.ua-region.com.ua/01353858", cookies=cookies, headers=headers
     )
 
     # Проверка кода ответа
@@ -130,85 +128,118 @@ def download_xml():
         print(f"Ошибка при скачивании файла: {response.status_code}")
 
 
+# Функция для очистки данных
+def clean_text(text):
+    # Убираем лишние пробелы и символы \xa0
+    cleaned_text = text.replace("\xa0", " ").strip()
+    # Убираем заголовки, если они присутствуют
+    cleaned_text = re.sub(
+        r"^(Код ЄДРПОУ|Дата реєстрації|Дата оновлення)", "", cleaned_text
+    )
+    return cleaned_text.strip()
+
+
 def parsing():
     with open("proba.html", encoding="utf-8") as file:
         src = file.read()
     soup = BeautifulSoup(src, "lxml")
 
-    # Список кодов
-    codes = [
-        "1012",
-        "1195",
-        "1495",
-        "1595",
-        "1621",
-        "1695",
-        "1900",
-        "2350",
-        "2000",
-        "2280",
-        "2285",
-        "2505",
-        "2510",
-    ]
-
     # Список для хранения всех единиц данных
     all_results = []
 
-    # Получаем заголовок страницы
-    page_title = soup.select_one(
-        "body > div.entity-page-wrap > div.entity-content-wrap > div.entity-header.px-10 > div:nth-child(3) > a"
-    ).text.replace("#", "")
+    # Безопасное извлечение заголовка страницы
+    page_title_raw = soup.select_one("#main > div:nth-child(1) > div > h1")
+    page_title = page_title_raw.get_text(strip=True) if page_title_raw else None
 
-    # Ищем количество работников
-    number_of_employees = None
-    employee_label = soup.find("td", string="Кількість працівників")
-    if employee_label:
-        number_of_employees = employee_label.find_next_sibling("td").string.strip()
+    # Безопасное извлечение юридического адреса
+    legal_address_raw = soup.select_one(
+        "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-8 > div > div:nth-child(2) > div"
+    )
+    legal_address = (
+        legal_address_raw.get_text(strip=True) if legal_address_raw else None
+    )
 
-    # Ищем КАТОТТГ
-    katottg = None
-    katottg_label = soup.find("td", string="КАТОТТГ")
-    if katottg_label:
-        katottg = katottg_label.find_next_sibling("td").string.strip()
+    # Безопасное извлечение номера телефона компании
+    phone_company_raw = soup.select_one(
+        "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-8 > div > div:nth-child(3) > div"
+    )
+    phone_company = (
+        phone_company_raw.get_text(strip=True) if phone_company_raw else None
+    )
 
+    # Безопасное извлечение кода ЕДРПОУ
+    cod_edrpo_raw = soup.select_one(
+        "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-4.mt-4.company-sidebar-info > div.company-sidebar.border.rounded.p-3.p-md-4.mb-3 > div:nth-child(2)"
+    )
+    cod_edrpo = cod_edrpo_raw.get_text(strip=True) if cod_edrpo_raw else None
+
+    # Безопасное извлечение даты регистрации
+    date_of_registration_raw = soup.select_one(
+        "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-4.mt-4.company-sidebar-info > div.company-sidebar.border.rounded.p-3.p-md-4.mb-3 > div:nth-child(3)"
+    )
+    date_of_registration = (
+        date_of_registration_raw.get_text(strip=True)
+        if date_of_registration_raw
+        else None
+    )
+
+    # Безопасное извлечение даты обновления
+    update_date_raw = soup.select_one(
+        "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-4.mt-4.company-sidebar-info > div.company-sidebar.border.rounded.p-3.p-md-4.mb-3 > div:nth-child(4)"
+    )
+    update_date = update_date_raw.get_text(strip=True) if update_date_raw else None
     # Словарь для текущей единицы данных
+    # Находим все элементы <a> с атрибутом href, содержащим '/kved/'
+    kved_elements = soup.select('a[href^="/kved/"]')
+
+    # Извлекаем коды КВЕД и записываем их в список
+    kved_list = [element["href"].split("/kved/")[1] for element in kved_elements]
+
+    # Объединяем все коды в одну строку, разделенную запятыми
+    kved_string = ",".join(kved_list)
+
     results = {
         "page_title": page_title,
-        "number_of_employees": number_of_employees,
-        "katottg": katottg,
+        "legal_address": legal_address,
+        "phone_company": phone_company,
+        "cod_edrpo": cod_edrpo,
+        "date_of_registration": date_of_registration,
+        "update_date": update_date,
+        "kved": kved_string,
     }
-    nobr_start = soup.select_one(
-        "body > div.entity-page-wrap > div.entity-content-wrap > div.entity-content > table:nth-child(6) > thead > tr > th:nth-child(3) > span"
-    ).text.strip()
-    nobr_end = soup.select_one(
-        "body > div.entity-page-wrap > div.entity-content-wrap > div.entity-content > table:nth-child(6) > thead > tr > th:nth-child(4) > span"
-    ).text.strip()
-    # Проходим по каждой строке таблицы
-    for row in soup.select("tbody tr"):
-        # Извлекаем код строки (находится во втором столбце)
-        code_cell = row.select_one("td:nth-child(2)")
+    cleaned_data = {key: clean_text(value) for key, value in results.items()}
+    all_results.append(cleaned_data)
+    logger.info(all_results)
 
-        if code_cell and code_cell.text.strip() in codes:
-            code = code_cell.text.strip()
+    # # Ищем количество работников
+    # number_of_employees = None
+    # employee_label = soup.find("td", string="Кількість працівників")
+    # if employee_label:
+    #     number_of_employees = employee_label.find_next_sibling("td").string.strip()
 
-            # Извлекаем значения для начала и конца года
-            beginning_of_year = row.select_one("td:nth-child(3)").text.strip()
-            end_of_year = row.select_one("td:nth-child(4)").text.strip()
+    # # Ищем КАТОТТГ
+    # katottg = None
+    # katottg_label = soup.find("td", string="КАТОТТГ")
+    # if katottg_label:
+    #     katottg = katottg_label.find_next_sibling("td").string.strip()
 
-            # Сохраняем значения в словарь
-            results[f"beginning_of_the_year_{code}"] = beginning_of_year
-            results[f"end_of_the_year_{code}"] = end_of_year
+    # # Словарь для текущей единицы данных
+    # results = {
+    #     "page_title": page_title,
+    #     "number_of_employees": number_of_employees,
+    #     "katottg": katottg,
+    # }
 
-    # Добавляем словарь в список all_results
-    all_results.append(results)
+    # # Добавляем словарь в список all_results
+    # all_results.append(results)
 
-    # Выводим список словарей
-    print(nobr_start, nobr_end)
+    # # Выводим список словарей
+    # print(nobr_start, nobr_end)
 
-    # Пример записи в Excel через pandas
-    df = pd.DataFrame(all_results)
-    df.to_excel("financial_data.xlsx", index=False, engine="openpyxl")
+    # # Пример записи в Excel через pandas
+    # df = pd.DataFrame(all_results)
+    # df.to_excel("financial_data.xlsx", index=False, engine="openpyxl")
+
     # Выводим результат
     # page_title_h3 = soup.select_one(
     #     "#ProductInfo-template--19203350364488__main > div.product__subtitle > h3"
@@ -290,9 +321,9 @@ def parsing_csv():
 
 if __name__ == "__main__":
     # get_html()
-    # parsing()
+    parsing()
     # get_json()
     # download_xml()
     # parsing_xml()
     # fetch_and_save()
-    parsing_csv()
+    # parsing_csv()
