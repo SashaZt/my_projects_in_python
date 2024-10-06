@@ -1,16 +1,11 @@
 import asyncio
 import aiohttp
 import json
-import logging
+from configuration.logger_setup import logger
 import signal
 from tqdm import tqdm
 
 API_URL = "https://185.233.116.213:5000/contact"
-
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
 
 
 def generate_client_data(client_id):
@@ -73,14 +68,14 @@ async def create_client(session, client_data, semaphore, progress, max_retries=3
                         # logging.error(f"Ошибка {response.status}: {text}")
                         break
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                # logging.error(f"Сетевая ошибка: {e}. Повтор попытки...")
+                logger.error(f"Сетевая ошибка: {e}. Повтор попытки...")
                 await asyncio.sleep(2**retries)
             except Exception as e:
-                # logging.exception(f"Неизвестная ошибка: {e}")
+                logger.exception(f"Неизвестная ошибка: {e}")
                 break
             finally:
                 if retries == max_retries - 1:
-                    logging.error(
+                    logger.error(
                         f"Не удалось создать клиента после {max_retries} попыток."
                     )
                 retries += 1
@@ -99,41 +94,44 @@ async def main(total_clients):
     connector = aiohttp.TCPConnector(ssl=False)
 
     async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-        progress = tqdm(total=total_clients, desc="Создание клиентов", unit="клиентов")
-        batch_size = concurrency * 10  # Размер пакета для обработки
+        with tqdm(
+            total=total_clients, desc="Создание клиентов", unit="клиентов"
+        ) as progress:
 
-        # Обработка сигналов для корректного завершения
-        stop_event = asyncio.Event()
+            batch_size = concurrency * 10  # Размер пакета для обработки
 
-        def signal_handler():
-            # logging.info("Получен сигнал остановки. Завершение работы...")
-            stop_event.set()
+            # Обработка сигналов для корректного завершения
+            stop_event = asyncio.Event()
 
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            asyncio.get_event_loop().add_signal_handler(sig, signal_handler)
+            def signal_handler():
+                # logging.info("Получен сигнал остановки. Завершение работы...")
+                stop_event.set()
 
-        try:
-            for batch_start in range(1, total_clients + 1, batch_size):
-                tasks = []
-                for client_id in range(
-                    batch_start, min(batch_start + batch_size, total_clients + 1)
-                ):
-                    client_data = generate_client_data(client_id)
-                    task = asyncio.create_task(
-                        create_client(session, client_data, semaphore, progress)
-                    )
-                    tasks.append(task)
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                asyncio.get_event_loop().add_signal_handler(sig, signal_handler)
 
-                await asyncio.gather(*tasks)
+            try:
+                for batch_start in range(1, total_clients + 1, batch_size):
+                    tasks = []
+                    for client_id in range(
+                        batch_start, min(batch_start + batch_size, total_clients + 1)
+                    ):
+                        client_data = generate_client_data(client_id)
+                        task = asyncio.create_task(
+                            create_client(session, client_data, semaphore, progress)
+                        )
+                        tasks.append(task)
 
-                if stop_event.is_set():
-                    # logging.info("Остановка по запросу пользователя.")
-                    break
+                    await asyncio.gather(*tasks)
 
-        finally:
-            progress.close()
+                    if stop_event.is_set():
+                        # logging.info("Остановка по запросу пользователя.")
+                        break
+
+            finally:
+                progress.close()
 
 
 if __name__ == "__main__":
-    TOTAL_CLIENTS = 290000  # Общее количество клиентов
+    TOTAL_CLIENTS = 300000  # Общее количество клиентов
     asyncio.run(main(TOTAL_CLIENTS))

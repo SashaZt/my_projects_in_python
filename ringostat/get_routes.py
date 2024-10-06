@@ -396,8 +396,39 @@ async def get_config(db=Depends(get_db)):
                 status_code=404, detail="Конфигурационные данные не найдены"
             )
 
+        # Список полей, которые нужно преобразовать в список пользователей
+        user_list_fields = ["Reviewers", "Initiators", "Performers", "Admin"]
+
+        # Создаем новый словарь для хранения обработанных данных
+        processed_data = {}
+
+        for key, value in config_data.items():
+            if key in user_list_fields:
+                # Проверяем, что значение не пустое
+                if value:
+                    users_list = []
+                    # Разбиваем строку по запятым
+                    entries = [entry.strip() for entry in value.split(",")]
+                    for entry in entries:
+                        # Разбиваем каждую запись по двоеточию
+                        email_name = entry.strip().split(":")
+                        if len(email_name) == 2:
+                            email = email_name[0].strip()
+                            name = email_name[1].strip()
+                        else:
+                            # Если имя отсутствует, используем email в качестве имени
+                            email = email_name[0].strip()
+                            name = email
+                        users_list.append({"name": name, "email": email})
+                    processed_data[key] = users_list
+                else:
+                    processed_data[key] = []
+            else:
+                # Оставляем значение без изменений
+                processed_data[key] = value
+
         return JSONResponse(
-            status_code=200, content={"status": "success", "data": config_data}
+            status_code=200, content={"status": "success", "data": processed_data}
         )
 
     except Exception as e:
