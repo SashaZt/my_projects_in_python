@@ -1,16 +1,7 @@
 import requests
-import requests
-from configuration.logger_setup import logger
-import random
-from bs4 import BeautifulSoup
-import pandas as pd
-from pathlib import Path
-import xml.etree.ElementTree as ET
-import requests
 from configuration.logger_setup import logger
 from bs4 import BeautifulSoup
 from tqdm import tqdm
-from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import pandas as pd
@@ -24,6 +15,7 @@ from dotenv import load_dotenv
 import os
 import asyncio
 from databases import Database
+import hashlib
 
 
 current_directory = Path.cwd()
@@ -39,7 +31,7 @@ img_directory.mkdir(parents=True, exist_ok=True)
 html_files_directory.mkdir(parents=True, exist_ok=True)
 
 output_csv_file = data_directory / "output.csv"
-file_proxy = configuration_directory / "proxy.txt"
+file_proxy = configuration_directory / "roman.txt"
 csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
 # Создаем путь к файлу .env
@@ -49,163 +41,58 @@ env_file_path = configuration_directory / ".env"
 load_dotenv(env_file_path)
 
 cookies = {
-    "device-referrer": "https://www.google.com/",
-    "advanced-frontend": "gsb71blijdi0183vuoh8b4i5ba",
-    "_csrf-frontend": "55d068b1627cf15ff7363e11b6fbc4b27a348f3bfc77643eea3ac4671d5a3fd4a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22CHqLi9Z8H1AMnURmsALSNmxu0elpaj78%22%3B%7D",
-    "sc": "75721E5D-DE17-5370-0389-943746C5B708",
+    # "advanced-frontend": "kmisddorok18b7il8f76g5ln8k",
+    # "_csrf-frontend": "61fb553d2b51ca0f76a29c9d37829abc59a9c2b402a694b99cd506556776b276a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22kMjThColddL8RX48yd7xr48HiaAxOuuh%22%3B%7D",
+    # "sbjs_migrations": "1418474375998%3D1",
+    # "sbjs_current_add": "fd%3D2024-10-07%2008%3A19%3A03%7C%7C%7Cep%3Dhttps%3A%2F%2Fbi.ua%2Fukr%2F%7C%7C%7Crf%3D%28none%29",
+    # "sbjs_first_add": "fd%3D2024-10-07%2008%3A19%3A03%7C%7C%7Cep%3Dhttps%3A%2F%2Fbi.ua%2Fukr%2F%7C%7C%7Crf%3D%28none%29",
+    # "sbjs_current": "typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29",
+    # "sbjs_first": "typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29",
+    # "sbjs_udata": "vst%3D1%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F129.0.0.0%20Safari%2F537.36",
+    # "_gcl_au": "1.1.1529364144.1728278344",
+    # "_gid": "GA1.2.1597231364.1728278344",
+    # "_fbp": "fb.1.1728278343842.92381071656458803",
+    # "_dc_gtm_UA-8203486-4": "1",
+    # "sc": "293DACE4-B736-4DDB-9351-897190C8C3BF",
+    # "_hjSession_1559188": "eyJpZCI6ImRhMDlkN2QzLTZhMmMtNGUyYy04NDFmLWFiYjExN2Q1Zjc3NyIsImMiOjE3MjgyNzgzNDM5MDQsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjoxfQ==",
+    # "__rtbh.uid": "%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%22unknown%22%7D",
+    # "__rtbh.lid": "%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%22FbjuS45AulssEOPF8b9x%22%7D",
+    # "_p_uid": "uid-442ed1e03.3a8ba833c.47efbbd2e",
+    # "clickanalyticsresource": "f5346240-88b6-4b20-8e99-903ed54a056f",
+    # "device-source": "https://bi.ua/ukr/",
+    # "device-referrer": "",
+    # "sbjs_session": "pgs%3D2%7C%7C%7Ccpg%3Dhttps%3A%2F%2Fbi.ua%2Fukr%2F",
+    # "_ga_71EP10GZSQ": "GS1.1.1728278343.1.1.1728278364.39.0.533920916",
+    # "_hjSessionUser_1559188": "eyJpZCI6IjI0MDQ4NjkwLTU3MmItNTUyMC04NzE3LTM1NWU4NWQ1YzU3YiIsImNyZWF0ZWQiOjE3MjgyNzgzNDM5MDIsImV4aXN0aW5nIjp0cnVlfQ==",
+    "_ga": "GA1.2.1752615101.1728278344",
     "cookies_policy": "true",
-    "_csrf-api": "a115aeb71eb0eb2e9dce1fecb34afac32058e76f36f027a81f95325ccdb830b4a%3A2%3A%7Bi%3A0%3Bs%3A9%3A%22_csrf-api%22%3Bi%3A1%3Bs%3A32%3A%2207ihVY20DuEER2klf5L1ONGrPqwz3rUD%22%3B%7D",
-    "v_cnt": "31",
-    "device-source": "https://bi.ua/rus/product/prorezyvatel-taf-toys-sadik-v-gorode-ezhik-i-buryachok-13095.html",
+    # "_gali": "cookie_note",
 }
 
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    "accept-language": "ru",
     "cache-control": "no-cache",
-    # 'cookie': 'device-referrer=https://www.google.com/; advanced-frontend=gsb71blijdi0183vuoh8b4i5ba; _csrf-frontend=55d068b1627cf15ff7363e11b6fbc4b27a348f3bfc77643eea3ac4671d5a3fd4a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22CHqLi9Z8H1AMnURmsALSNmxu0elpaj78%22%3B%7D; sc=75721E5D-DE17-5370-0389-943746C5B708; cookies_policy=true; _csrf-api=a115aeb71eb0eb2e9dce1fecb34afac32058e76f36f027a81f95325ccdb830b4a%3A2%3A%7Bi%3A0%3Bs%3A9%3A%22_csrf-api%22%3Bi%3A1%3Bs%3A32%3A%2207ihVY20DuEER2klf5L1ONGrPqwz3rUD%22%3B%7D; v_cnt=31; device-source=https://bi.ua/rus/product/prorezyvatel-taf-toys-sadik-v-gorode-ezhik-i-buryachok-13095.html',
     "dnt": "1",
     "pragma": "no-cache",
     "priority": "u=0, i",
-    "referer": "https://bi.ua/rus/dlya-malishey/pogremushki-prorezivateli/",
     "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": '"Windows"',
     "sec-fetch-dest": "document",
     "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "same-origin",
+    "sec-fetch-site": "none",
     "sec-fetch-user": "?1",
     "upgrade-insecure-requests": "1",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
 }
 
 
-# def load_proxies():
-#     """Загружает список прокси-серверов из файла."""
-#     with open(file_proxy, "r", encoding="utf-8") as file:
-#         proxies = [line.strip() for line in file]
-#     logger.info(f"Загружено {len(proxies)} прокси.")
-#     return proxies
-
-
-# def get_html():
-#     proxies = load_proxies()  # Загружаем список всех прокси
-#     proxy = random.choice(proxies)  # Выбираем случайный прокси
-#     proxies_dict = {"http": proxy, "https": proxy}
-
-#     response = requests.get(
-#         "https://bi.ua/rus/product/prorezyvatel-nuby-zoopark-obezyanka-6733.html",
-#         cookies=cookies,
-#         headers=headers,
-#         proxies=proxies_dict,
-#     )
-
-#     # Проверка кода ответа
-#     if response.status_code == 200:
-#         # Сохранение HTML-страницы целиком
-#         with open("proba.html", "w", encoding="utf-8") as file:
-#             file.write(response.text)
-#     logger.info(response.status_code)
-
-
-# def parsing():
-#     proxies = load_proxies()  # Загружаем список всех прокси
-#     proxy = random.choice(proxies)  # Выбираем случайный прокси
-#     proxies_dict = {"http": proxy, "https": proxy}
-#     with open("proba.html", encoding="utf-8") as file:
-#         src = file.read()
-#     soup = BeautifulSoup(src, "lxml")
-
-#     # Список для хранения всех единиц данных
-#     all_results = []
-#     # Словарь для хранения параметров и их значений
-#     params_variants = {}
-#     # Безопасное извлечение заголовка страницы
-#     name_raw = soup.find("h1", attrs={"itemprop": "name"})
-#     page_title = name_raw.get_text(strip=True) if name_raw else None
-#     description_raw = soup.find("article", attrs={"class": "scroller"})
-#     product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
-#     product_code = product_code_raw.get_text(strip=True) if product_code_raw else None
-#     price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
-#         "p", attrs={"itemprop": "price"}
-#     )
-#     price = price_raw.get_text(strip=True).replace(" грн", "") if price_raw else None
-#     old_price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
-#         "p", attrs={"class": "old"}
-#     )
-#     old_price = (
-#         old_price_raw.get_text(strip=True).replace(" грн", "")
-#         if old_price_raw
-#         else None
-#     )
-#     availability_text = None
-#     stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
-#     if stock_raw:
-#         # Получаем текст ссылки и определяем статус наличия
-#         availability_text = stock_raw.get_text(strip=True)
-#         if "Купить" in availability_text:
-#             availability_text = "В наличии"
-#         elif "Товара нет в наличии" in availability_text:
-#             availability_text = "Нет в наличии"
-#     # Словарь для хранения параметров и их значений
-#     params_variants = {}
-
-#     # Переменная для отслеживания количества параметров
-#     param_counter = 1
-
-#     # Ищем все строки (tr) в таблицах
-#     rows = soup.select("table.table.p03 tr")
-
-#     # Перебираем все строки
-#     for row in rows:
-#         # Ищем все ячейки (td) в строке
-#         cells = row.find_all("td")
-
-#         # Пропускаем строки, которые содержат colspan (заголовки разделов)
-#         if len(cells) == 2 and not cells[0].has_attr("colspan"):
-#             param_name = cells[0].get_text(strip=True)  # Название параметра
-#             variant_value = cells[1].get_text(strip=True)  # Значение параметра
-#             # Добавляем в словарь
-#             params_variants[f"param{param_counter}"] = param_name
-#             params_variants[f"variant{param_counter}"] = variant_value
-#             param_counter += 1
-#     images = soup.find_all("img", attrs={"itemprop": "image"})
-#     for images_url in images:
-#         url_image = f'https://bi.ua{images_url.get("content")}'
-#         try:
-#             # Делаем запрос к URL
-#             response = requests.get(
-#                 url_image,
-#                 cookies=cookies,
-#                 headers=headers,
-#                 proxies=proxies_dict,
-#             )
-#             response.raise_for_status()  # Проверяем, успешен ли запрос
-
-#             # Извлекаем имя файла из URL
-#             file_name = Path(url_image).name
-
-#             # Путь для сохранения изображения
-#             file_path = img_directory / file_name
-
-#             # Сохраняем изображение
-#             file_path.write_bytes(response.content)
-
-#             logger.info(f"Сохранено: {file_path}")
-
-#         except requests.exceptions.RequestException as e:
-#             logger.error(f"Ошибка при загрузке {url_image}: {e}")
-
-
-# if __name__ == "__main__":
-# get_html()
-# parsing()
-class Get_Response:
+class GetResponse:
 
     def __init__(
         self,
         max_workers,
-        base_url,
         cookies,
         headers,
         html_files_directory,
@@ -216,7 +103,6 @@ class Get_Response:
     ) -> None:
         # Инициализация переданных параметров как атрибутов класса
         self.max_workers = max_workers
-        self.base_url = base_url
         self.cookies = cookies
         self.headers = headers
         self.html_files_directory = Path(html_files_directory)
@@ -229,7 +115,7 @@ class Get_Response:
         )  # Добавляем глобальное событие для остановки потоков
 
         # Создание экземпляра класса для работы с файлами
-        self.working_files = Working_with_files(
+        self.working_files = WorkingWithfiles(
             self.csv_file_successful, output_csv_file, self.file_proxy
         )
 
@@ -366,46 +252,54 @@ class Get_Response:
             return
         # Проверяем, обрабатывался ли этот URL ранее
         if url in successful_urls:
-            logger.info(f"| Компания уже была обработана, пропускаем. |")
+            # logger.info(f"| Компания уже была обработана, пропускаем. |")
             return
         identifier = url.split("/")[-1]
+        # Путь к файлу с длинным именем
+        original_file_path = self.html_files_directory / identifier
+
+        # Генерируем короткое имя файла, используя хеширование
+        hash_object = hashlib.md5(identifier.encode("utf-8"))
+
+        hashed_filename = hash_object.hexdigest() + ".html"
+        hashed_file_path = self.html_files_directory / hashed_filename
         try:
             # Выбираем случайный прокси-сервер для запроса
             proxy = random.choice(proxies)
             proxies_dict = {"http": proxy, "https": proxy}
             # Отправляем запрос
-            response = requests.get(
-                url,
-                proxies=proxies_dict,
-                headers=self.headers,
-                # cookies=self.cookies,
-            )
-
-            # Проверяем успешность запроса
-            if response.status_code == 200:
-
-                # Сохраняем HTML-файл в указанную директорию
-                file_path = self.html_files_directory / identifier
-                # file_path = self.html_files_directory / f"{identifier}.html"
-                file_path.write_text(response.text, encoding="utf-8")
-                with fetch_lock:
-                    # Добавляем идентификатор в множество успешных
-                    successful_urls.add(url)
-
-                    # Сохраняем идентификатор в CSV для отслеживания
-                    self.working_files.write_to_csv(url, self.csv_file_successful)
-            else:
-                logger.error(
-                    f"Ошибка: не удалось получить данные для {url}. Статус: {response.status_code}"
+            # Сохраняем HTML-файл в указанную директорию
+            file_path = self.html_files_directory / identifier
+            if not original_file_path.exists() or hashed_file_path.exists():
+                response = requests.get(
+                    url,
+                    proxies=proxies_dict,
+                    headers=self.headers,
+                    cookies=self.cookies,
                 )
-                self.stop_event.set()  # Устанавливаем событие остановки
+
+                # Проверяем успешность запроса
+                if response.status_code == 200:
+                    # file_path = self.html_files_directory / f"{identifier}.html"
+                    hashed_file_path.write_text(response.text, encoding="utf-8")
+                    with fetch_lock:
+                        # Добавляем идентификатор в множество успешных
+                        successful_urls.add(url)
+
+                        # Сохраняем идентификатор в CSV для отслеживания
+                        self.working_files.write_to_csv(url, self.csv_file_successful)
+                else:
+                    logger.error(
+                        f"Ошибка: не удалось получить данные для {url}. Статус: {response.status_code}"
+                    )
+                    self.stop_event.set()  # Устанавливаем событие остановки
 
         except Exception as e:
             logger.error(f"Произошла ошибка при обработке {url}: {e}")
             self.stop_event.set()  # Устанавливаем событие остановки
 
 
-class Working_with_files:
+class WorkingWithfiles:
 
     def __init__(self, csv_file_successful, output_csv_file, file_proxy) -> None:
         # Сохраняем пути к файлам как атрибуты класса
@@ -510,179 +404,388 @@ class Working_with_files:
 
 class Parsing:
 
-    def __init__(self, html_files_directory, xlsx_result, file_proxy) -> None:
+    def __init__(
+        self, html_files_directory, xlsx_result, file_proxy, max_workers
+    ) -> None:
         self.html_files_directory = html_files_directory
         self.xlsx_result = xlsx_result
         self.file_proxy = file_proxy
+        self.max_workers = max_workers  # Максимальное количество потоков
 
-    def load_proxies(self, file_proxy):
+    def load_proxies(self):
         # Загружаем список прокси-серверов из файла
         with open(self.file_proxy, "r", encoding="utf-8") as file:
             proxies = [line.strip() for line in file]
         return proxies
 
-    def parsing_html(self):
-        proxies = self.load_proxies(file_proxy)
+    def parse_single_html(self, file_html):
+        params_variants = {}
+        proxies = self.load_proxies()
         # Выбираем случайный прокси-сервер для запроса
         proxy = random.choice(proxies)
         proxies_dict = {"http": proxy, "https": proxy}
+        # Словарь для хранения параметров и их значений
 
+        # logger.info(file_html)
+        with open(file_html, encoding="utf-8") as file:
+            src = file.read()
+        soup = BeautifulSoup(src, "lxml")
+
+        # Безопасное извлечение заголовка страницы
+        name_raw = soup.find("h1", attrs={"itemprop": "name"})
+        page_title = name_raw.get_text(strip=True) if name_raw else None
+
+        # Ищем элемент с классом "scroller" внутри <article>
+        description_raw = soup.find("article", attrs={"class": "scroller"})
+
+        # Проверяем, найден ли элемент, и обрабатываем его содержимое
+        if description_raw:
+            description = re.sub(r"\s+", " ", description_raw.decode_contents()).strip()
+        else:
+            description = (
+                None  # Или другой текст по умолчанию, например, "Описание отсутствует"
+            )
+
+        product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
+        product_code = (
+            product_code_raw.get_text(strip=True) if product_code_raw else None
+        )
+
+        price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
+            "p", attrs={"itemprop": "price"}
+        )
+        if price_raw:
+            # Удаляем нецифровые символы и пробелы из текста
+            price_text = re.sub(r"[^\d]", "", price_raw.get_text(strip=True))
+            # Преобразуем в целое число, если удалось найти цифры, иначе 0
+            price = int(price_text) if price_text else 0
+        else:
+            price = 0
+
+        # Извлечение и обработка old_price
+        old_price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
+            "p", attrs={"class": "old"}
+        )
+        if old_price_raw:
+            # Удаляем нецифровые символы и пробелы из текста
+            old_price_text = re.sub(r"[^\d]", "", old_price_raw.get_text(strip=True))
+            # Преобразуем в целое число, если удалось найти цифры, иначе 0
+            old_price = int(old_price_text) if old_price_text else 0
+        else:
+            old_price = 0
+
+        availability_text = None
+        stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
+        if stock_raw:
+            # Получаем текст ссылки и определяем статус наличия
+            availability_text = stock_raw.get_text(strip=True)
+            if "Купить" in availability_text:
+                availability_text = "В наличии"
+            elif "Товара нет в наличии" in availability_text:
+                availability_text = "Нет в наличии"
+            elif "Сообщить о наличии" in availability_text:
+                availability_text = "Нет в наличии"
+
+        url = soup.find("meta", attrs={"itemprop": "item"}).get("content")
+
+        # Пытаемся найти элемент <span> с атрибутом itemprop="brand", если не найден, ищем <a>
+        brand_raw = soup.find("span", attrs={"itemprop": "brand"}) or soup.find(
+            "a", attrs={"itemprop": "brand"}
+        )
+
+        # Если элемент найден, берем его текст, иначе устанавливаем None
+        brand = brand_raw.get_text(strip=True) if brand_raw else None
+
+        # Ищем все элементы с itemprop="name"
+        table_bread = soup.find("div", attrs={"class": "breadcrWr"})
+        breadcrumb_elements = table_bread.find_all(itemprop="name")
+
+        # Убираем последний элемент из списка, если он существует
+        if breadcrumb_elements:
+            breadcrumb_elements = breadcrumb_elements[1:-1]
+
+        # Создаем словарь для хранения breadcrumbs
+        breadcrumbs = {}
+
+        # Добавляем найденные значения в словарь с нужными ключами
+        for i, element in enumerate(breadcrumb_elements):
+            breadcrumbs[f"breadcrumbs{i+1}"] = element.get_text(strip=True)
+
+        # Печатаем результаты
+        for key, value in breadcrumbs.items():
+            params_variants[key] = value
+            # print(f"{key} = {value}")
+
+        # Переменная для отслеживания количества параметров
+        param_counter = 1
+
+        # Ищем все строки (tr) в таблицах
+        rows = soup.select("table.table.p03 tr")
+
+        # Перебираем все строки
+        for row in rows:
+            # Ищем все ячейки (td) в строке
+            cells = row.find_all("td")
+
+            # Пропускаем строки, которые содержат colspan (заголовки разделов)
+            if len(cells) == 2 and not cells[0].has_attr("colspan"):
+                param_name = cells[0].get_text(strip=True)  # Название параметра
+                variant_value = cells[1].get_text(strip=True)  # Значение параметра
+                # Добавляем в словарь
+                params_variants[f"param{param_counter}"] = param_name
+                params_variants[f"variant{param_counter}"] = variant_value
+                param_counter += 1
+        images = soup.find_all("img", attrs={"itemprop": "image"})
+        # Ограничение на количество загружаемых изображений (не больше 3)
+        max_images = 3
+        for index, images_url in enumerate(images, start=1):
+            if index > max_images:  # Прерываем цикл, если уже обработано 3 изображения
+                break
+            url_image = f'https://bi.ua{images_url.get("content")}'
+            # Извлекаем имя файла из URL
+            file_name = Path(url_image).name
+            # Добавляем файл в словарь с счетчиком
+            params_variants[f"image{index}"] = file_name
+            # Путь для сохранения изображения
+            file_path = img_directory / file_name
+            if not file_path.exists():
+                try:
+                    # Делаем запрос к URL
+                    response = requests.get(
+                        url_image,
+                        cookies=cookies,
+                        headers=headers,
+                        proxies=proxies_dict,
+                    )
+                    response.raise_for_status()  # Проверяем, успешен ли запрос
+
+                    # Сохраняем изображение
+                    file_path.write_bytes(response.content)
+
+                    logger.info(f"Сохранено: {file_path}")
+
+                except requests.exceptions.RequestException as e:
+                    logger.error(f"Ошибка при загрузке {url_image}: {e}")
+        params_variants["name"] = page_title
+        params_variants["description"] = description
+        params_variants["product_code"] = product_code
+        params_variants["brand"] = brand
+        params_variants["stock"] = availability_text
+        params_variants["url"] = url
+        params_variants["old_price"] = old_price
+        params_variants["price"] = price
+        return params_variants
+
+    def parsing_html(self):
+        # Получаем список HTML файлов
         all_files = self.list_html()
-        # Список для хранения всех единиц данных
+
+        # Инициализация прогресс-бара
+        total_urls = len(all_files)
+        progress_bar = tqdm(
+            total=total_urls,
+            desc="Обработка файлов",
+            bar_format="{l_bar}{bar} | Время: {elapsed} | Осталось: {remaining} | Скорость: {rate_fmt}",
+        )
+
+        # Многопоточная обработка файлов
         all_results = []
-        for file_html in all_files:
-            # Словарь для хранения параметров и их значений
-            params_variants = {}
-            logger.info(file_html)
-            with open(file_html, encoding="utf-8") as file:
-                src = file.read()
-            soup = BeautifulSoup(src, "lxml")
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {
+                executor.submit(self.parse_single_html, file_html): file_html
+                for file_html in all_files
+            }
 
-            # Безопасное извлечение заголовка страницы
-            name_raw = soup.find("h1", attrs={"itemprop": "name"})
-            page_title = name_raw.get_text(strip=True) if name_raw else None
+            # Сбор результатов по мере завершения каждого потока
+            for future in as_completed(futures):
+                file_html = futures[future]
+                try:
+                    result = future.result()
+                    all_results.append(result)
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке файла {file_html}: {e}")
+                finally:
+                    # Обновляем прогресс-бар после завершения обработки каждого файла
+                    progress_bar.update(1)
 
-            # Ищем элемент с классом "scroller" внутри <article>
-            description_raw = soup.find("article", attrs={"class": "scroller"})
+        # Закрываем прогресс-бар
+        progress_bar.close()
 
-            # Проверяем, найден ли элемент, и обрабатываем его содержимое
-            if description_raw:
-                description = re.sub(
-                    r"\s+", " ", description_raw.decode_contents()
-                ).strip()
-            else:
-                description = None  # Или другой текст по умолчанию, например, "Описание отсутствует"
-
-            product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
-            product_code = (
-                product_code_raw.get_text(strip=True) if product_code_raw else None
-            )
-
-            price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
-                "p", attrs={"itemprop": "price"}
-            )
-
-            price = (
-                price_raw.get_text(strip=True).replace(" грн", "")
-                if price_raw
-                else None
-            )
-
-            old_price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
-                "p", attrs={"class": "old"}
-            )
-            old_price = (
-                old_price_raw.get_text(strip=True).replace(" грн", "")
-                if old_price_raw
-                else None
-            )
-
-            availability_text = None
-            stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
-            if stock_raw:
-                # Получаем текст ссылки и определяем статус наличия
-                availability_text = stock_raw.get_text(strip=True)
-                if "Купить" in availability_text:
-                    availability_text = "В наличии"
-                elif "Товара нет в наличии" in availability_text:
-                    availability_text = "Нет в наличии"
-                elif "Сообщить о наличии" in availability_text:
-                    availability_text = "Нет в наличии"
-
-            url = soup.find("meta", attrs={"itemprop": "item"}).get("content")
-
-            # Пытаемся найти элемент <span> с атрибутом itemprop="brand", если не найден, ищем <a>
-            brand_raw = soup.find("span", attrs={"itemprop": "brand"}) or soup.find(
-                "a", attrs={"itemprop": "brand"}
-            )
-
-            # Если элемент найден, берем его текст, иначе устанавливаем None
-            brand = brand_raw.get_text(strip=True) if brand_raw else None
-
-            # Ищем все элементы с itemprop="name"
-            table_bread = soup.find("div", attrs={"class": "breadcrWr"})
-            breadcrumb_elements = table_bread.find_all(itemprop="name")
-
-            # Убираем последний элемент из списка, если он существует
-            if breadcrumb_elements:
-                breadcrumb_elements = breadcrumb_elements[1:-1]
-
-            # Создаем словарь для хранения breadcrumbs
-            breadcrumbs = {}
-
-            # Добавляем найденные значения в словарь с нужными ключами
-            for i, element in enumerate(breadcrumb_elements):
-                breadcrumbs[f"breadcrumbs{i+1}"] = element.get_text(strip=True)
-
-            # Печатаем результаты
-            for key, value in breadcrumbs.items():
-                params_variants[key] = value
-                # print(f"{key} = {value}")
-
-            # Переменная для отслеживания количества параметров
-            param_counter = 1
-
-            # Ищем все строки (tr) в таблицах
-            rows = soup.select("table.table.p03 tr")
-
-            # Перебираем все строки
-            for row in rows:
-                # Ищем все ячейки (td) в строке
-                cells = row.find_all("td")
-
-                # Пропускаем строки, которые содержат colspan (заголовки разделов)
-                if len(cells) == 2 and not cells[0].has_attr("colspan"):
-                    param_name = cells[0].get_text(strip=True)  # Название параметра
-                    variant_value = cells[1].get_text(strip=True)  # Значение параметра
-                    # Добавляем в словарь
-                    params_variants[f"param{param_counter}"] = param_name
-                    params_variants[f"variant{param_counter}"] = variant_value
-                    param_counter += 1
-            images = soup.find_all("img", attrs={"itemprop": "image"})
-            for index, images_url in enumerate(
-                images, start=1
-            ):  # start=1 начнет счетчик с 1
-                url_image = f'https://bi.ua{images_url.get("content")}'
-                # Извлекаем имя файла из URL
-                file_name = Path(url_image).name
-                # Добавляем файл в словарь с счетчиком
-                params_variants[f"image{index}"] = file_name
-                # Путь для сохранения изображения
-                file_path = img_directory / file_name
-                if not file_path.exists():
-                    try:
-                        # Делаем запрос к URL
-                        response = requests.get(
-                            url_image,
-                            cookies=cookies,
-                            headers=headers,
-                            proxies=proxies_dict,
-                        )
-                        response.raise_for_status()  # Проверяем, успешен ли запрос
-
-                        # Сохраняем изображение
-                        file_path.write_bytes(response.content)
-
-                        logger.info(f"Сохранено: {file_path}")
-
-                    except requests.exceptions.RequestException as e:
-                        logger.error(f"Ошибка при загрузке {url_image}: {e}")
-            params_variants["name"] = page_title
-            params_variants["description"] = description
-            params_variants["product_code"] = product_code
-            params_variants["brand"] = brand
-            params_variants["stock"] = availability_text
-            params_variants["url"] = url
-            params_variants["old_price"] = old_price
-            params_variants["price"] = price
-            all_results.append(params_variants)
-            # logger.info(params_variants)
         return all_results
+
+    # def parsing_html(self):
+
+    #     all_files = self.list_html()
+    #     # Список для хранения всех единиц данных
+    #     all_results = []
+    #     for file_html in all_files:
+    #         params_variants = {}
+    #         proxies = self.load_proxies()
+    #         # Выбираем случайный прокси-сервер для запроса
+    #         proxy = random.choice(proxies)
+    #         proxies_dict = {"http": proxy, "https": proxy}
+    #         # Словарь для хранения параметров и их значений
+
+    #         # logger.info(file_html)
+    #         with open(file_html, encoding="utf-8") as file:
+    #             src = file.read()
+    #         soup = BeautifulSoup(src, "lxml")
+
+    #         # Безопасное извлечение заголовка страницы
+    #         name_raw = soup.find("h1", attrs={"itemprop": "name"})
+    #         page_title = name_raw.get_text(strip=True) if name_raw else None
+
+    #         # Ищем элемент с классом "scroller" внутри <article>
+    #         description_raw = soup.find("article", attrs={"class": "scroller"})
+
+    #         # Проверяем, найден ли элемент, и обрабатываем его содержимое
+    #         if description_raw:
+    #             description = re.sub(
+    #                 r"\s+", " ", description_raw.decode_contents()
+    #             ).strip()
+    #         else:
+    #             description = None  # Или другой текст по умолчанию, например, "Описание отсутствует"
+
+    #         product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
+    #         product_code = (
+    #             product_code_raw.get_text(strip=True) if product_code_raw else None
+    #         )
+
+    #         price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
+    #             "p", attrs={"itemprop": "price"}
+    #         )
+    #         if price_raw:
+    #             # Удаляем нецифровые символы и пробелы из текста
+    #             price_text = re.sub(r"[^\d]", "", price_raw.get_text(strip=True))
+    #             # Преобразуем в целое число, если удалось найти цифры, иначе 0
+    #             price = int(price_text) if price_text else 0
+    #         else:
+    #             price = 0
+
+    #         # Извлечение и обработка old_price
+    #         old_price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
+    #             "p", attrs={"class": "old"}
+    #         )
+    #         if old_price_raw:
+    #             # Удаляем нецифровые символы и пробелы из текста
+    #             old_price_text = re.sub(
+    #                 r"[^\d]", "", old_price_raw.get_text(strip=True)
+    #             )
+    #             # Преобразуем в целое число, если удалось найти цифры, иначе 0
+    #             old_price = int(old_price_text) if old_price_text else 0
+    #         else:
+    #             old_price = 0
+
+    #         availability_text = None
+    #         stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
+    #         if stock_raw:
+    #             # Получаем текст ссылки и определяем статус наличия
+    #             availability_text = stock_raw.get_text(strip=True)
+    #             if "Купить" in availability_text:
+    #                 availability_text = "В наличии"
+    #             elif "Товара нет в наличии" in availability_text:
+    #                 availability_text = "Нет в наличии"
+    #             elif "Сообщить о наличии" in availability_text:
+    #                 availability_text = "Нет в наличии"
+
+    #         url = soup.find("meta", attrs={"itemprop": "item"}).get("content")
+
+    #         # Пытаемся найти элемент <span> с атрибутом itemprop="brand", если не найден, ищем <a>
+    #         brand_raw = soup.find("span", attrs={"itemprop": "brand"}) or soup.find(
+    #             "a", attrs={"itemprop": "brand"}
+    #         )
+
+    #         # Если элемент найден, берем его текст, иначе устанавливаем None
+    #         brand = brand_raw.get_text(strip=True) if brand_raw else None
+
+    #         # Ищем все элементы с itemprop="name"
+    #         table_bread = soup.find("div", attrs={"class": "breadcrWr"})
+    #         breadcrumb_elements = table_bread.find_all(itemprop="name")
+
+    #         # Убираем последний элемент из списка, если он существует
+    #         if breadcrumb_elements:
+    #             breadcrumb_elements = breadcrumb_elements[1:-1]
+
+    #         # Создаем словарь для хранения breadcrumbs
+    #         breadcrumbs = {}
+
+    #         # Добавляем найденные значения в словарь с нужными ключами
+    #         for i, element in enumerate(breadcrumb_elements):
+    #             breadcrumbs[f"breadcrumbs{i+1}"] = element.get_text(strip=True)
+
+    #         # Печатаем результаты
+    #         for key, value in breadcrumbs.items():
+    #             params_variants[key] = value
+    #             # print(f"{key} = {value}")
+
+    #         # Переменная для отслеживания количества параметров
+    #         param_counter = 1
+
+    #         # Ищем все строки (tr) в таблицах
+    #         rows = soup.select("table.table.p03 tr")
+
+    #         # Перебираем все строки
+    #         for row in rows:
+    #             # Ищем все ячейки (td) в строке
+    #             cells = row.find_all("td")
+
+    #             # Пропускаем строки, которые содержат colspan (заголовки разделов)
+    #             if len(cells) == 2 and not cells[0].has_attr("colspan"):
+    #                 param_name = cells[0].get_text(strip=True)  # Название параметра
+    #                 variant_value = cells[1].get_text(strip=True)  # Значение параметра
+    #                 # Добавляем в словарь
+    #                 params_variants[f"param{param_counter}"] = param_name
+    #                 params_variants[f"variant{param_counter}"] = variant_value
+    #                 param_counter += 1
+    #         images = soup.find_all("img", attrs={"itemprop": "image"})
+    #         # Ограничение на количество загружаемых изображений (не больше 3)
+    #         max_images = 3
+    #         for index, images_url in enumerate(images, start=1):
+    #             if (
+    #                 index > max_images
+    #             ):  # Прерываем цикл, если уже обработано 3 изображения
+    #                 break
+    #             url_image = f'https://bi.ua{images_url.get("content")}'
+    #             # Извлекаем имя файла из URL
+    #             file_name = Path(url_image).name
+    #             # Добавляем файл в словарь с счетчиком
+    #             params_variants[f"image{index}"] = file_name
+    #             # Путь для сохранения изображения
+    #             file_path = img_directory / file_name
+    #             if not file_path.exists():
+    #                 try:
+    #                     # Делаем запрос к URL
+    #                     response = requests.get(
+    #                         url_image,
+    #                         cookies=cookies,
+    #                         headers=headers,
+    #                         proxies=proxies_dict,
+    #                     )
+    #                     response.raise_for_status()  # Проверяем, успешен ли запрос
+
+    #                     # Сохраняем изображение
+    #                     file_path.write_bytes(response.content)
+
+    #                     logger.info(f"Сохранено: {file_path}")
+
+    #                 except requests.exceptions.RequestException as e:
+    #                     logger.error(f"Ошибка при загрузке {url_image}: {e}")
+    #         params_variants["name"] = page_title
+    #         params_variants["description"] = description
+    #         params_variants["product_code"] = product_code
+    #         params_variants["brand"] = brand
+    #         params_variants["stock"] = availability_text
+    #         params_variants["url"] = url
+    #         params_variants["old_price"] = old_price
+    #         params_variants["price"] = price
+    #         all_results.append(params_variants)
+    #         # logger.info(params_variants)
+    #     return all_results
 
     def list_html(self):
         # Получаем список всех файлов в директории
         file_list = [file for file in html_files_directory.iterdir() if file.is_file()]
-        logger.info(len(file_list))
+        # logger.info(len(file_list))
         return file_list
 
     # def write_to_excel(self, all_results):
@@ -712,6 +815,22 @@ class WriteSQL:
         # Создаем объект Database
         self.database = Database(self.database_url)
 
+    async def fetch_product_codes(self):
+        """
+        Извлекает колонки 'product_code' из таблицы.
+
+        :return: Список product_code из базы данных.
+        """
+        query = "SELECT product_code FROM ss_bi"
+        try:
+            results = await self.database.fetch_all(query=query)
+            # Извлекаем только значения 'product_code' в виде списка
+            product_codes = [record["product_code"] for record in results]
+            return product_codes
+        except Exception as e:
+            print(f"Ошибка при извлечении данных: {e}")
+            return []
+
     async def connect(self):
         """Подключение к базе данных."""
         await self.database.connect()
@@ -724,16 +843,16 @@ class WriteSQL:
 
     async def insert_data(self, table_name, data_list):
         """
-        Вставляет список данных в таблицу базы данных, каждая запись (строка) - отдельный словарь из списка.
-
+        Вставляет или обновляет список данных в таблицу базы данных.
         :param table_name: Имя таблицы в базе данных.
         :param data_list: Список словарей, каждый из которых представляет строку для вставки.
         """
-        logger.info(data_list)
         if not data_list:
             print("Нет данных для вставки.")
             return
 
+        # Получаем текущие записи в базе данных по product_code
+        existing_data = await self.fetch_product_codes()
         # Список всех столбцов, которые должны присутствовать в каждом словаре
         required_columns = [
             "name",
@@ -778,71 +897,144 @@ class WriteSQL:
             "mystock",
         ]
 
-        # Обработка списка данных: заполняем все ключи значением None, если они отсутствуют
-        # Обработка списка данных: заполняем все ключи значением None, если они отсутствуют
+        # Разделяем данные для вставки и обновления
+        data_to_update = []
+        data_to_insert = []
         for data in data_list:
-            for column in required_columns:
-                data.setdefault(column, None)
+            product_code = (
+                int(data.get("product_code")) if data.get("product_code") else None
+            )
 
-            # Устанавливаем значения по умолчанию для столбцов с ограничением NOT NULL
-            for i in range(1, 9):  # Для param1 до param8 и variant1 до variant8
-                if data[f"param{i}"] is None:
-                    data[f"param{i}"] = "N/A"
-                if data[f"variant{i}"] is None:
-                    data[f"variant{i}"] = "N/A"
+            if product_code in existing_data:
+                # Если товар существует, добавляем его в список для обновления
+                data_to_update.append(
+                    {
+                        "product_code": product_code,
+                        "stock": data.get("stock", "Unknown"),
+                        "price": data.get("price", 0),
+                    }
+                )
+            else:
+                logger.info(f"Товар нет в таблице {product_code}")
+                # Отфильтруем и подготовим данные для вставки
+                filtered_data = {key: data.get(key, None) for key in required_columns}
 
-            for i in range(1, 4):  # Для image1 до image3
-                if data[f"image{i}"] is None:
-                    data[f"image{i}"] = "N/A"
+                # Устанавливаем значения по умолчанию для обязательных полей
+                for i in range(1, 9):  # Для param1 до param8 и variant1 до variant8
+                    if filtered_data[f"param{i}"] is None:
+                        filtered_data[f"param{i}"] = "N/A"
+                    if filtered_data[f"variant{i}"] is None:
+                        filtered_data[f"variant{i}"] = "N/A"
 
-            for i in [1, 2, 3, 4, 6, 7, 8, 9, 10]:  # Исключаем 5
-                if data[f"breadcrumbs{i}"] is None:
-                    data[f"breadcrumbs{i}"] = 0
+                for i in range(1, 4):  # Для image1 до image3
+                    if filtered_data[f"image{i}"] is None:
+                        filtered_data[f"image{i}"] = "N/A"
 
-            # Устанавливаем значения по умолчанию для остальных столбцов
-            if data["price"] is None:
-                data["price"] = 0
-            if data["product_code"] is None:
-                data["product_code"] = 0
-            if data["name"] is None:
-                data["name"] = "No Name"
-            if data["stock"] is None:
-                data["stock"] = "Unknown"
-            if data["categoryID"] is None:
-                data["categoryID"] = 0
-            if data["prosent"] is None:
-                data["prosent"] = "0"
-            if data["mystock"] is None:
-                data["mystock"] = 0
-            if data["url"] is None:
-                data["url"] = "N/A"
-            if data["description"] is None:
-                data["description"] = "No description"
-            if data["brand"] is None:
-                data["brand"] = "Unknown"
-            if data["category_name"] is None:
-                data["category_name"] = "Unknown"
+                for i in [
+                    1,
+                    2,
+                    3,
+                    4,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                ]:  # Для breadcrumbs1 до breadcrumbs4 и breadcrumbs6 до breadcrumbs10
+                    if filtered_data[f"breadcrumbs{i}"] is None:
+                        filtered_data[f"breadcrumbs{i}"] = "N/A"
 
-        # Получаем список всех столбцов из первого элемента списка
-        columns = ", ".join(required_columns)
-        placeholders = ", ".join([f":{key}" for key in required_columns])
-        query = f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+                # Значения по умолчанию для остальных полей
+                filtered_data["price"] = (
+                    0 if not filtered_data["price"] else filtered_data["price"]
+                )
+                filtered_data["old_price"] = (
+                    0 if not filtered_data["old_price"] else filtered_data["old_price"]
+                )
+                filtered_data["product_code"] = (
+                    0
+                    if not filtered_data["product_code"]
+                    else filtered_data["product_code"]
+                )
+                filtered_data["categoryID"] = (
+                    0
+                    if not filtered_data["categoryID"]
+                    else filtered_data["categoryID"]
+                )
+                filtered_data["mystock"] = (
+                    0 if not filtered_data["mystock"] else filtered_data["mystock"]
+                )
 
-        # Обработка списка данных
-        try:
-            # Вставка всех данных, каждый словарь - отдельная строка
-            await self.database.execute_many(query=query, values=data_list)
-            print(f"Успешно вставлено {len(data_list)} записей!")
-        except Exception as e:
-            print(f"Ошибка при вставке данных: {e}")
+                filtered_data["name"] = (
+                    "No Name"
+                    if filtered_data["name"] is None
+                    else filtered_data["name"]
+                )
+                filtered_data["stock"] = (
+                    "Unknown"
+                    if filtered_data["stock"] is None
+                    else filtered_data["stock"]
+                )
+                filtered_data["prosent"] = (
+                    "0"
+                    if filtered_data["prosent"] is None
+                    else filtered_data["prosent"]
+                )
+                filtered_data["url"] = (
+                    "N/A" if filtered_data["url"] is None else filtered_data["url"]
+                )
+                filtered_data["description"] = (
+                    "No description"
+                    if filtered_data["description"] is None
+                    else filtered_data["description"]
+                )
+                filtered_data["brand"] = (
+                    "Unknown"
+                    if filtered_data["brand"] is None
+                    else filtered_data["brand"]
+                )
+                filtered_data["category_name"] = (
+                    "Unknown"
+                    if filtered_data["category_name"] is None
+                    else filtered_data["category_name"]
+                )
+
+                # Добавляем в список для вставки
+                data_to_insert.append(filtered_data)
+
+        # Выполняем обновление существующих товаров
+        for item in data_to_update:
+            update_query = f"""
+                UPDATE {table_name} 
+                SET stock = :stock, price = :price 
+                WHERE product_code = :product_code
+            """
+            try:
+                await self.database.execute(query=update_query, values=item)
+                logger.info(f"Обновлена запись с product_code: {item['product_code']}")
+            except Exception as e:
+                logger.error(f"Ошибка при обновлении данных: {e}")
+
+        # Выполняем вставку новых товаров
+        if data_to_insert:
+            columns = ", ".join(required_columns)
+            placeholders = ", ".join([f":{key}" for key in required_columns])
+            insert_query = (
+                f"INSERT INTO {table_name} ({columns}) VALUES ({placeholders})"
+            )
+            try:
+                await self.database.execute_many(
+                    query=insert_query, values=data_to_insert
+                )
+                logger.info(f"Успешно вставлено {len(data_to_insert)} записей!")
+            except Exception as e:
+                logger.error(f"Ошибка при вставке данных: {e}")
 
 
-max_workers = 10
-base_url = "https://www.ua-region.com.ua"
+max_workers = 20
 url_sitemap = "https://bi.ua/sitemap-index.xml"
-response_handler = Get_Response(
+response_handler = GetResponse(
     max_workers,
-    base_url,
     cookies,
     headers,
     html_files_directory,
@@ -852,14 +1044,14 @@ response_handler = Get_Response(
     url_sitemap,
 )
 # Запуск метода для получения всех sitemaps и обработки
-# response_handler.get_all_sitemap()
+response_handler.get_all_sitemap()
 
 # Запуск метода скачивания html файлов
-# response_handler.process_infox_file()
+response_handler.process_infox_file()
 
 
 # Парсинг html файлов
-processor = Parsing(html_files_directory, xlsx_result, file_proxy)
+processor = Parsing(html_files_directory, xlsx_result, file_proxy, max_workers)
 all_results = processor.parsing_html()
 
 
@@ -872,7 +1064,3 @@ async def main(all_results):
 
 
 asyncio.run(main(all_results))
-
-# write_sql = WriteSQL()
-# write_sql.insert_data("ss_bi", all_results)
-# write_sql.close_connection()

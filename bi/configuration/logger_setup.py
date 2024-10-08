@@ -10,17 +10,16 @@ logging_directory.mkdir(parents=True, exist_ok=True)
 log_file_path = Path(logging_directory, "log_message.log")
 
 # Логирование в файл с ротацией и удалением старых логов
-logger.add(
-    log_file_path,
-    format="{time:DD-MM-YYYY HH:mm:ss} - {level} - {name}:{line} - {message}",
-    level="DEBUG",
-    encoding="utf-8",
-)
-
-# # Логирование в консоль
 # logger.add(
-#     sys.stdout,
+#     log_file_path,
 #     format="{time:DD-MM-YYYY HH:mm:ss} - {level} - {name}:{line} - {message}",
 #     level="DEBUG",
 #     encoding="utf-8",
 # )
+
+# Логирование в консоль
+logger.add(
+    sys.stdout,
+    format="{time:DD-MM-YYYY HH:mm} - {level} - {name}:{line} - {message}",
+    level="DEBUG",
+)
