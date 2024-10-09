@@ -16,6 +16,7 @@ import os
 import asyncio
 from databases import Database
 import hashlib
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 
 
 current_directory = Path.cwd()
@@ -119,21 +120,37 @@ class GetResponse:
             self.csv_file_successful, output_csv_file, self.file_proxy
         )
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_fixed(5),
+        retry=retry_if_exception_type(requests.RequestException),
+    )
     def fetch_xml(self, url):
         # Загружаем список прокси-серверов из файла
         proxies = self.working_files.load_proxies()
         # Выбираем случайный прокси-сервер для запроса
+        if not proxies:
+            logger.error("Список прокси пуст. Проверьте файл с прокси.")
+            return None
         proxy = random.choice(proxies)
+        # proxy = random.choice(proxies)
         proxies_dict = {"http": proxy, "https": proxy}
 
         # Запрос по указанному URL
         response = requests.get(
-            url, proxies=proxies_dict, headers=self.headers, cookies=self.cookies
+            url,
+            proxies=proxies_dict,
+            headers=self.headers,
+            cookies=self.cookies,
+            timeout=10,
         )
-
-        if response.status_code == 200:
+        response.raise_for_status()
+        if "text/xml" in response.headers.get("Content-Type", ""):
             logger.info(f"Скачали sitemap: {url}")
             return response.content
+        # if response.status_code == 200:
+        #     logger.info(f"Скачали sitemap: {url}")
+        #     return response.content
         else:
             logger.error(
                 f"Ошибка при скачивании файла: {response.status_code} для URL: {url}"
@@ -196,18 +213,11 @@ class GetResponse:
 
         return filtered_urls
 
-    def process_infox_file(self):
+    def process_html_files(self):
         self.working_files.remove_successful_urls()
-        # Загружаем список прокси-серверов из файла
         proxies = self.working_files.load_proxies()
-
-        # Загружаем уже обработанные URL, чтобы не обрабатывать их повторно
         successful_urls = self.working_files.get_successful_urls()
-
-        # Загружаем список URL для обработки из CSV-файла
         urls_df = pd.read_csv(self.output_csv_file)
-
-        # Инициализация прогресс-бара
         total_urls = len(urls_df)
         progress_bar = tqdm(
             total=total_urls,
@@ -215,34 +225,42 @@ class GetResponse:
             bar_format="{l_bar}{bar} | Время: {elapsed} | Осталось: {remaining} | Скорость: {rate_fmt}",
         )
 
-        # Запускаем многопоточную обработку
+        max_failures = 5
+        failure_count = 0
+
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # Создаем задачи для каждого URL в списке
             futures = [
                 executor.submit(self.fetch_and_save_html, url, successful_urls, proxies)
                 for url in urls_df["url"]
             ]
 
-            # Отслеживаем выполнение задач
             for future in as_completed(futures):
                 try:
-                    future.result()  # Получаем результат выполнения задачи
+                    future.result()
                 except Exception as e:
                     logger.error(f"Error occurred: {e}")
-                    self.stop_event.set()  # Устанавливаем событие для остановки всех потоков
-
+                    failure_count += 1
+                    if failure_count >= max_failures:
+                        logger.error(
+                            "Превышен лимит неудачных операций. Остановка выполнения."
+                        )
+                        self.stop_event.set()
+                        break
                 finally:
-                    # Обновляем прогресс-бар после каждой завершенной задачи
                     progress_bar.update(1)
 
-        # Закрываем прогресс-бар
         progress_bar.close()
         if self.stop_event.is_set():
             logger.error("Программа остановлена из-за ошибок.")
             sys.exit(1)
         else:
-            logger.info("Все запросы выполнены.")
+            logger.info("Все файлы скаченны.")
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_fixed(5),
+        retry=retry_if_exception_type(requests.RequestException),
+    )
     def fetch_and_save_html(self, url, successful_urls, proxies):
         fetch_lock = (
             threading.Lock()
@@ -252,12 +270,9 @@ class GetResponse:
             return
         # Проверяем, обрабатывался ли этот URL ранее
         if url in successful_urls:
-            # logger.info(f"| Компания уже была обработана, пропускаем. |")
+            logger.info(f"| Компания уже была обработана, пропускаем. |")
             return
         identifier = url.split("/")[-1]
-        # Путь к файлу с длинным именем
-        original_file_path = self.html_files_directory / identifier
-
         # Генерируем короткое имя файла, используя хеширование
         hash_object = hashlib.md5(identifier.encode("utf-8"))
 
@@ -267,33 +282,50 @@ class GetResponse:
             # Выбираем случайный прокси-сервер для запроса
             proxy = random.choice(proxies)
             proxies_dict = {"http": proxy, "https": proxy}
-            # Отправляем запрос
-            # Сохраняем HTML-файл в указанную директорию
-            file_path = self.html_files_directory / identifier
-            if not original_file_path.exists() or hashed_file_path.exists():
+
+            # Отправляем запрос, если файл еще не существует
+            if not hashed_file_path.exists():
                 response = requests.get(
                     url,
                     proxies=proxies_dict,
                     headers=self.headers,
                     cookies=self.cookies,
+                    timeout=10,
                 )
 
-                # Проверяем успешность запроса
-                if response.status_code == 200:
-                    # file_path = self.html_files_directory / f"{identifier}.html"
-                    hashed_file_path.write_text(response.text, encoding="utf-8")
-                    with fetch_lock:
-                        # Добавляем идентификатор в множество успешных
-                        successful_urls.add(url)
+                # Проверка статуса, если не успешный (3xx, 4xx, 5xx), инициируем повторную попытку
 
-                        # Сохраняем идентификатор в CSV для отслеживания
-                        self.working_files.write_to_csv(url, self.csv_file_successful)
-                else:
-                    logger.error(
-                        f"Ошибка: не удалось получить данные для {url}. Статус: {response.status_code}"
+                if response.status_code >= 300:
+                    logger.warning(
+                        f"Получили статус {response.status_code} для URL: {url}, пробуем еще раз."
                     )
-                    self.stop_event.set()  # Устанавливаем событие остановки
+                    raise requests.HTTPError(
+                        f"Статус: {response.status_code} для URL: {url}",
+                        response=response,
+                    )
 
+                if response.status_code == 200:
+                    if "text/html" in response.headers.get("Content-Type", ""):
+                        hashed_file_path.write_text(response.text, encoding="utf-8")
+                        # logger.info(f"Скачали и сохранили HTML для {url}")
+                    else:
+                        logger.error(f"Ошибка: некорректный тип содержимого для {url}")
+                        raise requests.HTTPError(
+                            f"Статус: {response.status_code} для URL: {url}",
+                            response=response,
+                        )
+                else:
+                    logger.warning(
+                        f"Получили статус {response.status_code} для URL: {url}, пробуем еще раз."
+                    )
+                    raise requests.HTTPError(
+                        f"Статус: {response.status_code} для URL: {url}",
+                        response=response,
+                    )
+
+        except requests.RequestException as e:
+            logger.error(f"Ошибка при скачивании файла: {e}")
+            raise  # Повторная попытка будет выполнена, так как исключение RequestException включено в retry
         except Exception as e:
             logger.error(f"Произошла ошибка при обработке {url}: {e}")
             self.stop_event.set()  # Устанавливаем событие остановки
@@ -316,26 +348,17 @@ class WorkingWithfiles:
         return proxies
 
     def write_to_csv(self, data, filename):
-        # Проверяем, существует ли файл
         file_path = Path(filename)
-
-        with self.write_lock:  # Используем блокировку для защиты кода записи в файл
-            # Проверка на необходимость добавления заголовка
+        with self.write_lock:
+            # Проверка на необходимость добавления заголовка, если файл только создается или пустой
             if not self.header_written:
                 if not file_path.exists() or file_path.stat().st_size == 0:
-                    with open(filename, "a", encoding="utf-8") as f:
+                    with open(filename, "w", encoding="utf-8") as f:
                         f.write("url\n")
-                self.header_written = (
-                    True  # Устанавливаем флаг после добавления заголовка
-                )
+                self.header_written = True
 
-            # Проверяем, является ли `data` итерируемым (множеством, списком) или одиночным значением
-            if isinstance(data, (set, list, tuple)):
-                urls_to_write = data
-            else:
-                urls_to_write = [data]  # Преобразуем одиночный URL в список
-
-            # Записываем каждый URL в новую строку CSV-файла
+            # Записываем данные в файл
+            urls_to_write = data if isinstance(data, (set, list, tuple)) else [data]
             with open(filename, "a", encoding="utf-8") as f:
                 for url in urls_to_write:
                     f.write(f"{url}\n")
@@ -348,7 +371,9 @@ class WorkingWithfiles:
         with open(self.csv_file_successful, mode="r", encoding="utf-8") as f:
             reader = csv.reader(f)
             successful_urls = {
-                row[0] for row in reader if row
+                row[0]
+                for idx, row in enumerate(reader)
+                if row and idx > 0  # Пропускаем заголовок
             }  # Собираем идентификаторы в множество
         return successful_urls
 
@@ -397,6 +422,7 @@ class WorkingWithfiles:
 
             # Очищаем файл csv_file_successful
             open(self.csv_file_successful, "w").close()
+
             logger.info(f"Файл {self.csv_file_successful.name} очищен.")
         else:
             logger.info("Не было найдено совпадающих URL для удаления.")
@@ -1047,7 +1073,7 @@ response_handler = GetResponse(
 response_handler.get_all_sitemap()
 
 # Запуск метода скачивания html файлов
-response_handler.process_infox_file()
+response_handler.process_html_files()
 
 
 # Парсинг html файлов
