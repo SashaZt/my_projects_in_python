@@ -17,6 +17,7 @@ import asyncio
 from databases import Database
 import hashlib
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+import shutil
 
 
 current_directory = Path.cwd()
@@ -32,7 +33,7 @@ img_directory.mkdir(parents=True, exist_ok=True)
 html_files_directory.mkdir(parents=True, exist_ok=True)
 
 output_csv_file = data_directory / "output.csv"
-file_proxy = configuration_directory / "roman.txt"
+file_proxy = configuration_directory / "proxy.txt"
 csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
 # Создаем путь к файлу .env
@@ -102,7 +103,13 @@ class GetResponse:
         file_proxy,
         url_sitemap,
     ) -> None:
+        load_dotenv(env_file_path)
+
         # Инициализация переданных параметров как атрибутов класса
+        self.ftp_host = os.getenv("FTP_HOST")
+        self.ftp_user = os.getenv("FTP_USER")
+        self.ftp_pass = os.getenv("FTP_PASS")
+        self.ftp_directory = os.getenv("FTP_DIRECTORY")
         self.max_workers = max_workers
         self.cookies = cookies
         self.headers = headers
@@ -186,6 +193,7 @@ class GetResponse:
         return matching_urls
 
     def get_all_sitemap(self):
+        shutil.rmtree(self.html_files_directory)
         all_url_company = set()
         all_urls = self.parsing_sitemap_start()
         for url in all_urls:
@@ -214,6 +222,7 @@ class GetResponse:
         return filtered_urls
 
     def process_html_files(self):
+        self.html_files_directory.mkdir(parents=True, exist_ok=True)
         self.working_files.remove_successful_urls()
         proxies = self.working_files.load_proxies()
         successful_urls = self.working_files.get_successful_urls()
@@ -255,6 +264,11 @@ class GetResponse:
             sys.exit(1)
         else:
             logger.info("Все файлы скаченны.")
+
+    # Этот декоратор @retry из библиотеки tenacity предназначен для повторной попытки выполнения функции в случае возникновения ошибки.
+    # stop_after_attempt(3) - 3 попытки
+    # wait_fixed(5) - фиксированная задержка 5 секунд
+    # retry=retry_if_exception_type(requests.RequestException) - вызывает исключение проблемы с соединением, таймауты и т.д.
 
     @retry(
         stop=stop_after_attempt(3),
@@ -308,6 +322,13 @@ class GetResponse:
                     if "text/html" in response.headers.get("Content-Type", ""):
                         hashed_file_path.write_text(response.text, encoding="utf-8")
                         # logger.info(f"Скачали и сохранили HTML для {url}")
+                        with fetch_lock:
+                            # Добавляем идентификатор в множество успешных
+                            successful_urls.add(url)
+
+                        # Сохраняем идентификатор в CSV для отслеживания
+                        self.working_files.write_to_csv(url, self.csv_file_successful)
+
                     else:
                         logger.error(f"Ошибка: некорректный тип содержимого для {url}")
                         raise requests.HTTPError(
@@ -348,16 +369,16 @@ class WorkingWithfiles:
         return proxies
 
     def write_to_csv(self, data, filename):
-        file_path = Path(filename)
         with self.write_lock:
-            # Проверка на необходимость добавления заголовка, если файл только создается или пустой
-            if not self.header_written:
-                if not file_path.exists() or file_path.stat().st_size == 0:
-                    with open(filename, "w", encoding="utf-8") as f:
-                        f.write("url\n")
-                self.header_written = True
+            # Если файл существует, удаляем его
+            if filename.exists():
+                filename.unlink()
 
-            # Записываем данные в файл
+            # Создаем новый файл и добавляем заголовок
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write("url\n")
+
+            # Записываем новые данные в файл
             urls_to_write = data if isinstance(data, (set, list, tuple)) else [data]
             with open(filename, "a", encoding="utf-8") as f:
                 for url in urls_to_write:
@@ -1057,7 +1078,7 @@ class WriteSQL:
                 logger.error(f"Ошибка при вставке данных: {e}")
 
 
-max_workers = 20
+max_workers = os.getenv("MAX_WORKERS")
 url_sitemap = "https://bi.ua/sitemap-index.xml"
 response_handler = GetResponse(
     max_workers,
