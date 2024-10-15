@@ -14,6 +14,8 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from pathlib import Path
 import xml.etree.ElementTree as ET
+import os
+from tqdm import tqdm
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -23,7 +25,7 @@ output_csv_file = data_directory / "output.csv"
 
 def load_proxies():
     """Загружает список прокси-серверов из файла."""
-    file_path = "1000 ip.txt"
+    file_path = "roman.txt"
     with open(file_path, "r", encoding="utf-8") as file:
         proxies = [line.strip() for line in file]
     logger.info(f"Загружено {len(proxies)} прокси.")
@@ -36,28 +38,44 @@ def get_html():
     proxies_dict = {"http": proxy, "https": proxy}
 
     cookies = {
-        "device-referrer": "https://www.google.com/",
-        "advanced-frontend": "gsb71blijdi0183vuoh8b4i5ba",
-        "_csrf-frontend": "55d068b1627cf15ff7363e11b6fbc4b27a348f3bfc77643eea3ac4671d5a3fd4a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22CHqLi9Z8H1AMnURmsALSNmxu0elpaj78%22%3B%7D",
-        "sc": "75721E5D-DE17-5370-0389-943746C5B708",
-        "cookies_policy": "true",
-        "_csrf-api": "a115aeb71eb0eb2e9dce1fecb34afac32058e76f36f027a81f95325ccdb830b4a%3A2%3A%7Bi%3A0%3Bs%3A9%3A%22_csrf-api%22%3Bi%3A1%3Bs%3A32%3A%2207ihVY20DuEER2klf5L1ONGrPqwz3rUD%22%3B%7D",
-        "v_cnt": "31",
-        "device-source": "https://bi.ua/rus/product/prorezyvatel-taf-toys-sadik-v-gorode-ezhik-i-buryachok-13095.html",
+        "ak_bmsc": "C5461596E2A7551D119B11B9AC7B4A87~000000000000000000000000000000~YAAQXTYQYBs9gH+SAQAAxPTRihn+AWhsuWoyN3PCEJ+fTJzH0ZnsnOW9aAaAcJhh+dNSOA5b9vqesmudElEdoNe7JQS3USAIlHzsRC2IJWk94b0Bt46s+x0tC+g7T/poR9w2EESsABx19L08PmPOMcsmiCdb3+LZhDbBMxG2U+0lwoQDiWqoWzulDBjHY8nL8BCuYSNCFjjwf48QAv/IRLVTkyf6+eaOPzKv85nA0K0dKq0DVYJO0rptkbqPEncGlMlG28Q4D6Gen8YDK7rlR6N2KBPjZ9GBcRHbMAVQuWDO93Hg1YzT2VVnFpKNTmLoZxbjIcKlu88of3kJQusPXcEUHfiFCOX3A6PZYfMEHEQJ6XWib/GUOSH95Z7EhrEvfFFRHSm8ewc=",
+        "__uzma": "a813fe6e-4491-4adc-8972-ae1f29622c57",
+        "__uzmb": "1728905869",
+        "__uzme": "4418",
+        "__ssds": "2",
+        "__ssuzjsr2": "a9be0cd8e",
+        "__uzmaj2": "eca8cd22-91f6-4756-8945-30fc7a245ff1",
+        "__uzmbj2": "1728907668",
+        "__uzmlj2": "vehRS1XWx7PXFnOlzGCI5IIYSSnwKONU8KPr5HqVjRw=",
+        "__uzmcj2": "397401627840",
+        "__uzmdj2": "1728907742",
+        "__uzmfj2": "7f600059d8118f-fb35-4b9a-b231-c5eec8132344172890766826474347-93cccfb72642079116",
+        "__uzmc": "964824368662",
+        "__uzmd": "1728907773",
+        "__uzmf": "7f600059d8118f-fb35-4b9a-b231-c5eec813234417289058693161904250-82d27e64b8f6121743",
+        "ds2": "",
+        "dp1": "bpbf/%23e000e0000000000000000068ee3da7^bl/UA6acf7127^",
+        "s": "CgAD4ACBnDlumOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYzYYV7",
+        "bm_sv": "21120F2BFDB1FFC0111D0DA586896449~YAAQXTYQYJrdg3+SAQAAVKrvihlFIxBhhftqvbNXqeQIvVcIDc//7/BUH+91SIpDqBjv4H1IAFxzhaKuZd8FGSi+oYQGjelnJyc3Op30mrlgTMZCgQsxrR2nwcC+cnc4QW7pAVSiVCtegMzm3vyUGW3s8JIUmWFHBn3sOLARIi2CA0oslVG06GHZMjF/yIz/CIDX9/RNLnlBML+DAQYBfTpJpHiFSl6LPHTjJ9LJTPzmDdcHR89fYaAUpYf5Nk0=~1",
+        "ebay": "%5Ejs%3D1%5Esbf%3D%23000200%5E",
+        "nonsession": "BAQAAAZJU03gwAAaAADMABWjuPacxMDAwNQDKACBqz3EnOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYAywACZw0RLzU3wRAVOIbJdWDmdNsnQ3gKbiwS+a4*",
+        "__deba": "RClCxlc-RAB_iiOQfM5Gy_nt8ZCdN4NU0i_9XqMIRiUeTMEOxatr74Hpx2Vek7S4XR8UW1J2_XMwSXzXGqPFGDSJTUEHeLCqHI7wQDliKL3OHHm_qoCVpJuFHpX8VWFKh28lda3_iYXrpK5b_jSZhA==",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
         "cache-control": "no-cache",
-        # 'cookie': 'device-referrer=https://www.google.com/; advanced-frontend=gsb71blijdi0183vuoh8b4i5ba; _csrf-frontend=55d068b1627cf15ff7363e11b6fbc4b27a348f3bfc77643eea3ac4671d5a3fd4a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22CHqLi9Z8H1AMnURmsALSNmxu0elpaj78%22%3B%7D; sc=75721E5D-DE17-5370-0389-943746C5B708; cookies_policy=true; _csrf-api=a115aeb71eb0eb2e9dce1fecb34afac32058e76f36f027a81f95325ccdb830b4a%3A2%3A%7Bi%3A0%3Bs%3A9%3A%22_csrf-api%22%3Bi%3A1%3Bs%3A32%3A%2207ihVY20DuEER2klf5L1ONGrPqwz3rUD%22%3B%7D; v_cnt=31; device-source=https://bi.ua/rus/product/prorezyvatel-taf-toys-sadik-v-gorode-ezhik-i-buryachok-13095.html',
+        # 'cookie': 'ak_bmsc=C5461596E2A7551D119B11B9AC7B4A87~000000000000000000000000000000~YAAQXTYQYBs9gH+SAQAAxPTRihn+AWhsuWoyN3PCEJ+fTJzH0ZnsnOW9aAaAcJhh+dNSOA5b9vqesmudElEdoNe7JQS3USAIlHzsRC2IJWk94b0Bt46s+x0tC+g7T/poR9w2EESsABx19L08PmPOMcsmiCdb3+LZhDbBMxG2U+0lwoQDiWqoWzulDBjHY8nL8BCuYSNCFjjwf48QAv/IRLVTkyf6+eaOPzKv85nA0K0dKq0DVYJO0rptkbqPEncGlMlG28Q4D6Gen8YDK7rlR6N2KBPjZ9GBcRHbMAVQuWDO93Hg1YzT2VVnFpKNTmLoZxbjIcKlu88of3kJQusPXcEUHfiFCOX3A6PZYfMEHEQJ6XWib/GUOSH95Z7EhrEvfFFRHSm8ewc=; __uzma=a813fe6e-4491-4adc-8972-ae1f29622c57; __uzmb=1728905869; __uzme=4418; __ssds=2; __ssuzjsr2=a9be0cd8e; __uzmaj2=eca8cd22-91f6-4756-8945-30fc7a245ff1; __uzmbj2=1728907668; __uzmlj2=vehRS1XWx7PXFnOlzGCI5IIYSSnwKONU8KPr5HqVjRw=; __uzmcj2=397401627840; __uzmdj2=1728907742; __uzmfj2=7f600059d8118f-fb35-4b9a-b231-c5eec8132344172890766826474347-93cccfb72642079116; __uzmc=964824368662; __uzmd=1728907773; __uzmf=7f600059d8118f-fb35-4b9a-b231-c5eec813234417289058693161904250-82d27e64b8f6121743; ds2=; dp1=bpbf/%23e000e0000000000000000068ee3da7^bl/UA6acf7127^; s=CgAD4ACBnDlumOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYzYYV7; bm_sv=21120F2BFDB1FFC0111D0DA586896449~YAAQXTYQYJrdg3+SAQAAVKrvihlFIxBhhftqvbNXqeQIvVcIDc//7/BUH+91SIpDqBjv4H1IAFxzhaKuZd8FGSi+oYQGjelnJyc3Op30mrlgTMZCgQsxrR2nwcC+cnc4QW7pAVSiVCtegMzm3vyUGW3s8JIUmWFHBn3sOLARIi2CA0oslVG06GHZMjF/yIz/CIDX9/RNLnlBML+DAQYBfTpJpHiFSl6LPHTjJ9LJTPzmDdcHR89fYaAUpYf5Nk0=~1; ebay=%5Ejs%3D1%5Esbf%3D%23000200%5E; nonsession=BAQAAAZJU03gwAAaAADMABWjuPacxMDAwNQDKACBqz3EnOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYAywACZw0RLzU3wRAVOIbJdWDmdNsnQ3gKbiwS+a4*; __deba=RClCxlc-RAB_iiOQfM5Gy_nt8ZCdN4NU0i_9XqMIRiUeTMEOxatr74Hpx2Vek7S4XR8UW1J2_XMwSXzXGqPFGDSJTUEHeLCqHI7wQDliKL3OHHm_qoCVpJuFHpX8VWFKh28lda3_iYXrpK5b_jSZhA==',
         "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "referer": "https://bi.ua/rus/dlya-malishey/pogremushki-prorezivateli/",
         "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
+        "sec-ch-ua-full-version": '"129.0.6668.90"',
         "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-model": '""',
         "sec-ch-ua-platform": '"Windows"',
+        "sec-ch-ua-platform-version": '"15.0.0"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
         "sec-fetch-site": "same-origin",
@@ -66,18 +84,27 @@ def get_html():
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     }
 
-    response = requests.get(
-        "https://bi.ua/rus/product/prorezyvatel-nuby-zoopark-obezyanka-6733.html",
-        cookies=cookies,
-        headers=headers,
-    )
+    for i in range(1, 49):
+        params = {
+            "_ipg": "72",
+            "_pgn": i,
+            "rt": "nc",
+        }
 
-    # Проверка кода ответа
-    if response.status_code == 200:
-        # Сохранение HTML-страницы целиком
-        with open("proba.html", "w", encoding="utf-8") as file:
-            file.write(response.text)
-    print(response.status_code)
+        response = requests.get(
+            "https://www.ebay.com/str/tema4x4",
+            params=params,
+            cookies=cookies,
+            headers=headers,
+            proxies=proxies_dict,
+        )
+
+        # Проверка кода ответа
+        if response.status_code == 200:
+            # Сохранение HTML-страницы целиком
+            with open(f"proba_0{i}.html", "w", encoding="utf-8") as file:
+                file.write(response.text)
+        logger.info(response.status_code)
 
 
 def get_json():
@@ -147,177 +174,113 @@ def clean_text(text):
     return cleaned_text.strip()
 
 
-def parsing():
-    with open("proba.html", encoding="utf-8") as file:
-        src = file.read()
-    soup = BeautifulSoup(src, "lxml")
+def parsing_page():
+    # Папка с HTML файлами
+    html_folder = Path("html")
 
-    # Список для хранения всех единиц данных
-    all_results = []
+    # Множество для хранения уникальных itm_value
+    unique_itm_values = set()
 
-    # Безопасное извлечение заголовка страницы
-    name_raw = soup.find("h1", attrs={"itemprop": "name"})
-    page_title = name_raw.get_text(strip=True) if name_raw else None
-    description_raw = soup.find("article", attrs={"class": "scroller"})
-    product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
-    product_code = product_code_raw.get_text(strip=True) if product_code_raw else None
-    price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
-        "p", attrs={"itemprop": "price"}
-    )
-    price = price_raw.get_text(strip=True).replace(" грн", "") if price_raw else None
-    old_price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
-        "p", attrs={"class": "old"}
-    )
-    old_price = (
-        old_price_raw.get_text(strip=True).replace(" грн", "")
-        if old_price_raw
-        else None
-    )
-    availability_text = None
-    stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
-    if stock_raw:
-        # Получаем текст ссылки и определяем статус наличия
-        availability_text = stock_raw.get_text(strip=True)
-        if "Купить" in availability_text:
-            availability_text = "В наличии"
-        elif "Товара нет в наличии" in availability_text:
-            availability_text = "Нет в наличии"
-    # Словарь для хранения параметров и их значений
-    params_variants = {}
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_folder.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            # Прочитать содержимое файла
+            content = file.read()
+            # Создать объект BeautifulSoup
+            soup = BeautifulSoup(content, "html.parser")
+            # Найти все <div> с классом 'str-quickview-button str-item-card__property-title'
+            div_elements = soup.find_all(
+                "div", class_="str-quickview-button str-item-card__property-title"
+            )
+            # Пройтись по каждому найденному элементу и извлечь itm из атрибута data-track
+            for div in div_elements:
+                data_track = div.get("data-track")
+                if data_track:
+                    # Преобразовать значение JSON обратно в словарь
+                    data = json.loads(data_track.replace("&quot;", '"'))
+                    itm_value = data.get("eventProperty", {}).get("itm")
+                    if itm_value:
+                        unique_itm_values.add(itm_value)
 
-    # Переменная для отслеживания количества параметров
-    param_counter = 1
+    # Создать список URL на основе уникальных itm_value
+    urls = [f"https://www.ebay.com/itm/{itm_value}" for itm_value in unique_itm_values]
 
-    # Ищем все строки (tr) в таблицах
-    rows = soup.select("table.table.p03 tr")
+    # Создать DataFrame из списка URL
+    df = pd.DataFrame(urls, columns=["url"])
 
-    # Перебираем все строки
-    for row in rows:
-        # Ищем все ячейки (td) в строке
-        cells = row.find_all("td")
+    # Записать DataFrame в CSV файл
+    df.to_csv("unique_itm_urls.csv", index=False)
 
-        # Пропускаем строки, которые содержат colspan (заголовки разделов)
-        if len(cells) == 2 and not cells[0].has_attr("colspan"):
-            param_name = cells[0].get_text(strip=True)  # Название параметра
-            variant_value = cells[1].get_text(strip=True)  # Значение параметра
-            # Добавляем в словарь
-            params_variants[f"param{param_counter}"] = param_name
-            params_variants[f"variant{param_counter}"] = variant_value
-            param_counter += 1
-    images = soup.find_all("img", attrs={"itemprop": "image"})
-    for images_url in images:
-        url_image = f'https://bi.ua{images_url.get("content")}'
+
+
+
+
+def get_responses_from_urls(file_path):
+    proxies = load_proxies()  # Загружаем список всех прокси
+    proxy = random.choice(proxies)  # Выбираем случайный прокси
+    proxies_dict = {"http": proxy, "https": proxy}
+
+    cookies = {
+        "s": "CgAD4ACBnDlQLOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTaiWuwe",
+        "ak_bmsc": "C5461596E2A7551D119B11B9AC7B4A87~000000000000000000000000000000~YAAQXTYQYBs9gH+SAQAAxPTRihn+AWhsuWoyN3PCEJ+fTJzH0ZnsnOW9aAaAcJhh+dNSOA5b9vqesmudElEdoNe7JQS3USAIlHzsRC2IJWk94b0Bt46s+x0tC+g7T/poR9w2EESsABx19L08PmPOMcsmiCdb3+LZhDbBMxG2U+0lwoQDiWqoWzulDBjHY8nL8BCuYSNCFjjwf48QAv/IRLVTkyf6+eaOPzKv85nA0K0dKq0DVYJO0rptkbqPEncGlMlG28Q4D6Gen8YDK7rlR6N2KBPjZ9GBcRHbMAVQuWDO93Hg1YzT2VVnFpKNTmLoZxbjIcKlu88of3kJQusPXcEUHfiFCOX3A6PZYfMEHEQJ6XWib/GUOSH95Z7EhrEvfFFRHSm8ewc=",
+        "__uzma": "a813fe6e-4491-4adc-8972-ae1f29622c57",
+        "__uzmb": "1728905869",
+        "__uzmc": "339401098533",
+        "__uzmd": "1728905869",
+        "__uzme": "4418",
+        "__uzmf": "7f600059d8118f-fb35-4b9a-b231-c5eec813234417289058693160-ffb7b7e1a4c777b510",
+        "__deba": "RClCxlc-RAB_iiOQfM5Gy3iTDLa83ZECddE3KGmIlkqApCS_e_ekH1bHChZhGkiYXR8UW1J2_XMwSXzXGqPFGDSJTUEHeLCqHI7wQDliKL3OHHm_qoCVpJuFHpX8VWFKh28lda3_iYXrpK5b_jSZhA==",
+        "nonsession": "BAQAAAZJU03gwAAaAADMABWjuNh4xMDAwNQDKACBqz2meOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYAywABZw0JpjePPj4vOnrhWFHAcV9W4r2LgMGnnA**",
+        "bm_sv": "21120F2BFDB1FFC0111D0DA586896449~YAAQXTYQYP9FgH+SAQAARDzSihmyCoZaNGXJaW8p6l6RvK6Uj9LROaFjpq3z31ZcBfRDfmqFZ/a1rNkHdtMgBgq3WJZXhdcox0GRchTikrg4sLJm9G+rtVXU59mknvW66ro5hUj6xaAnIbMYs1Q4xW5ApSCWiyePfi6pJNCgI1YwBS0c/rMqATKTnwqT6ls8+QqcWulrrtpn70tofKz4NadxtjH/sa7AT4LVlgkSYYfVNkonNv/LT4XFLqTcDw==~1",
+        "dp1": "bbl/UA6acf699e^pbf/#e0002000000000000000006acf69a5^",
+        "ebay": "%5Esbf%3D%23000000%5Ejs%3D1%5E",
+    }
+
+    headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
+        # 'cookie': 's=CgAD4ACBnDlQLOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTaiWuwe; ak_bmsc=C5461596E2A7551D119B11B9AC7B4A87~000000000000000000000000000000~YAAQXTYQYBs9gH+SAQAAxPTRihn+AWhsuWoyN3PCEJ+fTJzH0ZnsnOW9aAaAcJhh+dNSOA5b9vqesmudElEdoNe7JQS3USAIlHzsRC2IJWk94b0Bt46s+x0tC+g7T/poR9w2EESsABx19L08PmPOMcsmiCdb3+LZhDbBMxG2U+0lwoQDiWqoWzulDBjHY8nL8BCuYSNCFjjwf48QAv/IRLVTkyf6+eaOPzKv85nA0K0dKq0DVYJO0rptkbqPEncGlMlG28Q4D6Gen8YDK7rlR6N2KBPjZ9GBcRHbMAVQuWDO93Hg1YzT2VVnFpKNTmLoZxbjIcKlu88of3kJQusPXcEUHfiFCOX3A6PZYfMEHEQJ6XWib/GUOSH95Z7EhrEvfFFRHSm8ewc=; __uzma=a813fe6e-4491-4adc-8972-ae1f29622c57; __uzmb=1728905869; __uzmc=339401098533; __uzmd=1728905869; __uzme=4418; __uzmf=7f600059d8118f-fb35-4b9a-b231-c5eec813234417289058693160-ffb7b7e1a4c777b510; __deba=RClCxlc-RAB_iiOQfM5Gy3iTDLa83ZECddE3KGmIlkqApCS_e_ekH1bHChZhGkiYXR8UW1J2_XMwSXzXGqPFGDSJTUEHeLCqHI7wQDliKL3OHHm_qoCVpJuFHpX8VWFKh28lda3_iYXrpK5b_jSZhA==; nonsession=BAQAAAZJU03gwAAaAADMABWjuNh4xMDAwNQDKACBqz2meOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYAywABZw0JpjePPj4vOnrhWFHAcV9W4r2LgMGnnA**; bm_sv=21120F2BFDB1FFC0111D0DA586896449~YAAQXTYQYP9FgH+SAQAARDzSihmyCoZaNGXJaW8p6l6RvK6Uj9LROaFjpq3z31ZcBfRDfmqFZ/a1rNkHdtMgBgq3WJZXhdcox0GRchTikrg4sLJm9G+rtVXU59mknvW66ro5hUj6xaAnIbMYs1Q4xW5ApSCWiyePfi6pJNCgI1YwBS0c/rMqATKTnwqT6ls8+QqcWulrrtpn70tofKz4NadxtjH/sa7AT4LVlgkSYYfVNkonNv/LT4XFLqTcDw==~1; dp1=bbl/UA6acf699e^pbf/#e0002000000000000000006acf69a5^; ebay=%5Esbf%3D%23000000%5Ejs%3D1%5E',
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
+        "sec-ch-ua-full-version": '"129.0.6668.90"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-model": '""',
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-ch-ua-platform-version": '"15.0.0"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+    }
+    # Загрузить список URL из CSV файла
+    df = pd.read_csv(file_path)
+
+    # Пройтись по каждому URL и выполнить HTTP-запрос
+    for url in df["url"]:
         try:
-            # Делаем запрос к URL
-            response = requests.get(url_image, cookies=cookies, headers=headers)
-            response.raise_for_status()  # Проверяем, успешен ли запрос
+            response = requests.get(
+                url, cookies=cookies, headers=headers, proxies=proxies_dict
+            )
+            if response.status_code == 200:
+                id_product = url.split("/")[-1]
 
-            # Извлекаем имя файла из URL
-            file_name = Path(url_image).name
+                # Сохранение HTML-страницы целиком
+                with open(f"{id_product}.html", "w", encoding="utf-8") as file:
+                    file.write(response.text)
+                logger.info(id_product)
 
-            # Путь для сохранения изображения
-            file_path = save_folder / file_name
-
-            # Сохраняем изображение
-            file_path.write_bytes(response.content)
-
-            print(f"Сохранено: {file_path}")
-
-        except requests.exceptions.RequestException as e:
-            print(f"Ошибка при загрузке {url_image}: {e}")
-
-    # # Выводим результаты
-    # for key, value in params_variants.items():
-    #     logger.info(f"{key}: {value}")
-
-
-# results = {
-#     "page_title": page_title,
-#     "legal_address": legal_address,
-#     "phone_company": phone_company,
-#     "cod_edrpo": cod_edrpo,
-#     "date_of_registration": date_of_registration,
-#     "update_date": update_date,
-#     "kved": kved_string,
-# }
-# all_results.append(cleaned_data)
-
-# # Ищем количество работников
-# number_of_employees = None
-# employee_label = soup.find("td", string="Кількість працівників")
-# if employee_label:
-#     number_of_employees = employee_label.find_next_sibling("td").string.strip()
-
-# # Ищем КАТОТТГ
-# katottg = None
-# katottg_label = soup.find("td", string="КАТОТТГ")
-# if katottg_label:
-#     katottg = katottg_label.find_next_sibling("td").string.strip()
-
-# # Словарь для текущей единицы данных
-# results = {
-#     "page_title": page_title,
-#     "number_of_employees": number_of_employees,
-#     "katottg": katottg,
-# }
-
-# # Добавляем словарь в список all_results
-# all_results.append(results)
-
-# # Выводим список словарей
-# print(nobr_start, nobr_end)
-
-# # Пример записи в Excel через pandas
-# df = pd.DataFrame(all_results)
-# df.to_excel("financial_data.xlsx", index=False, engine="openpyxl")
-
-# Выводим результат
-# page_title_h3 = soup.select_one(
-#     "#ProductInfo-template--19203350364488__main > div.product__subtitle > h3"
-# ).text
-# # description = soup.select_one(
-# #     "#content > div.fresnel-container.fresnel-greaterThanOrEqual-sm > div:nth-child(3) > div > div > div > div > div:nth-child(1) > div"
-# # ).text.replace("Description", "")
-# price = soup.select_one(
-#     "#price-template--19203350364488__main > div > div > div.price__regular > span.price-item.price-item--regular"
-# ).text.strip()
-# all_product_info = soup.select_one("#ProductAccordion-product_information > ul")
-# info_01 = all_product_info.select_one("li:nth-child(1)").text.strip()
-# # Второй элемент — Dimensions
-# info_02 = all_product_info.find(
-#     "li", string=lambda text: "Dimensions" in text
-# ).text.strip()
-
-# # Третий элемент — Weight
-# info_03 = all_product_info.find(
-#     "li", string=lambda text: "Weight" in text
-# ).text.strip()
-
-# # Четвертый элемент — Handcrafted
-# info_04 = all_product_info.find(
-#     "li", string=lambda text: "Handcrafted" in text
-# ).text.strip()
-# fotos = soup.find_all(
-#     "div", attrs=("class", "product__media media media--transparent")
-# )
-# for foto in fotos:
-#     img_tag = foto.find("img")
-#     if img_tag:
-#         src = img_tag.get("src")
-#         # Обрезаем строку по символу '?'
-#         clean_src = src.split("?")[0]
-#         clean_src = f"https:{clean_src}"
-#         logger.info(clean_src)
-
-# sku_item_n = soup.select_one(
-#     "#content > div.fresnel-container.fresnel-greaterThanOrEqual-sm > div:nth-child(2) > div > div > div:nth-child(2) > div > div:nth-child(2) > div"
-# ).text.replace("Item No.", "")
-# upc = soup.select_one(
-#     "#content > div.fresnel-container.fresnel-greaterThanOrEqual-sm > div:nth-child(2) > div > div > div:nth-child(2) > div > div:nth-child(4) > div > span:nth-child(2)"
-# ).text
-# brand = soup.select_one(
-#     "#content > div.fresnel-container.fresnel-greaterThanOrEqual-sm > div:nth-child(2) > div > div > div:nth-child(2) > div > div:nth-child(3) > div > span:nth-child(2)"
-# ).text
+                # Здесь можно добавить код для обработки ответа, если требуется
+            else:
+                print(
+                    f"Ошибка при запросе {url}, код состояния: {response.status_code}"
+                )
+        except requests.RequestException as e:
+            print(f"Ошибка при подключении к {url}: {e}")
 
 
 def parsing_xml():
@@ -352,7 +315,13 @@ def parsing_csv():
 
 if __name__ == "__main__":
     # get_html()
-    parsing()
+    # parsing_page()
+    # Вызов функции с файлом unique_itm_urls.csv
+    parsing_product()
+    # get_responses_from_urls("unique_itm_urls.csv")
+    # parsing()
+    # Запуск функции для обхода директории
+
     # get_json()
     # download_xml()
     # parsing_xml()

@@ -13,12 +13,17 @@ import threading
 import sys
 from dotenv import load_dotenv
 import os
+from ftplib import FTP, error_perm, all_errors
 import asyncio
 from databases import Database
 import hashlib
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 import shutil
-
+from io import BytesIO
+import traceback
+import time
+import socket
+import subprocess
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -103,13 +108,7 @@ class GetResponse:
         file_proxy,
         url_sitemap,
     ) -> None:
-        load_dotenv(env_file_path)
 
-        # Инициализация переданных параметров как атрибутов класса
-        self.ftp_host = os.getenv("FTP_HOST")
-        self.ftp_user = os.getenv("FTP_USER")
-        self.ftp_pass = os.getenv("FTP_PASS")
-        self.ftp_directory = os.getenv("FTP_DIRECTORY")
         self.max_workers = max_workers
         self.cookies = cookies
         self.headers = headers
@@ -234,7 +233,7 @@ class GetResponse:
             bar_format="{l_bar}{bar} | Время: {elapsed} | Осталось: {remaining} | Скорость: {rate_fmt}",
         )
 
-        max_failures = 5
+        max_failures = 1000
         failure_count = 0
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
@@ -320,15 +319,36 @@ class GetResponse:
 
                 if response.status_code == 200:
                     if "text/html" in response.headers.get("Content-Type", ""):
-                        hashed_file_path.write_text(response.text, encoding="utf-8")
-                        # logger.info(f"Скачали и сохранили HTML для {url}")
-                        with fetch_lock:
-                            # Добавляем идентификатор в множество успешных
-                            successful_urls.add(url)
+                        src = response.text
+                        soup = BeautifulSoup(src, "lxml")
+                        product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
+                        product_code = (
+                            product_code_raw.get_text(strip=True)
+                            if product_code_raw
+                            else None
+                        )
+                        stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
+                        if stock_raw:
+                            # Получаем текст ссылки и определяем статус наличия
+                            availability_text = stock_raw.get_text(strip=True)
+                            if "Купить" in availability_text:
+                                hashed_file_path.write_text(
+                                    response.text, encoding="utf-8"
+                                )
+                                logger.info(f"Скачали и сохранили HTML для {url}")
 
-                        # Сохраняем идентификатор в CSV для отслеживания
-                        self.working_files.write_to_csv(url, self.csv_file_successful)
-
+                                with fetch_lock:
+                                    # Добавляем идентификатор в множество успешных
+                                    successful_urls.add(url)
+                                    # Сохраняем идентификатор в CSV для отслеживания
+                                    self.working_files.write_to_csv(
+                                        url, self.csv_file_successful
+                                    )
+                            else:
+                                logger.info(
+                                    f"Товара по URL {url} нету в наличии, пропускаем"
+                                )
+                                return None
                     else:
                         logger.error(f"Ошибка: некорректный тип содержимого для {url}")
                         raise requests.HTTPError(
@@ -451,13 +471,50 @@ class WorkingWithfiles:
 
 class Parsing:
 
-    def __init__(
-        self, html_files_directory, xlsx_result, file_proxy, max_workers
-    ) -> None:
+    def __init__(self, html_files_directory, file_proxy, max_workers) -> None:
+        load_dotenv(env_file_path)
+
+        # Инициализация переданных параметров как атрибутов класса
+        self.ftp_host = os.getenv("FTP_HOST")
+        self.ftp_user = os.getenv("FTP_USER")
+        self.ftp_pass = os.getenv("FTP_PASS")
+        self.ftp_directory = os.getenv("FTP_DIRECTORY")
         self.html_files_directory = html_files_directory
-        self.xlsx_result = xlsx_result
         self.file_proxy = file_proxy
         self.max_workers = max_workers  # Максимальное количество потоков
+
+    # Подключаемся к FTP
+
+    def connect_ftp(self):
+        max_retries = 3
+        retry_delay = 5  # задержка между попытками в секундах
+
+        for attempt in range(max_retries):
+            try:
+                ftp = FTP(self.ftp_host)
+                ftp.login(user=self.ftp_user, passwd=self.ftp_pass)
+                logger.info(f"Успешное подключение к FTP на попытке {attempt + 1}")
+                return ftp
+            except EOFError:
+                logger.warning(
+                    f"Попытка {attempt + 1} подключения к FTP завершилась неудачей. Повторная попытка через {retry_delay} секунд."
+                )
+                time.sleep(retry_delay)
+            except all_errors as e:
+                logger.error(f"Ошибка при подключении к FTP: {e}")
+                return None  # Вернуть None, чтобы сигнализировать об ошибке подключения
+
+        logger.error(f"Не удалось подключиться к FTP после {max_retries} попыток.")
+        return None
+
+    # Загрузка файла на FTP сервер
+    def upload_to_ftp(self, ftp, file_name, file_content):
+        # Здесь file_content должен быть объектом, у которого есть метод .read(), например BytesIO или файл
+        ftp.storbinary(f"STOR {file_name}", file_content)
+
+    # Получаем список файлов в FTP директории
+    def get_ftp_file_list(self, ftp):
+        return ftp.nlst()
 
     def load_proxies(self):
         # Загружаем список прокси-серверов из файла
@@ -465,19 +522,39 @@ class Parsing:
             proxies = [line.strip() for line in file]
         return proxies
 
-    def parse_single_html(self, file_html):
+    def parse_single_html(self, file_html, ftp_files):
+        ftp = self.connect_ftp()  # Подключаемся к FTP серверу
         params_variants = {}
         proxies = self.load_proxies()
         # Выбираем случайный прокси-сервер для запроса
         proxy = random.choice(proxies)
         proxies_dict = {"http": proxy, "https": proxy}
+
         # Словарь для хранения параметров и их значений
 
-        # logger.info(file_html)
         with open(file_html, encoding="utf-8") as file:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
-
+        logger.info(file_html)
+        availability_text = None
+        product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
+        product_code = (
+            product_code_raw.get_text(strip=True) if product_code_raw else None
+        )
+        stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
+        if stock_raw:
+            # Получаем текст ссылки и определяем статус наличия
+            availability_text = stock_raw.get_text(strip=True)
+            if "Купить" in availability_text:
+                availability_text = "В наличии"
+            elif "Товара нет в наличии" in availability_text:
+                availability_text = "Нет в наличии"
+                logger.info(f"Товара {product_code} нету в наличии, пропускаем")
+                return None  # Возвращаем None, чтобы пропустить товар
+            elif "Сообщить о наличии" in availability_text:
+                availability_text = "Нет в наличии"
+                logger.info(f"Товара {product_code} нету в наличии, пропускаем")
+                return None  # Возвращаем None, чтобы пропустить товар
         # Безопасное извлечение заголовка страницы
         name_raw = soup.find("h1", attrs={"itemprop": "name"})
         page_title = name_raw.get_text(strip=True) if name_raw else None
@@ -492,11 +569,6 @@ class Parsing:
             description = (
                 None  # Или другой текст по умолчанию, например, "Описание отсутствует"
             )
-
-        product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
-        product_code = (
-            product_code_raw.get_text(strip=True) if product_code_raw else None
-        )
 
         price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
             "p", attrs={"itemprop": "price"}
@@ -521,20 +593,10 @@ class Parsing:
         else:
             old_price = 0
 
-        availability_text = None
-        stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
-        if stock_raw:
-            # Получаем текст ссылки и определяем статус наличия
-            availability_text = stock_raw.get_text(strip=True)
-            if "Купить" in availability_text:
-                availability_text = "В наличии"
-            elif "Товара нет в наличии" in availability_text:
-                availability_text = "Нет в наличии"
-            elif "Сообщить о наличии" in availability_text:
-                availability_text = "Нет в наличии"
-
-        url = soup.find("meta", attrs={"itemprop": "item"}).get("content")
-
+        url = None
+        url_raw = soup.find("meta", attrs={"itemprop": "item"})
+        if url_raw:
+            url = url_raw.get("content")
         # Пытаемся найти элемент <span> с атрибутом itemprop="brand", если не найден, ищем <a>
         brand_raw = soup.find("span", attrs={"itemprop": "brand"}) or soup.find(
             "a", attrs={"itemprop": "brand"}
@@ -585,34 +647,55 @@ class Parsing:
         images = soup.find_all("img", attrs={"itemprop": "image"})
         # Ограничение на количество загружаемых изображений (не больше 3)
         max_images = 3
+        images = soup.find_all("img", attrs={"itemprop": "image"})
+        # Ограничение на количество загружаемых изображений (не больше 3)
         for index, images_url in enumerate(images, start=1):
             if index > max_images:  # Прерываем цикл, если уже обработано 3 изображения
                 break
-            url_image = f'https://bi.ua{images_url.get("content")}'
-            # Извлекаем имя файла из URL
+
+            image_content = images_url.get("content")
+            if not image_content:
+                logger.warning(
+                    f"Изображение не содержит атрибута 'content': {images_url}"
+                )
+                continue
+
+            url_image = f"https://bi.ua{image_content}"
             file_name = Path(url_image).name
-            # Добавляем файл в словарь с счетчиком
             params_variants[f"image{index}"] = file_name
-            # Путь для сохранения изображения
             file_path = img_directory / file_name
-            if not file_path.exists():
+
+            if file_name not in ftp_files:  # Проверяем, нет ли файла на FTP сервере
                 try:
                     # Делаем запрос к URL
                     response = requests.get(
                         url_image,
                         cookies=cookies,
                         headers=headers,
-                        proxies=proxies_dict,
                     )
                     response.raise_for_status()  # Проверяем, успешен ли запрос
 
-                    # Сохраняем изображение
-                    file_path.write_bytes(response.content)
+                    # Загружаем файл на FTP, используя BytesIO
+                    # Создаем объект BytesIO из полученного контента
+                    file_obj = BytesIO(response.content)
+                    file_obj.name = file_name  # Это необязательно, просто для удобства
 
-                    logger.info(f"Сохранено: {file_path}")
+                    # Загружаем файл на FTP
+                    self.upload_to_ftp(ftp, file_name, file_obj)
 
-                except requests.exceptions.RequestException as e:
-                    logger.error(f"Ошибка при загрузке {url_image}: {e}")
+                    logger.info(f"Файл загружен на FTP: {file_name}")
+
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке файла {file_html}: {e}")
+                    logger.error(traceback.format_exc())
+                # except requests.exceptions.RequestException as e:
+                #     logger.error(f"Ошибка при загрузке {url_image}: {e}")
+            else:
+                logger.info(f"Файл уже существует на FTP: {file_name}")
+
+        # Закрываем соединение FTP после завершения обработки всех файлов
+        ftp.quit()
+
         params_variants["name"] = page_title
         params_variants["description"] = description
         params_variants["product_code"] = product_code
@@ -626,7 +709,9 @@ class Parsing:
     def parsing_html(self):
         # Получаем список HTML файлов
         all_files = self.list_html()
-
+        ftp = self.connect_ftp()  # Подключаемся к FTP серверу
+        ftp_files = self.get_ftp_file_list(ftp)  # Получаем список файлов на FTP сервере
+        ftp.quit()  # Отключаемся от FTP сервера
         # Инициализация прогресс-бара
         total_urls = len(all_files)
         progress_bar = tqdm(
@@ -639,7 +724,7 @@ class Parsing:
         all_results = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {
-                executor.submit(self.parse_single_html, file_html): file_html
+                executor.submit(self.parse_single_html, file_html, ftp_files): file_html
                 for file_html in all_files
             }
 
@@ -648,9 +733,11 @@ class Parsing:
                 file_html = futures[future]
                 try:
                     result = future.result()
-                    all_results.append(result)
+                    if result is not None:  # Пропускаем None результаты
+                        all_results.append(result)
                 except Exception as e:
                     logger.error(f"Ошибка при обработке файла {file_html}: {e}")
+                    logger.error(traceback.format_exc())  # Добавление трассировки стека
                 finally:
                     # Обновляем прогресс-бар после завершения обработки каждого файла
                     progress_bar.update(1)
@@ -660,195 +747,18 @@ class Parsing:
 
         return all_results
 
-    # def parsing_html(self):
-
-    #     all_files = self.list_html()
-    #     # Список для хранения всех единиц данных
-    #     all_results = []
-    #     for file_html in all_files:
-    #         params_variants = {}
-    #         proxies = self.load_proxies()
-    #         # Выбираем случайный прокси-сервер для запроса
-    #         proxy = random.choice(proxies)
-    #         proxies_dict = {"http": proxy, "https": proxy}
-    #         # Словарь для хранения параметров и их значений
-
-    #         # logger.info(file_html)
-    #         with open(file_html, encoding="utf-8") as file:
-    #             src = file.read()
-    #         soup = BeautifulSoup(src, "lxml")
-
-    #         # Безопасное извлечение заголовка страницы
-    #         name_raw = soup.find("h1", attrs={"itemprop": "name"})
-    #         page_title = name_raw.get_text(strip=True) if name_raw else None
-
-    #         # Ищем элемент с классом "scroller" внутри <article>
-    #         description_raw = soup.find("article", attrs={"class": "scroller"})
-
-    #         # Проверяем, найден ли элемент, и обрабатываем его содержимое
-    #         if description_raw:
-    #             description = re.sub(
-    #                 r"\s+", " ", description_raw.decode_contents()
-    #             ).strip()
-    #         else:
-    #             description = None  # Или другой текст по умолчанию, например, "Описание отсутствует"
-
-    #         product_code_raw = soup.find("span", attrs={"itemprop": "sku"})
-    #         product_code = (
-    #             product_code_raw.get_text(strip=True) if product_code_raw else None
-    #         )
-
-    #         price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
-    #             "p", attrs={"itemprop": "price"}
-    #         )
-    #         if price_raw:
-    #             # Удаляем нецифровые символы и пробелы из текста
-    #             price_text = re.sub(r"[^\d]", "", price_raw.get_text(strip=True))
-    #             # Преобразуем в целое число, если удалось найти цифры, иначе 0
-    #             price = int(price_text) if price_text else 0
-    #         else:
-    #             price = 0
-
-    #         # Извлечение и обработка old_price
-    #         old_price_raw = soup.find("div", attrs={"itemprop": "offers"}).find(
-    #             "p", attrs={"class": "old"}
-    #         )
-    #         if old_price_raw:
-    #             # Удаляем нецифровые символы и пробелы из текста
-    #             old_price_text = re.sub(
-    #                 r"[^\d]", "", old_price_raw.get_text(strip=True)
-    #             )
-    #             # Преобразуем в целое число, если удалось найти цифры, иначе 0
-    #             old_price = int(old_price_text) if old_price_text else 0
-    #         else:
-    #             old_price = 0
-
-    #         availability_text = None
-    #         stock_raw = soup.find("div", attrs={"class": "prodBuy blue"})
-    #         if stock_raw:
-    #             # Получаем текст ссылки и определяем статус наличия
-    #             availability_text = stock_raw.get_text(strip=True)
-    #             if "Купить" in availability_text:
-    #                 availability_text = "В наличии"
-    #             elif "Товара нет в наличии" in availability_text:
-    #                 availability_text = "Нет в наличии"
-    #             elif "Сообщить о наличии" in availability_text:
-    #                 availability_text = "Нет в наличии"
-
-    #         url = soup.find("meta", attrs={"itemprop": "item"}).get("content")
-
-    #         # Пытаемся найти элемент <span> с атрибутом itemprop="brand", если не найден, ищем <a>
-    #         brand_raw = soup.find("span", attrs={"itemprop": "brand"}) or soup.find(
-    #             "a", attrs={"itemprop": "brand"}
-    #         )
-
-    #         # Если элемент найден, берем его текст, иначе устанавливаем None
-    #         brand = brand_raw.get_text(strip=True) if brand_raw else None
-
-    #         # Ищем все элементы с itemprop="name"
-    #         table_bread = soup.find("div", attrs={"class": "breadcrWr"})
-    #         breadcrumb_elements = table_bread.find_all(itemprop="name")
-
-    #         # Убираем последний элемент из списка, если он существует
-    #         if breadcrumb_elements:
-    #             breadcrumb_elements = breadcrumb_elements[1:-1]
-
-    #         # Создаем словарь для хранения breadcrumbs
-    #         breadcrumbs = {}
-
-    #         # Добавляем найденные значения в словарь с нужными ключами
-    #         for i, element in enumerate(breadcrumb_elements):
-    #             breadcrumbs[f"breadcrumbs{i+1}"] = element.get_text(strip=True)
-
-    #         # Печатаем результаты
-    #         for key, value in breadcrumbs.items():
-    #             params_variants[key] = value
-    #             # print(f"{key} = {value}")
-
-    #         # Переменная для отслеживания количества параметров
-    #         param_counter = 1
-
-    #         # Ищем все строки (tr) в таблицах
-    #         rows = soup.select("table.table.p03 tr")
-
-    #         # Перебираем все строки
-    #         for row in rows:
-    #             # Ищем все ячейки (td) в строке
-    #             cells = row.find_all("td")
-
-    #             # Пропускаем строки, которые содержат colspan (заголовки разделов)
-    #             if len(cells) == 2 and not cells[0].has_attr("colspan"):
-    #                 param_name = cells[0].get_text(strip=True)  # Название параметра
-    #                 variant_value = cells[1].get_text(strip=True)  # Значение параметра
-    #                 # Добавляем в словарь
-    #                 params_variants[f"param{param_counter}"] = param_name
-    #                 params_variants[f"variant{param_counter}"] = variant_value
-    #                 param_counter += 1
-    #         images = soup.find_all("img", attrs={"itemprop": "image"})
-    #         # Ограничение на количество загружаемых изображений (не больше 3)
-    #         max_images = 3
-    #         for index, images_url in enumerate(images, start=1):
-    #             if (
-    #                 index > max_images
-    #             ):  # Прерываем цикл, если уже обработано 3 изображения
-    #                 break
-    #             url_image = f'https://bi.ua{images_url.get("content")}'
-    #             # Извлекаем имя файла из URL
-    #             file_name = Path(url_image).name
-    #             # Добавляем файл в словарь с счетчиком
-    #             params_variants[f"image{index}"] = file_name
-    #             # Путь для сохранения изображения
-    #             file_path = img_directory / file_name
-    #             if not file_path.exists():
-    #                 try:
-    #                     # Делаем запрос к URL
-    #                     response = requests.get(
-    #                         url_image,
-    #                         cookies=cookies,
-    #                         headers=headers,
-    #                         proxies=proxies_dict,
-    #                     )
-    #                     response.raise_for_status()  # Проверяем, успешен ли запрос
-
-    #                     # Сохраняем изображение
-    #                     file_path.write_bytes(response.content)
-
-    #                     logger.info(f"Сохранено: {file_path}")
-
-    #                 except requests.exceptions.RequestException as e:
-    #                     logger.error(f"Ошибка при загрузке {url_image}: {e}")
-    #         params_variants["name"] = page_title
-    #         params_variants["description"] = description
-    #         params_variants["product_code"] = product_code
-    #         params_variants["brand"] = brand
-    #         params_variants["stock"] = availability_text
-    #         params_variants["url"] = url
-    #         params_variants["old_price"] = old_price
-    #         params_variants["price"] = price
-    #         all_results.append(params_variants)
-    #         # logger.info(params_variants)
-    #     return all_results
-
     def list_html(self):
         # Получаем список всех файлов в директории
         file_list = [file for file in html_files_directory.iterdir() if file.is_file()]
         # logger.info(len(file_list))
         return file_list
 
-    # def write_to_excel(self, all_results):
-    #     if not all_results:
-    #         print("Нет данных для записи.")
-    #         return
-
-    #     df = pd.DataFrame(all_results)
-    #     df.to_excel("output.xlsx", index=False, sheet_name="Data")
-
 
 class WriteSQL:
     def __init__(self):
         # Загружаем переменные окружения из файла .env
-        # Загружаем конфигурацию из .env файла
-        load_dotenv(env_file_path)
+        logger.info("Загрузка переменных окружения из файла .env")
+        load_dotenv("configuration/.env")  # Использую путь к файлу из твоей среды
 
         # Получаем параметры подключения
         self.db_host = os.getenv("DB_HOST")
@@ -856,11 +766,82 @@ class WriteSQL:
         self.db_password = os.getenv("DB_PASSWORD")
         self.db_name = os.getenv("DB_NAME")
 
+        # Логируем значения параметров подключения для отладки
+        if not self.db_host:
+            logger.error("Переменная окружения DB_HOST не задана")
+        if not self.db_user:
+            logger.error("Переменная окружения DB_USER не задана")
+        if not self.db_password:
+            logger.error("Переменная окружения DB_PASSWORD не задана")
+        if not self.db_name:
+            logger.error("Переменная окружения DB_NAME не задана")
+
         # Формируем URL для подключения
+        if not all([self.db_host, self.db_user, self.db_password, self.db_name]):
+            logger.error(
+                "Одно или несколько значений параметров подключения не заданы в файле .env"
+            )
+            raise ValueError("Параметры подключения к базе данных не заданы полностью")
+
         self.database_url = f"mysql+aiomysql://{self.db_user}:{self.db_password}@{self.db_host}/{self.db_name}"
+        logger.info("URL для подключения к базе данных сформирован")
 
         # Создаем объект Database
         self.database = Database(self.database_url)
+        logger.info("Объект Database создан")
+
+    def check_host_availability(self, host, port=3306):
+        """
+        Проверяет доступность хоста и порта.
+
+        :param host: Хост для проверки.
+        :param port: Порт для проверки (по умолчанию 3306).
+        :return: True, если хост доступен, иначе False.
+        """
+        logger.info(f"Проверка доступности хоста {host}:{port}")
+        try:
+            socket.create_connection((host, port), timeout=5)
+            logger.info(f"Хост {host}:{port} доступен")
+            return True
+        except (socket.gaierror, socket.timeout, socket.error) as e:
+            logger.error(f"Ошибка подключения к {host}:{port} - {e}")
+            return False
+
+    async def connect(self):
+        """Подключение к базе данных с проверкой доступности хоста."""
+        logger.info("Попытка подключения к базе данных")
+        attempts = 3
+        for attempt in range(1, attempts + 1):
+            if self.check_host_availability(self.db_host):
+                try:
+                    await self.database.connect()
+                    logger.info("Успешное подключение к базе данных!")
+                    return
+                except Exception as e:
+                    logger.error(
+                        f"Попытка {attempt} - Ошибка при подключении к базе данных: {e}"
+                    )
+            else:
+                logger.error(
+                    f"Попытка {attempt} - Не удалось подключиться к базе данных, проверьте параметры подключения."
+                )
+            if attempt < attempts:
+                logger.info(
+                    "Ожидание 60 секунд перед следующей попыткой подключения..."
+                )
+                await asyncio.sleep(60)
+        raise Exception("Не удалось подключиться к базе данных после 3 попыток.")
+
+    async def disconnect(self):
+        """Отключение от базы данных."""
+        logger.info("Попытка отключения от базы данных")
+        if self.database.is_connected:
+            await self.database.disconnect()
+            logger.info("Соединение с базой данных закрыто.")
+        else:
+            logger.warning(
+                "Попытка отключения от базы данных, но соединение уже закрыто."
+            )
 
     async def fetch_product_codes(self):
         """
@@ -869,24 +850,20 @@ class WriteSQL:
         :return: Список product_code из базы данных.
         """
         query = "SELECT product_code FROM ss_bi"
+        logger.info("Попытка извлечения данных из таблицы ss_bi")
         try:
             results = await self.database.fetch_all(query=query)
             # Извлекаем только значения 'product_code' в виде списка
-            product_codes = [record["product_code"] for record in results]
+            product_codes = [
+                record["product_code"]
+                for record in results
+                if "product_code" in record and record["product_code"] is not None
+            ]
+            logger.info(f"Извлечено {len(product_codes)} записей product_code")
             return product_codes
         except Exception as e:
-            print(f"Ошибка при извлечении данных: {e}")
+            logger.error(f"Ошибка при извлечении данных: {e}")
             return []
-
-    async def connect(self):
-        """Подключение к базе данных."""
-        await self.database.connect()
-        print("Успешное подключение к базе данных!")
-
-    async def disconnect(self):
-        """Отключение от базы данных."""
-        await self.database.disconnect()
-        print("Соединение с базой данных закрыто.")
 
     async def insert_data(self, table_name, data_list):
         """
@@ -900,6 +877,7 @@ class WriteSQL:
 
         # Получаем текущие записи в базе данных по product_code
         existing_data = await self.fetch_product_codes()
+
         # Список всех столбцов, которые должны присутствовать в каждом словаре
         required_columns = [
             "name",
@@ -969,13 +947,13 @@ class WriteSQL:
                 # Устанавливаем значения по умолчанию для обязательных полей
                 for i in range(1, 9):  # Для param1 до param8 и variant1 до variant8
                     if filtered_data[f"param{i}"] is None:
-                        filtered_data[f"param{i}"] = "N/A"
+                        filtered_data[f"param{i}"] = ""
                     if filtered_data[f"variant{i}"] is None:
-                        filtered_data[f"variant{i}"] = "N/A"
+                        filtered_data[f"variant{i}"] = ""
 
                 for i in range(1, 4):  # Для image1 до image3
                     if filtered_data[f"image{i}"] is None:
-                        filtered_data[f"image{i}"] = "N/A"
+                        filtered_data[f"image{i}"] = ""
 
                 for i in [
                     1,
@@ -989,7 +967,7 @@ class WriteSQL:
                     10,
                 ]:  # Для breadcrumbs1 до breadcrumbs4 и breadcrumbs6 до breadcrumbs10
                     if filtered_data[f"breadcrumbs{i}"] is None:
-                        filtered_data[f"breadcrumbs{i}"] = "N/A"
+                        filtered_data[f"breadcrumbs{i}"] = ""
 
                 # Значения по умолчанию для остальных полей
                 filtered_data["price"] = (
@@ -1013,35 +991,27 @@ class WriteSQL:
                 )
 
                 filtered_data["name"] = (
-                    "No Name"
-                    if filtered_data["name"] is None
-                    else filtered_data["name"]
+                    "" if filtered_data["name"] is None else filtered_data["name"]
                 )
                 filtered_data["stock"] = (
-                    "Unknown"
-                    if filtered_data["stock"] is None
-                    else filtered_data["stock"]
+                    "" if filtered_data["stock"] is None else filtered_data["stock"]
                 )
                 filtered_data["prosent"] = (
-                    "0"
-                    if filtered_data["prosent"] is None
-                    else filtered_data["prosent"]
+                    "" if filtered_data["prosent"] is None else filtered_data["prosent"]
                 )
                 filtered_data["url"] = (
-                    "N/A" if filtered_data["url"] is None else filtered_data["url"]
+                    "" if filtered_data["url"] is None else filtered_data["url"]
                 )
                 filtered_data["description"] = (
-                    "No description"
+                    ""
                     if filtered_data["description"] is None
                     else filtered_data["description"]
                 )
                 filtered_data["brand"] = (
-                    "Unknown"
-                    if filtered_data["brand"] is None
-                    else filtered_data["brand"]
+                    "" if filtered_data["brand"] is None else filtered_data["brand"]
                 )
                 filtered_data["category_name"] = (
-                    "Unknown"
+                    ""
                     if filtered_data["category_name"] is None
                     else filtered_data["category_name"]
                 )
@@ -1052,8 +1022,8 @@ class WriteSQL:
         # Выполняем обновление существующих товаров
         for item in data_to_update:
             update_query = f"""
-                UPDATE {table_name} 
-                SET stock = :stock, price = :price 
+                UPDATE {table_name}
+                SET stock = :stock, price = :price
                 WHERE product_code = :product_code
             """
             try:
@@ -1077,8 +1047,28 @@ class WriteSQL:
             except Exception as e:
                 logger.error(f"Ошибка при вставке данных: {e}")
 
+    def execute_finish_script(self):
+        """Выполнение команды завершения через wget."""
+        try:
+            logger.info("Выполнение команды завершения через wget")
+            result = subprocess.run(
+                [
+                    "/usr/bin/wget",
+                    "-O",
+                    "-",
+                    "-q",
+                    "-t",
+                    "1",
+                    "https://admin.babyfull.com.ua/bi_finish.php",
+                ],
+                check=True,
+            )
+            logger.info("Команда завершена успешно")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Ошибка при выполнении команды завершения: {e}")
 
-max_workers = os.getenv("MAX_WORKERS")
+
+max_workers = 20
 url_sitemap = "https://bi.ua/sitemap-index.xml"
 response_handler = GetResponse(
     max_workers,
@@ -1098,7 +1088,7 @@ response_handler.process_html_files()
 
 
 # Парсинг html файлов
-processor = Parsing(html_files_directory, xlsx_result, file_proxy, max_workers)
+processor = Parsing(html_files_directory, file_proxy, max_workers)
 all_results = processor.parsing_html()
 
 
@@ -1108,6 +1098,8 @@ async def main(all_results):
     await write_sql.connect()
     await write_sql.insert_data("ss_bi", all_results)
     await write_sql.disconnect()
+    # Выполнение команды завершения
+    write_sql.execute_finish_script()
 
 
 asyncio.run(main(all_results))
