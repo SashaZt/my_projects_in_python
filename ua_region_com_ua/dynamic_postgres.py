@@ -6,9 +6,16 @@ from dotenv import load_dotenv
 from configuration.logger_setup import logger
 from pathlib import Path
 import os
+import json
 
 # Загрузка переменных окружения из файла .env
 load_dotenv(Path("configuration") / ".env")
+# Установка директорий для логов и данных
+current_directory = Path.cwd()
+data_directory = current_directory / "data"
+
+data_directory.mkdir(parents=True, exist_ok=True)
+json_result = data_directory / "result.json"
 
 
 class DynamicPostgres:
@@ -108,9 +115,9 @@ class DynamicPostgres:
                         sql.Identifier(table_name), sql.SQL(", ").join(update_columns)
                     )
                     cursor.execute(update_query, update_values)
-                    logger.info(
-                        f"Запись с id {existing_record[0]} в таблице {table_name} обновлена"
-                    )
+                    # logger.info(
+                    #     f"Запись с id {existing_record[0]} в таблице {table_name} обновлена"
+                    # )
                 else:
                     # Если запись не существует, вставить новую
                     columns = [sql.Identifier(key) for key in row.keys()]
@@ -122,7 +129,7 @@ class DynamicPostgres:
                         sql.SQL(", ").join(placeholders),
                     )
                     cursor.execute(insert_query, values)
-                    logger.info(f"Новая запись добавлена в таблицу {table_name}")
+                    # logger.info(f"Новая запись добавлена в таблицу {table_name}")
                 conn.commit()
             except Exception as e:
                 logger.error(
@@ -151,3 +158,14 @@ class DynamicPostgres:
             logger.info("Соединение с базой данных PostgreSQL закрыто")
         except Exception as e:
             logger.error(f"Ошибка при закрытии соединения с базой данных: {e}")
+
+    def load_data_from_json(self):
+        # Загрузить данные из JSON файла
+        try:
+            with open(json_result, "r", encoding="utf-8") as json_file:
+                data = json.load(json_file)
+            logger.info(f"Данные успешно загружены из файла {json_result}")
+            return data
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке данных из файла {json_result}: {e}")
+            raise

@@ -227,108 +227,6 @@ async def save_hrefs_to_json(all_hrefs):
         await file.write(json.dumps(all_hrefs, indent=4))
 
 
-async def run_html(url_start, type_pars):
-    timeout = 20000
-    current_directory = os.getcwd()
-    temp_path = os.path.join(current_directory, "temp")
-    path_json_GamePal = os.path.join(temp_path, "json_GamePal")
-    path_json_item = os.path.join(temp_path, "json_Item")
-    if os.path.exists(temp_path) and os.path.isdir(temp_path):
-        shutil.rmtree(temp_path)
-    # browsers_path = os.path.join(current_directory, "pw-browsers")
-    # os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
-    # Убедитесь, что папки существуют или создайте их
-    await create_directories_async(
-        [
-            temp_path,
-            path_json_GamePal,
-            path_json_item,
-        ]
-    )
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=False)
-        context = await browser.new_context(accept_downloads=True)
-        page = await context.new_page()
-        cookies = [
-            {
-                "domain": ".www.g2g.com",
-                "httpOnly": False,
-                "name": "g2g_regional",
-                "path": "/",
-                "secure": True,
-                "value": "%7B%22country%22%3A%22UA%22%2C%22currency%22%3A%22USD%22%2C%22language%22%3A%22en%22%7D",
-            }
-        ]
-        await context.add_cookies(cookies)
-
-        await page.goto(url_start)
-        await sleep(5)
-        xpath_about_results = '//div[@class="text-secondary"]'
-        await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
-        text_about_results = await page.text_content(xpath_about_results)
-        count_url = int(
-            re.search(r"(\d+)", text_about_results.replace(",", "")).group(0)
-        )
-
-        url_in_page = 48
-        list_pages = math.ceil(count_url / url_in_page)
-
-        xpath_about_results = '//div[@class="text-secondary"]'
-        await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
-
-        # Items
-        if type_pars == 0:
-            all_hrefs = []
-
-            for pages in range(1, list_pages + 1):
-
-                await page.goto(f"{url_start}&page={pages}")
-                await page.wait_for_selector(
-                    "div.full-height.full-width.position-relative > a"
-                )
-
-                # Получите все элементы a внутри div
-                link_elements = await page.query_selector_all(
-                    "div.full-height.full-width.position-relative > a"
-                )
-
-                # Извлеките из каждого элемента атрибут href и сохраните в список
-                for link_element in link_elements:
-                    href = await link_element.get_attribute("href")
-                    # Проверяем, начинается ли ссылка с http:// или https://
-                    if href.startswith("http://") or href.startswith("https://"):
-                        all_hrefs.append(href)  # Ссылка уже полная, добавляем как есть
-                    else:
-                        all_hrefs.append(
-                            f"https://www.g2g.com{href}"
-                        )  # Добавляем префикс, если это относительная ссылка
-
-            await save_hrefs_to_json(all_hrefs)
-            await browser.close()
-        # GamePal
-        elif type_pars == 1:
-            all_hrefs = []
-            counter = 0
-            for pages in range(1, list_pages + 1):
-                await page.goto(f"{url_start}&page={pages}")
-                await page.wait_for_selector(
-                    "div.full-height.full-width.position-relative > a"
-                )
-
-                # Получите все элементы a внутри div
-                link_elements = await page.query_selector_all(
-                    "div.full-height.full-width.position-relative > a"
-                )
-
-                # Извлеките из каждого элемента атрибут href и сохраните в список
-                for link_element in link_elements:
-                    href = await link_element.get_attribute("href")
-                    all_hrefs.append(f"https://www.g2g.com{href}")
-            await save_hrefs_to_json(all_hrefs)
-
-            await browser.close()
-
-
 async def save_page_content_html(page, file_path):
     # current_directory = os.getcwd()
     # temp_path = os.path.join(current_directory, "temp")
@@ -389,23 +287,6 @@ async def process_urls_html(urls, playwright_instance, type_pars):
             await page.goto(url, wait_until="networkidle")
             await save_page_content_html(page, file_path)
     await browser.close()
-
-
-async def main_html(type_pars):
-    current_directory = os.getcwd()
-    n = 5
-    all_hrefs = await read_hrefs_from_json()
-    divided_hrefs = list(divide_data(all_hrefs, n))
-    # browsers_path = os.path.join(current_directory, "pw-browsers")
-    # os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
-    async with async_playwright() as playwright_instance:
-        tasks = [
-            asyncio.create_task(
-                process_urls_html(chunk, playwright_instance, type_pars)
-            )
-            for chunk in divided_hrefs
-        ]
-        await asyncio.gather(*tasks)
 
 
 def parsin_html(type_pars, file_name_csv):
@@ -695,7 +576,6 @@ if __name__ == "__main__":
             print(
                 "1 - для скачивания данных json\n"
                 "2 - парсинг данных\n"
-                "3 - для скачивания данных html\n"
                 "0 - для возврата к вводу новых данных\n"
                 "exit - для закрытия программы"
             )
@@ -722,10 +602,6 @@ if __name__ == "__main__":
 
             if user_input == "1":
                 asyncio.run(run_json(url_start, type_pars))
-            elif user_input == "3":
-                asyncio.run(run_html(url_start, type_pars))
-                asyncio.run(main_html(type_pars))
-                parsin_html(type_pars, file_name_csv)
             elif user_input == "2":
                 asyncio.run(run_parsing(type_pars, file_name_csv))
             else:

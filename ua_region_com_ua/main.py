@@ -100,15 +100,18 @@ while True:
         # Парсинг html файлов
         processor = Parsing(html_files_directory, xlsx_result, max_workers)
         all_results = processor.parsing_html()
+        processor.save_results_to_json(all_results)
         # processor.write_to_excel(all_results)
         # Создать экземпляр класса DynamicSQLite, указав имя базы данных
         # Создаем экземпляр DynamicPostgres
+
         db = DynamicPostgres()
         # Создаем или обновляем таблицу
-        db.create_or_update_table("ua_region_com_ua", all_results)
+        data = db.load_data_from_json()
+        db.create_or_update_table("ua_region_com_ua", data)
 
         # Вставляем данные
-        db.insert_data("ua_region_com_ua", all_results, num_threads=10)
+        db.insert_data("ua_region_com_ua", data, num_threads=20)
 
         # Закрываем соединение с базой данных
         db.close()
@@ -122,14 +125,16 @@ while True:
     elif user_input == 2:
         processor = Parsing(html_files_directory, xlsx_result, max_workers)
         all_results = processor.parsing_html()
+        processor.save_results_to_json(all_results)
         # processor.write_to_excel(all_results)
         # Создать экземпляр класса DynamicSQLite, указав имя базы данных
         db = DynamicPostgres()
         # Создаем или обновляем таблицу
-        db.create_or_update_table("ua_region_com_ua", all_results)
+        data = db.load_data_from_json()
+        db.create_or_update_table("ua_region_com_ua", data)
 
         # Вставляем данные
-        db.insert_data("ua_region_com_ua", all_results, num_threads=10)
+        db.insert_data("ua_region_com_ua", data, num_threads=20)
 
         # Закрываем соединение с базой данных
         db.close()

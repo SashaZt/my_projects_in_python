@@ -7,6 +7,7 @@ import pandas as pd
 import xml.etree.ElementTree as ET
 import re
 import traceback
+import json
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -21,6 +22,7 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
 csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
+json_result = data_directory / "result.json"
 # file_proxy = configuration_directory / "roman.txt"
 
 
@@ -186,3 +188,13 @@ class Parsing:
 
         df = pd.DataFrame(all_results)
         df.to_excel("output.xlsx", index=False, sheet_name="Data")
+
+    def save_results_to_json(self, all_results):
+        # Сохранить результаты в JSON файл
+        try:
+            with open(json_result, "w", encoding="utf-8") as json_file:
+                json.dump(all_results, json_file, ensure_ascii=False, indent=4)
+            logger.info(f"Данные успешно сохранены в файл {json_result}")
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении данных в файл {json_result}: {e}")
+            raise
