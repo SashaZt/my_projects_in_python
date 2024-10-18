@@ -38,44 +38,27 @@ def get_html():
     proxies_dict = {"http": proxy, "https": proxy}
 
     cookies = {
-        "ak_bmsc": "C5461596E2A7551D119B11B9AC7B4A87~000000000000000000000000000000~YAAQXTYQYBs9gH+SAQAAxPTRihn+AWhsuWoyN3PCEJ+fTJzH0ZnsnOW9aAaAcJhh+dNSOA5b9vqesmudElEdoNe7JQS3USAIlHzsRC2IJWk94b0Bt46s+x0tC+g7T/poR9w2EESsABx19L08PmPOMcsmiCdb3+LZhDbBMxG2U+0lwoQDiWqoWzulDBjHY8nL8BCuYSNCFjjwf48QAv/IRLVTkyf6+eaOPzKv85nA0K0dKq0DVYJO0rptkbqPEncGlMlG28Q4D6Gen8YDK7rlR6N2KBPjZ9GBcRHbMAVQuWDO93Hg1YzT2VVnFpKNTmLoZxbjIcKlu88of3kJQusPXcEUHfiFCOX3A6PZYfMEHEQJ6XWib/GUOSH95Z7EhrEvfFFRHSm8ewc=",
-        "__uzma": "a813fe6e-4491-4adc-8972-ae1f29622c57",
-        "__uzmb": "1728905869",
-        "__uzme": "4418",
-        "__ssds": "2",
-        "__ssuzjsr2": "a9be0cd8e",
-        "__uzmaj2": "eca8cd22-91f6-4756-8945-30fc7a245ff1",
-        "__uzmbj2": "1728907668",
-        "__uzmlj2": "vehRS1XWx7PXFnOlzGCI5IIYSSnwKONU8KPr5HqVjRw=",
-        "__uzmcj2": "397401627840",
-        "__uzmdj2": "1728907742",
-        "__uzmfj2": "7f600059d8118f-fb35-4b9a-b231-c5eec8132344172890766826474347-93cccfb72642079116",
-        "__uzmc": "964824368662",
-        "__uzmd": "1728907773",
-        "__uzmf": "7f600059d8118f-fb35-4b9a-b231-c5eec813234417289058693161904250-82d27e64b8f6121743",
-        "ds2": "",
-        "dp1": "bpbf/%23e000e0000000000000000068ee3da7^bl/UA6acf7127^",
-        "s": "CgAD4ACBnDlumOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYzYYV7",
-        "bm_sv": "21120F2BFDB1FFC0111D0DA586896449~YAAQXTYQYJrdg3+SAQAAVKrvihlFIxBhhftqvbNXqeQIvVcIDc//7/BUH+91SIpDqBjv4H1IAFxzhaKuZd8FGSi+oYQGjelnJyc3Op30mrlgTMZCgQsxrR2nwcC+cnc4QW7pAVSiVCtegMzm3vyUGW3s8JIUmWFHBn3sOLARIi2CA0oslVG06GHZMjF/yIz/CIDX9/RNLnlBML+DAQYBfTpJpHiFSl6LPHTjJ9LJTPzmDdcHR89fYaAUpYf5Nk0=~1",
-        "ebay": "%5Ejs%3D1%5Esbf%3D%23000200%5E",
-        "nonsession": "BAQAAAZJU03gwAAaAADMABWjuPacxMDAwNQDKACBqz3EnOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYAywACZw0RLzU3wRAVOIbJdWDmdNsnQ3gKbiwS+a4*",
-        "__deba": "RClCxlc-RAB_iiOQfM5Gy_nt8ZCdN4NU0i_9XqMIRiUeTMEOxatr74Hpx2Vek7S4XR8UW1J2_XMwSXzXGqPFGDSJTUEHeLCqHI7wQDliKL3OHHm_qoCVpJuFHpX8VWFKh28lda3_iYXrpK5b_jSZhA==",
+        ".Nop.RecentlyViewedProducts": "178610",
+        ".Nop.Culture": "c%3Dru-RU%7Cuic%3Dru-RU",
+        ".Nop.Antiforgery": "CfDJ8Fe-XiX5m9tJs4SLBj0Ue5tdYndtOrCzDO1X4DwI__BybUMXsKBxYo2Kb3wyd0wruYg1cSKGvDp87JJpptTMiFulvk8IlZOeI2qD5eA4_hEIdY-Bh0_v3F36ZxcDVmi1xalh79DmUh-SycnznTZgMKY",
+        ".Nop.Customer": "21a4bb11-fef9-4bba-bb6c-7b316a6ce753",
+        "_ms": "fbc661d6-8922-4e09-ad64-df1810d767f7",
+        "biatv-cookie": "{%22firstVisitAt%22:1729074594%2C%22visitsCount%22:1%2C%22currentVisitStartedAt%22:1729074594%2C%22currentVisitLandingPage%22:%22https://home-club.com.ua/ru/ua%25C2%25A0%22%2C%22currentVisitUpdatedAt%22:1729088324%2C%22currentVisitOpenPages%22:15%2C%22campaignTime%22:1729074594%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1729074594}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1729074594}}",
+        "bingc-activity-data": "{%22numberOfImpressions%22:2%2C%22activeFormSinceLastDisplayed%22:789%2C%22pageviews%22:8%2C%22callWasMade%22:0%2C%22updatedAt%22:1729089124}",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
         "cache-control": "no-cache",
-        # 'cookie': 'ak_bmsc=C5461596E2A7551D119B11B9AC7B4A87~000000000000000000000000000000~YAAQXTYQYBs9gH+SAQAAxPTRihn+AWhsuWoyN3PCEJ+fTJzH0ZnsnOW9aAaAcJhh+dNSOA5b9vqesmudElEdoNe7JQS3USAIlHzsRC2IJWk94b0Bt46s+x0tC+g7T/poR9w2EESsABx19L08PmPOMcsmiCdb3+LZhDbBMxG2U+0lwoQDiWqoWzulDBjHY8nL8BCuYSNCFjjwf48QAv/IRLVTkyf6+eaOPzKv85nA0K0dKq0DVYJO0rptkbqPEncGlMlG28Q4D6Gen8YDK7rlR6N2KBPjZ9GBcRHbMAVQuWDO93Hg1YzT2VVnFpKNTmLoZxbjIcKlu88of3kJQusPXcEUHfiFCOX3A6PZYfMEHEQJ6XWib/GUOSH95Z7EhrEvfFFRHSm8ewc=; __uzma=a813fe6e-4491-4adc-8972-ae1f29622c57; __uzmb=1728905869; __uzme=4418; __ssds=2; __ssuzjsr2=a9be0cd8e; __uzmaj2=eca8cd22-91f6-4756-8945-30fc7a245ff1; __uzmbj2=1728907668; __uzmlj2=vehRS1XWx7PXFnOlzGCI5IIYSSnwKONU8KPr5HqVjRw=; __uzmcj2=397401627840; __uzmdj2=1728907742; __uzmfj2=7f600059d8118f-fb35-4b9a-b231-c5eec8132344172890766826474347-93cccfb72642079116; __uzmc=964824368662; __uzmd=1728907773; __uzmf=7f600059d8118f-fb35-4b9a-b231-c5eec813234417289058693161904250-82d27e64b8f6121743; ds2=; dp1=bpbf/%23e000e0000000000000000068ee3da7^bl/UA6acf7127^; s=CgAD4ACBnDlumOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYzYYV7; bm_sv=21120F2BFDB1FFC0111D0DA586896449~YAAQXTYQYJrdg3+SAQAAVKrvihlFIxBhhftqvbNXqeQIvVcIDc//7/BUH+91SIpDqBjv4H1IAFxzhaKuZd8FGSi+oYQGjelnJyc3Op30mrlgTMZCgQsxrR2nwcC+cnc4QW7pAVSiVCtegMzm3vyUGW3s8JIUmWFHBn3sOLARIi2CA0oslVG06GHZMjF/yIz/CIDX9/RNLnlBML+DAQYBfTpJpHiFSl6LPHTjJ9LJTPzmDdcHR89fYaAUpYf5Nk0=~1; ebay=%5Ejs%3D1%5Esbf%3D%23000200%5E; nonsession=BAQAAAZJU03gwAAaAADMABWjuPacxMDAwNQDKACBqz3EnOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYAywACZw0RLzU3wRAVOIbJdWDmdNsnQ3gKbiwS+a4*; __deba=RClCxlc-RAB_iiOQfM5Gy_nt8ZCdN4NU0i_9XqMIRiUeTMEOxatr74Hpx2Vek7S4XR8UW1J2_XMwSXzXGqPFGDSJTUEHeLCqHI7wQDliKL3OHHm_qoCVpJuFHpX8VWFKh28lda3_iYXrpK5b_jSZhA==',
+        # 'cookie': '.Nop.RecentlyViewedProducts=178610; .Nop.Culture=c%3Dru-RU%7Cuic%3Dru-RU; .Nop.Antiforgery=CfDJ8Fe-XiX5m9tJs4SLBj0Ue5tdYndtOrCzDO1X4DwI__BybUMXsKBxYo2Kb3wyd0wruYg1cSKGvDp87JJpptTMiFulvk8IlZOeI2qD5eA4_hEIdY-Bh0_v3F36ZxcDVmi1xalh79DmUh-SycnznTZgMKY; .Nop.Customer=21a4bb11-fef9-4bba-bb6c-7b316a6ce753; _ms=fbc661d6-8922-4e09-ad64-df1810d767f7; biatv-cookie={%22firstVisitAt%22:1729074594%2C%22visitsCount%22:1%2C%22currentVisitStartedAt%22:1729074594%2C%22currentVisitLandingPage%22:%22https://home-club.com.ua/ru/ua%25C2%25A0%22%2C%22currentVisitUpdatedAt%22:1729088324%2C%22currentVisitOpenPages%22:15%2C%22campaignTime%22:1729074594%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1729074594}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1729074594}}; bingc-activity-data={%22numberOfImpressions%22:2%2C%22activeFormSinceLastDisplayed%22:789%2C%22pageviews%22:8%2C%22callWasMade%22:0%2C%22updatedAt%22:1729089124}',
         "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
+        "referer": "https://home-club.com.ua/ru/novynky",
         "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-        "sec-ch-ua-full-version": '"129.0.6668.90"',
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
         "sec-ch-ua-platform": '"Windows"',
-        "sec-ch-ua-platform-version": '"15.0.0"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
         "sec-fetch-site": "same-origin",
@@ -84,27 +67,18 @@ def get_html():
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     }
 
-    for i in range(1, 49):
-        params = {
-            "_ipg": "72",
-            "_pgn": i,
-            "rt": "nc",
-        }
-
-        response = requests.get(
-            "https://www.ebay.com/str/tema4x4",
-            params=params,
-            cookies=cookies,
-            headers=headers,
-            proxies=proxies_dict,
-        )
-
-        # Проверка кода ответа
-        if response.status_code == 200:
-            # Сохранение HTML-страницы целиком
-            with open(f"proba_0{i}.html", "w", encoding="utf-8") as file:
-                file.write(response.text)
-        logger.info(response.status_code)
+    response = requests.get(
+        "https://home-club.com.ua/ru/sku-s89918634",
+        cookies=cookies,
+        headers=headers,
+        proxies=proxies_dict,
+    )
+    # Проверка кода ответа
+    if response.status_code == 200:
+        # Сохранение HTML-страницы целиком
+        with open("proba_0.html", "w", encoding="utf-8") as file:
+            file.write(response.text)
+    logger.info(response.status_code)
 
 
 def get_json():
@@ -212,9 +186,6 @@ def parsing_page():
     df.to_csv("unique_itm_urls.csv", index=False)
 
 
-
-
-
 def get_responses_from_urls(file_path):
     proxies = load_proxies()  # Загружаем список всех прокси
     proxy = random.choice(proxies)  # Выбираем случайный прокси
@@ -314,10 +285,10 @@ def parsing_csv():
 
 
 if __name__ == "__main__":
-    # get_html()
+    get_html()
     # parsing_page()
     # Вызов функции с файлом unique_itm_urls.csv
-    parsing_product()
+    # parsing_product()
     # get_responses_from_urls("unique_itm_urls.csv")
     # parsing()
     # Запуск функции для обхода директории

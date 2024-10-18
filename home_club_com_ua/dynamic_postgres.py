@@ -47,13 +47,8 @@ class DynamicPostgres:
             return
 
         try:
-            # Получить все уникальные ключи из списка словарей
-            all_columns = set()
-            for row in data:
-                all_columns.update(row.keys())
-
-            # Создать строку с определениями столбцов на основе уникальных ключей
-            columns_definitions = ", ".join([f'"{key}" TEXT' for key in all_columns])
+            # Создать строку с определениями столбцов на основе ключей словаря
+            columns_definitions = ", ".join([f'"{key}" TEXT' for key in data[0].keys()])
             # SQL-запрос для создания таблицы, если она не существует, включая автоинкрементируемый первичный ключ
             create_table_query = sql.SQL(
                 "CREATE TABLE IF NOT EXISTS {} (id SERIAL PRIMARY KEY, {});"
@@ -70,7 +65,7 @@ class DynamicPostgres:
                 (table_name,),
             )
             existing_columns = [col[0] for col in self.cursor.fetchall()]
-            new_columns = [key for key in all_columns if key not in existing_columns]
+            new_columns = [key for key in data[0].keys() if key not in existing_columns]
             for key in new_columns:
                 # SQL-запрос для добавления нового столбца, если он не существует
                 alter_table_query = sql.SQL(
@@ -88,18 +83,11 @@ class DynamicPostgres:
             )
             raise
 
-    def insert_data(self, table_name, data, num_threads=20):
+    def insert_data(self, table_name, data, num_threads=4):
         # Вставить каждый словарь из списка data в таблицу
         if not data:
             logger.warning("Пустой набор данных, вставка данных пропущена")
             return
-
-        # Проверить наличие ключа "Код ЄДРПОУ" во всех данных и удалить записи без этого ключа
-        valid_data = [row for row in data if "Код ЄДРПОУ" in row]
-        if len(valid_data) != len(data):
-            logger.warning(
-                "Некоторые записи были пропущены, так как отсутствует поле 'Код ЄДРПОУ'"
-            )
 
         def insert_or_update_record(row):
             # Создать новое соединение для каждого потока
@@ -127,6 +115,9 @@ class DynamicPostgres:
                         sql.Identifier(table_name), sql.SQL(", ").join(update_columns)
                     )
                     cursor.execute(update_query, update_values)
+                    # logger.info(
+                    #     f"Запись с id {existing_record[0]} в таблице {table_name} обновлена"
+                    # )
                 else:
                     # Если запись не существует, вставить новую
                     columns = [sql.Identifier(key) for key in row.keys()]
@@ -138,6 +129,7 @@ class DynamicPostgres:
                         sql.SQL(", ").join(placeholders),
                     )
                     cursor.execute(insert_query, values)
+                    # logger.info(f"Новая запись добавлена в таблицу {table_name}")
                 conn.commit()
             except Exception as e:
                 logger.error(
@@ -152,8 +144,8 @@ class DynamicPostgres:
         with ThreadPoolExecutor(max_workers=num_threads) as executor:
             list(
                 tqdm(
-                    executor.map(insert_or_update_record, valid_data),
-                    total=len(valid_data),
+                    executor.map(insert_or_update_record, data),
+                    total=len(data),
                     desc="Processing data",
                 )
             )

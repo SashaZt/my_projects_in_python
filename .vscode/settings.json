@@ -82,5 +82,8 @@
     "python.analysis.diagnosticMode": "openFilesOnly",
     "diffEditor.wordWrap": "inherit",
     "python.REPL.enableREPLSmartSend": false,
-    "liveServer.settings.multiRootWorkspaceName": "my_projects_in_python"
+    "liveServer.settings.multiRootWorkspaceName": "my_projects_in_python",
+    "[xml]": {
+        "editor.defaultFormatter": "fabianlauer.vs-code-xml-format"
+    }
 }
