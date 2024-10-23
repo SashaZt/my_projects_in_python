@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
+import json
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -79,7 +80,7 @@ def parsing_page():
     for html_file in html_folder.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             # Прочитать содержимое файла
-            content = file.read()
+            content: str = file.read()
             # Создать объект BeautifulSoup
             phone_number = None
             profile = None
@@ -91,6 +92,8 @@ def parsing_page():
             clinic_name = None
             adress = None
             description = None
+            accepted_insurances = None
+            services = None
             soup = BeautifulSoup(content, "lxml")
             div_element = soup.find("div", attrs={"class": "card bg-gray-100"})
 
@@ -170,6 +173,50 @@ def parsing_page():
                     "title": title,
                     "Herzlich willkommen": herzlich_willkommen_text,
                 }
+            accepted_insurances_raw = soup.find(
+                "div", attrs={"data-test-id": "insurance-info"}
+            )
+            if accepted_insurances_raw:
+                accepted_insurances = accepted_insurances_raw.find_all(
+                    "a", class_="text-muted"
+                )
+                accepted_insurances = [
+                    link.get_text(strip=True) for link in accepted_insurances
+                ]
+                logger.info(accepted_insurances)
+            # Извлечение информации о сервисах и их описаниях
+            services_section = soup.find("section", id="profile-pricing")
+            services = []
+            if services_section:
+                service_elements = services_section.find_all(
+                    "div", attrs={"data-test-id": "profile-pricing-list-details"}
+                )
+                for service_element in service_elements:
+                    service_name_element = service_element.find_previous_sibling(
+                        "div", attrs={"data-test-id": "profile-pricing-list-element"}
+                    )
+                    service_name = (
+                        service_name_element.find(
+                            "p", itemprop="availableService"
+                        ).get_text(strip=True)
+                        if service_name_element
+                        else ""
+                    )
+
+                    service_description_element = service_element.find(
+                        "p",
+                        attrs={"data-test-id": "profile-pricing-element-description"},
+                    )
+                    service_description = (
+                        " ".join(
+                            service_description_element.get_text(strip=True).split()
+                        )
+                        if service_description_element
+                        else ""
+                    )
+
+                    if service_name and service_description:
+                        services.append([service_name, service_description])
 
             datas = {
                 "phone_number": phone_number,
@@ -182,8 +229,16 @@ def parsing_page():
                 "clinic_name": clinic_name,
                 "adress": adress,
                 "description": description,
+                "accepted_insurances": accepted_insurances,
+                "services": services,
             }
             logger.info(datas)
+            save_data_to_json(datas)
+
+
+def save_data_to_json(datas, filename="output.json"):
+    with open(filename, "w", encoding="utf-8") as json_file:
+        json.dump(datas, json_file, ensure_ascii=False, indent=4)
 
 
 def get_url():
