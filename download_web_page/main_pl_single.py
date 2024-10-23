@@ -26,6 +26,11 @@ pdf_files_directory.mkdir(exist_ok=True, parents=True)
 
 output_csv_file = data_directory / "output.csv"
 file_json = json_responses_directory / "post_response.json"
+csv_file_successful = data_directory / "successful.csv"
+
+# Проверка и создание файла успешных URL
+if not csv_file_successful.exists():
+    pd.DataFrame(columns=["url"]).to_csv(csv_file_successful, index=False)
 
 
 # Функция для получения списка URL
@@ -56,6 +61,9 @@ async def single_html(urls):
     if not proxies:
         logger.info("Прокси не найдено, работа будет выполнена локально.")
 
+    # Чтение успешных URL из файла
+    successful_urls = set(pd.read_csv(csv_file_successful)["url"].tolist())
+
     try:
         proxy_config = parse_proxy(proxy) if proxy else None
         async with async_playwright() as p:
@@ -77,33 +85,58 @@ async def single_html(urls):
                 ),
             )
             for url in urls:
+                if url in successful_urls:
+                    logger.info(f"URL {url} уже обработан, пропуск итерации.")
+                    continue
+
                 # Переход на страницу и ожидание полной загрузки
                 await page.goto(url, timeout=60000, wait_until="networkidle")
 
-                # Находим элемент "Generar PDF" и кликаем по нему, как только он доступен
+                # Извлечение data-aeat-id из элемента h2
                 try:
-                    await page.wait_for_selector(
-                        "span.d-none.d-xs-block:text('Generar PDF')"
+                    h2_element = await page.wait_for_selector(
+                        "h2.h4.mb-3[data-aeat-id]", timeout=5000
                     )
-                    await page.click("span.d-none.d-xs-block:text('Generar PDF')")
+                    data_aeat_id = await h2_element.get_attribute("data-aeat-id")
+                    logger.info(data_aeat_id)
+                    if not data_aeat_id:
+                        logger.warning(
+                            f"data-aeat-id не найден на странице {url}. Пропуск итерации."
+                        )
+                        continue
                 except:
                     continue
 
-                # Находим элемент "Todo el documento" и кликаем, как только он доступен
-                await page.wait_for_selector(
-                    "label.custom-control-label[for='pdf-Todo']"
-                )
-                await page.click("label.custom-control-label[for='pdf-Todo']")
-
-                # Находим элемент "Continuar" и кликаем, как только он доступен
-                await page.wait_for_selector("button#btn-continue-to-pdf")
-                await page.click("button#btn-continue-to-pdf")
-
-                # Ожидание формирования PDF и скачивания
-                download = await page.wait_for_event("download")
-                await download.save_as(
-                    pdf_files_directory / download.suggested_filename
-                )
+                # Скачивание PDF через Playwright
+                # Скачивание PDF через Playwright, используя POST запрос
+                try:
+                    response = await page.evaluate(
+                        "async (idRCRD) => {"
+                        "  const formData = new FormData();"
+                        "  formData.append('operacion', 'GET');"
+                        "  formData.append('lang', 'es_ES');"
+                        "  formData.append('idRCRD', idRCRD);"
+                        "  const response = await fetch('https://www2.agenciatributaria.gob.es/wlpl/DGCO-JDIT/PDFactory', {"
+                        "    method: 'POST',"
+                        "    body: formData"
+                        "  });"
+                        "  if (!response.ok) { throw new Error('Network response was not ok'); }"
+                        "  return await response.blob();"
+                        "}",
+                        data_aeat_id,
+                    )
+                    pdf_path = pdf_files_directory / f"{data_aeat_id}.pdf"
+                    async with aiofiles.open(pdf_path, "wb") as f:
+                        await f.write(await response.array_buffer())
+                    # Записываем успешный URL в файл
+                    with open(csv_file_successful, "a", encoding="utf-8") as f:
+                        f.write(f"{url}\n")
+                    logger.info(f"PDF успешно скачан для URL: {url}")
+                except Exception as e:
+                    logger.warning(
+                        f"Не удалось скачать PDF для страницы {url}. Ошибка: {e}"
+                    )
+                    continue
 
             await context.close()
             await browser.close()
@@ -124,6 +157,56 @@ def parse_proxy(proxy):
         }
     else:
         return {"server": f"http://{proxy}"}
+
+
+# Функция для скачивания PDF
+def download_pdf(idRCRD, cookies):
+    cookies_dict = {cookie["name"]: cookie["value"] for cookie in cookies}
+
+    headers = {
+        "Accept": "*/*",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Connection": "keep-alive",
+        "Content-Type": "multipart/form-data; boundary=----WebKitFormBoundaryAlx9X84SqxkAGTMD",
+        "DNT": "1",
+        "Origin": "https://sede.agenciatributaria.gob.es",
+        "Referer": "https://sede.agenciatributaria.gob.es/",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-site",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+        "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+    }
+
+    files = {
+        "operacion": (None, "GET"),
+        "lang": (None, "es_ES"),
+        "idRCRD": (None, idRCRD),
+    }
+
+    try:
+        response = requests.post(
+            "https://www2.agenciatributaria.gob.es/wlpl/DGCO-JDIT/PDFactory",
+            cookies=cookies_dict,
+            headers=headers,
+            files=files,
+        )
+        if response.status_code == 200:
+            pdf_path = pdf_files_directory / f"{idRCRD}.pdf"
+            with open(pdf_path, "wb") as f:
+                f.write(response.content)
+            # Записываем успешный URL в файл
+            with open(csv_file_successful, "a", encoding="utf-8") as f:
+                f.write(f"{idRCRD}\n")
+            logger.info(f"PDF успешно скачан для idRCRD: {idRCRD}")
+        else:
+            logger.warning(
+                f"Не удалось скачать PDF для idRCRD {idRCRD}. Статус ответа: {response.status_code}"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при скачивании PDF для idRCRD {idRCRD}: {e}")
 
 
 # Функция для выполнения основной логики

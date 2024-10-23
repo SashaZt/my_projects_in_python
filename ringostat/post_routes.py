@@ -38,9 +38,9 @@ UPLOAD_DIR.mkdir(exist_ok=True)  # Создаем директорию, если
 
 async def get_db():
     db_initializer = DatabaseInitializer()
-    await db_initializer.create_database()
-    await db_initializer.create_pool()
-    await db_initializer.init_db()
+    await db_initializer.create_database()  # Создание базы данных, если она не существует
+    await db_initializer.create_pool()  # Создание пула соединений к базе данных
+    await db_initializer.init_db()  # Инициализация базы данных и создание необходимых таблиц
     return db_initializer
 
 
@@ -79,6 +79,19 @@ class ContactModel(BaseModel):
     additionalContacts: Optional[List[AdditionalContact]] = None
     messengersData: Optional[List[MessengerData]] = None
     paymentDetails: Optional[List[PaymentDetail]] = None
+
+
+# Модели данных
+class TaskFilterModel(BaseModel):
+    searchString: Optional[str] = ""  # Строка для поиска задач по имени или заметкам
+    statusFilter: Optional[str] = ""  # Фильтр по статусу задачи
+    dateRange: Optional[Dict[str, str]] = (
+        {}
+    )  # Диапазон дат для фильтрации задач по времени старта и завершения
+    limit: int = 10  # Лимит количества задач на одной странице
+    page: int = 1  # Номер страницы для пагинации
+    sortBy: Optional[str] = ""  # Поле для сортировки задач
+    sortOrder: Optional[str] = ""  # Порядок сортировки (возрастание или убывание)
 
 
 # Маршрут для создания контакта
@@ -553,3 +566,88 @@ async def set_config(request: Request, db=Depends(get_db)):
         raise HTTPException(
             status_code=500, detail="Ошибка при сохранении конфигурационных данных"
         )
+
+
+@router.post("/tasks")
+async def get_task_list(filter: TaskFilterModel, db=Depends(get_db)):
+    try:
+        # Извлечение фильтров из модели данных
+        searchString = (
+            filter.searchString.strip()
+        )  # Удаление лишних пробелов в строке поиска
+        statusFilter = filter.statusFilter.strip()  # Удаление лишних пробелов в статусе
+        dateRange = filter.dateRange
+        start = dateRange.get("start", None)  # Начало диапазона дат
+        end = dateRange.get("end", None)  # Конец диапазона дат
+        limit = filter.limit  # Лимит количества задач
+        page = filter.page  # Номер страницы
+        sortBy = filter.sortBy.strip()  # Поле для сортировки
+        sortOrder = filter.sortOrder.strip()  # Порядок сортировки (asc/desc)
+
+        # Формирование базового SQL-запроса
+        query = "SELECT * FROM tasks_extended WHERE 1=1"
+        parameters = []
+
+        # Применение фильтров
+        if searchString:
+            # Фильтрация по имени задачи или заметкам, игнорируя регистр
+            query += " AND (LOWER(name) LIKE LOWER(%s) OR LOWER(note) LIKE LOWER(%s))"
+            search_pattern = f"%{searchString}%"
+            parameters.extend([search_pattern, search_pattern])
+
+        if statusFilter:
+            # Фильтрация по статусу задачи
+            query += " AND status = %s"
+            parameters.append(statusFilter)
+
+        if start and end:
+            # Фильтрация по диапазону времени старта и завершения задачи
+            query += " AND startTime >= %s AND endTime <= %s"
+            parameters.extend([start, end])
+
+        # Добавление условий сортировки
+        if sortBy:
+            # Проверка на валидное значение sortOrder и добавление сортировки в запрос
+            query += f" ORDER BY {sortBy} {sortOrder if sortOrder.lower() in ['asc', 'desc'] else 'asc'}"
+
+        # Добавление условий пагинации
+        offset = (page - 1) * limit  # Вычисление смещения для пагинации
+        query += " LIMIT %s OFFSET %s"
+        parameters.extend([limit, offset])
+
+        # Выполнение запроса для получения данных
+        async with db.pool.acquire() as connection:
+            async with connection.cursor(aiomysql.DictCursor) as cursor:
+                logger.debug(f"Executing query: {query} with parameters: {parameters}")
+                await cursor.execute(
+                    query, parameters
+                )  # Выполнение SQL-запроса с параметрами
+                tasks = (
+                    await cursor.fetchall()
+                )  # Получение всех записей из результата запроса
+
+        # Преобразование данных для JSON-сериализации
+        tasks = jsonable_encoder(tasks)
+
+        return JSONResponse(
+            status_code=200, content={"data": tasks}
+        )  # Возврат списка задач в виде JSON-ответа
+
+    except Exception as e:
+        # Логирование ошибки и возврат HTTP-исключения
+        logger.error(f"Ошибка при получении списка задач: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.post("/tasks/list")
+async def get_task_list_response(filter: TaskFilterModel, db=Depends(get_db)):
+    try:
+        # Здесь можно вызвать тот же метод get_task_list, чтобы получить список задач
+        response = await get_task_list(
+            filter=filter, db=db
+        )  # Вызов функции для получения списка задач
+        return response
+    except Exception as e:
+        # Логирование ошибки и возврат HTTP-исключения
+        logger.error(f"Ошибка при получении ответа на список задач: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")

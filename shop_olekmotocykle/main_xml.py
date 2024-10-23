@@ -82,7 +82,7 @@ def parse_csv_file():
     try:
         df = pd.read_csv(csv_file_path, sep="\t")
         product_list = df[["kod", "cena"]].to_dict(orient="records")
-        logger.info(f"Успешно спарсен CSV файл в список словарей")
+        logger.info("Успешно спарсен CSV файл в список словарей")
         return product_list
     except Exception as e:
         logger.error(f"Ошибка при чтении CSV файла: {str(e)}")

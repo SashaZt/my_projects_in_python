@@ -258,6 +258,27 @@ class DatabaseInitializer:
                         );
                         """
                         )
+                        await cursor.execute(
+                            """
+                        CREATE TABLE IF NOT EXISTS tasks_extended (
+                            id INT AUTO_INCREMENT PRIMARY KEY,  # Уникальный идентификатор записи, автоинкремент
+                            name VARCHAR(255) NOT NULL,  # Название задачи, обязательно для заполнения
+                            prior INT,  # Приоритет задачи, числовое значение
+                            note TEXT,  # Заметки к задаче, текстовое поле
+                            initiator VARCHAR(255),  # Инициатор задачи, строковое значение (например, имя или email)
+                            performers TEXT,  # Исполнители задачи, хранится как строка (например, "исполнитель1, исполнитель2")
+                            reviewer VARCHAR(255),  # Проверяющий задачу, строковое значение
+                            startTime DATETIME,  # Время начала выполнения задачи
+                            endTime DATETIME,  # Время окончания выполнения задачи
+                            controlTime DATETIME,  # Время контроля выполнения задачи
+                            contacts TEXT,  # Контактные данные, связанные с задачей, текстовое поле
+                            applications TEXT,  # Заявки, связанные с задачей, текстовое поле
+                            documents TEXT,  # Документы, связанные с задачей, текстовое поле
+                            status VARCHAR(50),  # Статус задачи, строковое значение (например, "в процессе", "завершено")
+                            comments TEXT  # Комментарии к задаче, текстовое поле
+                        );
+                        """
+                        )
 
                         logger.info("Таблицы созданы или уже существуют")
                     except Exception as e:

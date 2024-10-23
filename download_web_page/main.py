@@ -38,24 +38,21 @@ def get_html():
     proxies_dict = {"http": proxy, "https": proxy}
 
     cookies = {
-        ".Nop.RecentlyViewedProducts": "178610",
-        ".Nop.Culture": "c%3Dru-RU%7Cuic%3Dru-RU",
-        ".Nop.Antiforgery": "CfDJ8Fe-XiX5m9tJs4SLBj0Ue5tdYndtOrCzDO1X4DwI__BybUMXsKBxYo2Kb3wyd0wruYg1cSKGvDp87JJpptTMiFulvk8IlZOeI2qD5eA4_hEIdY-Bh0_v3F36ZxcDVmi1xalh79DmUh-SycnznTZgMKY",
-        ".Nop.Customer": "21a4bb11-fef9-4bba-bb6c-7b316a6ce753",
-        "_ms": "fbc661d6-8922-4e09-ad64-df1810d767f7",
-        "biatv-cookie": "{%22firstVisitAt%22:1729074594%2C%22visitsCount%22:1%2C%22currentVisitStartedAt%22:1729074594%2C%22currentVisitLandingPage%22:%22https://home-club.com.ua/ru/ua%25C2%25A0%22%2C%22currentVisitUpdatedAt%22:1729088324%2C%22currentVisitOpenPages%22:15%2C%22campaignTime%22:1729074594%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1729074594}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1729074594}}",
-        "bingc-activity-data": "{%22numberOfImpressions%22:2%2C%22activeFormSinceLastDisplayed%22:789%2C%22pageviews%22:8%2C%22callWasMade%22:0%2C%22updatedAt%22:1729089124}",
+        "OptanonAlertBoxClosed": "2024-10-15T11:50:36.242Z",
+        "GUEST_SESSION": "dWQSx0M2o97XnFG4IFg4HUzjdyy4W3kCJwYROOPApZw",
+        "mixpanel-events": "{%22s%22:1729577806102%2C%22u%22:%22/suchen?q=&loc=Aachen%22%2C%22p%22:%22/search_results_visits_new%22%2C%22r%22:%22%22}",
+        "OptanonConsent": "isGpcEnabled=0&datestamp=Tue+Oct+22+2024+09%3A28%3A09+GMT%2B0300+(%D0%92%D0%BE%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F+%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B0%2C+%D0%BB%D0%B5%D1%82%D0%BD%D0%B5%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202405.2.0&browserGpcFlag=0&isIABGlobal=false&consentId=5f445bf3-ea3f-4378-8595-e19c933c67be&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0003%3A1%2CC0002%3A1%2CC0004%3A1&hosts=H10%3A1%2CH163%3A1%2CH66%3A1%2CH67%3A1%2CH70%3A1%2CH159%3A1%2CH164%3A1%2CH158%3A1%2CH78%3A1%2CH112%3A1%2CH79%3A1%2CH133%3A1%2CH81%3A1%2CH82%3A1%2CH85%3A1%2CH86%3A1%2CH217%3A1%2CH160%3A1%2CH87%3A1%2CH11%3A1%2CH38%3A1%2CH12%3A1%2CH89%3A1%2CH182%3A1%2CH14%3A1%2CH15%3A1%2CH93%3A1%2CH76%3A1%2CH94%3A1%2CH32%3A1%2CH96%3A1%2CH208%3A1%2CH34%3A1%2CH74%3A1&genVendors=&intType=1&geolocation=%3B&AwaitingReconsent=false",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
         "cache-control": "no-cache",
-        # 'cookie': '.Nop.RecentlyViewedProducts=178610; .Nop.Culture=c%3Dru-RU%7Cuic%3Dru-RU; .Nop.Antiforgery=CfDJ8Fe-XiX5m9tJs4SLBj0Ue5tdYndtOrCzDO1X4DwI__BybUMXsKBxYo2Kb3wyd0wruYg1cSKGvDp87JJpptTMiFulvk8IlZOeI2qD5eA4_hEIdY-Bh0_v3F36ZxcDVmi1xalh79DmUh-SycnznTZgMKY; .Nop.Customer=21a4bb11-fef9-4bba-bb6c-7b316a6ce753; _ms=fbc661d6-8922-4e09-ad64-df1810d767f7; biatv-cookie={%22firstVisitAt%22:1729074594%2C%22visitsCount%22:1%2C%22currentVisitStartedAt%22:1729074594%2C%22currentVisitLandingPage%22:%22https://home-club.com.ua/ru/ua%25C2%25A0%22%2C%22currentVisitUpdatedAt%22:1729088324%2C%22currentVisitOpenPages%22:15%2C%22campaignTime%22:1729074594%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1729074594}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1729074594}}; bingc-activity-data={%22numberOfImpressions%22:2%2C%22activeFormSinceLastDisplayed%22:789%2C%22pageviews%22:8%2C%22callWasMade%22:0%2C%22updatedAt%22:1729089124}',
+        # 'cookie': 'OptanonAlertBoxClosed=2024-10-15T11:50:36.242Z; GUEST_SESSION=dWQSx0M2o97XnFG4IFg4HUzjdyy4W3kCJwYROOPApZw; mixpanel-events={%22s%22:1729577806102%2C%22u%22:%22/suchen?q=&loc=Aachen%22%2C%22p%22:%22/search_results_visits_new%22%2C%22r%22:%22%22}; OptanonConsent=isGpcEnabled=0&datestamp=Tue+Oct+22+2024+09%3A28%3A09+GMT%2B0300+(%D0%92%D0%BE%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F+%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B0%2C+%D0%BB%D0%B5%D1%82%D0%BD%D0%B5%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202405.2.0&browserGpcFlag=0&isIABGlobal=false&consentId=5f445bf3-ea3f-4378-8595-e19c933c67be&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0003%3A1%2CC0002%3A1%2CC0004%3A1&hosts=H10%3A1%2CH163%3A1%2CH66%3A1%2CH67%3A1%2CH70%3A1%2CH159%3A1%2CH164%3A1%2CH158%3A1%2CH78%3A1%2CH112%3A1%2CH79%3A1%2CH133%3A1%2CH81%3A1%2CH82%3A1%2CH85%3A1%2CH86%3A1%2CH217%3A1%2CH160%3A1%2CH87%3A1%2CH11%3A1%2CH38%3A1%2CH12%3A1%2CH89%3A1%2CH182%3A1%2CH14%3A1%2CH15%3A1%2CH93%3A1%2CH76%3A1%2CH94%3A1%2CH32%3A1%2CH96%3A1%2CH208%3A1%2CH34%3A1%2CH74%3A1&genVendors=&intType=1&geolocation=%3B&AwaitingReconsent=false',
         "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "referer": "https://home-club.com.ua/ru/novynky",
+        "referer": "https://www.jameda.de/suchen?q=&loc=Aachen",
         "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
@@ -68,11 +65,12 @@ def get_html():
     }
 
     response = requests.get(
-        "https://home-club.com.ua/ru/sku-s89918634",
+        "https://www.jameda.de/meike-hutzenlaub/orthopaede-unfallchirurg-akupunkteur-chirotherapeut/aachen",
         cookies=cookies,
         headers=headers,
         proxies=proxies_dict,
     )
+
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
@@ -150,7 +148,7 @@ def clean_text(text):
 
 def parsing_page():
     # Папка с HTML файлами
-    html_folder = Path("html")
+    html_folder = Path("html_files")
 
     # Множество для хранения уникальных itm_value
     unique_itm_values = set()
@@ -161,21 +159,45 @@ def parsing_page():
             # Прочитать содержимое файла
             content = file.read()
             # Создать объект BeautifulSoup
-            soup = BeautifulSoup(content, "html.parser")
+            phone_number = None
+            soup = BeautifulSoup(content, "lxml")
+            div_element = soup.find("div", attrs={"class": "card bg-gray-100"})
+
+            if div_element:
+
+                phone_number_tag = div_element.find("b")
+                if phone_number_tag:
+                    phone_number = phone_number_tag.get_text(strip=True)
+                    logger.info(phone_number.replace(" ", "").replace("\n", ""))
+
+
+def get_url():
+    # Папка с HTML файлами
+    html_folder = Path("html_files")
+
+    # Множество для хранения уникальных itm_value
+    unique_itm_values = set()
+
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_folder.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            # Прочитать содержимое файла
+            content = file.read()
+            # Создать объект BeautifulSoup
+            soup = BeautifulSoup(content, "lxml")
             # Найти все <div> с классом 'str-quickview-button str-item-card__property-title'
-            div_elements = soup.find_all(
-                "div", class_="str-quickview-button str-item-card__property-title"
-            )
+            div_elements = soup.find_all("div", class_="pr-1")
+
             # Пройтись по каждому найденному элементу и извлечь itm из атрибута data-track
             for div in div_elements:
-                data_track = div.get("data-track")
+                data_track = div.find("a", attrs={"data-id": "address-context-cta"})
+
                 if data_track:
                     # Преобразовать значение JSON обратно в словарь
-                    data = json.loads(data_track.replace("&quot;", '"'))
-                    itm_value = data.get("eventProperty", {}).get("itm")
-                    if itm_value:
-                        unique_itm_values.add(itm_value)
+                    href = data_track.get("href")
 
+                    unique_itm_values.add(href)
+    logger.info(len(unique_itm_values))
     # Создать список URL на основе уникальных itm_value
     urls = [f"https://www.ebay.com/itm/{itm_value}" for itm_value in unique_itm_values]
 
@@ -284,9 +306,63 @@ def parsing_csv():
     logger.info(df.head(10))
 
 
+def download_pdf():
+    cookies = {
+        "sgat-language": "es_ES",
+        "JSESSIONID": "wlp093~s7~0001Q56_J612Gw4GjOHmeUPPEEW:wlp093_wlp031",
+    }
+
+    headers = {
+        "Accept": "*/*",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Connection": "keep-alive",
+        "Content-Type": "multipart/form-data; boundary=----WebKitFormBoundaryAlx9X84SqxkAGTMD",
+        # 'Cookie': 'sgat-language=es_ES; JSESSIONID=wlp093~s7~0001Q56_J612Gw4GjOHmeUPPEEW:wlp093_wlp031',
+        "DNT": "1",
+        "Origin": "https://sede.agenciatributaria.gob.es",
+        "Referer": "https://sede.agenciatributaria.gob.es/",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-site",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+        "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+    }
+    idRCRD = "4d9fd70b2a429810VgnVCM100000dc381e0aRCRD"
+    files = {
+        "operacion": (None, "GET"),
+        "lang": (None, "es_ES"),
+        "idRCRD": (None, idRCRD),
+    }
+    try:
+        response = requests.post(
+            "https://www2.agenciatributaria.gob.es/wlpl/DGCO-JDIT/PDFactory",
+            cookies=cookies,
+            headers=headers,
+            files=files,
+        )
+
+        if response.status_code == 200:
+            pdf_path = pdf_files_directory / f"{idRCRD}.pdf"
+            with open(pdf_path, "wb") as f:
+                f.write(response.content)
+            # Записываем успешный URL в файл
+            with open(csv_file_successful, "a", encoding="utf-8") as f:
+                f.write(f"{idRCRD}\n")
+            logger.info(f"PDF успешно скачан для idRCRD: {idRCRD}")
+        else:
+            logger.warning(
+                f"Не удалось скачать PDF для idRCRD {idRCRD}. Статус ответа: {response.status_code}"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при скачивании PDF для idRCRD {idRCRD}: {e}")
+
+
 if __name__ == "__main__":
-    get_html()
-    # parsing_page()
+    # get_html()
+    # download_pdf()
+    parsing_page()
     # Вызов функции с файлом unique_itm_urls.csv
     # parsing_product()
     # get_responses_from_urls("unique_itm_urls.csv")
