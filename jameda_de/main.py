@@ -7,11 +7,51 @@ import pandas as pd
 from pathlib import Path
 from tqdm import tqdm
 import json
+from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
+from get_response import Get_Response
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
+html_files_pages_directory = current_directory / "html_files_pages"
+html_files_directory = current_directory / "html_files"
+configuration_directory = current_directory / "configuration"
 data_directory.mkdir(parents=True, exist_ok=True)
+html_files_pages_directory.mkdir(parents=True, exist_ok=True)
+configuration_directory.mkdir(parents=True, exist_ok=True)
+html_files_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
+input_csv_file = data_directory / "city.csv"
+csv_file_successful = data_directory / "identifier_successful.csv"
+output_json_file = data_directory / "output.json"
+file_proxy = configuration_directory / "roman.txt"
+
+
+cookies = {
+    "OptanonAlertBoxClosed": "2024-10-15T11:50:36.242Z",
+    "GUEST_SESSION": "6OD7hnxbDELLy0cpBJ_735jrFNL8KkbOmScIvVl3mVs",
+    "patient-insurance-data": "{%22id%22:%222%22}",
+    "mixpanel-events": "{%22s%22:1729707579152%2C%22u%22:%22/meike-hutzenlaub/orthopaede-unfallchirurg-akupunkteur-chirotherapeut/aachen%22%2C%22p%22:%22profile_visit%22%2C%22r%22:%22%22}",
+    "OptanonConsent": "isGpcEnabled=0&datestamp=Wed+Oct+23+2024+21%3A20%3A38+GMT%2B0300+(%D0%92%D0%BE%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F+%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B0%2C+%D0%BB%D0%B5%D1%82%D0%BD%D0%B5%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202405.2.0&browserGpcFlag=0&isIABGlobal=false&consentId=5f445bf3-ea3f-4378-8595-e19c933c67be&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0003%3A1%2CC0002%3A1%2CC0004%3A1&hosts=H10%3A1%2CH163%3A1%2CH66%3A1%2CH67%3A1%2CH70%3A1%2CH159%3A1%2CH164%3A1%2CH158%3A1%2CH78%3A1%2CH112%3A1%2CH79%3A1%2CH133%3A1%2CH81%3A1%2CH82%3A1%2CH85%3A1%2CH86%3A1%2CH217%3A1%2CH160%3A1%2CH87%3A1%2CH11%3A1%2CH38%3A1%2CH12%3A1%2CH89%3A1%2CH182%3A1%2CH14%3A1%2CH15%3A1%2CH93%3A1%2CH76%3A1%2CH94%3A1%2CH32%3A1%2CH96%3A1%2CH208%3A1%2CH34%3A1%2CH74%3A1&genVendors=&intType=1&geolocation=%3B&AwaitingReconsent=false",
+}
+
+headers = {
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    "cache-control": "no-cache",
+    "dnt": "1",
+    "pragma": "no-cache",
+    "priority": "u=0, i",
+    "referer": "https://www.jameda.de/",
+    "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+}
 
 
 def load_proxies():
@@ -23,7 +63,127 @@ def load_proxies():
     return proxies
 
 
-def get_html():
+# Функция для чтения городов из CSV файла
+def read_cities_from_csv(input_csv_file):
+    df = pd.read_csv(input_csv_file)
+    return df["city"].tolist()
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(5),
+    retry=retry_if_exception_type(requests.RequestException),
+)
+def get_page_city():
+    cities = read_cities_from_csv(input_csv_file)
+    proxies = load_proxies()  # Загружаем список всех прокси
+    timeout = 100
+
+    cookies = {
+        "OptanonAlertBoxClosed": "2024-10-15T11:50:36.242Z",
+        "GUEST_SESSION": "6OD7hnxbDELLy0cpBJ_735jrFNL8KkbOmScIvVl3mVs",
+        "patient-insurance-data": "{%22id%22:%222%22}",
+        "mixpanel-events": "{%22s%22:1729707579152%2C%22u%22:%22/meike-hutzenlaub/orthopaede-unfallchirurg-akupunkteur-chirotherapeut/aachen%22%2C%22p%22:%22profile_visit%22%2C%22r%22:%22%22}",
+        "OptanonConsent": "isGpcEnabled=0&datestamp=Wed+Oct+23+2024+21%3A20%3A38+GMT%2B0300+(%D0%92%D0%BE%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F+%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B0%2C+%D0%BB%D0%B5%D1%82%D0%BD%D0%B5%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202405.2.0&browserGpcFlag=0&isIABGlobal=false&consentId=5f445bf3-ea3f-4378-8595-e19c933c67be&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0003%3A1%2CC0002%3A1%2CC0004%3A1&hosts=H10%3A1%2CH163%3A1%2CH66%3A1%2CH67%3A1%2CH70%3A1%2CH159%3A1%2CH164%3A1%2CH158%3A1%2CH78%3A1%2CH112%3A1%2CH79%3A1%2CH133%3A1%2CH81%3A1%2CH82%3A1%2CH85%3A1%2CH86%3A1%2CH217%3A1%2CH160%3A1%2CH87%3A1%2CH11%3A1%2CH38%3A1%2CH12%3A1%2CH89%3A1%2CH182%3A1%2CH14%3A1%2CH15%3A1%2CH93%3A1%2CH76%3A1%2CH94%3A1%2CH32%3A1%2CH96%3A1%2CH208%3A1%2CH34%3A1%2CH74%3A1&genVendors=&intType=1&geolocation=%3B&AwaitingReconsent=false",
+    }
+
+    headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "referer": "https://www.jameda.de/",
+        "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    }
+    for loc in cities:
+        proxy = random.choice(proxies)  # Выбираем случайный прокси
+        proxies_dict = {"http": proxy, "https": proxy}
+        logger.info(loc)
+
+        params = {
+            "q": "",
+            "loc": loc,
+        }
+
+        try:
+            response_start = requests.get(
+                "https://www.jameda.de/suchen",
+                params=params,
+                cookies=cookies,
+                headers=headers,
+                proxies=proxies_dict,
+                timeout=timeout,
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при запросе для {loc}: {e}")
+            continue
+
+        if response_start.status_code:
+            logger.info(response_start.status_code)
+
+            content = response_start.text
+            soup = BeautifulSoup(content, "lxml")
+
+            # Инициализируем total_pages значением по умолчанию
+            total_pages = 1
+
+            page_items = soup.find_all("li", attrs={"class": "page-item"})
+            for item in reversed(page_items):
+                page_text = item.find("a").get_text(strip=True)
+                if page_text.isdigit():  # Проверяем, является ли текст числом
+                    total_pages = int(page_text)
+                    break
+            logger.info(f"Всего страниц {total_pages}")
+            max_pages = min(total_pages, 500)  # Ограничиваем количество страниц до 500
+
+            for pages in range(1, max_pages + 1):
+                proxy = random.choice(proxies)  # Выбираем случайный прокси
+                proxies_dict = {"http": proxy, "https": proxy}
+                output_html_page_file = (
+                    html_files_pages_directory / f"{loc}_0{pages}.html"
+                )
+                # Проверяем, существует ли файл
+                if output_html_page_file.exists():
+                    logger.info(
+                        f"Файл {output_html_page_file} уже существует, пропускаем."
+                    )
+                    continue  # Переходим к следующей итерации цикла
+                params = {
+                    "q": "",
+                    "loc": loc,
+                    "page": pages,
+                }
+                try:
+
+                    response = requests.get(
+                        "https://www.jameda.de/suchen",
+                        params=params,
+                        cookies=cookies,
+                        headers=headers,
+                        proxies=proxies_dict,
+                        timeout=timeout,
+                    )
+                    with open(output_html_page_file, "w", encoding="utf-8") as file:
+                        file.write(response.text)
+                    logger.info(f"Сохранил {loc}_0{pages}.html")
+                except Exception as e:
+                    logger.error(f"Ошибка при запросе для {loc}: {e}")
+                    continue
+        else:
+            logger.error(response_start.status_code)
+
+
+def get_html_doctor():
     proxies = load_proxies()  # Загружаем список всех прокси
     proxy = random.choice(proxies)  # Выбираем случайный прокси
     proxies_dict = {"http": proxy, "https": proxy}
@@ -43,7 +203,6 @@ def get_html():
         "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "referer": "https://www.jameda.de/suchen?q=&loc=Aachen",
         "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
@@ -71,13 +230,10 @@ def get_html():
 
 
 def parsing_page():
-    # Папка с HTML файлами
-    html_folder = Path("html_files")
-
     # Множество для хранения уникальных itm_value
-
+    all_data = []
     # Пройтись по каждому HTML файлу в папке
-    for html_file in html_folder.glob("*.html"):
+    for html_file in html_files_pages_directory.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             # Прочитать содержимое файла
             content: str = file.read()
@@ -183,7 +339,6 @@ def parsing_page():
                 accepted_insurances = [
                     link.get_text(strip=True) for link in accepted_insurances
                 ]
-                logger.info(accepted_insurances)
             # Извлечение информации о сервисах и их описаниях
             services_section = soup.find("section", id="profile-pricing")
             services = []
@@ -217,7 +372,41 @@ def parsing_page():
 
                     if service_name and service_description:
                         services.append([service_name, service_description])
-
+            opening_hours_element = soup.find(
+                "div", attrs={"data-id": re.compile(r"^opening-hours-.*")}
+            )
+            opening_hours = []
+            if opening_hours_element:
+                rows = opening_hours_element.find_all(
+                    "div", class_=re.compile(r"row pb-0-5.*")
+                )
+                days_map = {
+                    "Montag": 0,
+                    "Dienstag": 1,
+                    "Mittwoch": 2,
+                    "Donnerstag": 3,
+                    "Freitag": 4,
+                    "Samstag": 5,
+                    "Sonntag": 6,
+                }
+                for row in rows:
+                    day_name_element = row.find("div", class_="col-4 col-md-4")
+                    if day_name_element:
+                        day_name = day_name_element.get_text(strip=True)
+                        day = days_map.get(day_name)
+                        if day is not None:
+                            ranges = []
+                            time_elements = row.find_all("div", class_="col-4 col-md-3")
+                            for time_element in time_elements:
+                                times = (
+                                    time_element.get_text(strip=True)
+                                    .replace(" ", "")
+                                    .replace("\n", "")
+                                    .split("-")
+                                )
+                                if len(times) == 2:
+                                    ranges.append([times[0], times[1]])
+                            opening_hours.append({"day": day, "ranges": ranges})
             datas = {
                 "phone_number": phone_number,
                 "profile": profile,
@@ -231,25 +420,24 @@ def parsing_page():
                 "description": description,
                 "accepted_insurances": accepted_insurances,
                 "services": services,
+                "opening_hours": opening_hours,
             }
-            logger.info(datas)
-            save_data_to_json(datas)
+            all_data.append(datas)
+
+    save_data_to_json(all_data)
 
 
-def save_data_to_json(datas, filename="output.json"):
-    with open(filename, "w", encoding="utf-8") as json_file:
+def save_data_to_json(datas):
+    with open(output_json_file, "w", encoding="utf-8") as json_file:
         json.dump(datas, json_file, ensure_ascii=False, indent=4)
 
 
-def get_url():
-    # Папка с HTML файлами
-    html_folder = Path("html_files")
-
+def get_url_in_pages():
     # Множество для хранения уникальных itm_value
     unique_itm_values = set()
 
     # Пройтись по каждому HTML файлу в папке
-    for html_file in html_folder.glob("*.html"):
+    for html_file in html_files_pages_directory.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             # Прочитать содержимое файла
             content = file.read()
@@ -267,8 +455,54 @@ def get_url():
                     href = data_track.get("href")
 
                     unique_itm_values.add(href)
+    logger.info(len(unique_itm_values))
+    # Создать DataFrame из списка URL
+    df = pd.DataFrame(unique_itm_values, columns=["url"])
+
+    # Записать DataFrame в CSV файл
+    df.to_csv("unique_itm_urls.csv", index=False)
+
+
+def pars_pagin():
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_files_pages_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            # Прочитать содержимое файла
+            content = file.read()
+            # Создать объект BeautifulSoup
+            soup = BeautifulSoup(content, "lxml")
+            page_items = soup.find_all("li", attrs={"class": "page-item"})
+            # Проходимся по элементам в обратном порядке
+            for item in reversed(page_items):
+                page_text = item.find("a").get_text(strip=True)
+                if page_text.isdigit():  # Проверяем, является ли текст числом
+                    total_pages = int(page_text)
+                    logger.info(f"Всего страниц {total_pages}")
+                    break
+            else:
+                # Если не нашли числовое значение, предполагаем, что всего одна страница
+                total_pages = 1
+                logger.info(f"Всего страниц {total_pages}")
 
 
 if __name__ == "__main__":
-    # get_html()
-    parsing_page()
+    # get_page_city()
+    # get_url_in_pages()
+    max_workers = 20
+    response_handler = Get_Response(
+        max_workers,
+        # base_url,
+        cookies,
+        headers,
+        html_files_directory,
+        csv_file_successful,
+        output_csv_file,
+        file_proxy,
+        # url_sitemap,
+    )
+    # Запуск метода для получения всех sitemaps и обработки
+
+    # Запуск метода скачивания html файлов
+    response_handler.process_infox_file()
+    # parsing_page()
+    # pars_pagin()
