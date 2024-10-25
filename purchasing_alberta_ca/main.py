@@ -4,16 +4,19 @@ import re
 from configuration.logger_setup import logger
 import random
 import pandas as pd
+import itertools
 from pathlib import Path
 
 current_directory = Path.cwd()
 configuration_directory = current_directory / "configuration"
 json_directory = current_directory / "json"
 data_directory = current_directory / "data"
+xlsx_directory = current_directory / "xlsx"
 
 configuration_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 json_directory.mkdir(parents=True, exist_ok=True)
+xlsx_directory.mkdir(parents=True, exist_ok=True)
 
 file_proxy = configuration_directory / "roman.txt"
 output_csv_file = data_directory / "output.csv"
@@ -188,28 +191,13 @@ def get_json_company():
 
 
 def paring_json_company():
-    # invitation_to_bid = None
-    # apc_reference = None
-    # internal_reference = None
-    # category = None
-    # contracting_organization = None
-    # organization_address = None
-    # contact_person = None
-    # method_of_contact = None
-    # company_si = None
-    # contact = None
-    # person = None
-    # email = None
-    # phone = None
-    # address = None
-    # status = None
-    # bid = None
-    all_data = []
+    # combined_rows = []
     for json_file in json_directory.glob("*.json"):
         with json_file.open(encoding="utf-8") as file:
             # Прочитать содержимое JSON файла
             data = json.load(file)
-        # logger.warning(file)
+        logger.warning(file)
+
         invitation_to_bid = data.get("opportunity", {}).get("shortTitle", None)
         apc_reference = data.get("opportunity", {}).get("referenceNumber", None)
         internal_reference = data.get("opportunity", {}).get("solicitationNumber", None)
@@ -278,63 +266,195 @@ def paring_json_company():
             "category": category,
             "contracting_organization": contracting_organization,
             "organization_address": organization_address,
-            "contact_person": contact_person,
+            "contact_person_company": contact_person,
             "method_of_contact": method_of_contact,
         }
-        interestedSuppliers = data["interestedSuppliers"]
-        for ins in interestedSuppliers:
-            company_is = ins["businessName"]
-            contact_person_is = ins["supplier"]["partnershipContactName"]
-            email_is = ins["supplier"]["partnershipContactEmail"]
-            phone_is = ins["supplier"]["partnershipContactPhoneNumber"]
+        list_is_data = []
+        for ins in data.get("interestedSuppliers", []):
+            company_is = ins.get("businessName", None)
+            contact_person_is = ins.get("supplier", {}).get(
+                "partnershipContactName", None
+            )
+            email_is = ins.get("supplier", {}).get("partnershipContactEmail", None)
+            phone_is = ins.get("supplier", {}).get(
+                "partnershipContactPhoneNumber", None
+            )
             status_is = "Interested Suppliers"
-            streetAddress_is = ins["physicalAddress"]["streetAddress"]
-            city_is = ins["physicalAddress"]["city"]
-            stateProvince_is = ins["physicalAddress"]["stateProvince"]
+            streetAddress_is = ins.get("physicalAddress", {}).get("streetAddress", None)
+            city_is = ins.get("physicalAddress", {}).get("city", None)
+            stateProvince_is = ins.get("physicalAddress", {}).get("stateProvince", None)
+            postalCode_is = ins.get("physicalAddress", {}).get("postalCode", None)
+            physicalAddress_is = (
+                f"{streetAddress_is} {city_is} {stateProvince_is} {postalCode_is}"
+                if streetAddress_is and city_is and stateProvince_is and postalCode_is
+                else None
+            )
             datas_is = {
                 "company_is": company_is,
                 "contact_person_is": contact_person_is,
                 "email_is": email_is,
                 "phone_is": phone_is,
                 "status_is": status_is,
+                "physicalAddress_is": physicalAddress_is,
             }
-        bidders = data["bidders"]
-        for bid in bidders:
+            list_is_data.append(datas_is)
+        list_bd_data = []
+        for bid in data.get("bidders", []):
+            company_bid = bid.get("alternativeSupplierDisplayName", None)
+            contact_person_bid = bid.get("contactName", None)
+            email_bid = bid.get("contactEmail", None)
+            phone_bid = bid.get("phoneNumber", None)
+            status_bid = "Bidders list"
+            bidAmounts = (
+                bid.get("bidAmounts", [{}])[0].get("amount", None)
+                if bid.get("bidAmounts")
+                else None
+            )
+
+            streetAddress_bid = bid.get("physicalAddress", {}).get(
+                "streetAddress", None
+            )
+            city_bid = bid.get("physicalAddress", {}).get("city", None)
+            stateProvince_bid = bid.get("physicalAddress", {}).get(
+                "stateProvince", None
+            )
+            postalCode_bid = bid.get("physicalAddress", {}).get("postalCode", None)
+            physicalAddress_bid = (
+                f"{streetAddress_bid} {city_bid} {stateProvince_bid} {postalCode_bid}"
+                if streetAddress_bid
+                and city_bid
+                and stateProvince_bid
+                and postalCode_bid
+                else None
+            )
+            datas_bid = {
+                "company_bid": company_bid,
+                "contact_person_bid": contact_person_bid,
+                "email_bid": email_bid,
+                "phone_bid": phone_bid,
+                "status_bid": status_bid,
+                "bidAmounts": bidAmounts,
+                "physicalAddress_bid": physicalAddress_bid,
+            }
+            list_bd_data.append(datas_bid)
+        list_aw_data = []
+        for aw in data.get("awards", []):
+            company_aw = aw.get("alternativeSupplierDisplayName", None)
+            contact_person_aw = aw.get("contactName", None)
+            status_aw = "Awardee"
+            awAmounts = aw.get("amount", None)
+            streetAddress_aw = aw.get("address", {}).get("streetAddress", None)
+            streetAddress2_aw = aw.get("address", {}).get("streetAddress2", None)
+            city_aw = aw.get("address", {}).get("city", None)
+            stateProvince_aw = aw.get("address", {}).get("stateProvince", None)
+            postalCode_aw = aw.get("address", {}).get("postalCode", None)
+            physicalAddress_aw = (
+                f"{streetAddress2_aw}{streetAddress_aw} {city_aw} {stateProvince_aw} {postalCode_aw}"
+                if streetAddress_aw and city_aw and stateProvince_aw and postalCode_aw
+                else None
+            )
+            datas_aw = {
+                "company_aw": company_aw,
+                "contact_person_aw": contact_person_aw,
+                "status_aw": status_aw,
+                "awAmounts": awAmounts,
+                "physicalAddress_aw": physicalAddress_aw,
+            }
+            list_aw_data.append(datas_aw)
+            # Новый список для хранения всех строк
+        # logger.info(len(list_is_data))
+        # logger.info(len(list_bd_data))
+        # logger.info(len(list_aw_data))
+        # Новый список для хранения всех строк
+        combined_rows = []
+
+        # Комбинируем все возможные записи из всех списков
+
+        for data_list in [list_is_data, list_bd_data, list_aw_data]:
+            for data in data_list:
+                # Копируем основной словарь, чтобы не изменять его напрямую
+                new_row = datas_company.copy()
+
+                # Объединяем значения общих ключей из разных словарей
+                new_row["company"] = (
+                    data.get("company_is")
+                    or data.get("company_bid")
+                    or data.get("company_aw")
+                )
+                new_row["contact_person"] = (
+                    data.get("contact_person_is")
+                    or data.get("contact_person_bid")
+                    or data.get("contact_person_aw")
+                )
+                new_row["email"] = data.get("email_is") or data.get("email_bid")
+                new_row["phone"] = data.get("phone_is") or data.get("phone_bid")
+                new_row["status"] = (
+                    data.get("status_is")
+                    or data.get("status_bid")
+                    or data.get("status_aw")
+                )
+                new_row["physicalAddress"] = (
+                    data.get("physicalAddress_is")
+                    or data.get("physicalAddress_bid")
+                    or data.get("physicalAddress_aw")
+                )
+                new_row["amounts"] = data.get("bidAmounts") or data.get("awAmounts")
+
+                # Добавляем остальные значения из словаря
+                for key, value in data.items():
+                    if key not in [
+                        "company_is",
+                        "company_bid",
+                        "company_aw",
+                        "contact_person_is",
+                        "contact_person_bid",
+                        "contact_person_aw",
+                        "email_is",
+                        "email_bid",
+                        "phone_is",
+                        "phone_bid",
+                        "status_is",
+                        "status_bid",
+                        "status_aw",
+                        "physicalAddress_is",
+                        "physicalAddress_bid",
+                        "physicalAddress_aw",
+                        "bidAmounts",
+                        "awAmounts",
+                    ]:
+                        new_row[key] = value
+
+                # Добавляем новую строку в общий список
+                combined_rows.append(new_row)
+        output_xlsx_file = xlsx_directory / f"{apc_reference}.xlsx"
+        # Создаем DataFrame из списка словарей
+        df = pd.DataFrame(combined_rows)
+
+        # Сохраняем DataFrame в Excel файл
+        df.to_excel(output_xlsx_file, index=False)
 
 
+def all_data():
+    data_frames = []
+    # Цикл по всем файлам с расширением .xlsx
+    for xlsx_file in xlsx_directory.glob("*.xlsx"):
+        df = pd.read_excel(xlsx_file)
+        data_frames.append(df)
+
+    # Объединение всех DataFrame в один
+    combined_df = pd.concat(data_frames, ignore_index=True)
+
+    # Сохранение результата в новый Excel файл
+    combined_df.to_excel(current_directory / "combined_output.xlsx", index=False)
 
 
-        contact_person_si = None
-
-        interested_suppliers = data.get("interestedSuppliers", [{}])
-        email_si = (
-            interested_suppliers[9]
-            .get("supplier", {})
-            .get("partnershipContactEmail", None)
-            if len(interested_suppliers) > 9
-            else None
-        )
-        phone_si = (
-            interested_suppliers[9]
-            .get("supplier", {})
-            .get("partnershipContactPhoneNumber", None)
-            if len(interested_suppliers) > 9
-            else None
-        )
-
-        streetAddress = data.get("awards", [{}])[0].get("streetAddress", None)
-        city_si = data.get("awards", [{}])[0].get("city", None)
-        address_si = f"{streetAddress} {city_si}" if streetAddress and city_si else None
-
-        status_si = "Awardee"
-        bid_si = data.get("awards", [{}])[0].get("amount", None)
-
-    # # Создание DataFrame и запись в файл Excel
-    # df = pd.DataFrame(all_data)
-    # df.to_excel("output.xlsx", index=False)
+# # Создание DataFrame и запись в файл Excel
+# df = pd.DataFrame(all_data)
+# df.to_excel("output.xlsx", index=False)
 
 
 if __name__ == "__main__":
     # parisng_json_pages()
     # get_json_company()
-    paring_json_company()
+    # paring_json_company()
+    all_data()

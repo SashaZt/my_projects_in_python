@@ -293,6 +293,7 @@ async def single_html_one(url):
             await page.goto(url, timeout=60000, wait_until="networkidle")
             await asyncio.sleep(2)
             for inn in inns:
+                logger.info(inn)
                 html_file_path = html_files_directory / f"inn_{inn}.html"
                 if html_file_path.exists():
                     continue  # Переходим к следующей итерации цикла
