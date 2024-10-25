@@ -9,6 +9,7 @@ from tqdm import tqdm
 import json
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
 from get_response import Get_Response
+from concurrent.futures import ThreadPoolExecutor
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -229,202 +230,399 @@ def get_html_doctor():
     logger.info(response.status_code)
 
 
-def parsing_page():
-    # Множество для хранения уникальных itm_value
-    all_data = []
-    # Пройтись по каждому HTML файлу в папке
-    for html_file in html_files_pages_directory.glob("*.html"):
-        with html_file.open(encoding="utf-8") as file:
-            # Прочитать содержимое файла
-            content: str = file.read()
-            # Создать объект BeautifulSoup
-            phone_number = None
-            profile = None
-            img = None
-            doctor_specializations = None
-            rating = None
-            reviews = None
-            name = None
-            clinic_name = None
-            adress = None
-            description = None
-            accepted_insurances = None
-            services = None
-            soup = BeautifulSoup(content, "lxml")
-            div_element = soup.find("div", attrs={"class": "card bg-gray-100"})
+# def parsing_page():
+#     # Множество для хранения уникальных itm_value
+#     all_data = []
+#     # Пройтись по каждому HTML файлу в папке
+#     for html_file in html_files_directory.glob("*.html"):
+#         with html_file.open(encoding="utf-8") as file:
+#             logger.info(html_file)
+#             # Прочитать содержимое файла
+#             content: str = file.read()
+#             # Создать объект BeautifulSoup
+#             phone_number = None
+#             profile = None
+#             img = None
+#             doctor_specializations = None
+#             rating = None
+#             reviews = None
+#             name = None
+#             clinic_name = None
+#             adress = None
+#             description = None
+#             accepted_insurances = None
+#             services = None
+#             soup = BeautifulSoup(content, "lxml")
+#             div_element = soup.find("div", attrs={"class": "card bg-gray-100"})
 
-            if div_element:
+#             if div_element:
 
-                phone_number_tag = div_element.find("b")
-                if phone_number_tag:
-                    phone_number = phone_number_tag.get_text(strip=True)
-                    phone_number = phone_number.replace(" ", "").replace("\n", "")
-                    phone_number = f"+49{phone_number}"
+#                 phone_number_tag = div_element.find("b")
+#                 if phone_number_tag:
+#                     phone_number = phone_number_tag.get_text(strip=True)
+#                     phone_number = phone_number.replace(" ", "").replace("\n", "")
+#                     phone_number = f"+49{phone_number}"
 
-            profile_raw = soup.find("span", attrs={"class": "badge bg-warning-light"})
-            if profile_raw:
-                profile = profile_raw.get_text(strip=True)
-            img_raw = (
-                soup.find(
-                    "div", attrs={"class": "media mb-1 pb-md-1 align-items-stretch"}
-                )
-                .find("a")
-                .get("href")
+#             profile_raw = soup.find("span", attrs={"class": "badge bg-warning-light"})
+#             if profile_raw:
+#                 profile = profile_raw.get_text(strip=True)
+#             img_div = soup.find(
+#                 "div", attrs={"class": "media mb-1 pb-md-1 align-items-stretch"}
+#             )
+#             if img_div:
+#                 img_a = img_div.find("a")
+#                 if img_a:
+#                     img_raw = img_a.get("href")
+#                 else:
+#                     img_raw = None  # или другое значение по умолчанию
+#             else:
+#                 img_raw = None  # или другое значение по умолчанию
+
+#             img = f"https:{img_raw}"
+#             doctor_specializations_raw = soup.find(
+#                 "span", attrs={"data-test-id": "doctor-specializations"}
+#             )
+#             if doctor_specializations_raw:
+#                 doctor_specializations = " ".join(
+#                     doctor_specializations_raw.get_text(strip=True).split()
+#                 )
+#                 doctor_specializations = [
+#                     spec.strip() for spec in doctor_specializations.split(",")
+#                 ]
+#             rating_raw = soup.find(
+#                 "u",
+#                 attrs={
+#                     "class": "rating rating-lg unified-doctor-header-info__rating-text"
+#                 },
+#             )
+#             if rating_raw:
+#                 rating = rating_raw.get("data-score")
+#                 reviews = (
+#                     rating_raw.find("span")
+#                     .get_text(strip=True)
+#                     .replace(" Bewertungen", "")
+#                 )
+#             name_raw = soup.find("span", attrs={"itemprop": "name"})
+#             if name_raw:
+#                 name = name_raw.get_text(strip=True)
+#             clinic_name_raw = soup.find("div", attrs={"data-test-id": "address-info"})
+#             if clinic_name_raw:
+#                 # Проверяем, что элемент "a" существует
+#                 clinic_name_element = clinic_name_raw.find("a")
+#                 if clinic_name_element:
+#                     clinic_name = " ".join(
+#                         clinic_name_element.get_text(strip=True).split()
+#                     )
+#                 else:
+#                     clinic_name = None  # или другое значение по умолчанию
+
+#                 # Проверяем, что элемент с адресом существует
+#                 adress_raw = clinic_name_raw.find(
+#                     "span", attrs={"itemprop": "streetAddress"}
+#                 )
+#                 if adress_raw:
+#                     adress = " ".join(adress_raw.get_text(strip=True).split())
+#                 else:
+#                     adress = None  # или другое значение по умолчанию
+#             description_section = soup.find("section", id="about-section")
+#             if description_section:
+#                 title_element = description_section.find(
+#                     "h2", class_="h3 section-header mb-1-5"
+#                 )
+#                 title = title_element.get_text(strip=True) if title_element else ""
+
+#                 herzlich_willkommen_element = description_section.find_all(
+#                     "div", class_="about-description"
+#                 )
+#                 herzlich_willkommen_text = " ".join(
+#                     [
+#                         " ".join(herz.get_text(separator=" ", strip=True).split())
+#                         for herz in herzlich_willkommen_element
+#                     ]
+#                 )
+
+#                 description = {
+#                     "title": title,
+#                     "Herzlich willkommen": herzlich_willkommen_text,
+#                 }
+#             accepted_insurances_raw = soup.find(
+#                 "div", attrs={"data-test-id": "insurance-info"}
+#             )
+#             if accepted_insurances_raw:
+#                 accepted_insurances = accepted_insurances_raw.find_all(
+#                     "a", class_="text-muted"
+#                 )
+#                 accepted_insurances = [
+#                     link.get_text(strip=True) for link in accepted_insurances
+#                 ]
+#             # Извлечение информации о сервисах и их описаниях
+#             services_section = soup.find("section", id="profile-pricing")
+#             services = []
+#             if services_section:
+#                 service_elements = services_section.find_all(
+#                     "div", attrs={"data-test-id": "profile-pricing-list-details"}
+#                 )
+#                 for service_element in service_elements:
+#                     service_name_element = service_element.find_previous_sibling(
+#                         "div", attrs={"data-test-id": "profile-pricing-list-element"}
+#                     )
+#                     service_name = (
+#                         service_name_element.find(
+#                             "p", itemprop="availableService"
+#                         ).get_text(strip=True)
+#                         if service_name_element
+#                         else ""
+#                     )
+
+#                     service_description_element = service_element.find(
+#                         "p",
+#                         attrs={"data-test-id": "profile-pricing-element-description"},
+#                     )
+#                     service_description = (
+#                         " ".join(
+#                             service_description_element.get_text(strip=True).split()
+#                         )
+#                         if service_description_element
+#                         else ""
+#                     )
+
+#                     if service_name and service_description:
+#                         services.append([service_name, service_description])
+#             opening_hours_element = soup.find(
+#                 "div", attrs={"data-id": re.compile(r"^opening-hours-.*")}
+#             )
+#             opening_hours = []
+#             if opening_hours_element:
+#                 rows = opening_hours_element.find_all(
+#                     "div", class_=re.compile(r"row pb-0-5.*")
+#                 )
+#                 days_map = {
+#                     "Montag": 0,
+#                     "Dienstag": 1,
+#                     "Mittwoch": 2,
+#                     "Donnerstag": 3,
+#                     "Freitag": 4,
+#                     "Samstag": 5,
+#                     "Sonntag": 6,
+#                 }
+#                 for row in rows:
+#                     day_name_element = row.find("div", class_="col-4 col-md-4")
+#                     if day_name_element:
+#                         day_name = day_name_element.get_text(strip=True)
+#                         day = days_map.get(day_name)
+#                         if day is not None:
+#                             ranges = []
+#                             time_elements = row.find_all("div", class_="col-4 col-md-3")
+#                             for time_element in time_elements:
+#                                 times = (
+#                                     time_element.get_text(strip=True)
+#                                     .replace(" ", "")
+#                                     .replace("\n", "")
+#                                     .split("-")
+#                                 )
+#                                 if len(times) == 2:
+#                                     ranges.append([times[0], times[1]])
+#                             opening_hours.append({"day": day, "ranges": ranges})
+#             datas = {
+#                 "phone_number": phone_number,
+#                 "profile": profile,
+#                 "img": img,
+#                 "doctor_specializations": doctor_specializations,
+#                 "rating": rating,
+#                 "reviews": reviews,
+#                 "name": name,
+#                 "clinic_name": clinic_name,
+#                 "adress": adress,
+#                 "description": description,
+#                 "accepted_insurances": accepted_insurances,
+#                 "services": services,
+#                 "opening_hours": opening_hours,
+#             }
+#             all_data.append(datas)
+
+#     save_data_to_json(all_data)
+
+
+def parsing_page(html_file):
+    # Прочитать содержимое файла
+    with html_file.open(encoding="utf-8") as file:
+        logger.info(html_file)
+        content = file.read()
+
+    # Создать объект BeautifulSoup
+    soup = BeautifulSoup(content, "lxml")
+    phone_number, profile, img, doctor_specializations, rating, reviews, name = (
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    clinic_name, address, description, accepted_insurances, services = (
+        None,
+        None,
+        None,
+        None,
+        [],
+    )
+    div_element = soup.find("div", attrs={"class": "card bg-gray-100"})
+
+    if div_element:
+        phone_number_tag = div_element.find("b")
+        if phone_number_tag:
+            phone_number = (
+                phone_number_tag.get_text(strip=True).replace(" ", "").replace("\n", "")
             )
+            phone_number = f"+49{phone_number}"
 
-            img = f"https:{img_raw}"
-            doctor_specializations_raw = soup.find(
-                "span", attrs={"data-test-id": "doctor-specializations"}
+    profile_raw = soup.find("span", attrs={"class": "badge bg-warning-light"})
+    if profile_raw:
+        profile = profile_raw.get_text(strip=True)
+
+    img_div = soup.find(
+        "div", attrs={"class": "media mb-1 pb-md-1 align-items-stretch"}
+    )
+    img_raw = img_div.find("a").get("href") if img_div and img_div.find("a") else None
+    img = f"https:{img_raw}" if img_raw and "amazonaws.com" in img_raw else None
+
+    doctor_specializations_raw = soup.find(
+        "span", attrs={"data-test-id": "doctor-specializations"}
+    )
+    if doctor_specializations_raw:
+        doctor_specializations = [
+            spec.strip()
+            for spec in doctor_specializations_raw.get_text(strip=True).split(",")
+        ]
+
+    rating_raw = soup.find(
+        "u", attrs={"class": "rating rating-lg unified-doctor-header-info__rating-text"}
+    )
+    if rating_raw:
+        rating = rating_raw.get("data-score")
+        reviews_span = rating_raw.find("span")
+        if reviews_span:
+            reviews = reviews_span.get_text(strip=True).replace(" Bewertungen", "")
+
+    name_raw = soup.find("span", attrs={"itemprop": "name"})
+    if name_raw:
+        name = name_raw.get_text(strip=True)
+
+    description_section = soup.find("section", id="about-section")
+    if description_section:
+        title_element = description_section.find(
+            "h2", class_="h3 section-header mb-1-5"
+        )
+        title = title_element.get_text(strip=True) if title_element else ""
+        herzlich_willkommen_element = description_section.find_all(
+            "div", class_="about-description"
+        )
+        herzlich_willkommen_text = " ".join(
+            [
+                herz.get_text(separator=" ", strip=True)
+                for herz in herzlich_willkommen_element
+            ]
+        )
+        description = {"title": title, "Herzlich willkommen": herzlich_willkommen_text}
+
+    accepted_insurances_raw = soup.find("div", attrs={"data-test-id": "insurance-info"})
+    if accepted_insurances_raw:
+        accepted_insurances = [
+            link.get_text(strip=True)
+            for link in accepted_insurances_raw.find_all("a", class_="text-muted")
+        ]
+
+    services_section = soup.find("section", id="profile-pricing")
+    if services_section:
+        service_elements = services_section.find_all(
+            "div", attrs={"data-test-id": "profile-pricing-list-details"}
+        )
+        for service_element in service_elements:
+            service_name_element = service_element.find_previous_sibling(
+                "div", attrs={"data-test-id": "profile-pricing-list-element"}
             )
-            if doctor_specializations_raw:
-                doctor_specializations = " ".join(
-                    doctor_specializations_raw.get_text(strip=True).split()
+            if service_name_element:
+                service_name = (
+                    service_name_element.find(
+                        "p", itemprop="availableService"
+                    ).get_text(strip=True)
+                    if service_name_element.find("p", itemprop="availableService")
+                    else ""
                 )
-                doctor_specializations = [
-                    spec.strip() for spec in doctor_specializations.split(",")
-                ]
-            rating_raw = soup.find(
-                "u",
-                attrs={
-                    "class": "rating rating-lg unified-doctor-header-info__rating-text"
-                },
-            )
-            if rating_raw:
-                rating = rating_raw.get("data-score")
-                reviews = (
-                    rating_raw.find("span")
-                    .get_text(strip=True)
-                    .replace(" Bewertungen", "")
+                service_description_element = service_element.find(
+                    "p", attrs={"data-test-id": "profile-pricing-element-description"}
                 )
-            name_raw = soup.find("span", attrs={"itemprop": "name"})
-            if name_raw:
-                name = name_raw.get_text(strip=True)
-            clinic_name_raw = soup.find("div", attrs={"data-test-id": "address-info"})
-            if clinic_name_raw:
-                clinic_name = " ".join(
-                    clinic_name_raw.find("a").get_text(strip=True).split()
+                service_description = (
+                    service_description_element.get_text(strip=True)
+                    if service_description_element
+                    else ""
                 )
-                adress_raw = clinic_name_raw.find(
-                    "span", attrs={"itemprop": "streetAddress"}
-                )
-                adress = " ".join(adress_raw.get_text(strip=True).split())
-            description_section = soup.find("section", id="about-section")
-            if description_section:
-                title_element = description_section.find(
-                    "h2", class_="h3 section-header mb-1-5"
-                )
-                title = title_element.get_text(strip=True) if title_element else ""
+                if service_name and service_description:
+                    services.append([service_name, service_description])
 
-                herzlich_willkommen_element = description_section.find_all(
-                    "div", class_="about-description"
-                )
-                herzlich_willkommen_text = " ".join(
-                    [
-                        " ".join(herz.get_text(separator=" ", strip=True).split())
-                        for herz in herzlich_willkommen_element
-                    ]
-                )
+    all_clinic = soup.find("div", attrs={"data-id": "address-tabs-content"})
+    if all_clinic:
+        clinics = all_clinic.find_all("div", attrs={"data-id": "address-tabs-content"})
+    clinic_name_raw = soup.find("div", attrs={"data-test-id": "address-info"})
+    if clinic_name_raw:
+        clinic_name_element = clinic_name_raw.find("a")
+        clinic_name = (
+            clinic_name_element.get_text(strip=True) if clinic_name_element else None
+        )
+        address_raw = clinic_name_raw.find("span", attrs={"itemprop": "streetAddress"})
+        address = address_raw.get_text(strip=True) if address_raw else None
 
-                description = {
-                    "title": title,
-                    "Herzlich willkommen": herzlich_willkommen_text,
-                }
-            accepted_insurances_raw = soup.find(
-                "div", attrs={"data-test-id": "insurance-info"}
-            )
-            if accepted_insurances_raw:
-                accepted_insurances = accepted_insurances_raw.find_all(
-                    "a", class_="text-muted"
-                )
-                accepted_insurances = [
-                    link.get_text(strip=True) for link in accepted_insurances
-                ]
-            # Извлечение информации о сервисах и их описаниях
-            services_section = soup.find("section", id="profile-pricing")
-            services = []
-            if services_section:
-                service_elements = services_section.find_all(
-                    "div", attrs={"data-test-id": "profile-pricing-list-details"}
-                )
-                for service_element in service_elements:
-                    service_name_element = service_element.find_previous_sibling(
-                        "div", attrs={"data-test-id": "profile-pricing-list-element"}
-                    )
-                    service_name = (
-                        service_name_element.find(
-                            "p", itemprop="availableService"
-                        ).get_text(strip=True)
-                        if service_name_element
-                        else ""
-                    )
-
-                    service_description_element = service_element.find(
-                        "p",
-                        attrs={"data-test-id": "profile-pricing-element-description"},
-                    )
-                    service_description = (
-                        " ".join(
-                            service_description_element.get_text(strip=True).split()
+    opening_hours_element = soup.find(
+        "div", attrs={"data-id": re.compile(r"^opening-hours-.*")}
+    )
+    opening_hours = []
+    if opening_hours_element:
+        rows = opening_hours_element.find_all("div", class_=re.compile(r"row pb-0-5.*"))
+        days_map = {
+            "Montag": 0,
+            "Dienstag": 1,
+            "Mittwoch": 2,
+            "Donnerstag": 3,
+            "Freitag": 4,
+            "Samstag": 5,
+            "Sonntag": 6,
+        }
+        for row in rows:
+            day_name_element = row.find("div", class_="col-4 col-md-4")
+            if day_name_element:
+                day_name = day_name_element.get_text(strip=True)
+                day = days_map.get(day_name)
+                if day is not None:
+                    ranges = []
+                    time_elements = row.find_all("div", class_="col-4 col-md-3")
+                    for time_element in time_elements:
+                        times = (
+                            time_element.get_text(strip=True)
+                            .replace(" ", "")
+                            .replace("\n", "")
+                            .replace("\t", "")
+                            .split("-")
                         )
-                        if service_description_element
-                        else ""
-                    )
+                        if len(times) == 2:
+                            ranges.append([times[0], times[1]])
+                    opening_hours.append({"day": day, "ranges": ranges})
 
-                    if service_name and service_description:
-                        services.append([service_name, service_description])
-            opening_hours_element = soup.find(
-                "div", attrs={"data-id": re.compile(r"^opening-hours-.*")}
-            )
-            opening_hours = []
-            if opening_hours_element:
-                rows = opening_hours_element.find_all(
-                    "div", class_=re.compile(r"row pb-0-5.*")
-                )
-                days_map = {
-                    "Montag": 0,
-                    "Dienstag": 1,
-                    "Mittwoch": 2,
-                    "Donnerstag": 3,
-                    "Freitag": 4,
-                    "Samstag": 5,
-                    "Sonntag": 6,
-                }
-                for row in rows:
-                    day_name_element = row.find("div", class_="col-4 col-md-4")
-                    if day_name_element:
-                        day_name = day_name_element.get_text(strip=True)
-                        day = days_map.get(day_name)
-                        if day is not None:
-                            ranges = []
-                            time_elements = row.find_all("div", class_="col-4 col-md-3")
-                            for time_element in time_elements:
-                                times = (
-                                    time_element.get_text(strip=True)
-                                    .replace(" ", "")
-                                    .replace("\n", "")
-                                    .split("-")
-                                )
-                                if len(times) == 2:
-                                    ranges.append([times[0], times[1]])
-                            opening_hours.append({"day": day, "ranges": ranges})
-            datas = {
-                "phone_number": phone_number,
-                "profile": profile,
-                "img": img,
-                "doctor_specializations": doctor_specializations,
-                "rating": rating,
-                "reviews": reviews,
-                "name": name,
-                "clinic_name": clinic_name,
-                "adress": adress,
-                "description": description,
-                "accepted_insurances": accepted_insurances,
-                "services": services,
-                "opening_hours": opening_hours,
-            }
-            all_data.append(datas)
-
-    save_data_to_json(all_data)
+    return {
+        "phone_number": phone_number,
+        "profile": profile,
+        "img": img,
+        "doctor_specializations": doctor_specializations,
+        "rating": rating,
+        "reviews": reviews,
+        "name": name,
+        "clinic_name": clinic_name,
+        "address": address,
+        "description": description,
+        "accepted_insurances": accepted_insurances,
+        "services": services,
+        "opening_hours": opening_hours,
+    }
 
 
 def save_data_to_json(datas):
@@ -485,24 +683,32 @@ def pars_pagin():
                 logger.info(f"Всего страниц {total_pages}")
 
 
+def main(parallelism):
+    with ThreadPoolExecutor(max_workers=parallelism) as executor:
+        all_data = list(executor.map(parsing_page, html_files_directory.glob("*.html")))
+    save_data_to_json(all_data)
+
+
 if __name__ == "__main__":
     # get_page_city()
     # get_url_in_pages()
-    max_workers = 20
-    response_handler = Get_Response(
-        max_workers,
-        # base_url,
-        cookies,
-        headers,
-        html_files_directory,
-        csv_file_successful,
-        output_csv_file,
-        file_proxy,
-        # url_sitemap,
-    )
-    # Запуск метода для получения всех sitemaps и обработки
+    # max_workers = 20
+    # response_handler = Get_Response(
+    #     max_workers,
+    #     # base_url,
+    #     cookies,
+    #     headers,
+    #     html_files_directory,
+    #     csv_file_successful,
+    #     output_csv_file,
+    #     file_proxy,
+    #     # url_sitemap,
+    # )
+    # # Запуск метода для получения всех sitemaps и обработки
 
-    # Запуск метода скачивания html файлов
-    response_handler.process_infox_file()
-    # parsing_page()
+    # # Запуск метода скачивания html файлов
+    # response_handler.process_infox_file()
+
+    parallelism = 20  # Укажите количество потоков
+    main(parallelism)
     # pars_pagin()

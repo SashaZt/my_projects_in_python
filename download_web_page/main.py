@@ -80,6 +80,9 @@ def get_html():
 
 
 def get_json():
+    proxies = load_proxies()  # Загружаем список всех прокси
+    proxy = random.choice(proxies)  # Выбираем случайный прокси
+    proxies_dict = {"http": proxy, "https": proxy}
 
     response = requests.post(
         "https://prom.ua/graphql", cookies=cookies, headers=headers, json=json_data
@@ -96,34 +99,57 @@ def get_json():
 
 
 def download_xml():
-    save_path = "sitemap.products.xml"
-    url = "https://www.ua-region.com.ua/sitemap.xml"
+    proxies = load_proxies()  # Загружаем список всех прокси
+    proxy = random.choice(proxies)  # Выбираем случайный прокси
+    proxies_dict = {"http": proxy, "https": proxy}
+    save_path = "sitemap.xml"
+
     cookies = {
-        "G_ENABLED_IDPS": "google",
-        "PHPSESSID": "d7tptvp0pdt9s2n4eo585c7tp1",
+        "JSESSIONID": "8jlT86O_r7Msy9ngmKSlZts40VMS-5ynG1gI-XnY.msc01-popp01:main-popp",
     }
 
     headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept": "application/xml, text/xml, */*; q=0.01",
         "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-        "Cache-Control": "no-cache",
         "Connection": "keep-alive",
-        # 'Cookie': 'G_ENABLED_IDPS=google; PHPSESSID=d7tptvp0pdt9s2n4eo585c7tp1',
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        # 'Cookie': 'JSESSIONID=8jlT86O_r7Msy9ngmKSlZts40VMS-5ynG1gI-XnY.msc01-popp01:main-popp',
         "DNT": "1",
-        "Pragma": "no-cache",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "cross-site",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-        "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
+        "Faces-Request": "partial/ajax",
+        "Origin": "http://zakupki.gov.kg",
+        "Referer": "http://zakupki.gov.kg/popp/view/order/winners.xhtml",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "X-Requested-With": "XMLHttpRequest",
     }
 
-    # Отправка GET-запроса на указанный URL
-    response = requests.get(url, cookies=cookies, headers=headers)
+    params = {
+        "cid": "1",
+    }
+
+    data = {
+        "javax.faces.partial.ajax": "true",
+        "javax.faces.source": "table",
+        "javax.faces.partial.execute": "table",
+        "javax.faces.partial.render": "table",
+        "table": "table",
+        "table_pagination": "true",
+        "table_first": "30",
+        "table_rows": "10",
+        "table_skipChildren": "true",
+        "table_encodeFeature": "true",
+        "form": "form",
+        "javax.faces.ViewState": "4727326906421657138:4557913132076905415",
+    }
+
+    response = requests.post(
+        "http://zakupki.gov.kg/popp/view/order/winners.xhtml",
+        params=params,
+        cookies=cookies,
+        headers=headers,
+        data=data,
+        verify=False,
+        # proxies=proxies_dict,
+    )
 
     # Проверка успешности запроса
     if response.status_code == 200:
@@ -362,7 +388,7 @@ def download_pdf():
 if __name__ == "__main__":
     # get_html()
     # download_pdf()
-    parsing_page()
+    # parsing_page()
     # Вызов функции с файлом unique_itm_urls.csv
     # parsing_product()
     # get_responses_from_urls("unique_itm_urls.csv")
@@ -370,7 +396,7 @@ if __name__ == "__main__":
     # Запуск функции для обхода директории
 
     # get_json()
-    # download_xml()
+    download_xml()
     # parsing_xml()
     # fetch_and_save()
     # parsing_csv()

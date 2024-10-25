@@ -144,6 +144,48 @@ async def single_html(urls):
         logger.error(f"Ошибка при обработке URL: {e}")
 
 
+# Асинхронная функция для сохранения HTML и получения ссылок по XPath
+async def single_html_one(url):
+    proxies = load_proxies()
+    proxy = random.choice(proxies) if proxies else None
+    if not proxies:
+        logger.info("Прокси не найдено, работа будет выполнена локально.")
+    try:
+        proxy_config = parse_proxy(proxy) if proxy else None
+        async with async_playwright() as p:
+            browser = (
+                await p.chromium.launch(proxy=proxy_config, headless=False)
+                if proxy
+                else await p.chromium.launch(headless=False)
+            )
+            context = await browser.new_context(accept_downloads=True)
+            page = await context.new_page()
+
+            # Отключаем медиа
+            await page.route(
+                "**/*",
+                lambda route: (
+                    route.abort()
+                    if route.request.resource_type in ["image", "media"]
+                    else route.continue_()
+                ),
+            )
+            # Переход на страницу и ожидание полной загрузки
+            await page.goto(url, timeout=60000, wait_until="networkidle")
+
+            content = await page.content()
+            html_file_path = (
+                html_files_directory / f"{url.replace(':', '').replace('/', '_')}.html"
+            )
+            with open(html_file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+        await context.close()
+        await browser.close()
+    except Exception as e:
+        logger.error(f"Ошибка при обработке URL: {e}")
+
+
 # Функция для парсинга прокси
 def parse_proxy(proxy):
     if "@" in proxy:
@@ -211,8 +253,10 @@ def download_pdf(idRCRD, cookies):
 
 # Функция для выполнения основной логики
 def main():
-    urls = get_urls(output_csv_file)
-    asyncio.run(single_html(urls))
+    # urls = get_urls(output_csv_file)
+    # asyncio.run(single_html(urls))
+    url = "http://zakupki.gov.kg/popp/view/order/winners.xhtml"
+    asyncio.run(single_html_one(url))
 
 
 if __name__ == "__main__":
