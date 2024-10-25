@@ -33,6 +33,7 @@ def load_proxies():
 
 
 def get_html():
+    timeout = 30
     proxies = load_proxies()  # Загружаем список всех прокси
     proxy = random.choice(proxies)  # Выбираем случайный прокси
     proxies_dict = {"http": proxy, "https": proxy}
@@ -69,6 +70,7 @@ def get_html():
         cookies=cookies,
         headers=headers,
         proxies=proxies_dict,
+        timeout=timeout,
     )
 
     # Проверка кода ответа
@@ -80,22 +82,91 @@ def get_html():
 
 
 def get_json():
+    timeout = 30
     proxies = load_proxies()  # Загружаем список всех прокси
     proxy = random.choice(proxies)  # Выбираем случайный прокси
     proxies_dict = {"http": proxy, "https": proxy}
+    cookies = {
+        "8020f80b5f22684beb6e2f5b559c57a9": "c5a427ee1d20c834b37ecb224ba52d87",
+        "1686d7a14f465e6537467e88114cf7e8": "9009d01537a3658e432f2f7d1d1ffc69",
+    }
 
-    response = requests.post(
-        "https://prom.ua/graphql", cookies=cookies, headers=headers, json=json_data
-    )
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "content-type": "application/json",
+        # 'cookie': '8020f80b5f22684beb6e2f5b559c57a9=c5a427ee1d20c834b37ecb224ba52d87; 1686d7a14f465e6537467e88114cf7e8=9009d01537a3658e432f2f7d1d1ffc69',
+        "dnt": "1",
+        "origin": "https://purchasing.alberta.ca",
+        "priority": "u=1, i",
+        "referer": "https://purchasing.alberta.ca/search",
+        "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    }
+    for offset in range(0, 5):
+        json_data = {
+            "query": "",
+            "filter": {
+                "solicitationNumber": "",
+                "categories": [
+                    {
+                        "value": "CNST",
+                        "selected": True,
+                        "count": 0,
+                    },
+                ],
+                "statuses": [
+                    {
+                        "value": "AWARD",
+                        "selected": True,
+                        "count": 0,
+                    },
+                ],
+                "agreementTypes": [],
+                "solicitationTypes": [],
+                "opportunityTypes": [],
+                "deliveryRegions": [],
+                "deliveryRegion": "",
+                "organizations": [],
+                "unspsc": [],
+                "postDateRange": "$$custom",
+                "closeDateRange": "$$custom",
+                "onlyBookmarked": False,
+                "onlyInterestExpressed": False,
+            },
+            "limit": 100,
+            "offset": offset,
+            "sortOptions": [
+                {
+                    "field": "PostDateTime",
+                    "direction": "desc",
+                },
+            ],
+        }
 
-    # Проверка кода ответа
-    if response.status_code == 200:
-        json_data = response.json()
-        # filename = os.path.join(json_path, f"0.json")
-        with open("proba.json", "w", encoding="utf-8") as f:
-            json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
-    else:
-        print(response.status_code)
+        response = requests.post(
+            "https://purchasing.alberta.ca/api/opportunity/search",
+            cookies=cookies,
+            headers=headers,
+            json=json_data,
+            timeout=timeout,
+        )
+
+        # Проверка кода ответа
+        if response.status_code == 200:
+            json_data = response.json()
+            # filename = os.path.join(json_path, f"0.json")
+            with open(f"proba_{offset}.json", "w", encoding="utf-8") as f:
+                json.dump(
+                    json_data, f, ensure_ascii=False, indent=4
+                )  # Записываем в файл
+        else:
+            print(response.status_code)
 
 
 def download_xml():
@@ -395,8 +466,8 @@ if __name__ == "__main__":
     # parsing()
     # Запуск функции для обхода директории
 
-    # get_json()
-    download_xml()
+    get_json()
+    # download_xml()
     # parsing_xml()
     # fetch_and_save()
     # parsing_csv()

@@ -4,7 +4,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright
 import pandas as pd
 from configuration.logger_setup import logger
-import aiofiles
+import json
 import os
 from bs4 import BeautifulSoup
 import re
@@ -13,13 +13,22 @@ import re
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
 html_files_directory = current_directory / "html_files"
+html_files_page_directory = current_directory / "html_files_page"
 configuration_directory = current_directory / "configuration"
 
 data_directory.mkdir(parents=True, exist_ok=True)
 html_files_directory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
+html_files_page_directory.mkdir(parents=True, exist_ok=True)
 
 file_proxy = configuration_directory / "roman.txt"
+csv_output_file = current_directory / "inn_data.csv"
+
+
+# Функция для чтения городов из CSV файла
+def read_cities_from_csv(input_csv_file):
+    df = pd.read_csv(input_csv_file)
+    return df["url"].tolist()
 
 
 # Функция загрузки списка прокси
@@ -135,7 +144,8 @@ def parse_proxy(proxy):
 #         logger.error(f"Ошибка при обработке URL: {e}")
 
 
-async def single_html_one(url):
+async def single_html_one_contact(url):
+    # Парсим контакты
     proxies = load_proxies()
     proxy = random.choice(proxies) if proxies else None
     if not proxies:
@@ -245,58 +255,171 @@ async def single_html_one(url):
                     f"Максимальное количество попыток ({max_attempts}) достигнуто. Остановка выполнения."
                 )
 
-                # try:
-                #     # Ждем появления целевого элемента на странице (Page 700)
-                #     target_element = await page.wait_for_selector(
-                #         'a.ui-paginator-page.ui-state-default.ui-corner-all[aria-label="Page 700"]',
-                #         timeout=5000,
-                #     )
-                #     if target_element:
-                #         logger.info("Элемент с текстом 'Page 700' найден.")
-                #         # Переходим к новому этапу, чтобы дождаться, пока элемент пропадет
-                #         while True:
-                #             # Ищем кнопку "Next Page"
-                #             next_button = await page.query_selector(
-                #                 "a.ui-paginator-next.ui-state-default.ui-corner-all"
-                #             )
-                #             if not next_button:
-                #                 logger.warning(
-                #                     "Кнопка 'Next Page' не найдена. Останов остановлен."
-                #                 )
-                #                 break
-
-                #             # Нажимаем на кнопку "Next Page" и ждем загрузки страницы
-                #             await next_button.click()
-                #             await page.wait_for_load_state("networkidle")
-
-                #             # Проверяем, пропал ли целевой элемент
-                #             target_element = await page.query_selector(
-                #                 'a.ui-paginator-page.ui-state-default.ui-corner-all[aria-label="Page 700"]'
-                #             )
-                #             if not target_element:
-                #                 logger.info(
-                #                     "Элемент с текстом 'Page 700' больше не отображается."
-                #                 )
-                #                 break
-
-                #             # Обрабатываем текущую страницу
-                #             await process_page(page)
-
-                #         # Когда элемент пропал, выходим из первого цикла
-                #         break
-                # except:
-                #     # Если нужный элемент не найден в течение 5 секунд, продолжаем с кнопкой "Next Page"
-                #     pass
-
-                # Ищем кнопку "Next Page"
-
         await context.close()
         await browser.close()
     except Exception as e:
         logger.error(f"Ошибка при обработке URL: {e}")
 
 
-async def process_page(page):
+async def single_html_one(url):
+    inns = read_cities_from_csv(csv_output_file)
+    # Парсим поставщиков
+    proxies = load_proxies()
+    proxy = random.choice(proxies) if proxies else None
+    if not proxies:
+        logger.info("Прокси не найдено, работа будет выполнено локально.")
+    try:
+        proxy_config = parse_proxy(proxy) if proxy else None
+        async with async_playwright() as p:
+            browser = (
+                await p.chromium.launch(proxy=proxy_config, headless=False)
+                if proxy
+                else await p.chromium.launch(headless=False)
+            )
+            context = await browser.new_context(accept_downloads=True)
+            page = await context.new_page()
+
+            # Отключаем медиа
+            await page.route(
+                "**/*",
+                lambda route: (
+                    route.abort()
+                    if route.request.resource_type in ["image", "media"]
+                    else route.continue_()
+                ),
+            )
+
+            # Переход на страницу и ожидание полной загрузки
+            await page.goto(url, timeout=60000, wait_until="networkidle")
+            await asyncio.sleep(2)
+            for inn in inns:
+                html_file_path = html_files_directory / f"inn_{inn}.html"
+                if html_file_path.exists():
+                    continue  # Переходим к следующей итерации цикла
+                await page.wait_for_selector(
+                    "input[type='text'][name='j_idt66']", timeout=10000
+                )
+                await page.fill("input[type='text'][name='j_idt66']", inn)
+                logger.info(f"Вставили {inn}")
+                await page.wait_for_selector(
+                    "input[id='j_idt79'][type='submit']", timeout=10000
+                )
+                await page.click("input[id='j_idt79'][type='submit']")
+                await page.wait_for_selector(
+                    "table.display-table.public-table", timeout=10000
+                )
+                first_row_link = await page.query_selector(
+                    "table.display-table.public-table tbody tr:first-child a[onclick*='mojarra.jsfcljs']"
+                )
+                if first_row_link:
+                    await first_row_link.click()
+                    # Проверяем наличие ошибки на странице
+                error_element = await page.query_selector(
+                    "p[style='font-size:24px;color:#1785aa;font-weight: bold;']"
+                )
+                if error_element:
+                    logger.warning("Обнаружена ошибка на странице, перезагружаем...")
+                    await page.goto(url, timeout=60000, wait_until="networkidle")
+                # Находим элемент "Назад" и нажимаем на него
+                back_button = await page.wait_for_selector(
+                    "//a[@class='button-grey' and text()='Назад']",
+                    timeout=30000,
+                )
+                # await asyncio.sleep(1)
+                html_content = await page.content()
+                with open(html_file_path, "w", encoding="utf-8") as file:
+                    file.write(html_content)
+                    logger.info(f"Файл {html_file_path} успешно сохранен.")
+
+                await back_button.click()
+                # Очистка поля ввода после сохранения
+                await page.fill("input[type='text'][name='j_idt66']", "")
+
+            await context.close()
+            await browser.close()
+
+    except Exception as e:
+        logger.error(f"Ошибка при выполнении: {e}")
+
+
+async def single_html_page_company(url):
+
+    # Парсим поставщиков
+    proxies = load_proxies()
+    proxy = random.choice(proxies) if proxies else None
+    if not proxies:
+        logger.info("Прокси не найдено, работа будет выполнено локально.")
+    try:
+        proxy_config = parse_proxy(proxy) if proxy else None
+        async with async_playwright() as p:
+            browser = (
+                await p.chromium.launch(proxy=proxy_config, headless=False)
+                if proxy
+                else await p.chromium.launch(headless=False)
+            )
+            context = await browser.new_context(accept_downloads=True)
+            page = await context.new_page()
+
+            # Отключаем медиа
+            await page.route(
+                "**/*",
+                lambda route: (
+                    route.abort()
+                    if route.request.resource_type in ["image", "media"]
+                    else route.continue_()
+                ),
+            )
+
+            # Переход на страницу и ожидание полной загрузки
+            await page.goto(url, timeout=60000, wait_until="networkidle")
+            # Дожидаемся появления выпадающего списка и выбираем значение "50"
+            await asyncio.sleep(3)
+            while True:
+                # Находим все ссылки внутри ячеек и кликаем по очереди
+                await page.wait_for_selector("//td[@role='gridcell']//a", timeout=30000)
+                links = await page.locator("//td[@role='gridcell']//a").all()
+                if not links:
+                    break
+                await process_page_company(page)
+
+                next_button = await page.query_selector(
+                    "#table_paginator_bottom .ui-paginator-next.ui-state-default.ui-corner-all"
+                )
+                if next_button and await next_button.is_visible():
+                    try:
+                        await next_button.click()
+                        await asyncio.sleep(5)
+                    except Exception as e:
+                        logger.error(f"Ошибка при клике на кнопку 'Next Page': {e}")
+                else:
+                    logger.info(
+                        "Кнопка 'Next Page' не найдена или не видна, завершаем обработку."
+                    )
+                    break
+            await context.close()
+            await browser.close()
+
+    except Exception as e:
+        logger.error(f"Ошибка при выполнении: {e}")
+
+
+async def process_page(page, html_file_path):
+    try:
+        # inn_element = await page.wait_for_selector(
+        #     "//tr[td[text()='ИНН организации']]/td[2]", timeout=30000
+        # )
+        # inn = await inn_element.inner_text()
+        content = await page.content()
+
+        with open(html_file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        await asyncio.sleep(1)
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке страницы: {e}")
+
+
+async def process_page_company(page):
     try:
         # Поиск элемента с нужными классами
         element = await page.query_selector(
@@ -310,7 +433,31 @@ async def process_page(page):
 
         if page_number:
             content = await page.content()
-            html_file_path = html_files_directory / f"0{page_number}.html"
+            html_file_path = html_files_page_directory / f"0{page_number}.html"
+            with open(html_file_path, "w", encoding="utf-8") as f:
+                f.write(content)
+            logger.info(html_file_path)
+        else:
+            logger.warning("Не удалось определить номер страницы.")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке страницы: {e}")
+
+
+async def process_page_contact(page):
+    try:
+        # Поиск элемента с нужными классами
+        element = await page.query_selector(
+            "a.ui-paginator-page.ui-state-default.ui-corner-all.ui-state-active"
+        )
+        page_number = None
+        if element:
+            element_text = await element.inner_text()
+            page_number_raw = element_text.strip().replace(" ", "_").lower()
+            page_number = f"page_{page_number_raw.split('_')[-1]}"
+
+        if page_number:
+            content = await page.content()
+            html_file_path = html_files_page_directory / f"0{page_number}.html"
             with open(html_file_path, "w", encoding="utf-8") as f:
                 f.write(content)
         else:
@@ -435,185 +582,76 @@ def parsing_page():
     df.to_excel("output.xlsx", index=False)
 
 
-# save_data_to_json(all_data)
-#             phone_number_tag = div_element.find("b")
-#             if phone_number_tag:
-#                 phone_number = phone_number_tag.get_text(strip=True)
-#                 phone_number = phone_number.replace(" ", "").replace("\n", "")
-#                 phone_number = f"+49{phone_number}"
+# Готовое решение потом возьмем данные  из parsed_data.json
+def parsing_company():
+    # Множество для хранения уникальных itm_value
+    all_data = []
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_files_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content: str = file.read()
+        soup = BeautifulSoup(content, "lxml")
+        tbody = soup.find("tbody")
+        rows = tbody.find_all("tr")
 
-#         profile_raw = soup.find("span", attrs={"class": "badge bg-warning-light"})
-#         if profile_raw:
-#             profile = profile_raw.get_text(strip=True)
-#         img_raw = (
-#             soup.find(
-#                 "div", attrs={"class": "media mb-1 pb-md-1 align-items-stretch"}
-#             )
-#             .find("a")
-#             .get("href")
-#         )
+        result = {}
+        for row in rows:
+            cells = row.find_all("td")
+            if len(cells) == 2:
+                key = cells[0].get_text(strip=True)
+                value = cells[1].get_text(strip=True)
+                # Если есть ссылка, добавляем её к значению
+                link = cells[1].find("a")
+                if link:
+                    value = f"{value} (ссылка: {link['href']})"
+                result[key] = value
+        all_data.append(result)
+    # logger.info(all_data)
+    df = pd.DataFrame(all_data)
+    df.to_excel("output.xlsx", index=False)
 
-#         img = f"https:{img_raw}"
-#         doctor_specializations_raw = soup.find(
-#             "span", attrs={"data-test-id": "doctor-specializations"}
-#         )
-#         if doctor_specializations_raw:
-#             doctor_specializations = " ".join(
-#                 doctor_specializations_raw.get_text(strip=True).split()
-#             )
-#             doctor_specializations = [
-#                 spec.strip() for spec in doctor_specializations.split(",")
-#             ]
-#         rating_raw = soup.find(
-#             "u",
-#             attrs={
-#                 "class": "rating rating-lg unified-doctor-header-info__rating-text"
-#             },
-#         )
-#         if rating_raw:
-#             rating = rating_raw.get("data-score")
-#             reviews = (
-#                 rating_raw.find("span")
-#                 .get_text(strip=True)
-#                 .replace(" Bewertungen", "")
-#             )
-#         name_raw = soup.find("span", attrs={"itemprop": "name"})
-#         if name_raw:
-#             name = name_raw.get_text(strip=True)
-#         clinic_name_raw = soup.find("div", attrs={"data-test-id": "address-info"})
-#         if clinic_name_raw:
-#             clinic_name = " ".join(
-#                 clinic_name_raw.find("a").get_text(strip=True).split()
-#             )
-#             adress_raw = clinic_name_raw.find(
-#                 "span", attrs={"itemprop": "streetAddress"}
-#             )
-#             adress = " ".join(adress_raw.get_text(strip=True).split())
-#         description_section = soup.find("section", id="about-section")
-#         if description_section:
-#             title_element = description_section.find(
-#                 "h2", class_="h3 section-header mb-1-5"
-#             )
-#             title = title_element.get_text(strip=True) if title_element else ""
 
-#             herzlich_willkommen_element = description_section.find_all(
-#                 "div", class_="about-description"
-#             )
-#             herzlich_willkommen_text = " ".join(
-#                 [
-#                     " ".join(herz.get_text(separator=" ", strip=True).split())
-#                     for herz in herzlich_willkommen_element
-#                 ]
-#             )
+def parsing_page_company():
+    all_data = []
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_files_page_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content: str = file.read()
+        soup = BeautifulSoup(content, "lxml")
+        table = soup.find("table", attrs={"class": "display-table public-table"})
+        if table:
+            rows = table.find("tbody").find_all("tr")
+            result = []
 
-#             description = {
-#                 "title": title,
-#                 "Herzlich willkommen": herzlich_willkommen_text,
-#             }
-#         accepted_insurances_raw = soup.find(
-#             "div", attrs={"data-test-id": "insurance-info"}
-#         )
-#         if accepted_insurances_raw:
-#             accepted_insurances = accepted_insurances_raw.find_all(
-#                 "a", class_="text-muted"
-#             )
-#             accepted_insurances = [
-#                 link.get_text(strip=True) for link in accepted_insurances
-#             ]
-#         # Извлечение информации о сервисах и их описаниях
-#         services_section = soup.find("section", id="profile-pricing")
-#         services = []
-#         if services_section:
-#             service_elements = services_section.find_all(
-#                 "div", attrs={"data-test-id": "profile-pricing-list-details"}
-#             )
-#             for service_element in service_elements:
-#                 service_name_element = service_element.find_previous_sibling(
-#                     "div", attrs={"data-test-id": "profile-pricing-list-element"}
-#                 )
-#                 service_name = (
-#                     service_name_element.find(
-#                         "p", itemprop="availableService"
-#                     ).get_text(strip=True)
-#                     if service_name_element
-#                     else ""
-#                 )
-
-#                 service_description_element = service_element.find(
-#                     "p",
-#                     attrs={"data-test-id": "profile-pricing-element-description"},
-#                 )
-#                 service_description = (
-#                     " ".join(
-#                         service_description_element.get_text(strip=True).split()
-#                     )
-#                     if service_description_element
-#                     else ""
-#                 )
-
-#                 if service_name and service_description:
-#                     services.append([service_name, service_description])
-#         opening_hours_element = soup.find(
-#             "div", attrs={"data-id": re.compile(r"^opening-hours-.*")}
-#         )
-#         opening_hours = []
-#         if opening_hours_element:
-#             rows = opening_hours_element.find_all(
-#                 "div", class_=re.compile(r"row pb-0-5.*")
-#             )
-#             days_map = {
-#                 "Montag": 0,
-#                 "Dienstag": 1,
-#                 "Mittwoch": 2,
-#                 "Donnerstag": 3,
-#                 "Freitag": 4,
-#                 "Samstag": 5,
-#                 "Sonntag": 6,
-#             }
-#             for row in rows:
-#                 day_name_element = row.find("div", class_="col-4 col-md-4")
-#                 if day_name_element:
-#                     day_name = day_name_element.get_text(strip=True)
-#                     day = days_map.get(day_name)
-#                     if day is not None:
-#                         ranges = []
-#                         time_elements = row.find_all("div", class_="col-4 col-md-3")
-#                         for time_element in time_elements:
-#                             times = (
-#                                 time_element.get_text(strip=True)
-#                                 .replace(" ", "")
-#                                 .replace("\n", "")
-#                                 .split("-")
-#                             )
-#                             if len(times) == 2:
-#                                 ranges.append([times[0], times[1]])
-#                         opening_hours.append({"day": day, "ranges": ranges})
-#         datas = {
-#             "phone_number": phone_number,
-#             "profile": profile,
-#             "img": img,
-#             "doctor_specializations": doctor_specializations,
-#             "rating": rating,
-#             "reviews": reviews,
-#             "name": name,
-#             "clinic_name": clinic_name,
-#             "adress": adress,
-#             "description": description,
-#             "accepted_insurances": accepted_insurances,
-#             "services": services,
-#             "opening_hours": opening_hours,
-#         }
-#         all_data.append(datas)
-
-# save_data_to_json(all_data)
+            for row in rows:
+                cells = row.find_all("td")
+                data = {
+                    "ИНН организации": cells[0].get_text(strip=True),
+                    "Наименование организации": cells[1].get_text(strip=True),
+                    "Организационно-правовая форма": cells[2].get_text(strip=True),
+                    "Статус": cells[3].get_text(strip=True),
+                    "Дата регистрации": cells[4].get_text(strip=True),
+                }
+                all_data.append(data)
+    # Записать все данные в JSON файл
+    output_file = "parsed_data.json"
+    with open(output_file, "w", encoding="utf-8") as json_file:
+        json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+    # Записать ИНН каждой организации в CSV файл
+    # Записать ИНН каждой организации в CSV файл с использованием pandas
+    df = pd.DataFrame(all_data)
+    df[["ИНН организации"]].to_csv(csv_output_file, index=False, encoding="utf-8")
 
 
 # Функция для выполнения основной логики
 def main():
-    url = "http://zakupki.gov.kg/popp/view/order/winners.xhtml"
+    url = "http://zakupki.gov.kg/popp/view/services/registry/suppliers.xhtml"
     asyncio.run(single_html_one(url))
+    # asyncio.run(single_html_page_company(url))
 
 
 if __name__ == "__main__":
-    # main()
-    parsing_page()
+    main()
+    # parsing_page()
+    # parsing_company()
+    # parsing_page_company()

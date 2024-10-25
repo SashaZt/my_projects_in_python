@@ -446,7 +446,7 @@ def get_html_doctor():
 def parsing_page(html_file):
     # Прочитать содержимое файла
     with html_file.open(encoding="utf-8") as file:
-        logger.info(html_file)
+        # logger.info(html_file)
         content = file.read()
 
     # Создать объект BeautifulSoup
@@ -467,15 +467,6 @@ def parsing_page(html_file):
         None,
         [],
     )
-    div_element = soup.find("div", attrs={"class": "card bg-gray-100"})
-
-    if div_element:
-        phone_number_tag = div_element.find("b")
-        if phone_number_tag:
-            phone_number = (
-                phone_number_tag.get_text(strip=True).replace(" ", "").replace("\n", "")
-            )
-            phone_number = f"+49{phone_number}"
 
     profile_raw = soup.find("span", attrs={"class": "badge bg-warning-light"})
     if profile_raw:
@@ -562,67 +553,150 @@ def parsing_page(html_file):
                     services.append([service_name, service_description])
 
     all_clinic = soup.find("div", attrs={"data-id": "address-tabs-content"})
+    polyclinics = []
     if all_clinic:
-        clinics = all_clinic.find_all("div", attrs={"data-id": "address-tabs-content"})
-    clinic_name_raw = soup.find("div", attrs={"data-test-id": "address-info"})
-    if clinic_name_raw:
-        clinic_name_element = clinic_name_raw.find("a")
-        clinic_name = (
-            clinic_name_element.get_text(strip=True) if clinic_name_element else None
-        )
-        address_raw = clinic_name_raw.find("span", attrs={"itemprop": "streetAddress"})
-        address = address_raw.get_text(strip=True) if address_raw else None
+        clinics = all_clinic.find_all("div", attrs={"data-id": "doctor-address-item"})
 
-    opening_hours_element = soup.find(
-        "div", attrs={"data-id": re.compile(r"^opening-hours-.*")}
-    )
-    opening_hours = []
-    if opening_hours_element:
-        rows = opening_hours_element.find_all("div", class_=re.compile(r"row pb-0-5.*"))
-        days_map = {
-            "Montag": 0,
-            "Dienstag": 1,
-            "Mittwoch": 2,
-            "Donnerstag": 3,
-            "Freitag": 4,
-            "Samstag": 5,
-            "Sonntag": 6,
-        }
-        for row in rows:
-            day_name_element = row.find("div", class_="col-4 col-md-4")
-            if day_name_element:
-                day_name = day_name_element.get_text(strip=True)
-                day = days_map.get(day_name)
-                if day is not None:
-                    ranges = []
-                    time_elements = row.find_all("div", class_="col-4 col-md-3")
-                    for time_element in time_elements:
-                        times = (
-                            time_element.get_text(strip=True)
+        for cl in clinics:
+            lat = None
+            lng = None
+            offered_services = None
+            lat_raw = cl.find("span", attrs={"itemprop": "latitude"})
+            if lat_raw:
+                lat = lat_raw.get("content")
+
+            lng_raw = cl.find("span", attrs={"itemprop": "longitude"})
+            if lng_raw:
+                lng = lng_raw.get("content")
+            gps = [{"lat": lat, "lng": lng}]
+            offered_services_raw = cl.find("span", attrs={"class": "text-placeholder"})
+            if offered_services_raw:
+                offered_services = offered_services_raw.get_text(strip=True)
+
+            phone_numbers = []
+            div_elements = cl.find_all("div", attrs={"class": "card bg-gray-100"})
+
+            if div_elements:
+                for ph in div_elements:
+                    phone_number_tag = ph.find("b")
+                    if phone_number_tag:
+                        phone_number = (
+                            phone_number_tag.get_text(strip=True)
                             .replace(" ", "")
                             .replace("\n", "")
-                            .replace("\t", "")
-                            .split("-")
                         )
-                        if len(times) == 2:
-                            ranges.append([times[0], times[1]])
-                    opening_hours.append({"day": day, "ranges": ranges})
+                        phone_number = f"+49{phone_number}"
+                        phone_numbers.append(phone_number)
 
+            clinic_name_raw = cl.find("div", attrs={"data-test-id": "address-info"})
+            if clinic_name_raw:
+                clinic_name_element = clinic_name_raw.find("a")
+                clinic_name = (
+                    clinic_name_element.get_text(strip=True)
+                    if clinic_name_element
+                    else None
+                )
+                address_raw = clinic_name_raw.find(
+                    "span", attrs={"itemprop": "streetAddress"}
+                )
+                address = address_raw.get_text(strip=True) if address_raw else None
+
+            opening_hours_element = cl.find(
+                "div", attrs={"data-id": re.compile(r"^opening-hours-.*")}
+            )
+            opening_hours = []
+            if opening_hours_element:
+                rows = opening_hours_element.find_all(
+                    "div", class_=re.compile(r"row pb-0-5.*")
+                )
+                days_map = {
+                    "Montag": 0,
+                    "Dienstag": 1,
+                    "Mittwoch": 2,
+                    "Donnerstag": 3,
+                    "Freitag": 4,
+                    "Samstag": 5,
+                    "Sonntag": 6,
+                }
+                for row in rows:
+                    day_name_element = row.find("div", class_="col-4 col-md-4")
+                    if day_name_element:
+                        day_name = day_name_element.get_text(strip=True)
+                        day = days_map.get(day_name)
+                        if day is not None:
+                            ranges = []
+                            time_elements = row.find_all("div", class_="col-4 col-md-3")
+                            for time_element in time_elements:
+                                times = (
+                                    time_element.get_text(strip=True)
+                                    .replace(" ", "")
+                                    .replace("\n", "")
+                                    .replace("\t", "")
+                                    .split("-")
+                                )
+                                if len(times) == 2:
+                                    ranges.append([times[0], times[1]])
+                            opening_hours.append({"day": day, "ranges": ranges})
+            polyclinic = {
+                "phone_number": phone_numbers,
+                "clinic_name": clinic_name,
+                "address": address,
+                "services": services,
+                "opening_hours": opening_hours,
+                "gps": gps,
+                "offered_services": offered_services,
+            }
+            polyclinics.append(polyclinic)
+
+    # logger.info(
+    #     {
+    #         "phone_number": phone_number,
+    #         "profile": profile,
+    #         "img": img,
+    #         "doctor_specializations": doctor_specializations,
+    #         "rating": rating,
+    #         "reviews": reviews,
+    #         "name": name,
+    #         "polyclinics": polyclinics,
+    #         #  "clinic_name": clinic_name,
+    #         # "address": address,
+    #         "description": description,
+    #         "accepted_insurances": accepted_insurances,
+    #         "services": services,
+    #         # "opening_hours": opening_hours,
+    #     }
+    # )
     return {
-        "phone_number": phone_number,
         "profile": profile,
         "img": img,
         "doctor_specializations": doctor_specializations,
         "rating": rating,
         "reviews": reviews,
         "name": name,
-        "clinic_name": clinic_name,
-        "address": address,
+        "polyclinics": polyclinics,
+        #  "clinic_name": clinic_name,
+        # "address": address,
         "description": description,
         "accepted_insurances": accepted_insurances,
         "services": services,
-        "opening_hours": opening_hours,
+        # "opening_hours": opening_hours,
     }
+
+    # return {
+    #     "phone_number": phone_number,
+    #     "profile": profile,
+    #     "img": img,
+    #     "doctor_specializations": doctor_specializations,
+    #     "rating": rating,
+    #     "reviews": reviews,
+    #     "name": name,
+    #     "clinic_name": clinic_name,
+    #     "address": address,
+    #     "description": description,
+    #     "accepted_insurances": accepted_insurances,
+    #     "services": services,
+    #     "opening_hours": opening_hours,
+    # }
 
 
 def save_data_to_json(datas):
@@ -684,31 +758,40 @@ def pars_pagin():
 
 
 def main(parallelism):
+    # Получаем список всех HTML файлов
+    html_files = list(html_files_directory.glob("*.html"))
+
+    # Используем ThreadPoolExecutor и tqdm для отображения прогресса
     with ThreadPoolExecutor(max_workers=parallelism) as executor:
-        all_data = list(executor.map(parsing_page, html_files_directory.glob("*.html")))
+        all_data = list(
+            tqdm(
+                executor.map(parsing_page, html_files),
+                total=len(html_files),
+                desc="Обработка файлов",
+            )
+        )
+
     save_data_to_json(all_data)
 
 
 if __name__ == "__main__":
-    # get_page_city()
-    # get_url_in_pages()
-    # max_workers = 20
-    # response_handler = Get_Response(
-    #     max_workers,
-    #     # base_url,
-    #     cookies,
-    #     headers,
-    #     html_files_directory,
-    #     csv_file_successful,
-    #     output_csv_file,
-    #     file_proxy,
-    #     # url_sitemap,
-    # )
-    # # Запуск метода для получения всех sitemaps и обработки
+    get_page_city()
+    get_url_in_pages()
+    max_workers = 20
+    response_handler = Get_Response(
+        max_workers,
+        # base_url,
+        cookies,
+        headers,
+        html_files_directory,
+        csv_file_successful,
+        output_csv_file,
+        file_proxy,
+        # url_sitemap,
+    )
 
-    # # Запуск метода скачивания html файлов
-    # response_handler.process_infox_file()
+    # Запуск метода скачивания html файлов
+    response_handler.process_infox_file()
 
-    parallelism = 20  # Укажите количество потоков
+    parallelism = 50  # Укажите количество потоков
     main(parallelism)
-    # pars_pagin()
