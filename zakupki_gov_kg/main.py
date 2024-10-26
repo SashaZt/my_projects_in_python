@@ -293,6 +293,10 @@ async def single_html_one(url):
             await page.goto(url, timeout=60000, wait_until="networkidle")
             await asyncio.sleep(2)
             for inn in inns:
+                if not inn.isdigit():
+                    logger.warning(f"Некорректное значение ИНН: {inn}, пропускаем.")
+                    continue
+
                 logger.info(inn)
                 html_file_path = html_files_directory / f"inn_{inn}.html"
                 if html_file_path.exists():
@@ -321,6 +325,8 @@ async def single_html_one(url):
                 if error_element:
                     logger.warning("Обнаружена ошибка на странице, перезагружаем...")
                     await page.goto(url, timeout=60000, wait_until="networkidle")
+                    continue
+
                 # Находим элемент "Назад" и нажимаем на него
                 back_button = await page.wait_for_selector(
                     "//a[@class='button-grey' and text()='Назад']",
@@ -585,6 +591,14 @@ def parsing_page():
 
 # Готовое решение потом возьмем данные  из parsed_data.json
 def parsing_company():
+    json_file_path = "inn_company.json"
+
+    # Загрузка данных из JSON файла
+    with open(json_file_path, encoding="utf-8") as json_file:
+        json_data = json.load(json_file)
+
+    # Создание DataFrame из JSON данных
+    json_df = pd.DataFrame(json_data)
     # Множество для хранения уникальных itm_value
     all_data = []
     # Пройтись по каждому HTML файлу в папке
@@ -607,9 +621,18 @@ def parsing_company():
                     value = f"{value} (ссылка: {link['href']})"
                 result[key] = value
         all_data.append(result)
-    # logger.info(all_data)
-    df = pd.DataFrame(all_data)
-    df.to_excel("output.xlsx", index=False)
+    # Создание DataFrame из данных, полученных из HTML
+    html_df = pd.DataFrame(all_data)
+
+    # Объединение DataFrame из JSON и HTML по столбцу "ИНН организации", оставляя только совпадающие значения
+    merged_df = pd.merge(json_df, html_df, on="ИНН организации", how="inner")
+
+    # Запись объединённых данных в Excel
+    merged_df.to_excel("output.xlsx", index=False)
+
+    # # logger.info(all_data)
+    # df = pd.DataFrame(all_data)
+    # df.to_excel("output.xlsx", index=False)
 
 
 def parsing_page_company():

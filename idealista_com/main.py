@@ -16,10 +16,17 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 import os
 from tqdm import tqdm
+from base64 import b64decode
+
 
 current_directory = Path.cwd()
+
 data_directory = current_directory / "data"
+html_directory = current_directory / "html"
+
 data_directory.mkdir(parents=True, exist_ok=True)
+html_directory.mkdir(parents=True, exist_ok=True)
+
 output_csv_file = data_directory / "output.csv"
 
 
@@ -32,38 +39,13 @@ def load_proxies():
     return proxies
 
 
-def get_html():
-    proxies = load_proxies()  # Загружаем список всех прокси
-    proxy = random.choice(proxies)  # Выбираем случайный прокси
-    proxies_dict = {"http": proxy, "https": proxy}
-
-    cookies = {
-        "utag_main__ss": "0%3Bexp-session",
-        "utag_main__pn": "2%3Bexp-session",
-        "utag_main__se": "3%3Bexp-session",
-        "utag_main__st": "1729593921919%3Bexp-session",
-        "utag_main__prevCompletePageName": "005-idealista/portal > portal > viewAdDetail%3Bexp-1729595721922",
-        "utag_main__prevLevel2": "005-idealista/portal%3Bexp-1729595721922",
-        "__rtbh.uid": "%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%22unknown%22%2C%22expiryDate%22%3A%222025-10-22T10%3A15%3A21.964Z%22%7D",
-        "__rtbh.lid": "%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%225UwPp59AGnOAmGBz9OXT%22%2C%22expiryDate%22%3A%222025-10-22T10%3A15%3A21.964Z%22%7D",
-        "cto_bundle": "BWMqL19oNDJ1NzhKJTJCS3hoN0s5NEpUTHFYd3J3V0JTS2JheGh2RmQ1bTJmckNvVmI4QXFJZiUyRmF0WHh6RTQwckNSaXBuZGdBalk2Sm8xV2FzVnluYjM5SSUyQmNacENzJTJCdXRWMFlrJTJCcnJkUmliWklLcHhKd0VxenZPcFBacyUyQjVjJTJGWENJeFpTbVJ2OTM3WkFoa0pLU014STljWDVwZTZNejJjdHAzZDN2Z3clMkYzWWs0cnk4JTNE",
-        "datadome": "LImenFYjUTlzHiCc2qmBtzERceQovhpwadDXVmQKN6AMSQ~Y_1rzh5m5geDFn8M2oxrtOTcjCoyr~QGZiiUWUza8FdGKS0aTEFr4ap6l6DiaO9pOirRyHdQPBu~GuOqp",
-    }
-
-    headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    }
+def get_html_scraperapi():
     url = "https://www.idealista.com/en/inmueble/106264161/"
+    apikey = "08ed3288dfca36359e9d28ddbe833829"
     url_id = url.split("/")[-2]
-    response = requests.get(
-        url,
-        cookies=cookies,
-        headers=headers,
-        proxies=proxies_dict,
-    )
 
+    payload = {"api_key": apikey, "url": url}
+    response = requests.get("https://api.scraperapi.com", params=payload)
     # Проверка кода ответа
     if response.status_code == 200:
         all_data = parsing_html(response.text)
@@ -71,48 +53,69 @@ def get_html():
         with open("proba_0.html", "w", encoding="utf-8") as file:
             file.write(response.text)
 
-        json_raw = get_phone(url_id, proxies_dict)
-        if json_raw is not None:
-            json_data = json_raw.json()
-            number = json_data["phone1"]["number"]
-            all_data["number"] = number
+        # json_raw = get_phone(url_id)
+        # if json_raw is not None:
+        #     json_data = json_raw.json()
+        #     number = json_data["phone1"]["number"]
+        #     all_data["number"] = number
 
-            logger.info(all_data)
+        #     logger.info(all_data)
     else:
         logger.error(response.status_code)
 
 
-def get_phone(url_id, proxies_dict):
-    cookies = {
-        "datadome": "z6M7B7i1t4olYJ6jqgSvC0fp1_X7mVUggojZR_9RvvovTTmSJ0LTDsvqNyCnDnCaIC5Ty5tnvtL7MiZr3tMsIu7HU0dqEaVJbW9xsGsRMkPLjR1aAnjkWrVDkzXVeqiR",
-    }
+def get_phone_scraperapi(url_id):
+    apikey = "08ed3288dfca36359e9d28ddbe833829"
 
-    headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru",
-        "cache-control": "max-age=0",
-        "dnt": "1",
-        "priority": "u=0, i",
-        "sec-ch-device-memory": "8",
-        "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-        "sec-ch-ua-arch": '"x86"',
-        "sec-ch-ua-full-version-list": '"Google Chrome";v="129.0.6668.101", "Not=A?Brand";v="8.0.0.0", "Chromium";v="129.0.6668.101"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    }
     url = f"https://www.idealista.com/en/ajax/ads/{url_id}/contact-phones"
+    payload = {"api_key": apikey, "url": url}
+    response = requests.get("https://api.scraperapi.com", params=payload)
+    if response.status_code == 200:
+        return response
+    else:
+        logger.error(response.status_code)
+        return None
+
+
+def get_html_zyte():
+    url = "https://www.idealista.com/en/inmueble/106264161/"
+    url_id = url.split("/")[-2]
+
+    current_directory = Path.cwd()
+    cert_file = current_directory / "zyte-ca.crt"
     response = requests.get(
         url,
-        cookies=cookies,
-        headers=headers,
-        proxies=proxies_dict,
+        proxies={
+            "http": "http://bfa6a820e75f4a97a39c74abfa6aeb3f:@api.zyte.com:8011/",
+            "https": "http://bfa6a820e75f4a97a39c74abfa6aeb3f:@api.zyte.com:8011/",
+        },
+        verify=cert_file,
+    )
+    if response.status_code == 200:
+        all_data = parsing_html(response.text)
+        with open("proba_0.html", "w", encoding="utf-8") as file:
+            file.write(response.text)
+        # json_raw = get_phone_zyte(url_id)
+        # if json_raw is not None:
+        #     json_data = json_raw.json()
+        #     number = json_data["phone1"]["number"]
+        #     all_data["number"] = number
+
+        logger.info(all_data)
+
+
+def get_phone_zyte(url_id):
+
+    url = f"https://www.idealista.com/en/ajax/ads/{url_id}/contact-phones"
+    current_directory = Path.cwd()
+    cert_file = current_directory / "zyte-ca.crt"
+    response = requests.get(
+        url,
+        proxies={
+            "http": "http://bfa6a820e75f4a97a39c74abfa6aeb3f:@api.zyte.com:8011/",
+            "https": "http://bfa6a820e75f4a97a39c74abfa6aeb3f:@api.zyte.com:8011/",
+        },
+        verify=cert_file,
     )
     if response.status_code == 200:
         return response
@@ -121,7 +124,7 @@ def get_phone(url_id, proxies_dict):
         return None
 
 
-def parsing_html(content):
+def parsing_html_req(content):
 
     soup = BeautifulSoup(content, "lxml")
     title = None
@@ -169,5 +172,64 @@ def parsing_html(content):
     return all_data
 
 
+def parsing_html():
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            # Прочитать содержимое файла
+            content = file.read()
+        soup = BeautifulSoup(content, "lxml")
+        title = None
+        location = None
+        price = None
+        description = None
+        title_raw = soup.find("span", attrs={"class", "main-info__title-main"})
+        if title_raw:
+            title = title_raw.get_text(strip=True)
+        location_raw = soup.find("span", attrs={"class", "main-info__title-minor"})
+        if location_raw:
+            location = location_raw.get_text(strip=True)
+        price_raw = soup.find("span", attrs={"class", "info-data-price"})
+        if price_raw:
+            price = price_raw.get_text(strip=True)
+
+        description_raw = soup.find(
+            "div",
+            attrs={
+                "class",
+                "adCommentsLanguage expandable is-expandable",
+            },
+        )
+        if description_raw:
+            description = description_raw.get_text(strip=True)
+
+        list_items = soup.find_all("li", class_="header-map-list")
+
+        values = [item.get_text(strip=True) for item in list_items]
+
+        location = ", ".join(values)
+        # Новый элемент - извлечение площади и количества комнат
+        info_features = soup.find("div", class_="info-features").find_all("span")
+
+        area = info_features[0].get_text(strip=True)
+        number_of_rooms = info_features[1].get_text(strip=True).split()[0]
+
+        imgs_raw = soup.find("div", attrs={"class", "images-slider large"})
+        # if imgs_raw:
+
+        all_data = {
+            "title": title,
+            "location": location,
+            "price": price,
+            "description": description,
+            "location": location,
+            "area": area,
+            "number_of_rooms": number_of_rooms,
+        }
+        logger.info(imgs_raw)
+
+
 if __name__ == "__main__":
-    get_html()
+    # get_html_scraperapi()
+    # get_html_zyte()
+    parsing_html()

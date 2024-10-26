@@ -10,12 +10,14 @@ from pathlib import Path
 current_directory = Path.cwd()
 configuration_directory = current_directory / "configuration"
 json_directory = current_directory / "json"
+json_page_directory = current_directory / "json_page"
 data_directory = current_directory / "data"
 xlsx_directory = current_directory / "xlsx"
 
 configuration_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 json_directory.mkdir(parents=True, exist_ok=True)
+json_page_directory.mkdir(parents=True, exist_ok=True)
 xlsx_directory.mkdir(parents=True, exist_ok=True)
 
 file_proxy = configuration_directory / "roman.txt"
@@ -127,11 +129,12 @@ def get_json_pages():
 def parisng_json_pages():
     # Обход всех JSON файлов в директории
     all_referenceNumber = []
-    for json_file in json_directory.glob("*.json"):
+    for json_file in json_page_directory.glob("*.json"):
         with json_file.open(encoding="utf-8") as file:
             # Прочитать содержимое JSON файла
-            data = json.load(file)["values"]
-        for json_data in data:
+            data = json.load(file)
+        data_json = data["values"]
+        for json_data in data_json:
             referenceNumber = json_data["referenceNumber"]
             all_referenceNumber.append(referenceNumber)
 
@@ -149,17 +152,17 @@ def get_json_company():
         year = loc.split("-")[-2]
         tender_id = loc.split("-")[-1]
         cookies = {
-            "8020f80b5f22684beb6e2f5b559c57a9": "c5a427ee1d20c834b37ecb224ba52d87",
-            "1686d7a14f465e6537467e88114cf7e8": "9009d01537a3658e432f2f7d1d1ffc69",
+            "1686d7a14f465e6537467e88114cf7e8": "cd7587b839180b3a48312edf364efdde",
+            "8020f80b5f22684beb6e2f5b559c57a9": "31c0a0542b8c73b0d114a5826e376af7",
         }
 
         headers = {
             "accept": "application/json",
             "accept-language": "ru,en;q=0.9,uk;q=0.8",
-            # 'cookie': '8020f80b5f22684beb6e2f5b559c57a9=c5a427ee1d20c834b37ecb224ba52d87; 1686d7a14f465e6537467e88114cf7e8=9009d01537a3658e432f2f7d1d1ffc69',
+            # 'cookie': '1686d7a14f465e6537467e88114cf7e8=cd7587b839180b3a48312edf364efdde; 8020f80b5f22684beb6e2f5b559c57a9=31c0a0542b8c73b0d114a5826e376af7',
             "dnt": "1",
             "priority": "u=1, i",
-            "referer": "https://purchasing.alberta.ca/posting/AB-2024-08660",
+            "referer": "https://purchasing.alberta.ca/posting/AB-2024-04017",
             "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
             "sec-ch-ua-mobile": "?0",
             "sec-ch-ua-platform": '"Windows"',
@@ -172,8 +175,9 @@ def get_json_company():
         if json_company.exists():
             logger.warning(f"Файл {json_company} уже существует, пропускаем.")
             continue  # Переходим к следующей итерации цикла
+        url = f"https://purchasing.alberta.ca/api/opportunity/public/{year}/{tender_id}"
         response = requests.get(
-            f"https://purchasing.alberta.ca/api/opportunity/{year}/{tender_id}",
+            url,
             cookies=cookies,
             headers=headers,
             timeout=timeout,
@@ -205,14 +209,11 @@ def paring_json_company():
         category_raw = data.get("opportunity", {}).get("categoryCode", None)
         category = "Construction" if category_raw == "CNST" else None
 
-        contracting_organization_raw = (
-            data.get("opportunity", {}).get("contactInformation", {}).get("city", None)
-        )
         contracting_organization = (
-            f"City of {contracting_organization_raw}"
-            if contracting_organization_raw
-            else None
+            data.get("opportunity", {}).get("title", None).split(" - ")[0]
         )
+
+        # contracting_organization = f"City of {contracting_organization_raw}"
 
         addressLine1 = (
             data.get("opportunity", {})
@@ -230,9 +231,7 @@ def paring_json_company():
             .get("postalCode", None)
         )
         organization_address = (
-            f"{addressLine1} {contracting_organization_raw}, {province} {postalCode}"
-            if addressLine1 and contracting_organization_raw and province and postalCode
-            else None
+            f"{addressLine1} {contracting_organization}, {province} {postalCode}"
         )
 
         firstName = (
@@ -248,11 +247,7 @@ def paring_json_company():
         title_name = (
             data.get("opportunity", {}).get("contactInformation", {}).get("title", None)
         )
-        contact_person = (
-            f"{firstName} {lastName} {title_name}"
-            if firstName and lastName and title_name
-            else None
-        )
+        contact_person = f"{firstName} {lastName} {title_name}"
 
         method_of_contact = (
             data.get("opportunity", {})
@@ -286,8 +281,6 @@ def paring_json_company():
             postalCode_is = ins.get("physicalAddress", {}).get("postalCode", None)
             physicalAddress_is = (
                 f"{streetAddress_is} {city_is} {stateProvince_is} {postalCode_is}"
-                if streetAddress_is and city_is and stateProvince_is and postalCode_is
-                else None
             )
             datas_is = {
                 "company_is": company_is,
@@ -321,11 +314,6 @@ def paring_json_company():
             postalCode_bid = bid.get("physicalAddress", {}).get("postalCode", None)
             physicalAddress_bid = (
                 f"{streetAddress_bid} {city_bid} {stateProvince_bid} {postalCode_bid}"
-                if streetAddress_bid
-                and city_bid
-                and stateProvince_bid
-                and postalCode_bid
-                else None
             )
             datas_bid = {
                 "company_bid": company_bid,
@@ -348,11 +336,7 @@ def paring_json_company():
             city_aw = aw.get("address", {}).get("city", None)
             stateProvince_aw = aw.get("address", {}).get("stateProvince", None)
             postalCode_aw = aw.get("address", {}).get("postalCode", None)
-            physicalAddress_aw = (
-                f"{streetAddress2_aw}{streetAddress_aw} {city_aw} {stateProvince_aw} {postalCode_aw}"
-                if streetAddress_aw and city_aw and stateProvince_aw and postalCode_aw
-                else None
-            )
+            physicalAddress_aw = f"{streetAddress2_aw}{streetAddress_aw} {city_aw} {stateProvince_aw} {postalCode_aw}"
             datas_aw = {
                 "company_aw": company_aw,
                 "contact_person_aw": contact_person_aw,
@@ -454,7 +438,7 @@ def all_data():
 
 
 if __name__ == "__main__":
-    # parisng_json_pages()
-    # get_json_company()
-    # paring_json_company()
+    parisng_json_pages()
+    get_json_company()
+    paring_json_company()
     all_data()
