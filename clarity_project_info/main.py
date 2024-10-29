@@ -158,7 +158,10 @@ def parse_html_file(file_path):
         "2505",
         "2510",
     ]
-
+    codes = [
+        "2355",
+        "2465",
+    ]
     # Получаем заголовок страницы
     page_title = None
     page_title_label = soup.select_one(
@@ -300,6 +303,10 @@ def parsing():
         "2505",
         "2510",
     ]
+    codes = [
+        "2355",
+        "2465",
+    ]
 
     # Список для хранения всех единиц данных
     all_results = []
@@ -352,7 +359,7 @@ def parsing():
 
     # Пример записи в Excel через pandas
     df = pd.DataFrame(all_results)
-    df.to_excel("financial_data.xlsx", index=False, engine="openpyxl")
+    df.to_excel("financial_data_.xlsx", index=False, engine="openpyxl")
 
 
 # def remove_successful_urls():
@@ -400,7 +407,7 @@ if __name__ == "__main__":
     # remove_successful_urls()
     # Базовый URL
     # Замените на реальный URL
-    max_workers = 20
-    process_infox_file(max_workers)
+    # max_workers = 20
+    # process_infox_file(max_workers)
     max_threads = 100
     parse_all_files_and_save_to_excel(max_threads)

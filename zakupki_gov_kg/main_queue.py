@@ -1,26 +1,20 @@
+from playwright.async_api import async_playwright
 import asyncio
 import random
 from pathlib import Path
-from playwright.async_api import async_playwright
 import pandas as pd
 from configuration.logger_setup import logger
-import json
 import os
-from bs4 import BeautifulSoup
-import re
-import numpy as np
 
 # Путь к папкам
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
 html_files_directory = current_directory / "html_files"
-html_files_page_directory = current_directory / "html_files_page"
 configuration_directory = current_directory / "configuration"
 
 data_directory.mkdir(parents=True, exist_ok=True)
 html_files_directory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
-html_files_page_directory.mkdir(parents=True, exist_ok=True)
 
 file_proxy = configuration_directory / "roman.txt"
 csv_output_file = current_directory / "inn_data.csv"
@@ -61,20 +55,7 @@ def read_cities_from_csv(file_path):
     return df["url"].tolist()
 
 
-# Запуск нескольких задач для каждого прокси
-async def run_multiple_tasks(url, inns, proxies):
-    tasks = []
-    inns_split = [
-        inns[i * (len(inns) // len(proxies)) : (i + 1) * (len(inns) // len(proxies))]
-        for i in range(len(proxies) - 1)
-    ] + [inns[(len(proxies) - 1) * (len(inns) // len(proxies)) :]]
-    for i, proxy in enumerate(proxies):
-        task = asyncio.create_task(single_html_one(url, inns_split[i], proxy))
-        tasks.append(task)
-    await asyncio.gather(*tasks)
-
-
-# Модифицированная функция single_html_one с передачей списка ИНН и прокси
+# Функция для работы с одним прокси и списком ИНН
 async def single_html_one(url, inns, proxy):
     proxy_config = parse_proxy(proxy) if proxy else None
     try:
@@ -109,7 +90,6 @@ async def single_html_one(url, inns, proxy):
                         "input[type='text'][name='j_idt66']", timeout=60000
                     )
                     await page.fill("input[type='text'][name='j_idt66']", inn)
-                    # logger.info(f"Вставили в поиск: {inn}")
                 except Exception as e:
                     logger.warning(f"Ошибка при заполнении ИНН: {e}")
                     continue
@@ -150,8 +130,6 @@ async def single_html_one(url, inns, proxy):
                     )
                     inn_text = await inn_element.text_content()
                     inn_text = inn_text.replace("/", "_")
-                    # logger.info(f"Извлекли со страницы: {inn_text}")
-
                 except Exception as e:
                     logger.warning(f"Ошибка при извлечении ИНН: {e}")
                     continue
@@ -172,6 +150,28 @@ async def single_html_one(url, inns, proxy):
         logger.error(f"Ошибка при выполнении: {e}")
 
 
+# Функция для запуска пула задач
+async def run_with_pool(url, inns, proxies, max_workers=10):
+    queue = asyncio.Queue()
+    for inn in inns:
+        await queue.put(inn)
+
+    async def worker(proxy):
+        while not queue.empty():
+            inn_list = [
+                await queue.get() for _ in range(min(10, queue.qsize()))
+            ]  # Пакетный запуск для оптимизации
+            await single_html_one(url, inn_list, proxy)
+            for _ in inn_list:
+                queue.task_done()
+
+    tasks = []
+    for proxy in proxies[:max_workers]:
+        tasks.append(asyncio.create_task(worker(proxy)))
+
+    await asyncio.gather(*tasks)
+
+
 # Основная функция запуска программы
 async def main():
     url = "http://zakupki.gov.kg/popp/view/services/registry/suppliers.xhtml"
@@ -180,7 +180,7 @@ async def main():
     if not proxies:
         logger.error("Нет прокси для запуска.")
         return
-    await run_multiple_tasks(url, inns, proxies)
+    await run_with_pool(url, inns, proxies)
 
 
 # Запуск программы

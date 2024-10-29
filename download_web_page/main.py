@@ -39,36 +39,49 @@ def get_html():
     proxies_dict = {"http": proxy, "https": proxy}
 
     cookies = {
-        "OptanonAlertBoxClosed": "2024-10-15T11:50:36.242Z",
-        "GUEST_SESSION": "dWQSx0M2o97XnFG4IFg4HUzjdyy4W3kCJwYROOPApZw",
-        "mixpanel-events": "{%22s%22:1729577806102%2C%22u%22:%22/suchen?q=&loc=Aachen%22%2C%22p%22:%22/search_results_visits_new%22%2C%22r%22:%22%22}",
-        "OptanonConsent": "isGpcEnabled=0&datestamp=Tue+Oct+22+2024+09%3A28%3A09+GMT%2B0300+(%D0%92%D0%BE%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F+%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B0%2C+%D0%BB%D0%B5%D1%82%D0%BD%D0%B5%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202405.2.0&browserGpcFlag=0&isIABGlobal=false&consentId=5f445bf3-ea3f-4378-8595-e19c933c67be&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0003%3A1%2CC0002%3A1%2CC0004%3A1&hosts=H10%3A1%2CH163%3A1%2CH66%3A1%2CH67%3A1%2CH70%3A1%2CH159%3A1%2CH164%3A1%2CH158%3A1%2CH78%3A1%2CH112%3A1%2CH79%3A1%2CH133%3A1%2CH81%3A1%2CH82%3A1%2CH85%3A1%2CH86%3A1%2CH217%3A1%2CH160%3A1%2CH87%3A1%2CH11%3A1%2CH38%3A1%2CH12%3A1%2CH89%3A1%2CH182%3A1%2CH14%3A1%2CH15%3A1%2CH93%3A1%2CH76%3A1%2CH94%3A1%2CH32%3A1%2CH96%3A1%2CH208%3A1%2CH34%3A1%2CH74%3A1&genVendors=&intType=1&geolocation=%3B&AwaitingReconsent=false",
+        "JSESSIONID": "e2YvkSjs9SnaZMCgCHly9MtAnkIeyAOAqGIS8bWe.msc01-popp01:main-popp",
+        "csfcfc": "LUHMyYO8lXrs5g%3D%3D",
     }
 
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        # 'cookie': 'OptanonAlertBoxClosed=2024-10-15T11:50:36.242Z; GUEST_SESSION=dWQSx0M2o97XnFG4IFg4HUzjdyy4W3kCJwYROOPApZw; mixpanel-events={%22s%22:1729577806102%2C%22u%22:%22/suchen?q=&loc=Aachen%22%2C%22p%22:%22/search_results_visits_new%22%2C%22r%22:%22%22}; OptanonConsent=isGpcEnabled=0&datestamp=Tue+Oct+22+2024+09%3A28%3A09+GMT%2B0300+(%D0%92%D0%BE%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F+%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B0%2C+%D0%BB%D0%B5%D1%82%D0%BD%D0%B5%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202405.2.0&browserGpcFlag=0&isIABGlobal=false&consentId=5f445bf3-ea3f-4378-8595-e19c933c67be&interactionCount=1&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0003%3A1%2CC0002%3A1%2CC0004%3A1&hosts=H10%3A1%2CH163%3A1%2CH66%3A1%2CH67%3A1%2CH70%3A1%2CH159%3A1%2CH164%3A1%2CH158%3A1%2CH78%3A1%2CH112%3A1%2CH79%3A1%2CH133%3A1%2CH81%3A1%2CH82%3A1%2CH85%3A1%2CH86%3A1%2CH217%3A1%2CH160%3A1%2CH87%3A1%2CH11%3A1%2CH38%3A1%2CH12%3A1%2CH89%3A1%2CH182%3A1%2CH14%3A1%2CH15%3A1%2CH93%3A1%2CH76%3A1%2CH94%3A1%2CH32%3A1%2CH96%3A1%2CH208%3A1%2CH34%3A1%2CH74%3A1&genVendors=&intType=1&geolocation=%3B&AwaitingReconsent=false',
-        "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "referer": "https://www.jameda.de/suchen?q=&loc=Aachen",
-        "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Cache-Control": "max-age=0",
+        "Connection": "keep-alive",
+        "Content-Type": "application/x-www-form-urlencoded",
+        # 'Cookie': 'JSESSIONID=e2YvkSjs9SnaZMCgCHly9MtAnkIeyAOAqGIS8bWe.msc01-popp01:main-popp; csfcfc=LUHMyYO8lXrs5g%3D%3D',
+        "DNT": "1",
+        "Origin": "http://zakupki.gov.kg",
+        "Referer": "http://zakupki.gov.kg/popp/view/services/registry/suppliers.xhtml",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     }
 
-    response = requests.get(
-        "https://www.jameda.de/meike-hutzenlaub/orthopaede-unfallchirurg-akupunkteur-chirotherapeut/aachen",
+    params = {
+        "cid": "10",
+    }
+
+    data = {
+        "form": "form",
+        "j_idt66": "21209200000769",
+        "j_idt69": "",
+        "ownershipType_focus": "",
+        "ownershipType_input": "",
+        "status_focus": "",
+        "status_input": "",
+        "table_rppDD": "10",
+        "table_selection": "",
+        "javax.faces.ViewState": "-282286081613019871:216579941631514373",
+        "table:0:j_idt86": "table:0:j_idt86",
+    }
+
+    response = requests.post(
+        "http://zakupki.gov.kg/popp/view/services/registry/suppliers.xhtml",
+        params=params,
         cookies=cookies,
         headers=headers,
+        data=data,
+        verify=False,
         proxies=proxies_dict,
         timeout=timeout,
     )
@@ -176,49 +189,53 @@ def download_xml():
     save_path = "sitemap.xml"
 
     cookies = {
-        "JSESSIONID": "8jlT86O_r7Msy9ngmKSlZts40VMS-5ynG1gI-XnY.msc01-popp01:main-popp",
+        "ssid": "c129000win-j6zs7BQ_l9zz",
+        "locale": "de",
+        "esid": "iegIWqG6NihH-1khB2SppBEr",
+        "astid": "%7B%22id%22%3A%22973e0bee-9103-4f01-b7d3-014aeda1188f%22%7D",
+        "altid": "%7B%22id%22%3A%22fceb72fc-7492-49fe-baac-a0c543d66955%22%7D",
+        "didomi_token": "eyJ1c2VyX2lkIjoiMTkyOTAwMzktNGUzOC02MjAzLWE0OTUtMDhlMTU0YTQ5NTk4IiwiY3JlYXRlZCI6IjIwMjQtMTAtMTVUMTE6NTA6MDYuODE5WiIsInVwZGF0ZWQiOiIyMDI0LTEwLTE1VDExOjUwOjMyLjQwOFoiLCJ2ZW5kb3JzIjp7ImVuYWJsZWQiOlsiYzpkaWRvbWktZllQQll4V2EiLCJjOmRvY3RvbGlibi1XcDg3Q3BYQSIsImM6ZG9jdG9saWJhLXRndGIzVzhQIl19LCJwdXJwb3NlcyI6eyJlbmFibGVkIjpbImFuYWx5dGljcy1OR3F4V2JtbiIsImFuYWx5dGlrLU4yWkg5QnFRIiwiZGlzcGxheXRhLVY4a01lbllhIiwiZGlzcGxheXRhLVZyUFBWbkhoIl19LCJ2ZXJzaW9uIjoyfQ==",
+        "euconsent-v2": "CQGiOUAQGiOUAAHABBENBLFgAAAAAAAAAAAAAAAAAAAA.YAAAAAAAAAAA",
+        "booking_funnel_tracking": "{%22id%22:%22obk_3fe2ca4f-c14f-4187-8676-b06fdb24b275%22%2C%22source%22:%22external_referral%22}",
+        "cf_clearance": "FJZx3dFF7vDXKezGN8yFC8QlElTFaAFI1uooLVBIvOo-1729002026-1.2.1.1-GgiS.XXdVCjzICLsHhy8sVohn98CguO3RkY7m7DoURueNjLYWLjDzlFdQLwR7YpoyXkheww7Mswr4lmV8JwjzkaDAFbUZl8jMf5fj79vhYh0acWWlaJFOl6dalbM5jCwXcphsiVlxYYKKfIfyLqtMf3x7jPPzPPUGH0I5R8jItN9eCMwI5wZeblOUUz1fi9VZVuAxwZHilrBXeeUizvSMICR90GHyg1xBHi3nP4by73RfE4POSqI7SCYd6cclgmrutracmKDP5S79Sh8BLhB80eSp3ujBqWy2IsNSj3fdZbrD0af7IJppXshim.3zZQEgRGibPavg7mL9lg94ipRgU9_Knwbv0FVMA4mHr426HtQ5n8hJP6ZViZ_tzhycugX9_Y23zEtxLaM.UAxHGBBjWA.LBjQUg9qYHsr9IaYN0DgFiV_z9F2g2IRqUYBh7CB",
+        "_cfuvid": "JdsH.M511IaA0Vbl1Ld88GLYT0OhNQo6gTtnJ3sFVD4-1730120569271-0.0.1.1-604800000",
+        "__cf_bm": "o3H7BxQoTKZ71o8wVnhnOHgUUoMO4kIYT.eQesQ_kC0-1730192873-1.0.1.1-vM3F5yMtaf90YM90iBl36XTLKmSl6ReVzlLGAk878iRNb6mFcC3uV1cjVWcnMP3VAXzRX2LiFgkNyErQdbmk_.lIyYikkwB80e0pCaoZJTw",
+        "utm_b2b": "utm_source%3Ddirect%26utm_medium%3D",
+        "acid_search_result_page_spe": "{%22id%22:%22d2df0fad-1e75-46ad-b0e4-3797a72d0120%22%2C%22count%22:3}",
+        "acid_booking_traffic_and_cvr": "{%22id%22:%221ccaf965-30ff-491f-bc81-91e026ad4ab8%22%2C%22count%22:4}",
+        "acid_smart_ranking_booking_behaviour": "{%22id%22:%2288881c80-6c1e-431c-a344-c047e4b9d15e%22%2C%22count%22:3}",
+        "_doctolib_session": "bQKJF93RSrE6ATENHov8yxdGyAeJ7k805Ye8D8hmIiW6D8rPEuLKYAgiUK93ItoCwuDPW83XdDwTEZqPyN9c6EiOdvoTK9RQzXEzSQPMPdQn8Vsm2q3bKCu46QfpRdXjAo5d9e5mjXDc2x47MkXYhcXPcgqfs506ft40lVmqLuNsTbhvQl2i5D5v0J8hIRofYPsb4mXQ0uokKYayGRrabEAtkiWWIDie%2BMrd0BJNhX%2BaUAjArOT%2BejNdZSii6MF6KWqLyTPgKL%2BVtUIKKLgzRw6610HyEXcy7TSaeZikvqqWH%2BbgatUwj3ramCOKQ0vbG9tg2MIEGPoBCVxGB13ruikHT%2BlW%2BNySiw%3D%3D--VoxfHEKoQXJNHkHP--tWQUxXYkQ93GjGEG%2BUXKXQ%3D%3D",
     }
 
     headers = {
-        "Accept": "application/xml, text/xml, */*; q=0.01",
-        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-        "Connection": "keep-alive",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        # 'Cookie': 'JSESSIONID=8jlT86O_r7Msy9ngmKSlZts40VMS-5ynG1gI-XnY.msc01-popp01:main-popp',
-        "DNT": "1",
-        "Faces-Request": "partial/ajax",
-        "Origin": "http://zakupki.gov.kg",
-        "Referer": "http://zakupki.gov.kg/popp/view/order/winners.xhtml",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-        "X-Requested-With": "XMLHttpRequest",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
+        # 'cookie': 'ssid=c129000win-j6zs7BQ_l9zz; locale=de; esid=iegIWqG6NihH-1khB2SppBEr; astid=%7B%22id%22%3A%22973e0bee-9103-4f01-b7d3-014aeda1188f%22%7D; altid=%7B%22id%22%3A%22fceb72fc-7492-49fe-baac-a0c543d66955%22%7D; didomi_token=eyJ1c2VyX2lkIjoiMTkyOTAwMzktNGUzOC02MjAzLWE0OTUtMDhlMTU0YTQ5NTk4IiwiY3JlYXRlZCI6IjIwMjQtMTAtMTVUMTE6NTA6MDYuODE5WiIsInVwZGF0ZWQiOiIyMDI0LTEwLTE1VDExOjUwOjMyLjQwOFoiLCJ2ZW5kb3JzIjp7ImVuYWJsZWQiOlsiYzpkaWRvbWktZllQQll4V2EiLCJjOmRvY3RvbGlibi1XcDg3Q3BYQSIsImM6ZG9jdG9saWJhLXRndGIzVzhQIl19LCJwdXJwb3NlcyI6eyJlbmFibGVkIjpbImFuYWx5dGljcy1OR3F4V2JtbiIsImFuYWx5dGlrLU4yWkg5QnFRIiwiZGlzcGxheXRhLVY4a01lbllhIiwiZGlzcGxheXRhLVZyUFBWbkhoIl19LCJ2ZXJzaW9uIjoyfQ==; euconsent-v2=CQGiOUAQGiOUAAHABBENBLFgAAAAAAAAAAAAAAAAAAAA.YAAAAAAAAAAA; booking_funnel_tracking={%22id%22:%22obk_3fe2ca4f-c14f-4187-8676-b06fdb24b275%22%2C%22source%22:%22external_referral%22}; cf_clearance=FJZx3dFF7vDXKezGN8yFC8QlElTFaAFI1uooLVBIvOo-1729002026-1.2.1.1-GgiS.XXdVCjzICLsHhy8sVohn98CguO3RkY7m7DoURueNjLYWLjDzlFdQLwR7YpoyXkheww7Mswr4lmV8JwjzkaDAFbUZl8jMf5fj79vhYh0acWWlaJFOl6dalbM5jCwXcphsiVlxYYKKfIfyLqtMf3x7jPPzPPUGH0I5R8jItN9eCMwI5wZeblOUUz1fi9VZVuAxwZHilrBXeeUizvSMICR90GHyg1xBHi3nP4by73RfE4POSqI7SCYd6cclgmrutracmKDP5S79Sh8BLhB80eSp3ujBqWy2IsNSj3fdZbrD0af7IJppXshim.3zZQEgRGibPavg7mL9lg94ipRgU9_Knwbv0FVMA4mHr426HtQ5n8hJP6ZViZ_tzhycugX9_Y23zEtxLaM.UAxHGBBjWA.LBjQUg9qYHsr9IaYN0DgFiV_z9F2g2IRqUYBh7CB; _cfuvid=JdsH.M511IaA0Vbl1Ld88GLYT0OhNQo6gTtnJ3sFVD4-1730120569271-0.0.1.1-604800000; __cf_bm=o3H7BxQoTKZ71o8wVnhnOHgUUoMO4kIYT.eQesQ_kC0-1730192873-1.0.1.1-vM3F5yMtaf90YM90iBl36XTLKmSl6ReVzlLGAk878iRNb6mFcC3uV1cjVWcnMP3VAXzRX2LiFgkNyErQdbmk_.lIyYikkwB80e0pCaoZJTw; utm_b2b=utm_source%3Ddirect%26utm_medium%3D; acid_search_result_page_spe={%22id%22:%22d2df0fad-1e75-46ad-b0e4-3797a72d0120%22%2C%22count%22:3}; acid_booking_traffic_and_cvr={%22id%22:%221ccaf965-30ff-491f-bc81-91e026ad4ab8%22%2C%22count%22:4}; acid_smart_ranking_booking_behaviour={%22id%22:%2288881c80-6c1e-431c-a344-c047e4b9d15e%22%2C%22count%22:3}; _doctolib_session=bQKJF93RSrE6ATENHov8yxdGyAeJ7k805Ye8D8hmIiW6D8rPEuLKYAgiUK93ItoCwuDPW83XdDwTEZqPyN9c6EiOdvoTK9RQzXEzSQPMPdQn8Vsm2q3bKCu46QfpRdXjAo5d9e5mjXDc2x47MkXYhcXPcgqfs506ft40lVmqLuNsTbhvQl2i5D5v0J8hIRofYPsb4mXQ0uokKYayGRrabEAtkiWWIDie%2BMrd0BJNhX%2BaUAjArOT%2BejNdZSii6MF6KWqLyTPgKL%2BVtUIKKLgzRw6610HyEXcy7TSaeZikvqqWH%2BbgatUwj3ramCOKQ0vbG9tg2MIEGPoBCVxGB13ruikHT%2BlW%2BNySiw%3D%3D--VoxfHEKoQXJNHkHP--tWQUxXYkQ93GjGEG%2BUXKXQ%3D%3D',
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+        "sec-ch-ua-arch": '"x86"',
+        "sec-ch-ua-bitness": '"64"',
+        "sec-ch-ua-full-version": '"130.0.6723.70"',
+        "sec-ch-ua-full-version-list": '"Chromium";v="130.0.6723.70", "Google Chrome";v="130.0.6723.70", "Not?A_Brand";v="99.0.0.0"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-model": '""',
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-ch-ua-platform-version": '"15.0.0"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     }
 
-    params = {
-        "cid": "1",
-    }
-
-    data = {
-        "javax.faces.partial.ajax": "true",
-        "javax.faces.source": "table",
-        "javax.faces.partial.execute": "table",
-        "javax.faces.partial.render": "table",
-        "table": "table",
-        "table_pagination": "true",
-        "table_first": "30",
-        "table_rows": "10",
-        "table_skipChildren": "true",
-        "table_encodeFeature": "true",
-        "form": "form",
-        "javax.faces.ViewState": "4727326906421657138:4557913132076905415",
-    }
-
-    response = requests.post(
-        "http://zakupki.gov.kg/popp/view/order/winners.xhtml",
-        params=params,
+    response = requests.get(
+        "https://www.doctolib.de/sitemap.xml",
         cookies=cookies,
         headers=headers,
-        data=data,
-        verify=False,
         # proxies=proxies_dict,
     )
 
@@ -456,6 +473,27 @@ def download_pdf():
         logger.error(f"Ошибка при скачивании PDF для idRCRD {idRCRD}: {e}")
 
 
+def pr_xml():
+    # Чтение файла sitemap.xml
+    with open("sitemap.xml", "r", encoding="utf-8") as file:
+        xml_content = file.read()
+
+    # Разбор XML содержимого
+    root = ET.fromstring(xml_content)
+
+    # Пространство имен XML, используется для правильного извлечения данных
+    namespace = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+
+    # Извлечение всех URL из тегов <loc>
+    urls = [url.text.strip() for url in root.findall(".//ns:loc", namespace)]
+
+    # Создание DataFrame с URL
+    url_data = pd.DataFrame(urls, columns=["url"])
+
+    # Запись URL в CSV файл
+    url_data.to_csv("urls.csv", index=False)
+
+
 if __name__ == "__main__":
     # get_html()
     # download_pdf()
@@ -466,8 +504,9 @@ if __name__ == "__main__":
     # parsing()
     # Запуск функции для обхода директории
 
-    get_json()
-    # download_xml()
+    # get_json()
+    download_xml()
+    # pr_xml()
     # parsing_xml()
     # fetch_and_save()
     # parsing_csv()

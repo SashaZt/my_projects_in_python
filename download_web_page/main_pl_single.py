@@ -255,7 +255,7 @@ def download_pdf(idRCRD, cookies):
 def main():
     # urls = get_urls(output_csv_file)
     # asyncio.run(single_html(urls))
-    url = "http://zakupki.gov.kg/popp/view/order/winners.xhtml"
+    url = "https://clash.gg/raffle"
     asyncio.run(single_html_one(url))
 
 

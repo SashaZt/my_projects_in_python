@@ -8,6 +8,8 @@ import json
 import os
 from bs4 import BeautifulSoup
 import re
+import aiofiles
+import csv
 
 # Путь к папкам
 current_directory = Path.cwd()
@@ -15,11 +17,13 @@ data_directory = current_directory / "data"
 html_files_directory = current_directory / "html_files"
 html_files_page_directory = current_directory / "html_files_page"
 configuration_directory = current_directory / "configuration"
+json_directory = current_directory / "json"
 
 data_directory.mkdir(parents=True, exist_ok=True)
 html_files_directory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
 html_files_page_directory.mkdir(parents=True, exist_ok=True)
+json_directory.mkdir(parents=True, exist_ok=True)
 
 file_proxy = configuration_directory / "roman.txt"
 csv_output_file = current_directory / "inn_data.csv"
@@ -60,88 +64,88 @@ def parse_proxy(proxy):
         return {"server": f"http://{proxy}"}
 
 
-# # Асинхронная функция для сохранения HTML и получения ссылок по XPath
-# async def single_html_one(url):
-#     proxies = load_proxies()
-#     proxy = random.choice(proxies) if proxies else None
-#     if not proxies:
-#         logger.info("Прокси не найдено, работа будет выполнена локально.")
-#     try:
-#         proxy_config = parse_proxy(proxy) if proxy else None
-#         async with async_playwright() as p:
-#             browser = (
-#                 await p.chromium.launch(proxy=proxy_config, headless=False)
-#                 if proxy
-#                 else await p.chromium.launch(headless=False)
-#             )
-#             context = await browser.new_context(accept_downloads=True)
-#             page = await context.new_page()
+# Асинхронная функция для сохранения HTML и получения ссылок по XPath
+async def single_html_one(url):
+    proxies = load_proxies()
+    proxy = random.choice(proxies) if proxies else None
+    if not proxies:
+        logger.info("Прокси не найдено, работа будет выполнена локально.")
+    try:
+        proxy_config = parse_proxy(proxy) if proxy else None
+        async with async_playwright() as p:
+            browser = (
+                await p.chromium.launch(proxy=proxy_config, headless=False)
+                if proxy
+                else await p.chromium.launch(headless=False)
+            )
+            context = await browser.new_context(accept_downloads=True)
+            page = await context.new_page()
 
-#             # Отключаем медиа
-#             await page.route(
-#                 "**/*",
-#                 lambda route: (
-#                     route.abort()
-#                     if route.request.resource_type in ["image", "media"]
-#                     else route.continue_()
-#                 ),
-#             )
-#             # Переход на страницу и ожидание полной загрузки
-#             await page.goto(url, timeout=60000, wait_until="networkidle")
-#             # Пауза на 5 секунд
-#             await asyncio.sleep(5)
-#             # Поиск элемента с нужными классами
-#             element = await page.query_selector(
-#                 "a.ui-paginator-page.ui-state-default.ui-corner-all.ui-state-active"
-#             )
-#             page_number = None
-#             if element:
-#                 # Извлекаем текст из элемента
-#                 element_text = await element.inner_text()
+            # Отключаем медиа
+            await page.route(
+                "**/*",
+                lambda route: (
+                    route.abort()
+                    if route.request.resource_type in ["image", "media"]
+                    else route.continue_()
+                ),
+            )
+            # Переход на страницу и ожидание полной загрузки
+            await page.goto(url, timeout=60000, wait_until="networkidle")
+            # Пауза на 5 секунд
+            await asyncio.sleep(5)
+            # Поиск элемента с нужными классами
+            element = await page.query_selector(
+                "a.ui-paginator-page.ui-state-default.ui-corner-all.ui-state-active"
+            )
+            page_number = None
+            if element:
+                # Извлекаем текст из элемента
+                element_text = await element.inner_text()
 
-#                 # Преобразуем текст и сохраняем в переменную page
-#                 page_number_raw = element_text.strip().replace(" ", "_").lower()
-#                 page_number = f"page_{page_number_raw.split('_')[-1]}"
+                # Преобразуем текст и сохраняем в переменную page
+                page_number_raw = element_text.strip().replace(" ", "_").lower()
+                page_number = f"page_{page_number_raw.split('_')[-1]}"
 
-#             content = await page.content()
-#             html_file_path = html_files_directory / f"0{page_number}.html"
-#             with open(html_file_path, "w", encoding="utf-8") as f:
-#                 f.write(content)
+            content = await page.content()
+            html_file_path = html_files_directory / f"0{page_number}.html"
+            with open(html_file_path, "w", encoding="utf-8") as f:
+                f.write(content)
 
-#             # Цикл для нажатия на кнопку "Next Page", пока она есть на странице
-#             while True:
-#                 next_button = await page.query_selector(
-#                     "a.ui-paginator-next.ui-state-default.ui-corner-all"
-#                 )
+            # Цикл для нажатия на кнопку "Next Page", пока она есть на странице
+            while True:
+                next_button = await page.query_selector(
+                    "a.ui-paginator-next.ui-state-default.ui-corner-all"
+                )
 
-#                 if next_button:
-#                     # Нажимаем на кнопку "Next Page"
-#                     await next_button.click()
+                if next_button:
+                    # Нажимаем на кнопку "Next Page"
+                    await next_button.click()
 
-#                     # Пауза, чтобы подождать загрузку новой страницы
-#                     await asyncio.sleep(2)
-#                     # Поиск элемента с нужными классами
-#                     element = await page.query_selector(
-#                         "a.ui-paginator-page.ui-state-default.ui-corner-all.ui-state-active"
-#                     )
-#                     page_number = None
-#                     if element:
-#                         # Извлекаем текст из элемента
-#                         element_text = await element.inner_text()
+                    # Пауза, чтобы подождать загрузку новой страницы
+                    await asyncio.sleep(2)
+                    # Поиск элемента с нужными классами
+                    element = await page.query_selector(
+                        "a.ui-paginator-page.ui-state-default.ui-corner-all.ui-state-active"
+                    )
+                    page_number = None
+                    if element:
+                        # Извлекаем текст из элемента
+                        element_text = await element.inner_text()
 
-#                         # Преобразуем текст и сохраняем в переменную page
-#                         page_number_raw = element_text.strip().replace(" ", "_").lower()
-#                         page_number = f"page_{page_number_raw.split('_')[-1]}"
+                        # Преобразуем текст и сохраняем в переменную page
+                        page_number_raw = element_text.strip().replace(" ", "_").lower()
+                        page_number = f"page_{page_number_raw.split('_')[-1]}"
 
-#                     content = await page.content()
-#                     html_file_path = html_files_directory / f"0{page_number}.html"
-#                     with open(html_file_path, "w", encoding="utf-8") as f:
-#                         f.write(content)
+                    content = await page.content()
+                    html_file_path = html_files_directory / f"0{page_number}.html"
+                    with open(html_file_path, "w", encoding="utf-8") as f:
+                        f.write(content)
 
-#         await context.close()
-#         await browser.close()
-#     except Exception as e:
-#         logger.error(f"Ошибка при обработке URL: {e}")
+        await context.close()
+        await browser.close()
+    except Exception as e:
+        logger.error(f"Ошибка при обработке URL: {e}")
 
 
 async def single_html_one_contact(url):
@@ -261,92 +265,106 @@ async def single_html_one_contact(url):
         logger.error(f"Ошибка при обработке URL: {e}")
 
 
-async def single_html_one(url):
-    inns = read_cities_from_csv(csv_output_file)
-    # Парсим поставщиков
-    proxies = load_proxies()
-    proxy = random.choice(proxies) if proxies else None
-    if not proxies:
-        logger.info("Прокси не найдено, работа будет выполнено локально.")
-    try:
-        proxy_config = parse_proxy(proxy) if proxy else None
-        async with async_playwright() as p:
-            browser = (
-                await p.chromium.launch(proxy=proxy_config, headless=False)
-                if proxy
-                else await p.chromium.launch(headless=False)
-            )
-            context = await browser.new_context(accept_downloads=True)
-            page = await context.new_page()
+async def write_inn_to_csv(inn):
+    logger.warning("Пишем")
+    async with aiofiles.open("inns.csv", mode="a") as file:
+        await file.write(f"{inn}\n")
+        await file.flush()  # Принудительно записываем данные в файл
 
-            # Отключаем медиа
-            await page.route(
-                "**/*",
-                lambda route: (
-                    route.abort()
-                    if route.request.resource_type in ["image", "media"]
-                    else route.continue_()
-                ),
-            )
 
-            # Переход на страницу и ожидание полной загрузки
-            await page.goto(url, timeout=60000, wait_until="networkidle")
-            await asyncio.sleep(2)
-            for inn in inns:
-                if not inn.isdigit():
-                    logger.warning(f"Некорректное значение ИНН: {inn}, пропускаем.")
-                    continue
+# async def single_html_one(url):
+#     inns = read_cities_from_csv(csv_output_file)
+#     # Парсим поставщиков
+#     proxies = load_proxies()
+#     proxy = random.choice(proxies) if proxies else None
+#     if not proxies:
+#         logger.info("Прокси не найдено, работа будет выполнено локально.")
+#     try:
+#         proxy_config = parse_proxy(proxy) if proxy else None
+#         async with async_playwright() as p:
+#             browser = (
+#                 await p.chromium.launch(proxy=proxy_config, headless=False)
+#                 if proxy
+#                 else await p.chromium.launch(headless=False)
+#             )
+#             context = await browser.new_context(accept_downloads=True)
+#             page = await context.new_page()
 
-                logger.info(inn)
-                html_file_path = html_files_directory / f"inn_{inn}.html"
-                if html_file_path.exists():
-                    continue  # Переходим к следующей итерации цикла
-                await page.wait_for_selector(
-                    "input[type='text'][name='j_idt66']", timeout=10000
-                )
-                await page.fill("input[type='text'][name='j_idt66']", inn)
-                logger.info(f"Вставили {inn}")
-                await page.wait_for_selector(
-                    "input[id='j_idt79'][type='submit']", timeout=10000
-                )
-                await page.click("input[id='j_idt79'][type='submit']")
-                await page.wait_for_selector(
-                    "table.display-table.public-table", timeout=10000
-                )
-                first_row_link = await page.query_selector(
-                    "table.display-table.public-table tbody tr:first-child a[onclick*='mojarra.jsfcljs']"
-                )
-                if first_row_link:
-                    await first_row_link.click()
-                    # Проверяем наличие ошибки на странице
-                error_element = await page.query_selector(
-                    "p[style='font-size:24px;color:#1785aa;font-weight: bold;']"
-                )
-                if error_element:
-                    logger.warning("Обнаружена ошибка на странице, перезагружаем...")
-                    await page.goto(url, timeout=60000, wait_until="networkidle")
-                    continue
+#             # Отключаем медиа
+#             await page.route(
+#                 "**/*",
+#                 lambda route: (
+#                     route.abort()
+#                     if route.request.resource_type in ["image", "media"]
+#                     else route.continue_()
+#                 ),
+#             )
 
-                # Находим элемент "Назад" и нажимаем на него
-                back_button = await page.wait_for_selector(
-                    "//a[@class='button-grey' and text()='Назад']",
-                    timeout=30000,
-                )
-                # await asyncio.sleep(1)
-                html_content = await page.content()
-                with open(html_file_path, "w", encoding="utf-8") as file:
-                    file.write(html_content)
-                    logger.info(f"Файл {html_file_path} успешно сохранен.")
+#             # Переход на страницу и ожидание полной загрузки
+#             await page.goto(url, timeout=60000, wait_until="networkidle")
+#             await asyncio.sleep(2)
+#             for inn in inns:
+#                 # if not inn.isdigit():
+#                 #     logger.warning(f"Некорректное значение ИНН: {inn}, пропускаем.")
+#                 #     logger.info("Запись")
+#                 #     await write_inn_to_csv(inn)
 
-                await back_button.click()
-                # Очистка поля ввода после сохранения
-                await page.fill("input[type='text'][name='j_idt66']", "")
+#                 #     continue
 
-            await context.close()
-            await browser.close()
+#                 logger.info(inn)
+                # html_file_path = html_files_directory / f"inn_{inn}.html"
+                # if html_file_path.exists():
+                #     continue  # Переходим к следующей итерации цикла
+#                 await page.wait_for_selector(
+#                     "input[type='text'][name='j_idt66']", timeout=10000
+#                 )
+#                 await page.fill("input[type='text'][name='j_idt66']", inn)
+#                 logger.info(f"Вставили {inn}")
+#                 await page.wait_for_selector(
+#                     "input[id='j_idt79'][type='submit']", timeout=10000
+#                 )
+#                 await page.click("input[id='j_idt79'][type='submit']")
+#                 await page.wait_for_selector(
+#                     "table.display-table.public-table", timeout=10000
+#                 )
+#                 first_row_link = await page.query_selector(
+#                     "table.display-table.public-table tbody tr:first-child a[onclick*='mojarra.jsfcljs']"
+#                 )
+#                 if first_row_link:
+#                     await first_row_link.click()
+#                     # Проверяем наличие ошибки на странице
+#                 error_element = await page.query_selector(
+#                     "p[style='font-size:24px;color:#1785aa;font-weight: bold;']"
+#                 )
+#                 if error_element:
+#                     logger.warning("Обнаружена ошибка на странице, перезагружаем...")
+#                     await page.goto(url, timeout=60000, wait_until="networkidle")
+#                     continue
 
-    except Exception as e:
-        logger.error(f"Ошибка при выполнении: {e}")
+#                 # ТЕСТОВО
+#                 # # Находим элемент "Назад" и нажимаем на него
+#                 # back_button = await page.wait_for_selector(
+#                 #     "//a[@class='button-grey' and text()='Назад']",
+#                 #     timeout=30000,
+#                 # )
+#                 await asyncio.sleep(1)
+#                 html_content = await page.content()
+#                 with open(html_file_path, "w", encoding="utf-8") as file:
+#                     file.write(html_content)
+#                     logger.info(f"Файл {html_file_path} успешно сохранен.")
+
+#                 # Тестово проверим возможно быстрее будет
+#                 await page.goto(url, timeout=60000, wait_until="networkidle")
+
+#                 # await back_button.click()
+#                 # # Очистка поля ввода после сохранения
+#                 # await page.fill("input[type='text'][name='j_idt66']", "")
+
+#             await context.close()
+#             await browser.close()
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при выполнении: {e}")
 
 
 async def single_html_page_company(url):
@@ -395,7 +413,7 @@ async def single_html_page_company(url):
                 if next_button and await next_button.is_visible():
                     try:
                         await next_button.click()
-                        await asyncio.sleep(5)
+                        await asyncio.sleep(3)
                     except Exception as e:
                         logger.error(f"Ошибка при клике на кнопку 'Next Page': {e}")
                 else:
@@ -589,27 +607,40 @@ def parsing_page():
     df.to_excel("output.xlsx", index=False)
 
 
-# Готовое решение потом возьмем данные  из parsed_data.json
 def parsing_company():
-    json_file_path = "inn_company.json"
-
-    # Загрузка данных из JSON файла
-    with open(json_file_path, encoding="utf-8") as json_file:
-        json_data = json.load(json_file)
-
-    # Создание DataFrame из JSON данных
-    json_df = pd.DataFrame(json_data)
     # Множество для хранения уникальных itm_value
     all_data = []
     # Пройтись по каждому HTML файлу в папке
     for html_file in html_files_directory.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             content: str = file.read()
+        # Извлекаем ИНН из имени файла
+        inn_match = re.search(r"inn_(\d+)\.html", html_file.name)
+        if inn_match:
+            inn = inn_match.group(1)
+        else:
+            continue
         soup = BeautifulSoup(content, "lxml")
         tbody = soup.find("tbody")
         rows = tbody.find_all("tr")
 
-        result = {}
+        result = {
+            "ИНН организации": None,
+            "Наименование организации": None,
+            "Организационно-правовая форма": None,
+            "Населённый пункт": None,
+            "Фактический адрес": None,
+            "Рабочий телефон": None,
+            "Банк": None,
+            "Р/счет": None,
+            "БИК": None,
+            "Официальное информационное письмо по банковскому реквизиту": None,
+            "ФИО пользователя": None,
+            "Должность": None,
+            "Роль": None,
+            "Электронная почта": None,
+        }
+
         for row in rows:
             cells = row.find_all("td")
             if len(cells) == 2:
@@ -619,20 +650,103 @@ def parsing_company():
                 link = cells[1].find("a")
                 if link:
                     value = f"{value} (ссылка: {link['href']})"
-                result[key] = value
+                if key in result:
+                    result[key] = value
+                # Если ключ равен "ИНН организации", сохраняем его значение как inn_from_content
+                if key == "ИНН организации":
+                    inn_from_content = value
+                    if inn_from_content == inn:
+                        logger.info("ИНН сходится")
+                    else:
+                        logger.info(f"Разные, файл {inn}, внутри {inn_from_content}")
+        write_inn_to_csv_inn(inn_from_content)
+
+        # logger.info(result)
+        json_output_file = json_directory / f"output_{inn_from_content}.json"
+        with open(json_output_file, "w", encoding="utf-8") as json_file:
+            json.dump(result, json_file, ensure_ascii=False, indent=4)
+
+
+def write_inn_to_csv_inn(inn):
+    csv_file_successful = current_directory / "inns_successful.csv"
+    with open(csv_file_successful, mode="a", newline="", encoding="utf-8") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow([inn])
+
+
+# Готовое решение потом возьмем данные  из parsed_data.json
+def parsing_company_():
+    # Множество для хранения уникальных itm_value
+    all_data = []
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_files_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content: str = file.read()
+        # Извлекаем ИНН из имени файла
+        inn_match = re.search(r"inn_(\d+)\.html", html_file.name)
+        if inn_match:
+            inn = inn_match.group(1)
+        else:
+            continue
+        soup = BeautifulSoup(content, "lxml")
+        tbody = soup.find("tbody")
+        rows = tbody.find_all("tr")
+
+        result = {
+            "ИНН организации": None,
+            "Наименование организации": None,
+            "Организационно-правовая форма": None,
+            "Населённый пункт": None,
+            "Фактический адрес": None,
+            "Рабочий телефон": None,
+            "Банк": None,
+            "Р/счет": None,
+            "БИК": None,
+            "Официальное информационное письмо по банковскому реквизиту": None,
+            "ФИО пользователя": None,
+            "Должность": None,
+            "Роль": None,
+            "Электронная почта": None,
+        }
+
+        for row in rows:
+            cells = row.find_all("td")
+            if len(cells) == 2:
+                key = cells[0].get_text(strip=True)
+                value = cells[1].get_text(strip=True)
+                # Если есть ссылка, добавляем её к значению
+                link = cells[1].find("a")
+                if link:
+                    value = f"{value} (ссылка: {link['href']})"
+                if key in result:
+                    result[key] = value
+                # Если ключ равен "ИНН организации", сохраняем его значение как inn_from_content
+                if key == "ИНН организации":
+                    inn_from_content = value
+                    if inn_from_content == inn:
+                        logger.info("ИНН сходится")
+                    else:
+                        logger.info(f"Разные, файл {inn}, внутри {inn_from_content}")
+
+        # logger.info(result)
+        exit()
         all_data.append(result)
-    # Создание DataFrame из данных, полученных из HTML
-    html_df = pd.DataFrame(all_data)
+    output_file = "output_html.json"
+    with open(output_file, "w", encoding="utf-8") as json_file:
+        json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+    # # Создание DataFrame из данных, полученных из HTML
+    # html_df = pd.DataFrame(all_data)
 
-    # Объединение DataFrame из JSON и HTML по столбцу "ИНН организации", оставляя только совпадающие значения
-    merged_df = pd.merge(json_df, html_df, on="ИНН организации", how="inner")
+    # # Объединение DataFrame из JSON и HTML по столбцу "ИНН организации", оставляя только совпадающие значения
+    # merged_df = pd.merge(json_df, html_df, on="ИНН организации", how="inner")
 
-    # Запись объединённых данных в Excel
-    merged_df.to_excel("output.xlsx", index=False)
+    # # Запись объединённых данных в Excel
+    # merged_df.to_excel("output.xlsx", index=False)
 
     # # logger.info(all_data)
     # df = pd.DataFrame(all_data)
     # df.to_excel("output.xlsx", index=False)
+    # Записать список словарей в JSON файл
 
 
 def parsing_page_company():
@@ -645,7 +759,6 @@ def parsing_page_company():
         table = soup.find("table", attrs={"class": "display-table public-table"})
         if table:
             rows = table.find("tbody").find_all("tr")
-            result = []
 
             for row in rows:
                 cells = row.find_all("td")
@@ -663,8 +776,12 @@ def parsing_page_company():
         json.dump(all_data, json_file, ensure_ascii=False, indent=4)
     # Записать ИНН каждой организации в CSV файл
     # Записать ИНН каждой организации в CSV файл с использованием pandas
+    # df = pd.DataFrame(all_data)
+    # df[["ИНН организации"]].to_csv(csv_output_file, index=False, encoding="utf-8")
+    # # Создание DataFrame и запись уникальных значений ИНН организации в CSV
     df = pd.DataFrame(all_data)
-    df[["ИНН организации"]].to_csv(csv_output_file, index=False, encoding="utf-8")
+    unique_inn_df = df[["ИНН организации"]].drop_duplicates()
+    unique_inn_df.to_csv(csv_output_file, index=False, encoding="utf-8")
 
 
 # Функция для выполнения основной логики
@@ -674,8 +791,87 @@ def main():
     # asyncio.run(single_html_page_company(url))
 
 
+def get_write_json():
+    # Загрузка данных из JSON файлов
+    with open("output_html.json", "r", encoding="utf-8") as f:
+        output_html = json.load(f)
+
+    with open("inn_company.json", "r", encoding="utf-8") as f:
+        inn_company = json.load(f)
+
+    # Создаем словарь для быстрого поиска по ИНН из inn_company.json
+    inn_dict = {entry["ИНН организации"]: entry for entry in inn_company}
+
+    # Обновление данных в output_html.json
+    for company in output_html:
+        inn = company.get("ИНН организации")
+        if inn in inn_dict:
+            company.update(
+                {
+                    "Статус": inn_dict[inn]["Статус"],
+                    "Дата регистрации": inn_dict[inn]["Дата регистрации"],
+                }
+            )
+
+    # Сохранение обновленного списка в JSON файл
+    with open("output_html_updated.json", "w", encoding="utf-8") as f:
+        json.dump(output_html, f, ensure_ascii=False, indent=4)
+
+    # Загрузка данных из JSON файла
+    with open("output_html_updated.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Сбор всех уникальных ключей из всех словарей
+    unique_keys = set()
+    for item in data:
+        unique_keys.update(item.keys())
+
+    # Создание списка всех уникальных ключей
+    unique_keys = sorted(unique_keys)
+
+    # Преобразование списка словарей в DataFrame с учетом всех ключей
+    normalized_data = []
+    for item in data:
+        normalized_item = {key: item.get(key, None) for key in unique_keys}
+        normalized_data.append(normalized_item)
+
+    df = pd.DataFrame(normalized_data)
+
+    # Запись данных в Excel файл
+    output_excel = "output_html_updated.xlsx"
+    df.to_excel(output_excel, index=False, sheet_name="Data")
+
+
+def delet_html():
+    # Путь к файлу CSV и папке с HTML-файлами
+    csv_file_path = "inns_successful.csv"
+    html_files_folder = "html_files"
+
+    # Чтение значений ИНН из файла CSV
+    with open(csv_file_path, newline="", encoding="utf-8") as csvfile:
+        reader = csv.reader(csvfile)
+        inns_successful = set(row[0].strip() for row in reader)
+
+    # Получение списка файлов в папке html_files
+    html_files = os.listdir(html_files_folder)
+
+    # Итерация по файлам и удаление тех, которые отсутствуют в inns_successful
+    for filename in html_files:
+        # Проверяем, что имя файла соответствует шаблону "inn_XXXXXXXXXXXXX.html"
+        if filename.startswith("inn_") and filename.endswith(".html"):
+            # Извлекаем ИНН из имени файла (без 'inn_' и '.html')
+            inn_from_file = filename[4:-5]
+            # Удаляем файл, если ИНН не в списке успешных
+            if inn_from_file not in inns_successful:
+                file_path = os.path.join(html_files_folder, filename)
+                os.remove(file_path)
+                print(f"Удален файл: {file_path}")
+
+
 if __name__ == "__main__":
-    main()
+    # main()
     # parsing_page()
     # parsing_company()
+    # get_write_json()
     # parsing_page_company()
+    delet_html()
