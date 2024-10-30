@@ -8,8 +8,13 @@ async def main():
         await uc.start()
     )  # Добавьте параметр headless=True, если не хотите видеть браузер
     # Переходим на страницу
-    page = await browser.get("https://www.doctolib.de/sitemap.xml")
-    await asyncio.sleep(3)
+    page = await browser.get("https://hotline.ua/")
+    element_find = await page.wait_for(
+        selector="#autosuggest > div:nth-child(1) > input[type=text]", timeout=15
+    )
+    
+
+
     content = await page.get_content()
 
     # Получаем содержимое   я страницы
@@ -18,7 +23,7 @@ async def main():
     # Проверяем, что содержимое не None
     if content:
         # Сохраняем в файл sitemap.xml
-        with open("sitemap.xml", "w", encoding="utf-8") as f:
+        with open("sitemap.html", "w", encoding="utf-8") as f:
             f.write(content)
     else:
         print("Контент не найден.")

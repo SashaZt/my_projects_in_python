@@ -65,25 +65,13 @@ def get_json_pages():
         "sec-fetch-site": "same-origin",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
     }
-    for offset in range(0, 5):
+    for offset in range(0, 7):
         json_data = {
-            "query": "",
+            "query": '"engineering","build"',
             "filter": {
                 "solicitationNumber": "",
-                "categories": [
-                    {
-                        "value": "CNST",
-                        "selected": True,
-                        "count": 0,
-                    },
-                ],
-                "statuses": [
-                    {
-                        "value": "AWARD",
-                        "selected": True,
-                        "count": 0,
-                    },
-                ],
+                "categories": [],
+                "statuses": [],
                 "agreementTypes": [],
                 "solicitationTypes": [],
                 "opportunityTypes": [],
@@ -113,12 +101,12 @@ def get_json_pages():
             json=json_data,
             timeout=timeout,
         )
-
+        file_page_file = json_page_directory / f"proba_{offset}.json"
         # Проверка кода ответа
         if response.status_code == 200:
             json_data = response.json()
             # filename = os.path.join(json_path, f"0.json")
-            with open(f"proba_{offset}.json", "w", encoding="utf-8") as f:
+            with open(file_page_file, "w", encoding="utf-8") as f:
                 json.dump(
                     json_data, f, ensure_ascii=False, indent=4
                 )  # Записываем в файл
@@ -438,6 +426,7 @@ def all_data():
 
 
 if __name__ == "__main__":
+    get_json_pages()
     parisng_json_pages()
     get_json_company()
     paring_json_company()
