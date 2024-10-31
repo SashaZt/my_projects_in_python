@@ -20,6 +20,7 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 
 file_proxy = configuration_directory / "roman.txt"
 csv_output_file = current_directory / "inn_data.csv"
+csv_output_file = data_directory / "all_urls.csv"
 
 
 # Функция загрузки списка прокси
