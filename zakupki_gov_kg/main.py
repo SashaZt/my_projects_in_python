@@ -312,9 +312,9 @@ async def write_inn_to_csv(inn):
 #                 #     continue
 
 #                 logger.info(inn)
-                # html_file_path = html_files_directory / f"inn_{inn}.html"
-                # if html_file_path.exists():
-                #     continue  # Переходим к следующей итерации цикла
+# html_file_path = html_files_directory / f"inn_{inn}.html"
+# if html_file_path.exists():
+#     continue  # Переходим к следующей итерации цикла
 #                 await page.wait_for_selector(
 #                     "input[type='text'][name='j_idt66']", timeout=10000
 #                 )
@@ -729,7 +729,6 @@ def parsing_company_():
                         logger.info(f"Разные, файл {inn}, внутри {inn_from_content}")
 
         # logger.info(result)
-        exit()
         all_data.append(result)
     output_file = "output_html.json"
     with open(output_file, "w", encoding="utf-8") as json_file:
@@ -792,54 +791,41 @@ def main():
 
 
 def get_write_json():
-    # Загрузка данных из JSON файлов
-    with open("output_html.json", "r", encoding="utf-8") as f:
-        output_html = json.load(f)
+    try:
+        # Загрузка данных из JSON файлов
+        with open("output_html.json", "r", encoding="utf-8") as f:
+            output_html = json.load(f)
 
-    with open("inn_company.json", "r", encoding="utf-8") as f:
-        inn_company = json.load(f)
+        with open("parsed_data.json", "r", encoding="utf-8") as f:
+            parsed_data = json.load(f)
 
-    # Создаем словарь для быстрого поиска по ИНН из inn_company.json
-    inn_dict = {entry["ИНН организации"]: entry for entry in inn_company}
+        # Создаем словарь для быстрого поиска по ИНН из parsed_data.json
+        parsed_dict = {entry["ИНН организации"]: entry for entry in parsed_data}
 
-    # Обновление данных в output_html.json
-    for company in output_html:
-        inn = company.get("ИНН организации")
-        if inn in inn_dict:
-            company.update(
-                {
-                    "Статус": inn_dict[inn]["Статус"],
-                    "Дата регистрации": inn_dict[inn]["Дата регистрации"],
-                }
-            )
+        # Обновление данных в output_html
+        for company in output_html:
+            inn = company.get("ИНН организации")
+            if inn in parsed_dict:
+                company.update(parsed_dict[inn])
 
-    # Сохранение обновленного списка в JSON файл
-    with open("output_html_updated.json", "w", encoding="utf-8") as f:
-        json.dump(output_html, f, ensure_ascii=False, indent=4)
+        # Сохранение обновленного списка в JSON файл
+        with open("output_html_updated.json", "w", encoding="utf-8") as f:
+            json.dump(output_html, f, ensure_ascii=False, indent=4)
 
-    # Загрузка данных из JSON файла
-    with open("output_html_updated.json", "r", encoding="utf-8") as f:
-        data = json.load(f)
+        # Преобразование списка словарей в DataFrame с учетом всех ключей
+        unique_keys = sorted({key for item in output_html for key in item.keys()})
+        normalized_data = [
+            {key: item.get(key, None) for key in unique_keys} for item in output_html
+        ]
 
-    # Сбор всех уникальных ключей из всех словарей
-    unique_keys = set()
-    for item in data:
-        unique_keys.update(item.keys())
+        df = pd.DataFrame(normalized_data)
 
-    # Создание списка всех уникальных ключей
-    unique_keys = sorted(unique_keys)
+        # Запись данных в Excel файл
+        output_excel = "output_html_updated.xlsx"
+        df.to_excel(output_excel, index=False, sheet_name="Data")
 
-    # Преобразование списка словарей в DataFrame с учетом всех ключей
-    normalized_data = []
-    for item in data:
-        normalized_item = {key: item.get(key, None) for key in unique_keys}
-        normalized_data.append(normalized_item)
-
-    df = pd.DataFrame(normalized_data)
-
-    # Запись данных в Excel файл
-    output_excel = "output_html_updated.xlsx"
-    df.to_excel(output_excel, index=False, sheet_name="Data")
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
 
 
 def delet_html():
@@ -868,10 +854,28 @@ def delet_html():
                 print(f"Удален файл: {file_path}")
 
 
+def filter_inn_data():
+    try:
+        # Загрузка данных из CSV файлов
+        inns_successful = pd.read_csv("inns_successful.csv", header=None, names=["ИНН"])
+        inn_data = pd.read_csv("inn_data.csv", header=None, names=["ИНН"])
+
+        # Фильтрация данных: удаление всех значений из inn_data, которые есть в inns_successful
+        filtered_inn_data = inn_data[~inn_data["ИНН"].isin(inns_successful["ИНН"])]
+
+        # Сохранение отфильтрованных данных в новый CSV файл
+        filtered_inn_data.to_csv("filtered_inn_data.csv", index=False, header=False)
+
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
+
+
 if __name__ == "__main__":
     # main()
     # parsing_page()
     # parsing_company()
-    # get_write_json()
+    get_write_json()
+    # filter_inn_data()
     # parsing_page_company()
-    delet_html()
+    # delet_html()
+    # parsing_company_()

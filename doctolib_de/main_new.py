@@ -88,6 +88,7 @@ async def get_all_urls():
     if proxies:
         for proxy in proxies[:1]:
             proxy_data = parse_proxy(proxy)
+            logger.info(proxy_data)
             browser = await uc.start(
                 browser_args=[f"--proxy-server={proxy_data['server']}"]
             )

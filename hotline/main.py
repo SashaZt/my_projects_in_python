@@ -5,25 +5,32 @@ from playwright.async_api import async_playwright
 import pandas as pd
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
-import os
-
+from urllib.parse import quote
 import shutil
 import json
+import traceback
+import os
+
 
 # Путь к папкам
 current_directory = Path.cwd()
-html_files_directory = current_directory / "html_files"
+json_files_directory = current_directory / "json_files"
+data_directory = current_directory / "data"
+configuration_directory = current_directory / "configuration"
 
-html_files_directory.mkdir(exist_ok=True, parents=True)
+data_directory.mkdir(parents=True, exist_ok=True)
+json_files_directory.mkdir(exist_ok=True, parents=True)
+configuration_directory.mkdir(exist_ok=True, parents=True)
 
 output_csv_file = data_directory / "output.csv"
+output_json_file = data_directory / "output.json"
+proxy_file = configuration_directory / "proxy.txt"
 
 
 # Функция загрузки списка прокси
 def load_proxies():
-    file_path = "roman.txt"
-    if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
+    if proxy_file.exists():
+        with open(proxy_file, "r", encoding="utf-8") as file:
             proxies = [line.strip() for line in file]
         logger.info(f"Загружено {len(proxies)} прокси.")
         return proxies
@@ -49,13 +56,21 @@ def parse_proxy(proxy):
         return {"server": f"http://{proxy}"}
 
 
+def encode_product_name(product_name: str) -> str:
+    encoded_product = quote(product_name, safe="")
+
+    return encoded_product
+
+
 # Асинхронная функция для сохранения HTML и получения ссылок по XPath
 async def single_html_one():
+    timeout = 10000
     logger.info("Начало работы скрипта")
     proxies = load_proxies()
     proxy = random.choice(proxies) if proxies else None
     if not proxies:
         logger.info("Прокси не найдено, работа будет выполнена локально.")
+
     try:
         proxy_config = parse_proxy(proxy) if proxy else None
         async with async_playwright() as p:
@@ -76,69 +91,276 @@ async def single_html_one():
                     else route.continue_()
                 ),
             )
-            inns = [
-                "JBLT720BTBLU",
-                "JBLT720BTPUR",
-                "JBLT720BTWHT",
-                "JBLT770NCBLK",
-                "JBLT770NCBLU",
-                "JBLT770NCPUR",
-            ]
-            for inn in inns:
-                url = f"https://hotline.ua/ua/sr/?q={inn}"
+            all_product = read_json_file()
+            for product in all_product:
+                find_product = product["Название товара"]
+                encoded_product = encode_product_name(find_product)
+                url = f"https://hotline.ua/sr/?q={encoded_product}"
+                find_product = find_product.replace("/", "_")
+                json_file_path = json_files_directory / f"{find_product}.json"
+                if json_file_path.exists():
+                    logger.warning(f"Файл {json_file_path} уже существует, пропускаем.")
+                    continue  # Переходим к следующей итерации цикла
                 # Переход на страницу и ожидание полной загрузки
-                await page.goto(url, timeout=60000, wait_until="networkidle")
-                await page.wait_for_selector("text=Порівняти Ціни", timeout=60000)
-                await page.click("text=Порівняти Ціни")
-                # Ожидание появления необходимого элемента
+
+                try:
+                    await page.goto(url, timeout=timeout, wait_until="networkidle")
+                except asyncio.TimeoutError:
+                    logger.error(f"Тайм-аут при переходе на URL: {url}")
+                    continue  # Переходим к следующему URL
+                except Exception as e:
+                    logger.error(f"Ошибка при переходе на {url}: {e}")
+                    continue
+
+                # Работа с языками
+                # Ожидаем появления кнопки смены языка
                 await page.wait_for_selector(
-                    "#__layout > div > div.default-layout__content-container > div:nth-child(3) > div.container > div.header > div.title > h1",
-                    timeout=60000,
+                    "div.lang-button.flex.middle-xs.center-xs.header__lang-icon"
                 )
 
-                # Сохранение HTML контента
-                content = await page.content()
-                html_file_path = html_files_directory / f"{inn}.html"
-                with open(html_file_path, "w", encoding="utf-8") as f:
-                    f.write(content)
+                # Ищем элемент с кнопкой языка
+                lang_button = await page.query_selector(
+                    "div.lang-button.flex.middle-xs.center-xs.header__lang-icon"
+                )
 
+                if lang_button:
+                    # Извлекаем текст из кнопки и проверяем, является ли он 'UA'
+                    button_text = await lang_button.inner_text()
+                    if button_text.strip() == "UA":
+                        await lang_button.click()
+
+                        # Ждем появления элементов для выбора языка
+                        await page.wait_for_selector("div.lang-item", timeout=timeout)
+
+                        # Извлекаем все элементы с классом lang-item
+                        lang_items = await page.query_selector_all("div.lang-item")
+
+                        # Проходим по всем элементам и ищем тот, где текст равен 'RU'
+                        for item in lang_items:
+                            inner_text = await item.inner_text()
+                            if inner_text.strip() == "RU":
+                                await item.click()
+                                break
+                        else:
+                            logger.error("Элемент с текстом 'RU' не найден.")
+
+                else:
+                    logger.error("Кнопка смены языка не найдена.")
+                # закончили работу с языками
+                # Ищем все результаты с классом 'list-item flex'
+                list_items = await page.query_selector_all(
+                    "//div[@class='list-item flex']"
+                )
+
+                if len(list_items) == 1:
+                    # Ожидаем появления элемента с нужным классом
+                    await page.wait_for_selector(
+                        "div.list-item__title-container.m_b-5 a"
+                    )
+
+                    # Извлекаем элемент <a> и выполняем клик
+                    link_element = await page.query_selector(
+                        "div.list-item__title-container.m_b-5 a"
+                    )
+                    if link_element:
+                        await link_element.click()  # Клик на элементе <a>
+                    else:
+                        continue
+
+                    try:
+                        await page.wait_for_selector(
+                            "#__layout > div > div.default-layout__content-container > div:nth-child(3) > div.container > div.header > div.title > h1",
+                            timeout=timeout,
+                        )
+                    except asyncio.TimeoutError:
+                        logger.error(f"Тайм-аут при переходе на URL: {url}")
+                        continue  # Переходим к следующему URL
+                    except Exception as e:
+                        logger.error(
+                            f"Непредвиденная ошибка: {e}\n{traceback.format_exc()}"
+                        )
+                        continue
+                    content = await page.content()
+                    # find_product = find_product.replace("/", "_")
+                    # json_file_path = json_files_directory / f"{find_product}.json"
+                    with open(json_file_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    soup = BeautifulSoup(content, "lxml")
+                    script_tags = soup.find_all(
+                        "script", attrs={"type": "application/ld+json"}
+                    )
+
+                    if script_tags:
+                        try:
+                            json_data = json.loads(script_tags[0].string)
+                            sku = json_data.get("sku")
+                            if sku:
+                                with open(json_file_path, "w", encoding="utf-8") as f:
+                                    json.dump(
+                                        json_data, f, ensure_ascii=False, indent=4
+                                    )
+                            else:
+                                json_data = json.loads(script_tags[1].string)
+                                sku = json_data.get("sku")
+                                if sku:
+                                    with open(
+                                        json_file_path, "w", encoding="utf-8"
+                                    ) as f:
+                                        json.dump(
+                                            json_data, f, ensure_ascii=False, indent=4
+                                        )
+
+                        except Exception as e:
+                            logger.error(
+                                f"Непредвиденная ошибка: {e}\n{traceback.format_exc()}"
+                            )
+                            continue
+
+                    logger.info(f"json сохранен для {find_product}")
             await context.close()
             await browser.close()
-            logger.info("Конец работы скрипта")
+    #         logger.info("Конец работы скрипта")
     except Exception as e:
         logger.error(f"Ошибка при обработке URL: {e}")
 
 
+def extract_product_name_from_file(file_path: Path) -> str:
+    """Извлечение названия товара из имени HTML файла."""
+    return file_path.stem  # Возвращает имя файла без расширения
+
+
+def find_product_1c(product_name: str, all_product: list) -> str:
+    """Поиск значения '1С' для товара по его названию."""
+    for product in all_product:
+        if product["Название товара"] == product_name:
+            return product["1С"]
+    logger.warning(f"Товар '{product_name}' не найден в all_product.")
+    return None
+
+
 def parsing_html():
+    """Парсинг HTML файлов и сопоставление с данными из JSON."""
+    all_product = read_json_file()  # Загружаем список товаров
     all_data = []
-    for html_file in html_files_directory.glob("*.html"):
-        with html_file.open(encoding="utf-8") as file:
-            content: str = file.read()
-        soup = BeautifulSoup(content, "lxml")
-        script_tag = soup.find_all("script", attrs={"type": "application/ld+json"})
-        if script_tag:
-            try:
-                json_data = json.loads(script_tag[1].string)
-                sku = json_data["sku"]
-                url = json_data["url"]
-                name = json_data["name"]
-                data = {"name": name, "sku": sku, "url": url}
-                all_data.append(data)
-            except json.JSONDecodeError as e:
-                logger.error(f"Ошибка при разборе JSON в файле {html_file.name}: {e}")
+    for json_file in json_files_directory.glob("*.json"):
+        with json_file.open(encoding="utf-8") as file:
+            # Прочитать содержимое JSON файла
+            data = json.load(file)
+        product_name = extract_product_name_from_file(json_file)  # Имя товара из файла
+        product_1c = find_product_1c(product_name, all_product)  # Поиск '1С'
+
+        data = {
+            "name": data.get("name"),
+            "sku": data.get("sku"),
+            "url": data.get("url"),
+            "1С": product_1c,
+        }
+        all_data.append(data)
+
+    # Создаем DataFrame и сохраняем в Excel
     df = pd.DataFrame(all_data)
-
-    # Сохраняем DataFrame в Excel файл
     df.to_excel("output_xlsx_file.xlsx", index=False)
-    shutil.rmtree(html_files_directory)
+    logger.info("Файл output_xlsx_file.xlsx успешно сохранен.")
+    # shutil.rmtree(html_files_directory)
 
 
-# Функция для выполнения основной логики
-def main():
+# Функция для чтения CSV и сохранения в JSON с использованием pandas
+def csv_to_json():
+    if output_csv_file.exists():
+        try:
+            df = pd.read_csv(
+                output_csv_file, header=None, names=["Название товара", "1С"]
+            )
+            data_list = df.to_dict(orient="records")
+            with open(output_json_file, "w", encoding="utf-8") as json_file:
+                json.dump(data_list, json_file, ensure_ascii=False, indent=4)
+            logger.info(
+                f"Данные из {output_csv_file.name} сохранены в {output_json_file.name}"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при обработке CSV файла {output_csv_file.name}: {e}")
+    else:
+        logger.error(f"Файл {output_csv_file.name} не найден")
 
-    # asyncio.run(single_html_one())
-    parsing_html()
+
+# Функция для чтения JSON файла и возврата списка словарей
+def read_json_file():
+    if output_json_file.exists():
+        try:
+            with open(output_json_file, "r", encoding="utf-8") as json_file:
+                data_list = json.load(json_file)
+                return data_list
+        except Exception as e:
+            logger.error(f"Ошибка при чтении JSON файла {output_json_file.name}: {e}")
+            return []
+    else:
+        logger.error(f"Файл {output_json_file.name} не найден")
+        return []
+
+
+async def run_data_collection():
+    """Функция для повторного запуска задачи по сбору данных."""
+    while True:
+        try:
+            print("Сбор данных начат...")
+            csv_to_json()
+            await single_html_one()  # Асинхронный запуск сбора данных
+            print("Сбор данных завершен.")
+            break  # Если выполнение успешно, выходим из цикла
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+            print("Перезапуск сбора данных...")
+
+
+async def wait_for_user_input():
+    """Асинхронный ввод с таймаутом на ожидание."""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(input, "Выберите действие: "), timeout=10.0
+        )
+    except asyncio.TimeoutError:
+        print("Время ожидания истекло. Автоматический выбор действия 1.")
+        return "1"  # Возвращаем выбор 1
+
+
+async def main():
+    while True:
+        print(
+            "Введите 1 для сбора данных с сайта"
+            "\nВведите 2 для получения Excel файла"
+            "\nВведите 3 для удаления временных файлов"
+            "\nВведите 0 для закрытия программы"
+        )
+
+        user_input = await wait_for_user_input()  # Ожидание ввода с таймаутом
+        print("У вас 10сек что выбрать, если нет, продолжаем сбор данных")
+        try:
+            user_input = int(user_input)
+        except ValueError:
+            print("Ошибка: введите целое число от 0 до 3.")
+            continue  # Возвращаемся к началу цикла
+
+        if user_input == 1:
+            await run_data_collection()  # Асинхронный запуск задачи с перезапуском
+        elif user_input == 2:
+            try:
+                print("Парсинг данных и создание Excel-файла...")
+                parsing_html()
+                print("Excel-файл успешно создан.")
+            except Exception as e:
+                print(f"Ошибка при создании Excel: {e}")
+        elif user_input == 3:
+            if os.path.exists(json_files_directory):
+                shutil.rmtree(json_files_directory)
+                print("Временные файлы удалены.")
+            else:
+                print("Временные файлы не найдены.")
+        elif user_input == 0:
+            print("Программа завершена.")
+            break  # Завершение программы
+        else:
+            print("Неверный ввод, пожалуйста, введите число от 0 до 3.")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

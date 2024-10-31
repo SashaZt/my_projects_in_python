@@ -160,25 +160,35 @@ async def single_html_one(url):
             )
             context = await browser.new_context(accept_downloads=True)
             page = await context.new_page()
-
-            # Отключаем медиа
-            await page.route(
-                "**/*",
-                lambda route: (
-                    route.abort()
-                    if route.request.resource_type in ["image", "media"]
-                    else route.continue_()
-                ),
-            )
             # Переход на страницу и ожидание полной загрузки
             await page.goto(url, timeout=60000, wait_until="networkidle")
+            await asyncio.sleep(5)
+            page_content = await page.content()
+            match = re.search(r'var pdfUrl = "(.*?)";', page_content)
 
-            content = await page.content()
-            html_file_path = (
-                html_files_directory / f"{url.replace(':', '').replace('/', '_')}.html"
-            )
-            with open(html_file_path, "w", encoding="utf-8") as f:
-                f.write(content)
+            if match:
+                pdf_url = match.group(1).replace("\\/", "/")
+                print(f"PDF URL найден: {pdf_url}")
+
+                # Обрабатываем загрузку файла
+                async with page.expect_download() as download_info:
+                    await page.click(
+                        f'a[href="{pdf_url}"]'
+                    )  # Эмулируем клик по ссылке для загрузки
+                download = await download_info.value
+
+                # Путь к загруженному файлу
+                download_path = await download.path()
+                await asyncio.sleep(10)
+                print(f"Файл успешно загружен: {download_path}")
+            else:
+                print("PDF URL не найден в HTML-коде страницы.")
+            # content = await page.content()
+            # html_file_path = (
+            #     html_files_directory / f"{url.replace(':', '').replace('/', '_')}.html"
+            # )
+            # with open(html_file_path, "w", encoding="utf-8") as f:
+            #     f.write(content)
 
         await context.close()
         await browser.close()
@@ -255,7 +265,7 @@ def download_pdf(idRCRD, cookies):
 def main():
     # urls = get_urls(output_csv_file)
     # asyncio.run(single_html(urls))
-    url = "https://clash.gg/raffle"
+    url = "https://ejournal.ipinternasional.com/index.php/ijphe/article/view/869/799"
     asyncio.run(single_html_one(url))
 
 
