@@ -79,67 +79,89 @@ async def setup_proxy(proxy_data, tab):
 # Функция для загрузки одной страницы
 async def single_html_one(url, browser):
     page = await browser.get(url)
+
+    # Ожидание загрузки страницы через появление <body>
     try:
-        await page.wait_for(
-            selector="body", timeout=10
-        )  # Ожидаем элемент <body> на странице
-        logger.info("Страница успешно загружена.")
+        await page.wait_for(selector="body", timeout=10)
     except asyncio.TimeoutError:
         logger.warning("Элемент <body> не загрузился в течение времени ожидания.")
+    # Проверка на элемент с id "help_title" для возможной капчи
     try:
-        # Ожидаем появления h1 с id="help_title"
         element = await page.wait_for(selector="h1#help_title", timeout=1)
         if element:
             logger.info("Обнаружено сообщение проверки на робота. Ожидание 30 секунд.")
-            await page.sleep(30)  # Пауза в 30 секунд
+            await page.sleep(30)
     except asyncio.TimeoutError:
-        # Элемент не найден, продолжаем работу без ожидания
-        logger.info("Сообщение проверки на робота не найдено. Продолжаем.")
+        pass
+    html_content = await page.get_content()
+    if "Retry later" in html_content:
+        logger.error("Обнаружено сообщение 'Retry later'. Перезапускаем браузер.")
+        raise RuntimeError("Сообщение 'Retry later' обнаружено. Перезапуск браузера.")
+
     html_content = await page.get_content()
     return html_content
 
 
 # Основная функция для работы с URL-очередью
 async def get_all_urls(url_queue, proxy_data=None):
-    browser_args = [f"--proxy-server={proxy_data['server']}"] if proxy_data else []
-    browser = await uc.start(browser_args=browser_args)
+    while not url_queue.empty():
+        try:
+            # Устанавливаем аргументы браузера (с прокси или без)
+            browser_args = (
+                [f"--proxy-server={proxy_data['server']}"] if proxy_data else []
+            )
+            browser = await uc.start(browser_args=browser_args)
 
-    if proxy_data:
-        page = await browser.get("draft:,")
-        await setup_proxy(proxy_data, page)
+            if proxy_data:
+                page = await browser.get("draft:,")
+                await setup_proxy(proxy_data, page)
 
-    async with browser:
-        while not url_queue.empty():
-            url = await url_queue.get()
-            parts = url.split("/")
+            async with browser:
+                while not url_queue.empty():
+                    url = await url_queue.get()
+                    parts = url.split("/")
 
-            if len(parts) < 4:
-                logger.warning(f"URL {url} имеет недостаточно сегментов, пропускаем.")
-                url_queue.task_done()
-                continue
+                    if len(parts) < 4:
+                        logger.warning(
+                            f"URL {url} имеет недостаточно сегментов, пропускаем."
+                        )
+                        url_queue.task_done()
+                        continue
 
-            clinic = parts[-3].replace("-", "_")
-            city = parts[-2]
-            doctor = parts[-1].split("?")[0].replace("-", "_")
-            html_doctor = html_files_directory / f"{clinic}_{city}_{doctor}.html"
+                    clinic = parts[-3].replace("-", "_")
+                    city = parts[-2]
+                    doctor = parts[-1].split("?")[0].replace("-", "_")
+                    html_doctor = (
+                        html_files_directory / f"{clinic}_{city}_{doctor}.html"
+                    )
 
-            if html_doctor.exists():
-                logger.warning(f"Файл {html_doctor} уже существует, пропускаем.")
-                url_queue.task_done()
-                continue
+                    if html_doctor.exists():
+                        logger.warning(
+                            f"Файл {html_doctor} уже существует, пропускаем."
+                        )
+                        url_queue.task_done()
+                        continue
 
-            try:
-                html_content = await single_html_one(url, browser)
-                if html_content:
-                    with open(html_doctor, "w", encoding="utf-8") as file:
-                        file.write(html_content)
-                    logger.info(f"Сохранена страница для {url}")
-            except Exception as e:
-                logger.error(f"Ошибка при обработке {url}: {e}")
+                    # Обработка URL
+                    try:
+                        html_content = await single_html_one(url, browser)
+                        if html_content:
+                            with open(html_doctor, "w", encoding="utf-8") as file:
+                                file.write(html_content)
+                            logger.info(f"Сохранена страница для {url}")
+                    except RuntimeError as e:
+                        # Обработка специального исключения для перезапуска браузера
+                        logger.error(f"Необходим перезапуск браузера: {e}")
+                        browser.stop()  # Принудительно завершить процесс браузера
+                        break  # Выходим из внутреннего цикла для перезапуска браузера
+                    except Exception as e:
+                        logger.error(f"Ошибка при обработке {url}: {e}")
+                    finally:
+                        url_queue.task_done()
 
-            url_queue.task_done()
-
-    await browser.close()
+        except Exception as e:
+            logger.error(f"Произошла ошибка в задаче: {e}")
+            await asyncio.sleep(1)  # Небольшая пауза перед перезапуском
 
 
 # Запуск пула задач
