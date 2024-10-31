@@ -8,12 +8,13 @@ async def main():
         await uc.start()
     )  # Добавьте параметр headless=True, если не хотите видеть браузер
     # Переходим на страницу
-    page = await browser.get("https://hotline.ua/")
+    page = await browser.get(
+        "https://optlist.ru/suppliers/stroitelniye-tovary-optom/rossiia--2017370?pay=2&q=&sa=1&saveQuery=true&sort="
+    )
+    await asyncio.sleep(30)
     element_find = await page.wait_for(
         selector="#autosuggest > div:nth-child(1) > input[type=text]", timeout=15
     )
-    
-
 
     content = await page.get_content()
 

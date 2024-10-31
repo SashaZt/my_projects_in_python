@@ -89,6 +89,7 @@ async def get_all_urls():
         for proxy in proxies[:1]:
             proxy_data = parse_proxy(proxy)
             logger.info(proxy_data)
+            exit()
             browser = await uc.start(
                 browser_args=[f"--proxy-server={proxy_data['server']}"]
             )
@@ -114,54 +115,48 @@ async def get_all_urls():
             with open(html_doctor, "w", encoding="utf-8") as file:
                 file.write(html_content)
 
-            # intercepted_url = await asyncio.wait_for(
-            #     setup_fetch_intercept(main_tab), timeout=10.0
-            # )
-            # logger.info(f"Получили {intercepted_url}")
-            # await save_html(proxy_data, intercepted_url, json_doctor)
 
-
-async def save_html(proxy_data, url, json_doctor):
-    browser = await uc.start(browser_args=[f"--proxy-server={proxy_data['server']}"])
-    main_tab = await browser.get("draft:,")
-    await setup_proxy(proxy_data, main_tab)
-    main_tab = await browser.get(url)
-    content = await main_tab.get_content()
-    with open(json_doctor, "w", encoding="utf-8") as f:
-        f.write(content)
-    logger.info("Сохраняем")
+# async def save_html(proxy_data, url, json_doctor):
+#     browser = await uc.start(browser_args=[f"--proxy-server={proxy_data['server']}"])
+#     main_tab = await browser.get("draft:,")
+#     await setup_proxy(proxy_data, main_tab)
+#     main_tab = await browser.get(url)
+#     content = await main_tab.get_content()
+#     with open(json_doctor, "w", encoding="utf-8") as f:
+#         f.write(content)
+#     logger.info("Сохраняем")
 
 
 # РАБОЧИЙ КОД полностью
-async def setup_fetch_intercept(tab):
-    intercepted_url = asyncio.Future()
-    # intercepted_request_id = asyncio.Future()
+# async def setup_fetch_intercept(tab):
+#     intercepted_url = asyncio.Future()
+#     # intercepted_request_id = asyncio.Future()
 
-    async def req_paused(event: fetch.RequestPaused):
-        logger.info(f"Запрос приостановлен: {event.request.url}")
-        if (
-            "doctolib.de/online_booking/api/slot_selection_funnel/v1/"
-            in event.request.url
-        ):
-            intercepted_url.set_result(event.request.url)
-            # intercepted_request_id.set_result(event.request_id)
-        await tab.send(fetch.continue_request(request_id=event.request_id))
+#     async def req_paused(event: fetch.RequestPaused):
+#         logger.info(f"Запрос приостановлен: {event.request.url}")
+#         if (
+#             "doctolib.de/online_booking/api/slot_selection_funnel/v1/"
+#             in event.request.url
+#         ):
+#             intercepted_url.set_result(event.request.url)
+#             # intercepted_request_id.set_result(event.request_id)
+#         await tab.send(fetch.continue_request(request_id=event.request_id))
 
-    tab.add_handler(
-        fetch.RequestPaused, lambda event: asyncio.create_task(req_paused(event))
-    )
-    await tab.send(
-        fetch.enable(
-            patterns=[
-                fetch.RequestPattern(
-                    url_pattern="*doctolib.de/online_booking/api/slot_selection_funnel/v1/*",
-                    request_stage=fetch.RequestStage.RESPONSE,
-                )
-            ],
-            handle_auth_requests=True,
-        )
-    )
-    return await intercepted_url
+#     tab.add_handler(
+#         fetch.RequestPaused, lambda event: asyncio.create_task(req_paused(event))
+#     )
+#     await tab.send(
+#         fetch.enable(
+#             patterns=[
+#                 fetch.RequestPattern(
+#                     url_pattern="*doctolib.de/online_booking/api/slot_selection_funnel/v1/*",
+#                     request_stage=fetch.RequestStage.RESPONSE,
+#                 )
+#             ],
+#             handle_auth_requests=True,
+#         )
+#     )
+#     return await intercepted_url
 
 
 if __name__ == "__main__":
