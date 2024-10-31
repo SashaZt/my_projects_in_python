@@ -162,7 +162,7 @@ async def single_html_one(url):
             page = await context.new_page()
             # Переход на страницу и ожидание полной загрузки
             await page.goto(url, timeout=60000, wait_until="networkidle")
-            await asyncio.sleep(5)
+            await asyncio.sleep(50)
             page_content = await page.content()
             match = re.search(r'var pdfUrl = "(.*?)";', page_content)
 
@@ -265,7 +265,7 @@ def download_pdf(idRCRD, cookies):
 def main():
     # urls = get_urls(output_csv_file)
     # asyncio.run(single_html(urls))
-    url = "https://ejournal.ipinternasional.com/index.php/ijphe/article/view/869/799"
+    url = "https://msadvertisingpartnerprogram.powerappsportals.com/partner-directory/"
     asyncio.run(single_html_one(url))
 
 

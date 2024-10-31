@@ -3,7 +3,6 @@ import random
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from playwright.async_api import async_playwright
-import pandas as pd
 from tqdm import tqdm
 from configuration.logger_setup import logger
 import xml.etree.ElementTree as ET
@@ -13,6 +12,8 @@ import json
 import os
 import requests
 from configuration.logger_setup import logger
+import pandas as pd
+from bs4 import BeautifulSoup
 
 # Путь к папкам
 current_directory = Path.cwd()
@@ -223,18 +224,21 @@ async def save_sitemap_with_playwright(url, proxy):
             }
         else:
             proxy_config = {"server": f"http://{proxy}"}
-
+        all_url = read_cities_from_csv()
         async with async_playwright() as p:
             browser = await p.chromium.launch(proxy=proxy_config, headless=False)
             context = await browser.new_context()
             page = await context.new_page()
+            for url in all_url:
 
-            # Переход на страницу и ожидание полной загрузки
-            await page.goto(url, timeout=60000, wait_until="domcontentloaded")
-            content = await page.content()
-            sitemap_file_path = xml_files_directory / "sitemap.xml"
-            with open(sitemap_file_path, "w", encoding="utf-8") as f:
-                f.write(content)
+                # Переход на страницу и ожидание полной загрузки
+                await page.goto(url, timeout=60000, wait_until="domcontentloaded")
+                await asyncio.sleep(5)
+                content = await page.content()
+                file_name = url.split("/")[-1].replace("?partnerProfileID=", "")
+                sitemap_file_path = xml_files_directory / f"{file_name}.html"
+                with open(sitemap_file_path, "w", encoding="utf-8") as f:
+                    f.write(content)
 
             await context.close()
             await browser.close()
@@ -329,29 +333,110 @@ def write_csv(extracted_links):
 # Функция для выполнения основной логики
 def main():
     # asyncio.run(single_html())
-    asyncio.run(single_html_json())
-    sitemap_url = "https://home-club.com.ua/sitemap.xml"
+    # asyncio.run(single_html_json())
+    sitemap_url = (
+        "https://msadvertisingpartnerprogram.powerappsportals.com/partner-directory/"
+    )
     proxies = load_proxies()
     proxy = random.choice(proxies)
     asyncio.run(save_sitemap_with_playwright(sitemap_url, proxy))
 
-    sitemap_content_path = xml_files_directory / "sitemap.xml"
-    if sitemap_content_path.exists():
-        with open(sitemap_content_path, "r", encoding="utf-8") as f:
-            sitemap_content = f.read()
-        all_locations = parsing_all_sitemap(sitemap_content)
-        asyncio.run(save_additional_sitemaps(all_locations, proxy))
+    # sitemap_content_path = xml_files_directory / "sitemap.xml"
+    # if sitemap_content_path.exists():
+    #     with open(sitemap_content_path, "r", encoding="utf-8") as f:
+    #         sitemap_content = f.read()
+    #     all_locations = parsing_all_sitemap(sitemap_content)
+    #     asyncio.run(save_additional_sitemaps(all_locations, proxy))
 
-    extracted_links = extract_links_from_xml()
-    logger.info(f"Извлечено {len(extracted_links)} ссылок по шаблонам.")
+    # extracted_links = extract_links_from_xml()
+    # logger.info(f"Извлечено {len(extracted_links)} ссылок по шаблонам.")
 
-    df = pd.DataFrame(extracted_links, columns=["url"])
-    df.to_csv(output_csv_file, index=False)
-    logger.info(f"Ссылки записаны в файл: {output_csv_file}")
+    # df = pd.DataFrame(extracted_links, columns=["url"])
+    # df.to_csv(output_csv_file, index=False)
+    # logger.info(f"Ссылки записаны в файл: {output_csv_file}")
 
-    urls = get_urls(output_csv_file)
-    process_urls_multithread(urls)
+    # urls = get_urls(output_csv_file)
+    # process_urls_multithread(urls)
+
+
+def parse_sitemap_to_csv(html_file, output_csv="output.csv"):
+    """
+    Парсит файл HTML, извлекая уникальные href по заданному селектору, и записывает их в CSV.
+
+    :param html_file: Путь к HTML файлу (sitemap.html)
+    :param output_csv: Имя выходного CSV файла (по умолчанию output.csv)
+    """
+    # Читаем HTML файл
+    with open(html_file, "r", encoding="utf-8") as file:
+        soup = BeautifulSoup(file, "html.parser")
+
+    # Ищем все элементы по заданному селектору
+    elements = soup.select("div.col-sm-7.right-column > p:nth-child(4) > a")
+
+    # Извлекаем уникальные href
+    href_set = {element["href"] for element in elements if element.has_attr("href")}
+
+    # Записываем в CSV файл
+    df = pd.DataFrame(href_set, columns=["url"])
+    df.to_csv(output_csv, index=False, encoding="utf-8")
+    print(f"Уникальные ссылки сохранены в {output_csv}")
+
+
+def read_cities_from_csv():
+    df = pd.read_csv("output.csv")
+    return df["url"].tolist()
+
+
+def parsing_company():
+    """
+    Парсит HTML файлы в указанной директории, извлекая название компании, адрес и email.
+
+    :param html_files_directory: Директория, содержащая HTML файлы
+    :return: DataFrame с данными о компаниях
+    """
+    all_data = []
+
+    # Пройтись по каждому HTML файлу в директории
+    for html_file in Path(xml_files_directory).glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
+            soup = BeautifulSoup(content, "lxml")
+
+            # Извлечение названия компании
+            title_element = soup.find("h1", class_="pageTitle")
+            company_name = title_element.text.strip() if title_element else None
+
+            # Извлечение адреса
+            address_element = soup.select_one("div.pageText > span")
+            address = address_element.text.strip() if address_element else None
+
+            # Извлечение email
+            # Поиск div с EMAIL и извлечение email-адреса
+            # Поиск всех элементов с классом "col-sm-6 col-md-4 item spacer"
+            email = None
+            for item in soup.select("div.col-sm-6.col-md-4.item.spacer"):
+                # Находим тег <a> внутри блока
+                a_tag = item.find("a", href=True)
+
+                # Проверяем, что href содержит mailto и извлекаем email
+                if a_tag and "mailto:" in a_tag["href"]:
+                    email = a_tag["href"].replace("mailto:", "")
+                    break  # Прерываем поиск, если email найден
+
+            # Добавляем данные в список
+            all_data.append(
+                {"company_name": company_name, "address": address, "email": email}
+            )
+
+    # Преобразование данных в DataFrame
+    df = pd.DataFrame(all_data)
+    return df
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    # sitemap_file_path = xml_files_directory / "sitemap.html"
+    # parse_sitemap_to_csv(sitemap_file_path)
+    df = parsing_company()
+    # Сохранение в CSV
+    df.to_csv("companies_data.csv", index=False, encoding="utf-8")
