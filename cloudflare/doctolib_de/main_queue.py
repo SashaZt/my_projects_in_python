@@ -85,14 +85,52 @@ async def single_html_one(url, browser):
         await page.wait_for(selector="body", timeout=10)
     except asyncio.TimeoutError:
         logger.warning("Элемент <body> не загрузился в течение времени ожидания.")
-    # Проверка на элемент с id "help_title" для возможной капчи
     try:
-        element = await page.wait_for(selector="h1#help_title", timeout=1)
-        if element:
-            logger.info("Обнаружено сообщение проверки на робота. Ожидание 30 секунд.")
-            await page.sleep(30)
+        # Ожидаем появления блока с классом "didomi-popup-notice-text-container"
+        cookie_block = await page.wait_for(
+            selector=".didomi-popup-notice-text-container", timeout=5
+        )
+
+        if cookie_block:
+            logger.info("Блок с информацией о Cookie найден.")
+            # Ищем внутри блока кнопку с id "didomi-notice-agree-button"
+            agree_button = await page.wait_for(
+                selector="#didomi-notice-agree-button", timeout=1
+            )
+
+            # Если кнопка найдена, выполняем клик
+            if agree_button:
+                logger.info("Кнопка 'Erlauben' найдена. Выполняем клик.")
+                await agree_button.click()
+            else:
+                logger.info("Кнопка 'Erlauben' не найдена.")
+        else:
+            logger.info("Блок с информацией о Cookie не найден.")
     except asyncio.TimeoutError:
-        pass
+        logger.info(
+            "Блок с информацией о Cookie или кнопка 'Erlauben' не появились в течение времени ожидания."
+        )
+    except asyncio.TimeoutError:
+        logger.info(
+            "Элемент 'didomi-notice-agree-button' не найден. Продолжаем без клика."
+        )
+    # Проверка на элемент с id "help_title" для возможной капчи
+    # Цикл для проверки наличия элемента капчи и перезагрузки страницы
+    while True:
+        try:
+            element = await page.wait_for(selector="h1#help_title", timeout=1)
+            if element:
+                logger.info(
+                    "Обнаружено сообщение проверки на робота. Ожидание 30 секунд."
+                )
+                await page.sleep(30)  # Пауза перед перезагрузкой
+                await page.reload()  # Перезагрузка страницы
+            else:
+                # Если элемент не найден, выходим из цикла
+                break
+        except asyncio.TimeoutError:
+            # Элемент "h1#help_title" не найден - продолжаем выполнение
+            break
     html_content = await page.get_content()
     if "Retry later" in html_content:
         logger.error("Обнаружено сообщение 'Retry later'. Перезапускаем браузер.")
