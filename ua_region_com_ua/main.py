@@ -1,30 +1,11 @@
-# Стандартные библиотеки
-import sys
-import re
-import csv
-import shutil
-import random
-import threading
-from threading import Lock
 from pathlib import Path
-import xml.etree.ElementTree as ET
-import traceback
 
-# Сторонние библиотеки
-import requests
-import pandas as pd
-from bs4 import BeautifulSoup
-from tqdm import tqdm
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Ваши модули
-from configuration.logger_setup import logger
 from get_response import Get_Response
 from parsing import Parsing
-
-# from dynamic_sqlite import DynamicSQLite
 from dynamic_postgres import DynamicPostgres
+from data_verification import DataVerification  # Импортируем новый класс
 
 
 # Установка директорий для логов и данных
@@ -40,42 +21,42 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
 csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
-file_proxy = configuration_directory / "roman.txt"
+file_proxy = configuration_directory / "proxy.txt"
 
 
 cookies = {
-    "PHPSESSID": "994gpk9m3pm3v0b33t8lv5m3nv",
+    "_ga": "GA1.1.971341584.1728630336",
     "G_ENABLED_IDPS": "google",
+    "PHPSESSID": "cf71sebu5cc7d4gg57t9e4ouvd",
+    "FCCDCF": "%5Bnull%2Cnull%2Cnull%2C%5B%22CQHdjMAQHdjMAEsACBRUBNFoAP_gAEPgACgAINJD7C7FbSFCwH5zaLsAMAhHRsAAQoQAAASBAmABQAKQIAQCgkAQFASgBAACAAAAICRBIQIECAAAAUAAQAAAAAAEAAAAAAAIIAAAgAEAAAAIAAACAIAAEAAIAAAAEAAAmAgAAIIACAAAgAAAAAAAAAAAAAAAAgCAAAAAAAAAAAAAAAAAAQOhSD2F2K2kKFkPCmwXYAYBCujYAAhQgAAAkCBMACgAUgQAgFJIAgCIFAAAAAAAAAQEiCQAAQABAAAIACgAAAAAAIAAAAAAAQQAABAAIAAAAAAAAEAQAAIAAQAAAAIAABEhCAAQQAEAAAAAAAQAAAAAAAAAAABAAA.eAAAAAAAAAA%22%2C%222~70.89.93.108.122.149.196.236.259.311.313.323.358.415.449.486.494.495.540.574.609.864.981.1029.1048.1051.1095.1097.1126.1205.1276.1301.1365.1415.1449.1514.1570.1577.1598.1651.1716.1735.1753.1765.1870.1878.1889.1958.1960.2072.2253.2299.2373.2415.2506.2526.2531.2568.2571.2575.2624.2677.2778~dv.%22%2C%227A726137-665E-4996-AB78-EE34AADC75B3%22%5D%5D",
+    "FCNEC": "%5B%5B%22AKsRol8mbpW_3vIijCM3tEct02aB3u75aZXaP07oSnWpi_DZWhFa9lYqAPYfhiOKpBr9LlKU3e6wEmKM7ZEAD3IRfgSPwaEbELhRnKMJPdu_BKJ6Urb3PMKa_Hg5gdht_CR5L6aye9VITgQutHoh16s8YZUQCl0Ipg%3D%3D%22%5D%5D",
+    "__gads": "ID=9dfe76a1628555ac:T=1728630336:RT=1730540172:S=ALNI_MZCbBbzyjdmU8JXuU73XLaryJoAfw",
+    "__gpi": "UID=00000f39a80dda60:T=1728630336:RT=1730540172:S=ALNI_MYG1tahl8aq2R_Khklg10O-GAqD3Q",
+    "__eoi": "ID=17f00596f6a8a6a0:T=1728630336:RT=1730540172:S=AA-AfjawPgl9YF1wCuiGASsiL8Ln",
+    "_ga_TDFGJDHCY1": "GS1.1.1730540169.3.0.1730540174.55.0.0",
 }
 
 headers = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-    "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
-    "DNT": "1",
-    "Pragma": "no-cache",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-User": "?1",
-    "Upgrade-Insecure-Requests": "1",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    "sec-ch-ua": '"Google Chrome";v="129", "Not=A?Brand";v="8", "Chromium";v="129"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
+    "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
 }
 
 
 while True:
-    max_workers = 20
+    max_workers = 50
     base_url = "https://www.ua-region.com.ua"
     url_sitemap = "https://www.ua-region.com.ua/sitemap.xml"
+
     # Запрос ввода от пользователя
     print(
-        "Введите 1 для запуска полного процесса"
-        "\nВведите 2 для запуска парсинга и запись в БД"
-        "\nВведите 0 для закрытия программы"
+        "Введите 1 для запуска полного процесса\n"
+        "Введите 2 для скачивания sitemap\n"
+        "Введите 3 для скачивания html файлов\n"
+        "Введите 4 для запуска парсинга\n"
+        "Введите 5 для записи в БД\n"
+        "Введите 6 для запуска сверки данных\n"
+        "Введите 0 для закрытия программы"
     )
     user_input = int(input("Выберите действие: "))
 
@@ -101,10 +82,8 @@ while True:
         processor = Parsing(html_files_directory, xlsx_result, max_workers)
         all_results = processor.parsing_html()
         processor.save_results_to_json(all_results)
-        # processor.write_to_excel(all_results)
-        # Создать экземпляр класса DynamicSQLite, указав имя базы данных
-        # Создаем экземпляр DynamicPostgres
 
+        # Создаем экземпляр DynamicPostgres
         db = DynamicPostgres()
         # Создаем или обновляем таблицу
         data = db.load_data_from_json()
@@ -115,18 +94,44 @@ while True:
 
         # Закрываем соединение с базой данных
         db.close()
-        # db = DynamicSQLite("organizations.db")
-        # # Создать или обновить структуру таблицы на основе предоставленных данных
-        # db.create_or_update_table("organizations", all_results)
-        # # Вставить данные в таблицу
-        # db.insert_data("organizations", all_results)
-        # # Закрыть соединение с базой данных
-        # db.close()
     elif user_input == 2:
+        response_handler = Get_Response(
+            max_workers,
+            base_url,
+            cookies,
+            headers,
+            html_files_directory,
+            csv_file_successful,
+            output_csv_file,
+            file_proxy,
+            url_sitemap,
+        )
+        # Запуск метода для получения всех sitemaps и обработки
+        response_handler.get_all_sitemap()
+
+    elif user_input == 3:
+        response_handler = Get_Response(
+            max_workers,
+            base_url,
+            cookies,
+            headers,
+            html_files_directory,
+            csv_file_successful,
+            output_csv_file,
+            file_proxy,
+            url_sitemap,
+        )
+
+        # Запуск метода скачивания html файлов
+        response_handler.process_infox_file()
+
+    elif user_input == 4:
         processor = Parsing(html_files_directory, xlsx_result, max_workers)
         all_results = processor.parsing_html()
         processor.save_results_to_json(all_results)
-        # processor.write_to_excel(all_results)
+
+    elif user_input == 5:
+
         # Создать экземпляр класса DynamicSQLite, указав имя базы данных
         db = DynamicPostgres()
         # Создаем или обновляем таблицу
@@ -138,13 +143,17 @@ while True:
 
         # Закрываем соединение с базой данных
         db.close()
-        # db = DynamicSQLite("organizations.db")
-        # # Создать или обновить структуру таблицы на основе предоставленных данных
-        # db.create_or_update_table("organizations", all_results)
-        # # Вставить данные в таблицу
-        # db.insert_data("organizations", all_results)
-        # # Закрыть соединение с базой данных
-        # db.close()
+    elif user_input == 6:
+        # Логика сверки данных
+        db = DynamicPostgres()  # Подключаемся к базе данных
+        verifier = DataVerification(
+            db.conn_pool
+        )  # Создаем экземпляр класса DataVerification
+
+        verifier.export_edrpou_to_csv()  # Экспортируем данные из БД в edrpou.csv
+        verifier.verify_and_update_output()  # Сверяем и обновляем output.csv
+
+        db.close()  # Закрываем соединение с БД
     elif user_input == 0:
         print("Программа завершена.")
         break  # Выход из цикла, завершение программы

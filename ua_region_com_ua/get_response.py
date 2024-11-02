@@ -13,9 +13,9 @@ import re
 import threading
 import sys
 from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
-import shutil
-import traceback
-import sqlite3
+import sys
+
+import random
 from working_with_files import Working_with_files
 
 
@@ -74,14 +74,15 @@ class Get_Response:
         # Выбираем случайный прокси-сервер для запроса
         proxy = random.choice(proxies)
         proxies_dict = {"http": proxy, "https": proxy}
+        # logger.info(proxies_dict)
 
         # Запрос по указанному URL
         response = requests.get(
             url,
-            proxies=proxies_dict,
+            # proxies=proxies_dict,
             headers=self.headers,
             cookies=self.cookies,
-            timeout=10,
+            timeout=30,
         )
 
         if response.status_code == 200:
@@ -193,73 +194,73 @@ class Get_Response:
         #     logger.info("Все запросы выполнены.")
 
     @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_fixed(5),
+        stop=stop_after_attempt(10),
+        wait=wait_fixed(30),
         retry=retry_if_exception_type(requests.RequestException),
     )
     def fetch_and_save_html(self, url, successful_urls, proxies):
-        fetch_lock = (
-            threading.Lock()
-        )  # Лок для синхронизации записи в общий ресурс (множество и файл)
+        fetch_lock = threading.Lock()
+
         # Прерываем выполнение, если установлено событие остановки
         if self.stop_event.is_set():
             return
-        # Проверяем, обрабатывался ли этот URL ранее
+
+        # Проверка, обрабатывался ли URL ранее
         if url in successful_urls:
             logger.info("| Компания уже была обработана, пропускаем. |")
             return
+
         identifier = url.split("/")[-1]
+
         try:
-            # Выбираем случайный прокси-сервер для запроса
             proxy = random.choice(proxies)
             proxies_dict = {"http": proxy, "https": proxy}
-            # Отправляем запрос
+
+            # Запрос к серверу
             response = requests.get(
                 url,
-                # proxies=proxies_dict,
                 headers=self.headers,
-                timeout=10,
-                # cookies=self.cookies,
+                proxies=proxies_dict,
+                timeout=30,
+                cookies=self.cookies,
             )
-            if response.status_code >= 300:
-                # logger.warning(
-                #     f"Получили статус {response.status_code} для URL: {url}, пробуем еще раз."
-                # )
+
+            # Если статус код ошибки >= 400, фиксируем ошибку и исключаем повторные попытки
+            if response.status_code >= 400:
+                if response.status_code == 404:
+                    logger.warning(f"URL не найден (404): {url}")
+                    return  # Прекращаем дальнейшие попытки на 404
                 raise requests.HTTPError(
                     f"Статус: {response.status_code} для URL: {url}",
                     response=response,
                 )
+            if response.status_code == 429:
+                retry_after = int(
+                    response.headers.get("Retry-After", 60)
+                )  # Ждем 60 секунд по умолчанию
+                sys.exit(1)  # Останавливаем весь процесс
 
-            # Проверяем успешность запроса
-            if response.status_code == 200:
-                if "text/html" in response.headers.get("Content-Type", ""):
-                    # Сохраняем HTML-файл в указанную директорию
-                    file_path = self.html_files_directory / f"{identifier}.html"
-                    file_path.write_text(response.text, encoding="utf-8")
-                    with fetch_lock:
-                        # Добавляем идентификатор в множество успешных
-                        successful_urls.add(url)
+            # Проверка содержимого и запись HTML
+            if response.status_code == 200 and "text/html" in response.headers.get(
+                "Content-Type", ""
+            ):
+                file_path = self.html_files_directory / f"{identifier}.html"
+                file_path.write_text(response.text, encoding="utf-8")
 
-                    # Сохраняем идентификатор в CSV для отслеживания
-                    self.working_files.write_to_csv(url, self.csv_file_successful)
-                else:
-                    logger.error(f"Ошибка: некорректный тип содержимого для {url}")
-                    raise requests.HTTPError(
-                        f"Статус: {response.status_code} для URL: {url}",
-                        response=response,
-                    )
+                with fetch_lock:
+                    successful_urls.add(url)
+
+                # Обновляем CSV-файл для отслеживания успешных
+                self.working_files.write_to_csv(url, self.csv_file_successful)
             else:
-                logger.warning(
-                    f"Получили статус {response.status_code} для URL: {url}, пробуем еще раз."
-                )
+                logger.error(f"Некорректный тип содержимого для URL: {url}")
                 raise requests.HTTPError(
-                    f"Статус: {response.status_code} для URL: {url}",
+                    f"Некорректный тип содержимого для URL: {url}",
                     response=response,
                 )
 
         except requests.RequestException as e:
-            # logger.error(f"Ошибка при скачивании файла: {e}")
-            raise  # Повторная попытка будет выполнена, так как исключение RequestException включено в retry
+            logger.error(f"Ошибка при обработке запроса для URL {url}: {e}")
+            raise
         except Exception as e:
             logger.error(f"Произошла ошибка при обработке {url}: {e}")
-            # self.stop_event.set()  # Устанавливаем событие остановки

@@ -23,6 +23,7 @@ output_csv_file = data_directory / "output.csv"
 csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
 json_result = data_directory / "result.json"
+edrpou_csv_file = data_directory / "edrpou.csv"
 # file_proxy = configuration_directory / "roman.txt"
 
 
@@ -143,11 +144,43 @@ class Parsing:
         progress_bar.close()
         return all_results
 
+    def load_processed_ids(self):
+        # Загружаем идентификаторы из edrpou.csv, если файл существует
+        if edrpou_csv_file.exists():
+            edrpou_df = pd.read_csv(edrpou_csv_file)
+            return set(
+                edrpou_df["edrpou"].astype(str)
+            )  # Возвращаем множество идентификаторов
+        else:
+            logger.warning(f"Файл {edrpou_csv_file} не найден. Обрабатываем все файлы.")
+            return None  # Возвращаем None, если файл отсутствует
+
     def list_html(self):
-        # Получаем список всех файлов в директории
-        file_list = [file for file in html_files_directory.iterdir() if file.is_file()]
-        logger.info(f"Всего компаний {len(file_list)}")
+        # Получаем список идентификаторов, которые уже обработаны
+        processed_ids = self.load_processed_ids()
+
+        # Формируем список файлов
+        if processed_ids is not None:
+            # Если есть processed_ids, исключаем файлы с этими идентификаторами
+            file_list = [
+                file
+                for file in html_files_directory.iterdir()
+                if file.is_file() and file.stem not in processed_ids
+            ]
+        else:
+            # Если processed_ids is None, берем все файлы
+            file_list = [
+                file for file in html_files_directory.iterdir() if file.is_file()
+            ]
+
+        logger.info(f"Всего файлов для обработки: {len(file_list)}")
         return file_list
+
+    # def list_html(self):
+    #     # Получаем список всех файлов в директории
+    #     file_list = [file for file in html_files_directory.iterdir() if file.is_file()]
+    #     logger.info(f"Всего компаний {len(file_list)}")
+    #     return file_list
 
     # Функция для очистки данных
 
