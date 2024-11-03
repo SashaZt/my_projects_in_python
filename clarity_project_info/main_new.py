@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 import pandas as pd  # Импортируем pandas
 import requests
+from bs4 import BeautifulSoup  # Импорт BeautifulSoup
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
 from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
@@ -236,17 +237,31 @@ def save_html_file(html_content: str, output_dir: Path, url: str) -> None:
     filename = output_dir / f"{urlparse(url).path.replace('/', '_')}.html"
     with open(filename, "w", encoding="utf-8") as file:
         file.write(html_content)
-    logger.info(f"HTML файл сохранен: {filename}")
+    logger.info(filename)
+    # logger.info(f"HTML файл сохранен: {filename}")
 
 # Функция для скачивания HTML с использованием прокси или без него
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(5),
+    retry=retry_if_exception_type(requests.RequestException),
+)
 def download_html(url: str, proxy: Optional[str] = None) -> Optional[str]:
     """Скачивает HTML по заданному URL с использованием прокси или локально, если прокси отсутствуют."""
     proxies = {"http": proxy, "https": proxy} if proxy else None
     try:
         response = requests.get(url, proxies=proxies, timeout=30)
         if response.status_code == 200:
+            # Используем BeautifulSoup для проверки содержимого
+            soup = BeautifulSoup(response.text, 'lxml')
+            h1_element = soup.find('h1')
+            # Проверяем наличие <h1> с текстом "Шановний користувачу!"
+            if h1_element and h1_element.text.strip() == "Шановний користувачу!":
+                logger.warning(f"Пропуск сохранения для URL {
+                    url}: обнаружен текст 'Шановний користувачу!'")
+                return None  # Пропускаем, если обнаружен данный текст
             return response.text
         else:
             logger.error(f"Ошибка {response.status_code} для URL {url}")
@@ -263,7 +278,7 @@ async def async_download_html_with_proxies(urls: List[str], proxies: List[str], 
     for url in urls:
         await queue.put(url)  # Помещаем каждый URL в очередь
 
-    async def worker(proxy: Optional[str]) -> None:
+    async def worker() -> None:
         while not queue.empty():
             # Извлекаем URL из очереди
             url = await queue.get()
@@ -271,10 +286,13 @@ async def async_download_html_with_proxies(urls: List[str], proxies: List[str], 
             filename = output_dir / \
                 f"{urlparse(url).path.replace('/', '_')}.html"
             if filename.exists():
-                logger.info(
-                    f"Файл {filename} уже существует, пропуск загрузки для URL {url}")
+                # logger.info(
+                #     f"Файл {filename} уже существует, пропуск загрузки для URL {url}")
                 queue.task_done()  # Отмечаем задачу как выполненную, если файл уже существует
                 continue
+
+            # Выбираем случайный прокси для каждого запроса
+            proxy = random.choice(proxies) if proxies else None
 
             # Если файл не существует, загружаем HTML
             html_content = download_html(url, proxy)
@@ -283,11 +301,7 @@ async def async_download_html_with_proxies(urls: List[str], proxies: List[str], 
             queue.task_done()  # Сообщаем, что задача выполнена
 
     # Запускаем пул рабочих задач с учетом наличия прокси
-    tasks = [
-        # Локальное скачивание, если прокси пустой
-        worker(random.choice(proxies) if proxies else None)
-        for _ in range(max_workers)
-    ]
+    tasks = [worker() for _ in range(max_workers)]
     await asyncio.gather(*tasks)
 
 
