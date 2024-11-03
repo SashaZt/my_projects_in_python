@@ -1,89 +1,67 @@
 {
-    // updates disabled
-    "extensions.autoCheckUpdates": false,
-    "update.enableWindowsBackgroundUpdates": false,
-    "extensions.autoUpdate": false,
-    "update.showReleaseNotes": false,
-    "update.mode": "none",
-    //terminal
-    "terminal.integrated.defaultProfile.windows": "Command Prompt",
-    "breadcrumbs.enabled": false,
-    "explorer.compactFolders": false,
-    "terminal.integrated.cursorStyle": "line",
-    "terminal.integrated.cursorBlinking": true,
-    "window.commandCenter": false,
-    "explorer.autoReveal": false,
-    "workbench.startupEditor": "none",
-    "workbench.iconTheme": "material-icon-theme",
-    "workbench.colorTheme": "Monokai Pro (Filter Machine)",
-    "editor.minimap.enabled": false,
-    "files.autoSave": "afterDelay",
-    "editor.detectIndentation": false,
-    "python.autoComplete.extraPaths": [],
-    "python.analysis.extraPaths": [],
-    "editor.defaultFormatter": "ms-python.vscode-pylance",
-    "python.languageServer": "Pylance",
-    "[jsonc]": {
-        "editor.defaultFormatter": "vscode.json-language-features"
-    },
-    "python.analysis.packageIndexDepths": [
-        {
-            "name": "sklearn",
-            "depth": 2
-        },
-        {
-            "name": "matplotlib",
-            "depth": 2
-        },
-        {
-            "name": "scipy",
-            "depth": 2
-        },
-        {
-            "name": "django",
-            "depth": 2
-        },
-        {
-            "name": "flask",
-            "depth": 2
-        },
-        {
-            "name": "fastapi",
-            "depth": 2
+    // Terminal settings - Настройки терминала
+    "terminal.integrated.defaultProfile.windows": "Command Prompt", // Установить командную строку (cmd) по умолчанию для терминала Windows
+    "terminal.integrated.splitCwd": "workspaceRoot", // При разделении терминала использовать корневую папку проекта
+    "terminal.integrated.confirmOnKill": "never", // Отключить подтверждение перед закрытием терминала
+    "terminal.integrated.inheritEnv": true, // Наследовать переменные среды для всех терминалов
+    "terminal.integrated.enablePersistentSessions": false, // Отключить сохранение состояния терминала при перезапуске
+    "terminal.integrated.stickyScroll.enabled": true, // Включить прилипание прокрутки терминала
+    "terminal.integrated.scrollback": 10000, // Увеличить количество строк для прокрутки назад в терминале
+    "terminal.integrated.cursorStyle": "line", // Установить стиль курсора в терминале как линию
+    "terminal.integrated.cursorBlinking": true, // Включить мигание курсора в терминале
+    // Explorer settings - Настройки файлового менеджера
+    "explorer.compactFolders": false, // Отключить компактное отображение папок в файловом менеджере
+    "explorer.autoReveal": false, // Отключить автоматическое раскрытие файлов в файловом менеджере
+    "explorer.confirmDelete": false, // Отключить подтверждение перед удалением файлов
+    "explorer.confirmDragAndDrop": false, // Отключить подтверждение перед перемещением файлов методом drag-and-drop
+    // Workbench settings - Настройки рабочей среды
+    "workbench.startupEditor": "none", // Не открывать никакой редактор при запуске VS Code
+    "workbench.iconTheme": "material-icon-theme", // Установить тему иконок "material-icon-theme"
+    "workbench.colorTheme": "Monokai Pro (Filter Machine)", // Установить цветовую тему "Monokai Pro (Filter Machine)"
+    // Editor settings - Настройки редактора
+    "editor.minimap.enabled": false, // Отключить миникарту
+    "editor.detectIndentation": false, // Отключить автоматическое определение отступов
+    "editor.renderWhitespace": "all", // Отображать все пробелы в редакторе
+    "editor.wordWrap": "on", // Включить перенос строк
+    "editor.hover.enabled": true, // Включить всплывающие подсказки в редакторе
+    "editor.mouseWheelZoom": true, // Включить зум с помощью колесика мыши
+    "editor.formatOnPaste": true, // Автоматически форматировать код при вставке
+    "editor.formatOnSave": true, // Автоматически форматировать файл при сохранении
+    // Git settings - Настройки Git
+    "git.enableSmartCommit": true, // Включить умный коммит (без необходимости вводить сообщение)
+    "git.confirmSync": false, // Отключить подтверждение перед синхронизацией с удаленным репозиторием
+    "git.autofetch": true, // Включить автоматическое получение изменений из удаленного репозитория
+    // Python settings - Настройки Python
+    "python.autoComplete.extraPaths": [], // Дополнительные пути для автодополнения
+    "python.analysis.extraPaths": [], // Дополнительные пути для анализа
+    "python.languageServer": "Pylance", // Использовать сервер языка Pylance
+    "python.analysis.typeCheckingMode": "basic", // Режим проверки типов: базовый
+    "python.analysis.autoImportCompletions": false, // Отключить автодополнения для импортов
+    "python.analysis.diagnosticMode": "openFilesOnly", // Выполнять диагностику только для открытых файлов
+    "python.REPL.enableREPLSmartSend": false, // Отключить умную отправку в REPL
+    "[python]": { // Настройки форматирования для Python
+        "editor.defaultFormatter": "ms-python.autopep8", // Использовать autopep8 для форматирования Python-кода
+        "editor.formatOnSave": true, // Форматировать Python-файлы при сохранении
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit" // Организовывать импорты при сохранении
         }
-    ],
-    "explorer.confirmDelete": false,
-    "editor.largeFileOptimizations": false,
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter",
-        "editor.formatOnSave": true
     },
-    "terminal.integrated.enablePersistentSessions": false,
-    "terminal.integrated.stickyScroll.enabled": true,
-    "explorer.confirmDragAndDrop": false,
+    // JSON settings - Настройки JSON
     "[json]": {
-        "editor.defaultFormatter": "vscode.json-language-features"
+        "editor.defaultFormatter": "vscode.json-language-features" // Использовать встроенный форматтер для JSON
     },
-    "git.enableSmartCommit": true,
-    "git.confirmSync": false,
-    "git.autofetch": true,
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features" // Использовать встроенный форматтер для JSON с комментариями
+    },
+    // HTML settings - Настройки HTML
     "[html]": {
-        "editor.defaultFormatter": "vscode.html-language-features"
+        "editor.defaultFormatter": "vscode.html-language-features" // Использовать встроенный форматтер для HTML
     },
-    "editor.renderWhitespace": "all",
-    "editor.wordWrap": "on",
-    "security.workspace.trust.banner": "never",
-    "python.analysis.typeCheckingMode": "off",
-    "python.analysis.autoImportCompletions": false,
-    "editor.hover.enabled": true,
-    "editor.mouseWheelZoom": true,
-    "editor.formatOnPaste": true,
-    "editor.formatOnSave": true,
-    "python.analysis.diagnosticMode": "openFilesOnly",
-    "diffEditor.wordWrap": "inherit",
-    "python.REPL.enableREPLSmartSend": false,
-    "liveServer.settings.multiRootWorkspaceName": "my_projects_in_python",
+    // XML settings - Настройки XML
     "[xml]": {
-        "editor.defaultFormatter": "fabianlauer.vs-code-xml-format"
-    }
+        "editor.defaultFormatter": "fabianlauer.vs-code-xml-format" // Использовать форматтер fabianlauer для XML
+    },
+    // Miscellaneous settings - Прочие настройки
+    "files.autoSave": "afterDelay", // Автоматически сохранять файлы через некоторое время бездействия
+    "diffEditor.wordWrap": "inherit", // Унаследовать настройки переноса строк в дифф-редакторе
 }

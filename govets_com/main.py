@@ -15,15 +15,11 @@ from configuration.logger_setup import logger
 import threading
 from bs4 import BeautifulSoup
 import re
-import base64
-from io import BytesIO
 import requests
-from requests.adapters import HTTPAdapter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import xml.etree.ElementTree as ET
 
 import threading
-import datetime
 import json
 
 # Установка директорий для логов и данных

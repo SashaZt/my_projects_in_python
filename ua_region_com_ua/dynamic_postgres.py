@@ -1,12 +1,13 @@
-import psycopg2
-from psycopg2 import sql, pool
-from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
-from configuration.logger_setup import logger
-from pathlib import Path
-import os
 import json
+import os
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import psycopg2
+from configuration.logger_setup import logger
+from dotenv import load_dotenv
+from psycopg2 import pool, sql
+from tqdm import tqdm
 
 # Загрузка переменных окружения из файла .env
 load_dotenv(Path("configuration") / ".env")
@@ -47,7 +48,8 @@ class DynamicPostgres:
                 "Успешное подключение к базе данных PostgreSQL через пул соединений"
             )
         except Exception as e:
-            logger.error(f"Ошибка при создании пула соединений к базе данных: {e}")
+            logger.error(
+                f"Ошибка при создании пула соединений к базе данных: {e}")
             raise
 
     def create_or_update_table(self, table_name, data):
@@ -91,11 +93,13 @@ class DynamicPostgres:
                     conn.commit()
                     if new_columns:
                         logger.info(
-                            f"Добавлены новые столбцы: {', '.join(new_columns)}"
+                            f"Добавлены новые столбцы: {
+                                ', '.join(new_columns)}"
                         )
                     else:
                         logger.info(
-                            f"Все столбцы уже существуют для таблицы {table_name}"
+                            f"Все столбцы уже существуют для таблицы {
+                                table_name}"
                         )
         except Exception as e:
             logger.error(
@@ -132,7 +136,8 @@ class DynamicPostgres:
                         update_columns = [
                             sql.SQL(f'"{key}" = %s') for key in row.keys()
                         ]
-                        update_values = tuple(row.values()) + (existing_record[0],)
+                        update_values = tuple(
+                            row.values()) + (existing_record[0],)
                         update_query = sql.SQL(
                             "UPDATE {} SET {} WHERE id = %s;"
                         ).format(
@@ -187,5 +192,6 @@ class DynamicPostgres:
             logger.info(f"Данные успешно загружены из файла {json_result}")
             return data
         except Exception as e:
-            logger.error(f"Ошибка при загрузке данных из файла {json_result}: {e}")
+            logger.error(f"Ошибка при загрузке данных из файла {
+                         json_result}: {e}")
             raise

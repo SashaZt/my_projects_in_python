@@ -4,7 +4,6 @@ from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import pandas as pd
-import xml.etree.ElementTree as ET
 import re
 import traceback
 import json
@@ -41,22 +40,50 @@ class Parsing:
         items = container.find_all("div", class_="company-sidebar__item")
 
         for item in items:
+            # Находим метку (ключ) и данные (значение)
             label_element = item.find("span", class_="company-sidebar__label")
-            data_element = item.find("div", class_="company-sidebar__data") or item
+            data_element = item.find(
+                "div", class_="company-sidebar__data") or item
 
-            # Извлекаем текст метки и данных, или устанавливаем None, если элемент не найден
-            label = label_element.get_text(strip=True) if label_element else None
-            data = (
-                data_element.get_text(strip=True).replace("\xa0", " ")
-                if data_element
-                else None
-            )
+            # Получаем текст метки
+            label = label_element.get_text(
+                strip=True) if label_element else None
+            # Если data_element содержит ссылки, собираем текст всех ссылок
+            if data_element.find("a"):
+                data = ", ".join([a.get_text(strip=True)
+                                  for a in data_element.find_all("a")])
+            else:
+                # Иначе просто берем текст из data_element
+                data = data_element.get_text(strip=True).replace(
+                    "\xa0", " ") if data_element else None
 
-            # Добавляем данные в словарь, только если метка найдена
-            if label:
+            # Сохраняем в словарь только если метка и данные найдены
+            if label and data:
                 company_data[label] = data
 
         return company_data
+
+    # def extract_company_data(self, container):
+    #     company_data = {}
+    #     items = container.find_all("div", class_="company-sidebar__item")
+
+    #     for item in items:
+    #         label_element = item.find("span", class_="company-sidebar__label")
+    #         data_element = item.find("div", class_="company-sidebar__data") or item
+
+    #         # Извлекаем текст метки и данных, или устанавливаем None, если элемент не найден
+    #         label = label_element.get_text(strip=True) if label_element else None
+    #         data = (
+    #             data_element.get_text(strip=True).replace("\xa0", " ")
+    #             if data_element
+    #             else None
+    #         )
+
+    #         # Добавляем данные в словарь, только если метка найдена
+    #         if label:
+    #             company_data[label] = data
+
+    #     return company_data
 
     def parse_single_html(self, file_html):
         # logger.info(file_html)
@@ -65,48 +92,31 @@ class Parsing:
         soup = BeautifulSoup(src, "lxml")
         company_data = {}
 
-        # Безопасное извлечение заголовка страницы
+        # Извлечение заголовка и юридического адреса
         page_title_raw = soup.select_one("#main > div:nth-child(1) > div > h1")
-        page_title = page_title_raw.get_text(strip=True) if page_title_raw else None
-
-        # Безопасное извлечение юридического адреса
-        legal_address_raw = soup.select_one(
-            "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-8 > div > div:nth-child(2) > div"
+        page_title = page_title_raw.get_text(
+            strip=True) if page_title_raw else None
+        containers = soup.select(
+            ".px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-8 > div, "
+            ".company-sidebar.p-3.p-md-4.mb-3.border"
         )
-        legal_address = (
-            legal_address_raw.get_text(strip=True) if legal_address_raw else None
-        )
-        # Список возможных селекторов для контейнеров
-        selectors = [
-            "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div > div.col-md-4.mt-4.company-sidebar-info > div.company-sidebar.border.rounded.p-3.p-md-4.mb-3",
-            "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-8 > div",
-            "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.d-none.d-xl-block.col-xl-3.company-item-sidebar > div.d-none.d-lg-block.company-sidebar.p-3.p-md-4.mb-3.border",
-            "#main > div.cart-company-full.container.pb-5 > div.row.flex-row-reverse > div.d-none.d-xl-block.col-xl-3.company-item-sidebar > div.d-none.d-lg-block.company-sidebar.p-3.p-md-4.mb-3.border",
-            "#main > div.cart-company-full.container.pb-5 > div > div.col-xl-9 > div.col-md-4.mt-4.company-sidebar-info > div.company-sidebar.border.rounded.p-3.p-md-4.mb-3",  # Добавил
-            "#main > div.cart-company-full.container.pb-5 > div > div.col-xl-9 > div.px-3.pb-3.px-md-4.pb-md-4.info_block.rounded.border.mt-3",  # Добавил
-        ]
-        # Ищем контейнеры по каждому селектору
-        for selector in selectors:
-            container = soup.select_one(selector)
-            if container:
-                # Обновляем company_data, добавляя данные из найденного контейнера
-                company_data.update(self.extract_company_data(container))
 
-        # Словарь для текущей единицы данных
-        # Извлекаем коды КВЕД
+        for container in containers:
+            company_data.update(self.extract_company_data(container))
+        # Извлечение кодов КВЕД
         kved_elements = soup.select('a[href^="/kved/"]')
-        kved_list = [element["href"].split("/kved/")[1] for element in kved_elements]
+        kved_list = [element["href"].split(
+            "/kved/")[1] for element in kved_elements]
         kved_string = ",".join(kved_list)
 
-        # Добавляем коды КВЕД в словарь
+        # Добавляем в словарь полученные данные
         company_data["kved"] = kved_string
         company_data["page_title"] = page_title
-        company_data["legal_address"] = legal_address
+        # company_data["legal_address"] = legal_address
 
-        # logger.info(company_data)
-        cleaned_data = {
-            key: self.clean_text(value) for key, value in company_data.items()
-        }
+        # Очистка текста
+        cleaned_data = {key: self.clean_text(value)
+                        for key, value in company_data.items()}
         return cleaned_data
 
     def parsing_html(self):
@@ -134,8 +144,10 @@ class Parsing:
                     result = future.result()
                     all_results.append(result)
                 except Exception as e:
-                    logger.error(f"Ошибка при обработке файла {file_html}: {e}")
-                    logger.error(traceback.format_exc())  # Добавление трассировки стека
+                    logger.error(f"Ошибка при обработке файла {
+                                 file_html}: {e}")
+                    # Добавление трассировки стека
+                    logger.error(traceback.format_exc())
                 finally:
                     # Обновляем прогресс-бар после завершения обработки каждого файла
                     progress_bar.update(1)
@@ -152,7 +164,8 @@ class Parsing:
                 edrpou_df["edrpou"].astype(str)
             )  # Возвращаем множество идентификаторов
         else:
-            logger.warning(f"Файл {edrpou_csv_file} не найден. Обрабатываем все файлы.")
+            logger.warning(
+                f"Файл {edrpou_csv_file} не найден. Обрабатываем все файлы.")
             return None  # Возвращаем None, если файл отсутствует
 
     def list_html(self):
@@ -229,5 +242,6 @@ class Parsing:
                 json.dump(all_results, json_file, ensure_ascii=False, indent=4)
             logger.info(f"Данные успешно сохранены в файл {json_result}")
         except Exception as e:
-            logger.error(f"Ошибка при сохранении данных в файл {json_result}: {e}")
+            logger.error(f"Ошибка при сохранении данных в файл {
+                         json_result}: {e}")
             raise

@@ -1,12 +1,10 @@
 from pathlib import Path
 
-
+from data_verification import DataVerification  # Импортируем новый класс
+from dynamic_postgres import DynamicPostgres
 # Ваши модули
 from get_response import Get_Response
 from parsing import Parsing
-from dynamic_postgres import DynamicPostgres
-from data_verification import DataVerification  # Импортируем новый класс
-
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
