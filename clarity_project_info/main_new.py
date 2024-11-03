@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import List, Optional
 from urllib.parse import urlparse
 
+import aiofiles
+import aiohttp
 import pandas as pd  # Импортируем pandas
 import requests
 from bs4 import BeautifulSoup  # Импорт BeautifulSoup
@@ -231,42 +233,36 @@ def split_urls_across_workers(urls: List[str], num_workers: int) -> List[List[st
 # Сохранение HTML содержимого в файл
 
 
-# Сохранение HTML содержимого в файл
-def save_html_file(html_content: str, output_dir: Path, url: str) -> None:
-    """Сохраняет HTML содержимое в файл, используя URL в качестве имени файла."""
+# Асинхронная функция для сохранения HTML содержимого в файл
+async def save_html_file(html_content: str, output_dir: Path, url: str) -> None:
+    """Асинхронно сохраняет HTML содержимое в файл, используя URL в качестве имени файла."""
     filename = output_dir / f"{urlparse(url).path.replace('/', '_')}.html"
-    with open(filename, "w", encoding="utf-8") as file:
-        file.write(html_content)
-    logger.info(filename)
-    # logger.info(f"HTML файл сохранен: {filename}")
+    async with aiofiles.open(filename, "w", encoding="utf-8") as file:
+        await file.write(html_content)
+    logger.info(f"HTML файл сохранен: {filename}")
 
-# Функция для скачивания HTML с использованием прокси или без него
+# Асинхронная функция для скачивания HTML с использованием прокси или без него
 
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_fixed(5),
-    retry=retry_if_exception_type(requests.RequestException),
-)
-def download_html(url: str, proxy: Optional[str] = None) -> Optional[str]:
-    """Скачивает HTML по заданному URL с использованием прокси или локально, если прокси отсутствуют."""
-    proxies = {"http": proxy, "https": proxy} if proxy else None
+async def download_html(session: aiohttp.ClientSession, url: str, proxy: Optional[str] = None) -> Optional[str]:
+    """Асинхронно скачивает HTML по заданному URL с использованием прокси или локально, если прокси отсутствуют."""
     try:
-        response = requests.get(url, proxies=proxies, timeout=30)
-        if response.status_code == 200:
-            # Используем BeautifulSoup для проверки содержимого
-            soup = BeautifulSoup(response.text, 'lxml')
-            h1_element = soup.find('h1')
-            # Проверяем наличие <h1> с текстом "Шановний користувачу!"
-            if h1_element and h1_element.text.strip() == "Шановний користувачу!":
-                logger.warning(f"Пропуск сохранения для URL {
-                    url}: обнаружен текст 'Шановний користувачу!'")
-                return None  # Пропускаем, если обнаружен данный текст
-            return response.text
-        else:
-            logger.error(f"Ошибка {response.status_code} для URL {url}")
-            return None
-    except requests.RequestException as e:
+        async with session.get(url, proxy=proxy, timeout=30) as response:
+            if response.status == 200:
+                # Используем BeautifulSoup для проверки содержимого
+                content = await response.text()
+                soup = BeautifulSoup(content, 'html.parser')
+                h1_element = soup.find('h1')
+                # Проверяем наличие <h1> с текстом "Шановний користувачу!"
+                if h1_element and h1_element.text.strip() == "Шановний користувачу!":
+                    logger.info(f"Пропуск сохранения для URL {
+                                url}: обнаружен текст 'Шановний користувачу!'")
+                    return None  # Пропускаем, если обнаружен данный текст
+                return content
+            else:
+                logger.error(f"Ошибка {response.status} для URL {url}")
+                return None
+    except Exception as e:
         logger.error(f"Ошибка запроса для URL {url}: {e}")
         return None
 
@@ -279,26 +275,27 @@ async def async_download_html_with_proxies(urls: List[str], proxies: List[str], 
         await queue.put(url)  # Помещаем каждый URL в очередь
 
     async def worker() -> None:
-        while not queue.empty():
-            # Извлекаем URL из очереди
-            url = await queue.get()
-            # Проверяем, существует ли файл для этого URL
-            filename = output_dir / \
-                f"{urlparse(url).path.replace('/', '_')}.html"
-            if filename.exists():
-                # logger.info(
-                #     f"Файл {filename} уже существует, пропуск загрузки для URL {url}")
-                queue.task_done()  # Отмечаем задачу как выполненную, если файл уже существует
-                continue
+        async with aiohttp.ClientSession() as session:
+            while not queue.empty():
+                # Извлекаем URL из очереди
+                url = await queue.get()
+                # Проверяем, существует ли файл для этого URL
+                filename = output_dir / \
+                    f"{urlparse(url).path.replace('/', '_')}.html"
+                if filename.exists():
+                    logger.info(
+                        f"Файл {filename} уже существует, пропуск загрузки для URL {url}")
+                    queue.task_done()  # Отмечаем задачу как выполненную, если файл уже существует
+                    continue
 
-            # Выбираем случайный прокси для каждого запроса
-            proxy = random.choice(proxies) if proxies else None
+                # Выбираем случайный прокси для каждого запроса
+                proxy = random.choice(proxies) if proxies else None
 
-            # Если файл не существует, загружаем HTML
-            html_content = download_html(url, proxy)
-            if html_content:
-                save_html_file(html_content, output_dir, url)
-            queue.task_done()  # Сообщаем, что задача выполнена
+                # Если файл не существует, загружаем HTML
+                html_content = await download_html(session, url, proxy)
+                if html_content:
+                    await save_html_file(html_content, output_dir, url)
+                queue.task_done()  # Сообщаем, что задача выполнена
 
     # Запускаем пул рабочих задач с учетом наличия прокси
     tasks = [worker() for _ in range(max_workers)]
