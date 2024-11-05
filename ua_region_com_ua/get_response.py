@@ -1,23 +1,21 @@
-import requests
-from configuration.logger_setup import logger
-from bs4 import BeautifulSoup
-from tqdm import tqdm
-from threading import Lock
+import csv
+import random
+import re
+import sys
+import threading
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from threading import Lock
+
 import pandas as pd
-import random
-import csv
-import xml.etree.ElementTree as ET
-import re
-import threading
-import sys
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
-import sys
-
-import random
+import requests
+from bs4 import BeautifulSoup
+from configuration.logger_setup import logger
+from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
+                      wait_fixed)
+from tqdm import tqdm
 from working_with_files import Working_with_files
-
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -32,7 +30,7 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
 csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
-# file_proxy = configuration_directory / "roman.txt"
+file_proxy = configuration_directory / "proxy.txt"
 
 
 class Get_Response:
@@ -79,9 +77,10 @@ class Get_Response:
         # Запрос по указанному URL
         response = requests.get(
             url,
-            # proxies=proxies_dict,
+            proxies=proxies_dict,
             headers=self.headers,
             cookies=self.cookies,
+            verify=False,  # Отключаем проверку SSL
             timeout=30,
         )
 
@@ -90,7 +89,8 @@ class Get_Response:
             return response.content
         else:
             logger.error(
-                f"Ошибка при скачивании файла: {response.status_code} для URL: {url}"
+                f"Ошибка при скачивании файла: {
+                    response.status_code} для URL: {url}"
             )
             return None
 
@@ -119,7 +119,8 @@ class Get_Response:
         pattern = r"https://www\.ua-region\.com\.ua/sitemap/sitemap_\d+\.xml"
 
         # Генератор списков для получения всех URL, соответствующих регулярному выражению
-        matching_urls = [loc.text for loc in locations if re.match(pattern, loc.text)]
+        matching_urls = [
+            loc.text for loc in locations if re.match(pattern, loc.text)]
         logger.info("Получили список всех sitemap")
         return matching_urls
 
@@ -169,7 +170,8 @@ class Get_Response:
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # Создаем задачи для каждого URL в списке
             futures = [
-                executor.submit(self.fetch_and_save_html, url, successful_urls, proxies)
+                executor.submit(self.fetch_and_save_html,
+                                url, successful_urls, proxies)
                 for url in urls_df["url"]
             ]
 
@@ -223,6 +225,7 @@ class Get_Response:
                 proxies=proxies_dict,
                 timeout=30,
                 cookies=self.cookies,
+                verify=False  # Отключаем проверку SSL
             )
 
             # Если статус код ошибки >= 400, фиксируем ошибку и исключаем повторные попытки

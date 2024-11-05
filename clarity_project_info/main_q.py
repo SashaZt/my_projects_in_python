@@ -3,6 +3,7 @@ import gzip
 import os
 import random
 import shutil
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -246,7 +247,6 @@ async def save_html_file(html_content: str, output_dir: Path, url: str) -> None:
 
 async def download_html(session: aiohttp.ClientSession, url: str, proxy: Optional[str] = None) -> Optional[str]:
     """Асинхронно скачивает HTML по заданному URL с использованием прокси или локально, если прокси отсутствуют."""
-    
     try:
         async with session.get(url, proxy=proxy, timeout=30) as response:
             if response.status == 200:
@@ -261,19 +261,38 @@ async def download_html(session: aiohttp.ClientSession, url: str, proxy: Optiona
                     return None  # Пропускаем, если обнаружен данный текст
                 return content
             else:
-                logger.error(f"Ошибка {proxy}")
+                logger.error(f"Ошибка {response.status} для URL {url}")
                 return None
     except Exception as e:
         logger.error(f"Ошибка запроса для URL {url}: {e}")
         return None
 
+# Функция для выбора прокси с учетом времени последнего использования
+
+
+def get_available_proxy(proxies: List[str], proxy_usage_times: dict, proxy_cooldown: float) -> Optional[str]:
+    """Возвращает случайный прокси, который не использовался дольше, чем proxy_cooldown секунд."""
+    available_proxies = [
+        proxy for proxy in proxies
+        if time.time() - proxy_usage_times.get(proxy, 0) >= proxy_cooldown
+    ]
+    if not available_proxies:
+        return None  # Нет доступных прокси, удовлетворяющих ограничениям
+    selected_proxy = random.choice(available_proxies)
+    # Обновляем время использования прокси
+    proxy_usage_times[selected_proxy] = time.time()
+    return selected_proxy
+
 # Асинхронная функция для пакетной загрузки HTML с очередью
 
 
-async def async_download_html_with_proxies(urls: List[str], proxies: List[str], output_dir: Path, max_workers: int) -> None:
+async def async_download_html_with_proxies(urls: List[str], proxies: List[str], output_dir: Path, max_workers: int, proxy_cooldown: float) -> None:
     queue = asyncio.Queue()
     for url in urls:
         await queue.put(url)  # Помещаем каждый URL в очередь
+
+    # Словарь для отслеживания времени последнего использования каждого прокси
+    proxy_usage_times = {}
 
     async def worker() -> None:
         async with aiohttp.ClientSession() as session:
@@ -284,13 +303,19 @@ async def async_download_html_with_proxies(urls: List[str], proxies: List[str], 
                 filename = output_dir / \
                     f"{urlparse(url).path.replace('/', '_')}.html"
                 if filename.exists():
-                    # logger.info(
-                    #     f"Файл {filename} уже существует, пропуск загрузки для URL {url}")
+                    logger.info(
+                        f"Файл {filename} уже существует, пропуск загрузки для URL {url}")
                     queue.task_done()  # Отмечаем задачу как выполненную, если файл уже существует
                     continue
 
-                # Выбираем случайный прокси для каждого запроса
-                proxy = random.choice(proxies) if proxies else None
+                # Выбираем доступный прокси, который не использовался недавно
+                proxy = get_available_proxy(
+                    proxies, proxy_usage_times, proxy_cooldown)
+                # Если нет доступного прокси, подождем и пропустим выполнение цикла
+                if proxy is None and proxies:
+                    await asyncio.sleep(proxy_cooldown)
+                    queue.task_done()
+                    continue
 
                 # Если файл не существует, загружаем HTML
                 html_content = await download_html(session, url, proxy)
@@ -304,9 +329,11 @@ async def async_download_html_with_proxies(urls: List[str], proxies: List[str], 
 
 
 def main():
+
     proxies = load_proxies()  # Загружаем прокси один раз в начале
     urls = load_urls(csv_all_edrs_products)
     max_workers = 50
+    proxy_cooldown = 60
     # substring = "https://clarity-project.info/edr/"  # Здесь задается фильтр
     # Шаг 1: Скачать основной файл sitemap-index.xml
     # download_file(SITEMAP_INDEX_URL, xml_sitemap, proxies)
@@ -330,8 +357,9 @@ def main():
     #     csv_all_urls_products, csv_all_edrs_products, substring)
     # скачивание данных
     # Запуск асинхронной очереди
+    # Запуск асинхронной очереди
     asyncio.run(async_download_html_with_proxies(
-        urls, proxies, html_files_directory, max_workers))
+        urls, proxies, html_files_directory, max_workers, proxy_cooldown))
     logger.info("Загрузка завершена.")
 
 

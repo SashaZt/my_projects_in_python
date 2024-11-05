@@ -1,4 +1,5 @@
 import asyncio
+
 import nodriver as uc
 
 
@@ -9,7 +10,7 @@ async def main():
     )  # Добавьте параметр headless=True, если не хотите видеть браузер
     # Переходим на страницу
     page = await browser.get(
-        "https://optlist.ru/suppliers/stroitelniye-tovary-optom/rossiia--2017370?pay=2&q=&sa=1&saveQuery=true&sort="
+        "https://allegro.pl/oferta/walizka-elektryka-zestaw-108-szt-profesjonalny-neo-tools-01-310-16233581796"
     )
     await asyncio.sleep(30)
     element_find = await page.wait_for(

@@ -1,21 +1,9 @@
-import requests
-from configuration.logger_setup import logger
-from bs4 import BeautifulSoup
-from tqdm import tqdm
-from threading import Lock
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-import pandas as pd
-import random
 import csv
-import xml.etree.ElementTree as ET
-import re
 import threading
-import sys
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
-import shutil
-import traceback
-import sqlite3
+from pathlib import Path
+
+import pandas as pd
+from configuration.logger_setup import logger
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -30,7 +18,7 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
 csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
-# file_proxy = configuration_directory / "roman.txt"
+file_proxy = configuration_directory / "proxy.txt"
 
 
 class Working_with_files:
@@ -47,6 +35,7 @@ class Working_with_files:
         # Загружаем список прокси-серверов из файла
         with open(self.file_proxy, "r", encoding="utf-8") as file:
             proxies = [line.strip() for line in file]
+        logger.info(len(proxies))
         return proxies
 
     def write_to_csv(self, data, filename):
@@ -118,7 +107,8 @@ class Working_with_files:
 
         # Удаляем успешные URL из списка продуктов
         initial_count = len(df_products)
-        df_products = df_products[~df_products["url"].isin(df_successful["url"])]
+        df_products = df_products[~df_products["url"].isin(
+            df_successful["url"])]
         final_count = len(df_products)
 
         # Если были удалены какие-то записи
@@ -126,7 +116,8 @@ class Working_with_files:
             # Перезаписываем файл output_csv_file
             df_products.to_csv(self.output_csv_file, index=False)
             logger.info(
-                f"Удалено {initial_count - final_count} записей из {self.output_csv_file.name}."
+                f"Удалено {initial_count -
+                           final_count} записей из {self.output_csv_file.name}."
             )
 
             # Очищаем файл csv_file_successful

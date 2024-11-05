@@ -130,5 +130,5 @@ def parsing_json():
 
 
 if __name__ == "__main__":
-    # get_jsons()
+    get_jsons()
     parsing_json()
