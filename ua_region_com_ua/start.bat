@@ -27,4 +27,4 @@ if not exist "%PYTHON_EXE%" (
 )
 
 :: Запуск main.py
-"%PYTHON_EXE%" "%CURRENT_DIR%proba_html_parsing.py"
+"%PYTHON_EXE%" "%CURRENT_DIR%ver.py"

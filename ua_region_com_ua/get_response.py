@@ -72,26 +72,37 @@ class Get_Response:
         # Выбираем случайный прокси-сервер для запроса
         proxy = random.choice(proxies)
         proxies_dict = {"http": proxy, "https": proxy}
-        # logger.info(proxies_dict)
 
-        # Запрос по указанному URL
-        response = requests.get(
-            url,
-            proxies=proxies_dict,
-            headers=self.headers,
-            cookies=self.cookies,
-            verify=False,  # Отключаем проверку SSL
-            timeout=30,
-        )
-
-        if response.status_code == 200:
-            logger.info(f"Скачали sitemap: {url}")
-            return response.content
-        else:
-            logger.error(
-                f"Ошибка при скачивании файла: {
-                    response.status_code} для URL: {url}"
+        try:
+            # Запрос по указанному URL с отключенной проверкой SSL
+            response = requests.get(
+                url,
+                proxies=proxies_dict,
+                headers=self.headers,
+                # cookies=self.cookies,
+                verify=False,  # Отключаем проверку SSL
+                timeout=30,
             )
+
+            if response.status_code == 200:
+                logger.info(f"Скачали sitemap: {url}")
+                return response.content
+            else:
+                logger.error(f"Ошибка при скачивании файла: {
+                    response.status_code} для URL: {url}")
+                return None
+
+        except requests.exceptions.SSLError as ssl_error:
+            logger.error(f"SSL ошибка для URL {url}: {ssl_error}")
+            return None
+
+        except requests.exceptions.MaxRetryError as retry_error:
+            logger.error(f"Ошибка переподключения для URL {
+                         url}: {retry_error}")
+            return None
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Произошла ошибка при запросе URL {url}: {e}")
             return None
 
     def get_sitemap_start(self):
@@ -149,6 +160,7 @@ class Get_Response:
 
     def process_infox_file(self):
         self.working_files.remove_successful_urls()
+
         # Загружаем список прокси-серверов из файла
         proxies = self.working_files.load_proxies()
 
@@ -168,39 +180,41 @@ class Get_Response:
 
         # Запускаем многопоточную обработку
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # Создаем задачи для каждого URL в списке
-            futures = [
-                executor.submit(self.fetch_and_save_html,
-                                url, successful_urls, proxies)
-                for url in urls_df["url"]
-            ]
+            futures = []
+            for url in urls_df["url"]:
+                # Определяем идентификатор и путь к файлу
+                identifier = url.split("/")[-1]
+                file_path = self.html_files_directory / f"{identifier}.html"
+
+                # Пропускаем URL, если файл уже существует
+                if file_path.exists():
+                    logger.info(f"Файл уже существует для URL: {
+                                url}, пропускаем.")
+                    progress_bar.update(1)
+                    continue
+
+                # Добавляем задачу в executor, передавая file_path
+                futures.append(executor.submit(
+                    self.fetch_and_save_html, url, file_path, successful_urls, proxies))
 
             # Отслеживаем выполнение задач
             for future in as_completed(futures):
                 try:
-                    future.result()  # Получаем результат выполнения задачи
+                    future.result()
                 except Exception as e:
                     logger.error(f"Error occurred: {e}")
-                    # self.stop_event.set()  # Устанавливаем событие для остановки всех потоков
-
                 finally:
-                    # Обновляем прогресс-бар после каждой завершенной задачи
                     progress_bar.update(1)
 
         # Закрываем прогресс-бар
         progress_bar.close()
-        # if self.stop_event.is_set():
-        #     logger.error("Программа остановлена из-за ошибок.")
-        #     sys.exit(1)
-        # else:
-        #     logger.info("Все запросы выполнены.")
 
     @retry(
         stop=stop_after_attempt(10),
         wait=wait_fixed(30),
         retry=retry_if_exception_type(requests.RequestException),
     )
-    def fetch_and_save_html(self, url, successful_urls, proxies):
+    def fetch_and_save_html(self, url, file_path, successful_urls, proxies):
         fetch_lock = threading.Lock()
 
         # Прерываем выполнение, если установлено событие остановки
@@ -211,8 +225,6 @@ class Get_Response:
         if url in successful_urls:
             logger.info("| Компания уже была обработана, пропускаем. |")
             return
-
-        identifier = url.split("/")[-1]
 
         try:
             proxy = random.choice(proxies)
@@ -247,7 +259,6 @@ class Get_Response:
             if response.status_code == 200 and "text/html" in response.headers.get(
                 "Content-Type", ""
             ):
-                file_path = self.html_files_directory / f"{identifier}.html"
                 file_path.write_text(response.text, encoding="utf-8")
 
                 with fetch_lock:
