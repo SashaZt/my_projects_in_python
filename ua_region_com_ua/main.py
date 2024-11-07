@@ -3,7 +3,7 @@ from pathlib import Path
 from data_verification import DataVerification  # Импортируем новый класс
 from dynamic_postgres import DynamicPostgres
 # Ваши модули
-from get_response import Get_Response
+from get_response import GetResponse
 from parsing import Parsing
 
 # Установка директорий для логов и данных
@@ -59,7 +59,7 @@ while True:
     user_input = int(input("Выберите действие: "))
 
     if user_input == 1:
-        response_handler = Get_Response(
+        response_handler = GetResponse(
             max_workers,
             base_url,
             cookies,
@@ -93,7 +93,7 @@ while True:
         # Закрываем соединение с базой данных
         db.close()
     elif user_input == 2:
-        response_handler = Get_Response(
+        response_handler = GetResponse(
             max_workers,
             base_url,
             cookies,
@@ -108,7 +108,7 @@ while True:
         response_handler.get_all_sitemap()
 
     elif user_input == 3:
-        response_handler = Get_Response(
+        response_handler = GetResponse(
             max_workers,
             base_url,
             cookies,

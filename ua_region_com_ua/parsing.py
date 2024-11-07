@@ -1,12 +1,13 @@
-from configuration.logger_setup import logger
-from bs4 import BeautifulSoup
-from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-import pandas as pd
+import json
 import re
 import traceback
-import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+import pandas as pd
+from bs4 import BeautifulSoup
+from configuration.logger_setup import logger
+from tqdm import tqdm
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -121,7 +122,7 @@ class Parsing:
 
     def parsing_html(self):
         all_files = self.list_html()
-        # Инициализация прогресс-бара
+        # Инициализация прогресс-бараedrpou.csv
         total_urls = len(all_files)
         progress_bar = tqdm(
             total=total_urls,
@@ -159,10 +160,15 @@ class Parsing:
     def load_processed_ids(self):
         # Загружаем идентификаторы из edrpou.csv, если файл существует
         if edrpou_csv_file.exists():
-            edrpou_df = pd.read_csv(edrpou_csv_file)
-            return set(
-                edrpou_df["edrpou"].astype(str)
-            )  # Возвращаем множество идентификаторов
+            # edrpou_df = pd.read_csv(edrpou_csv_file)
+            edrpou_df = pd.read_csv(edrpou_csv_file, dtype={"edrpou": str})
+            # Убираем только пробелы
+            edrpou_df["edrpou"] = edrpou_df["edrpou"].str.strip()
+            edrpou_set = set(edrpou_df["edrpou"])
+            return edrpou_set
+            # return set(
+            #     edrpou_df["edrpou"].astype(str)
+            # )  # Возвращаем множество идентификаторов
         else:
             logger.warning(
                 f"Файл {edrpou_csv_file} не найден. Обрабатываем все файлы.")
