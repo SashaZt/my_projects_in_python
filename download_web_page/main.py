@@ -507,6 +507,6 @@ if __name__ == "__main__":
     # get_json()
     download_xml()
     # pr_xml()
-    # parsing_xml()
+    parsing_xml()
     # fetch_and_save()
     # parsing_csv()
