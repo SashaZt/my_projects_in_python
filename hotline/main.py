@@ -1,17 +1,18 @@
 import asyncio
+import json
+import os
 import random
+import shutil
+import sys
+import time
+import traceback
 from pathlib import Path
-from playwright.async_api import async_playwright
+from urllib.parse import quote
+
 import pandas as pd
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
-from urllib.parse import quote
-import shutil
-import json
-import traceback
-import os
-import sys
-
+from playwright.async_api import async_playwright
 
 # Путь к папкам
 current_directory = Path.cwd()
@@ -25,7 +26,8 @@ json_files_directory.mkdir(exist_ok=True, parents=True)
 json_error_directory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(exist_ok=True, parents=True)
 
-output_csv_file = data_directory / "output.csv"
+input_csv_file = data_directory / "output.csv"
+output_error_csv_file = data_directory / "output_error.csv"
 output_json_file = data_directory / "output.json"
 error_json_file = data_directory / "error_product.json"
 proxy_file = configuration_directory / "proxy.txt"
@@ -118,16 +120,18 @@ async def single_html_one():
                 # Проверяем, если товар уже есть в списке ошибок, то пропускаем его
                 # Использование в основном коде
                 if is_product_in_error_directory(find_product, json_error_directory):
-                    logger.info(
-                        f"Товар '{find_product}' уже в списке ошибок. Пропуск..."
-                    )
+                    # logger.info(
+                    #     f"Товар '{
+                    #         find_product}' уже в списке ошибок. Пропуск..."
+                    # )
                     continue  # Переход к следующему товару
+
                 encoded_product = encode_product_name(find_product)
                 url = f"https://hotline.ua/sr/?q={encoded_product}"
                 find_product = find_product.replace("/", "_")
                 json_file_path = json_files_directory / f"{find_product}.json"
+
                 if json_file_path.exists():
-                    # logger.warning(f"Файл {json_file_path} уже существует, пропускаем.")
                     continue  # Переходим к следующей итерации цикла
 
                 try:
@@ -136,7 +140,7 @@ async def single_html_one():
                     logger.error(f"Тайм-аут при переходе на URL: {url}")
                     continue  # Переходим к следующему URL
                 except Exception as e:
-                    logger.error(f"Ошибка при переходе на {url}: {e}")
+                    # logger.error(f"Ошибка при переходе на {url}: {e}")
                     continue
 
                 # Ожидаем появления кнопки смены языка
@@ -174,52 +178,6 @@ async def single_html_one():
                     logger.error("Кнопка смены языка не найдена.")
                 # закончили работу с языками
 
-                # # Ждем появления элемента с нужным классом
-                # try:
-                #     no_items_title = await page.wait_for_selector(
-                #         "//div[@class='search__no-items-title text-center']",
-                #         timeout=10000,
-                #     )
-                # except asyncio.TimeoutError:
-                #     logger.info(
-                #         "Элемент 'search__no-items-title text-center' не найден, продолжаем выполнение."
-                #     )
-                #     no_items_title = None  # Устанавливаем None, если элемент не найден
-                # except Exception as e:
-                #     logger.error(
-                #         "Ошибка при проверке элемента 'search__no-items-title text-center':",
-                #         exc_info=e,
-                #     )
-                #     no_items_title = None  # Устанавливаем None и продолжаем выполнение
-
-                # # Если элемент найден, переходим к извлечению текста
-                # if no_items_title:
-                #     try:
-                #         text_content = await no_items_title.inner_text()
-                #     except Exception as e:
-                #         logger.error(
-                #             "Ошибка при извлечении текста из элемента:", exc_info=e
-                #         )
-                #         text_content = None  # Устанавливаем None, если произошла ошибка при извлечении текста
-
-                #     # Если текст извлечен, проверяем на совпадение с "ничего не найдено"
-                #     if text_content and "ничего не найдено" in text_content:
-                #         try:
-                #             error_product = product.get("Название товара")
-                #             error_data = {
-                #                 "error_product": error_product,
-                #                 "1С": product.get("1С"),
-                #             }
-                #             all_error.append(error_data)
-                #         except KeyError as e:
-                #             logger.error(
-                #                 "Ошибка доступа к ключам 'Название товара' или '1С' в product:",
-                #                 exc_info=e,
-                #             )
-                #             # Продолжаем выполнение, если ключи не найдены
-
-                # Если не найдено, продолжаем выполнение цикла
-                # Устанавливаем флаг для завершения цикла
                 element_found = False
 
                 while not element_found:
@@ -234,7 +192,8 @@ async def single_html_one():
                             text_content = await no_items_title.inner_text()
                             if "ничего не найдено" in text_content:
                                 try:
-                                    error_product = product.get("Название товара")
+                                    error_product = product.get(
+                                        "Название товара")
                                     error_data = {
                                         "error_product": error_product,
                                         "1С": product.get("1С"),
@@ -242,11 +201,12 @@ async def single_html_one():
                                     find_product = product.get(
                                         "Название товара"
                                     ).replace("/", "_")
-                                    json_file_path = (
-                                        json_error_directory / f"{find_product}.json"
+                                    json_file_error_path = (
+                                        json_error_directory
+                                        / f"{find_product}.json"
                                     )
                                     with open(
-                                        json_file_path,
+                                        json_file_error_path,
                                         "w",
                                         encoding="utf-8",
                                     ) as f:
@@ -256,7 +216,7 @@ async def single_html_one():
                                             ensure_ascii=False,
                                             indent=4,
                                         )
-                                    # all_error.append(error_data)
+                                    logger.info(json_file_error_path)
 
                                 except KeyError as e:
                                     logger.error(
@@ -295,37 +255,6 @@ async def single_html_one():
                                 if title_link:
                                     title_text = (await title_link.inner_text()).strip()
 
-                                # Проверяем и разделяем строку, если текст найден
-                                # find_product = product["Название товара"]
-                                # match = re.match(r"^(.*?)(\s*\(.*\))$", find_product)
-                                # if match:
-                                #     main_name = match.group(
-                                #         1
-                                #     ).strip()  # Основное название
-                                #     code = (
-                                #         match.group(2).strip() if match.group(2) else ""
-                                #     )  # Часть в скобках, если есть
-
-                                #     # Сравнение найденного текста с элементом на странице
-                                #     if title_text and (
-                                #         title_text == main_name
-                                #         or title_text == f"{main_name}{code}"
-                                #     ):
-                                #         link_element = await page.query_selector(
-                                #             "div.list-item__title-container.m_b-5 a"
-                                #         )
-                                #         if link_element:
-                                #             await link_element.click()  # Клик на элементе <a>
-                                #             element_found = True  # Завершаем цикл, если найден и обработан второй элемент
-                                #         else:
-                                #             logger.info("Элемент для клика не найден.")
-                                #             continue
-                                # else:
-                                #     logger.warning(
-                                #         f"Название товара '{find_product}' не соответствует ожидаемому формату."
-                                #     )
-                                #     continue
-                                # Пример использования в основном коде
                                 if compare_product_titles(
                                     product["Название товара"], title_text
                                 ):
@@ -336,10 +265,12 @@ async def single_html_one():
                                         await link_element.click()
                                         element_found = True
                                     else:
-                                        logger.info("Элемент для клика не найден.")
+                                        logger.info(
+                                            "Элемент для клика не найден.")
                                 else:
                                     logger.warning(
-                                        f"Названия '{product['Название товара']}' и '{title_text}' не совпадают."
+                                        f"Названия '{product['Название товара']}' и '{
+                                            title_text}' не совпадают."
                                     )
                                 try:
                                     await page.wait_for_selector(
@@ -347,11 +278,13 @@ async def single_html_one():
                                         timeout=timeout,
                                     )
                                 except asyncio.TimeoutError:
-                                    logger.error(f"Тайм-аут при переходе на URL: {url}")
+                                    logger.error(
+                                        f"Тайм-аут при переходе на URL: {url}")
                                     continue  # Переходим к следующему URL
                                 except Exception as e:
                                     logger.error(
-                                        f"Непредвиденная ошибка: {e}\n{traceback.format_exc()}"
+                                        f"Непредвиденная ошибка: {e}\n{
+                                            traceback.format_exc()}"
                                     )
                                     continue
                                 content = await page.content()
@@ -360,72 +293,13 @@ async def single_html_one():
                                     "script", attrs={"type": "application/ld+json"}
                                 )
 
-                                if script_tags:
-                                    try:
-                                        for script_tag in script_tags[
-                                            :2
-                                        ]:  # Проходим по первым двум script тегам
-                                            if not isinstance(script_tag.string, str):
-                                                continue  # Если не строка, переходим к следующему тегу
+                                try:
+                                    get_script(script_tags, product,
+                                               json_file_path)
+                                except Exception as e:
+                                    logger.error(f"Непредвиденная ошибка: {
+                                                 e}\n{traceback.format_exc()}")
 
-                                            json_data = json.loads(script_tag.string)
-
-                                            # Проверяем, что json_data является словарём
-                                            if isinstance(json_data, dict):
-                                                sku = json_data.get("sku")
-
-                                                # Если sku найден, сохраняем json и выходим из цикла
-                                                if sku:
-                                                    with open(
-                                                        json_file_path,
-                                                        "w",
-                                                        encoding="utf-8",
-                                                    ) as f:
-                                                        json.dump(
-                                                            json_data,
-                                                            f,
-                                                            ensure_ascii=False,
-                                                            indent=4,
-                                                        )
-                                                    break
-                                                else:
-                                                    error_product = product.get(
-                                                        "Название товара"
-                                                    )
-                                                    error_data = {
-                                                        "error_product": error_product,
-                                                        "1С": product.get("1С"),
-                                                    }
-                                                    find_product = product.get(
-                                                        "Название товара"
-                                                    ).replace("/", "_")
-                                                    json_file_path = (
-                                                        json_error_directory
-                                                        / f"{find_product}.json"
-                                                    )
-                                                    with open(
-                                                        json_file_path,
-                                                        "w",
-                                                        encoding="utf-8",
-                                                    ) as f:
-                                                        json.dump(
-                                                            error_data,
-                                                            f,
-                                                            ensure_ascii=False,
-                                                            indent=4,
-                                                        )
-                                        else:
-                                            # Если ни в одном теге не найден sku, пропускаем итерацию
-                                            continue
-
-                                    except Exception as e:
-                                        logger.error(
-                                            f"Непредвиденная ошибка: {e}\n{traceback.format_exc()}"
-                                        )
-                                        continue
-
-                                logger.info(f"json сохранен для {find_product}")
-                                break
                                 # else:
                                 # continue
                     element_found = True  # Завершаем цикл, если найден второй элемент
@@ -434,105 +308,70 @@ async def single_html_one():
                     if not element_found:
                         await asyncio.sleep(1)
 
-                # # Ищем все результаты с классом 'list-item flex'
-                # list_items = await page.query_selector_all(
-                #     "//div[@class='list-item flex']"
-                # )
-                # for list_item in list_items:
-                #     title_text = None
-                #     title_link = await list_item.query_selector(
-                #         "div.list-item__title-container.m_b-5 a"
-                #     )
-                #     if title_link:
-                #         # Выполняем необходимые действия, например, извлекаем текст
-                #         title_text = (await title_link.inner_text()).strip()
-                #     # Используем регулярное выражение для разделения строки
-
-                #     find_product = product["Название товара"]
-                #     match = re.match(r"^(.*?)(\s*\(.*\))$", find_product)
-                #     main_name = match.group(1).strip()  # Основное название
-                #     code = match.group(2).strip()  # Часть в скобках
-                #     if title_text == main_name or f"{main_name}{code}":
-                #         # Извлекаем элемент <a> и выполняем клик
-                #         link_element = await page.query_selector(
-                #             "div.list-item__title-container.m_b-5 a"
-                #         )
-                #         if link_element:
-                #             await link_element.click()  # Клик на элементе <a>
-                #         else:
-                #             continue
-
-                #         try:
-                #             await page.wait_for_selector(
-                #                 "#__layout > div > div.default-layout__content-container > div:nth-child(3) > div.container > div.header > div.title > h1",
-                #                 timeout=timeout,
-                #             )
-                #         except asyncio.TimeoutError:
-                #             logger.error(f"Тайм-аут при переходе на URL: {url}")
-                #             continue  # Переходим к следующему URL
-                #         except Exception as e:
-                #             logger.error(
-                #                 f"Непредвиденная ошибка: {e}\n{traceback.format_exc()}"
-                #             )
-                #             continue
-                #         content = await page.content()
-                #         # find_product = find_product.replace("/", "_")
-                #         # json_file_path = json_files_directory / f"{find_product}.json"
-                #         with open(json_file_path, "w", encoding="utf-8") as f:
-                #             f.write(content)
-                #         soup = BeautifulSoup(content, "lxml")
-                #         script_tags = soup.find_all(
-                #             "script", attrs={"type": "application/ld+json"}
-                #         )
-
-                #         if script_tags:
-                #             try:
-                #                 json_data = json.loads(script_tags[0].string)
-                #                 sku = json_data.get("sku")
-                #                 if sku:
-                #                     with open(
-                #                         json_file_path, "w", encoding="utf-8"
-                #                     ) as f:
-                #                         json.dump(
-                #                             json_data, f, ensure_ascii=False, indent=4
-                #                         )
-                #                 else:
-                #                     json_data = json.loads(script_tags[1].string)
-                #                     sku = json_data.get("sku")
-                #                     if sku:
-                #                         with open(
-                #                             json_file_path, "w", encoding="utf-8"
-                #                         ) as f:
-                #                             json.dump(
-                #                                 json_data,
-                #                                 f,
-                #                                 ensure_ascii=False,
-                #                                 indent=4,
-                #                             )
-
-                #             except Exception as e:
-                #                 logger.error(
-                #                     f"Непредвиденная ошибка: {e}\n{traceback.format_exc()}"
-                #                 )
-                #                 continue
-
-                #         logger.info(f"json сохранен для {find_product}")
-                #         break
-                #     else:
-                #         continue
-
             await context.close()
             await browser.close()
-            # Запись all_error в CSV файл после завершения обработки всех товаров
-            # После завершения обработки записываем данные в JSON
-            # if all_error:
-            #     with open(error_json_file, "w", encoding="utf-8") as f:
-            #         json.dump(all_error, f, ensure_ascii=False, indent=4)
-            #     print(f"Ошибки записаны в файл {error_json_file}")
-            # else:
-            #     print("Нет данных для записи в файл ошибок.")
     except Exception as e:
         logger.error(f"Ошибка при обработке URL: {e}")
+
+
+def get_script(script_tags, product, json_file_path):
+    # Проходим по первым двум script тегам
+    for index, script_tag in enumerate(script_tags[:2]):
+        if not isinstance(script_tag.string, str):
+            continue  # Если не строка, переходим к следующему тегу
+
+        try:
+            json_data = json.loads(
+                script_tag.string)
+        except json.JSONDecodeError:
+            logger.error(
+                "Ошибка декодирования JSON в script теге.")
+            continue
+
+        if not isinstance(json_data, dict):
+            logger.error(
+                "Передан некорректный формат данных.")
+            continue
+
+        sku = json_data.get("sku")
+
+        # Если `sku` найден, сохраняем основной JSON и выходим
+        if sku:
+            try:
+                with open(json_file_path, "w", encoding="utf-8") as f:
+                    json.dump(
+                        json_data, f, ensure_ascii=False, indent=4)
+                logger.info(
+                    f"Сохранено: {json_file_path}")
+                return
+            except IOError as e:
+                logger.error(
+                    f"Ошибка при сохранении JSON: {e}")
+            # return  # Завершаем выполнение функции после успешной записи
+        # Если sku не найден, сохраняем файл ошибки
+        # Лог перед сохранением файла ошибки
+    logger.debug(
+        "SKU не найден, выполняем сохранение файла ошибки.")
+    error_product = product.get(
+        "Название товара", "Неизвестный товар")
+    error_data = {
+        "error_product": error_product,
+        "1С": product.get("1С", "Не указано"),
+    }
+    find_product = error_product.replace(
+        "/", "_")
+    json_file_error_path = json_error_directory / \
+        f"{find_product}.json"
+
+    try:
+        with open(json_file_error_path, "w", encoding="utf-8") as f:
+            json.dump(
+                error_data, f, ensure_ascii=False, indent=4)
+        logger.info(
+            f"Ошибка: {json_file_error_path}")
+    except IOError as e:
+        logger.error(
+            f"Ошибка при сохранении JSON для ошибки: {e}")
 
 
 def compare_product_titles(
@@ -560,19 +399,6 @@ def compare_product_titles(
     return match_ratio >= match_threshold
 
 
-# def compare_product_titles(product_name: str, title_text: str) -> bool:
-#     """
-#     Проверяет, совпадают ли названия продукта и заголовок на странице.
-#     Сравнение выполняется по наличию всех слов из одного названия в другом.
-#     """
-#     # Разделяем названия на слова, используя пробел как разделитель
-#     product_words = set(product_name.split())
-#     title_words = set(title_text.split())
-
-#     # Проверяем, что все слова из title_text содержатся в product_name (и наоборот)
-#     return title_words.issubset(product_words) or product_words.issubset(title_words)
-
-
 def validate_data_completion() -> bool:
     """
     Проверяет, что количество обработанных файлов соответствует количеству товаров,
@@ -592,12 +418,16 @@ def validate_data_completion() -> bool:
 
     # Проверяем выполнение условия
     if total_products - error_count == processed_files_count:
+
         logger.info("Все данные успешно обработаны.")
+        time.sleep(5)
         sys.exit(1)  # Останавливаем скрипт с кодом завершения 1
     else:
         logger.error(
-            f"Ошибка: Ожидалось {total_products - error_count} обработанных товаров, "
-            f"но найдено только {processed_files_count} файлов. Скрипт продолжает работу."
+            f"Ошибка: Ожидалось {total_products -
+                                 error_count} обработанных товаров, "
+            f"но найдено только {
+                processed_files_count} файлов. Скрипт продолжает работу."
         )
 
 
@@ -624,22 +454,49 @@ def extract_product_name_from_file(file_path: Path) -> str:
 def find_product_1c(product_name: str, all_product: list) -> str:
     """Поиск значения '1С' для товара по его названию."""
     for product in all_product:
-        if compare_product_titles(product["Название товара"], product_name):
-            # if product["Название товара"] == product_name:
+        if compare_product_titles_1с(product["Название товара"], product_name):
+            logger.info(f"Найдено совпадение для товара '{
+                        product_name}': {product['1С']}")
             return product["1С"]
     logger.warning(f"Товар '{product_name}' не найден в all_product.")
     return None
 
 
+def compare_product_titles_1с(title1: str, title2: str) -> bool:
+    """Точное сравнение названий товаров для полного совпадения."""
+    return title1.strip().lower() == title2.strip().lower()
+
+# Функция для чтения JSON файла и возврата списка словарей
+
+
+def read_json_file():
+    if output_json_file.exists():
+        try:
+            with open(output_json_file, "r", encoding="utf-8") as json_file:
+                data_list = json.load(json_file)
+                return data_list
+        except Exception as e:
+            logger.error(f"Ошибка при чтении JSON файла {
+                         output_json_file.name}: {e}")
+            return []
+    else:
+        logger.error(f"Файл {output_json_file.name} не найден")
+        return []
+
+
 def parsing_html():
     """Парсинг HTML файлов и сопоставление с данными из JSON."""
     all_product = read_json_file()  # Загружаем список товаров
+
     all_data = []
     for json_file in json_files_directory.glob("*.json"):
         with json_file.open(encoding="utf-8") as file:
             # Прочитать содержимое JSON файла
             data = json.load(file)
-        product_name = extract_product_name_from_file(json_file)  # Имя товара из файла
+        # Имя товара из файла
+        product_name = extract_product_name_from_file(
+            json_file)
+
         product_1c = find_product_1c(product_name, all_product)  # Поиск '1С'
 
         data = {
@@ -654,41 +511,78 @@ def parsing_html():
     df = pd.DataFrame(all_data)
     df.to_excel("output_xlsx_file.xlsx", index=False)
     logger.info("Файл output_xlsx_file.xlsx успешно сохранен.")
+    time.sleep(5)
     # shutil.rmtree(html_files_directory)
 
 
 # Функция для чтения CSV и сохранения в JSON с использованием pandas
 def csv_to_json():
-    if output_csv_file.exists():
+    # Проверка существования входного CSV файла
+    if input_csv_file.exists():
         try:
-            df = pd.read_csv(
-                output_csv_file, header=None, names=["Название товара", "1С"]
-            )
-            data_list = df.to_dict(orient="records")
+            # Чтение CSV файла
+            df = pd.read_csv(input_csv_file, header=None, names=[
+                             "Название товара", "1С"], dtype=str)
+
+            # Обработка кавычек и разделение по запятой
+            processed_rows = []
+            for index, row in df.iterrows():
+                if ',' in row["Название товара"]:
+                    # Разделение строки по последней запятой
+                    product_name, product_code = row["Название товара"].rsplit(
+                        ',', 1)
+                    product_name = product_name.replace('"', '').strip()
+                    product_code = product_code.strip()
+                    processed_rows.append(
+                        {"Название товара": product_name, "1С": product_code})
+                else:
+                    # Если нет запятой, оставляем строку как есть
+                    processed_rows.append({"Название товара": row["Название товара"].replace(
+                        '"', '').replace('/', ' ').strip(), "1С": row["1С"]})
+
+            # Сохранение данных в JSON формате
             with open(output_json_file, "w", encoding="utf-8") as json_file:
-                json.dump(data_list, json_file, ensure_ascii=False, indent=4)
-            logger.info(
-                f"Данные из {output_csv_file.name} сохранены в {output_json_file.name}"
-            )
+                json.dump(processed_rows, json_file,
+                          ensure_ascii=False, indent=4)
+
+            # Логирование успешного сохранения
+            logger.info(f"Данные из {input_csv_file.name} успешно сохранены в {
+                        output_json_file.name}")
+            print(f"Файл JSON сохранен: {output_json_file}")
+
         except Exception as e:
-            logger.error(f"Ошибка при обработке CSV файла {output_csv_file.name}: {e}")
+            # Логирование ошибки
+            logger.error(f"Ошибка при обработке CSV файла {
+                         input_csv_file.name}: {e}")
     else:
-        logger.error(f"Файл {output_csv_file.name} не найден")
+        # Логирование, если файл не найден
+        logger.error(f"Файл {input_csv_file.name} не найден")
+        print(f"Файл CSV не найден: {input_csv_file}")
 
 
-# Функция для чтения JSON файла и возврата списка словарей
-def read_json_file():
-    if output_json_file.exists():
-        try:
-            with open(output_json_file, "r", encoding="utf-8") as json_file:
-                data_list = json.load(json_file)
-                return data_list
-        except Exception as e:
-            logger.error(f"Ошибка при чтении JSON файла {output_json_file.name}: {e}")
-            return []
-    else:
-        logger.error(f"Файл {output_json_file.name} не найден")
-        return []
+def extract_errors_to_csv():
+    """Извлечение данных из JSON файлов и запись их в CSV с помощью pandas."""
+    records = []  # Список для хранения данных
+
+    # Проход по всем JSON файлам в директории
+    for json_file in json_error_directory.glob("*.json"):
+        with json_file.open(encoding="utf-8") as file:
+            data = json.load(file)  # Загрузка JSON содержимого как словарь
+            # Получаем нужные поля и добавляем их в список
+            error_product = data.get("error_product")
+            code_1c = data.get("1С")
+            if error_product and code_1c:
+                records.append({"error_product": error_product, "1С": code_1c})
+
+    # Создаем DataFrame из списка записей и записываем в CSV без заголовка
+    df = pd.DataFrame(records, columns=["error_product", "1С"])
+    df.to_csv(output_error_csv_file, index=False,
+              header=False, sep=",", encoding="utf-8")
+
+    logger.info(f"Файл с ошибками {output_error_csv_file} успешно создан.")
+
+
+output_error_csv_file
 
 
 async def run_data_collection():
@@ -696,13 +590,14 @@ async def run_data_collection():
     while True:
         try:
             print("Сбор данных начат...")
-            csv_to_json()
-            validate_data_completion()
+            # Предполагаемая асинхронная обработка
+            await asyncio.to_thread(csv_to_json)
+            await asyncio.to_thread(validate_data_completion)
             await single_html_one()  # Асинхронный запуск сбора данных
             print("Сбор данных завершен.")
             break  # Если выполнение успешно, выходим из цикла
         except Exception as e:
-            print(f"Произошла ошибка: {e}")
+            logger.error(f"Произошла ошибка: {e}")
             print("Перезапуск сбора данных...")
 
 
@@ -719,13 +614,13 @@ async def countdown():
 
 async def wait_for_user_input():
     """Асинхронный ввод с таймаутом и параллельным отсчётом."""
-    countdown_task = asyncio.create_task(countdown())  # Запускаем обратный отсчёт
+    countdown_task = asyncio.create_task(
+        countdown())  # Запускаем обратный отсчёт
 
     try:
         user_input = await asyncio.wait_for(
-            asyncio.to_thread(
-                input, "\nВыберите действие: "
-            ),  # Переносим ввод на новую строку
+            # Асинхронный ввод
+            asyncio.to_thread(input, "\nВыберите действие: "),
             timeout=20,  # Основной таймаут для ожидания
         )
         countdown_task.cancel()  # Отменяем задачу отсчёта, если получен ввод
@@ -746,7 +641,7 @@ async def main():
         )
 
         user_input = await wait_for_user_input()  # Ожидание ввода с таймаутом
-        print("У вас 10сек что выбрать, если нет, продолжаем сбор данных")
+
         try:
             user_input = int(user_input)
         except ValueError:
@@ -759,12 +654,14 @@ async def main():
             try:
                 logger.info("Парсинг данных и создание Excel-файла...")
                 parsing_html()
+                extract_errors_to_csv()
                 break  # Завершение программы
             except Exception as e:
                 logger.error(f"Ошибка при создании Excel: {e}")
         elif user_input == 3:
-            if os.path.exists(json_files_directory):
+            if os.path.exists(json_files_directory) or os.path.exists(json_error_directory):
                 shutil.rmtree(json_files_directory)
+                shutil.rmtree(json_error_directory)
                 logger.info("Временные файлы удалены.")
             else:
                 logger.error("Временные файлы не найдены.")
@@ -777,3 +674,97 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# async def run_data_collection():
+#     """Функция для повторного запуска задачи по сбору данных."""
+#     while True:
+#         try:
+#             print("Сбор данных начат...")
+#             csv_to_json()
+#             validate_data_completion()
+#             await single_html_one()  # Асинхронный запуск сбора данных
+#             print("Сбор данных завершен.")
+#             break  # Если выполнение успешно, выходим из цикла
+#         except Exception as e:
+#             print(f"Произошла ошибка: {e}")
+#             print("Перезапуск сбора данных...")
+
+
+# async def countdown():
+#     """Асинхронный обратный отсчёт с обновлением строки на месте."""
+#     for remaining in range(20, 0, -1):
+#         sys.stdout.write(
+#             f"\rОсталось {remaining} секунд до выбора по умолчанию (1)... "
+#         )
+#         sys.stdout.flush()
+#         await asyncio.sleep(1)
+#     print("\nВремя ожидания истекло.")  # Сообщение, когда отсчёт завершён
+
+
+# async def wait_for_user_input():
+#     """Асинхронный ввод с таймаутом и параллельным отсчётом."""
+#     countdown_task = asyncio.create_task(
+#         countdown())  # Запускаем обратный отсчёт
+
+#     try:
+#         user_input = await asyncio.wait_for(
+#             asyncio.to_thread(
+#                 input, "\nВыберите действие: "
+#             ),  # Переносим ввод на новую строку
+#             timeout=20,  # Основной таймаут для ожидания
+#         )
+#         countdown_task.cancel()  # Отменяем задачу отсчёта, если получен ввод
+#         print()  # Переход на новую строку после отмены
+#         return user_input
+#     except asyncio.TimeoutError:
+#         print("\nАвтоматический выбор действия 1.")
+#         return "1"  # Возвращаем выбор по умолчанию
+
+
+# async def main():
+#     while True:
+#         print(
+#             "Введите 1 для сбора данных с сайта"
+#             "\nВведите 2 для получения Excel файла"
+#             "\nВведите 3 для удаления временных файлов"
+#             "\nВведите 0 для закрытия программы"
+#         )
+
+#         user_input = await wait_for_user_input()  # Ожидание ввода с таймаутом
+#         print("У вас 10сек что выбрать, если нет, продолжаем сбор данных")
+#         try:
+#             user_input = int(user_input)
+#         except ValueError:
+#             print("Ошибка: введите целое число от 0 до 3.")
+#             continue  # Возвращаемся к началу цикла
+
+#         if user_input == 1:
+#             await run_data_collection()  # Асинхронный запуск задачи с перезапуском
+#         elif user_input == 2:
+#             try:
+#                 logger.info("Парсинг данных и создание Excel-файла...")
+#                 parsing_html()
+#                 break  # Завершение программы
+#             except Exception as e:
+#                 logger.error(f"Ошибка при создании Excel: {e}")
+#         elif user_input == 3:
+#             if os.path.exists(json_files_directory) or os.path.exists(json_error_directory):
+#                 shutil.rmtree(json_files_directory)
+#                 shutil.rmtree(json_error_directory)
+#                 logger.info("Временные файлы удалены.")
+#             else:
+#                 logger.error("Временные файлы не найдены.")
+#         elif user_input == 0:
+#             logger.info("Программа завершена.")
+#             break  # Завершение программы
+#         else:
+#             logger.error("Неверный ввод, пожалуйста, введите число от 0 до 3.")
+
+
+# if __name__ == "__main__":
+#     asyncio.run(main())
+#             logger.error("Неверный ввод, пожалуйста, введите число от 0 до 3.")
+
+
+# if __name__ == "__main__":
+#     asyncio.run(main())
