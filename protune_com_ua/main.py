@@ -119,6 +119,8 @@ def main_loop():
             )
             all_results = processor.parsing_html()
             processor.save_results_to_json(all_results)
+            response_handler.process_infox_img()
+            processor.save_results_to_xlsx()
 
         elif user_input == 2:
             response_handler = GetResponse(
