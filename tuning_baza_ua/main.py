@@ -78,8 +78,8 @@ def main_loop():
         0: Завершить программу
     """
     headers, cookies = get_cookies()
-    max_workers = 50
-    url_sitemap = "https://protune.com.ua/sitemap.xml"
+    max_workers = 5
+    url_sitemap = "https://tuning-baza.ua/sitemap-google.xml"
 
     while True:
         print(

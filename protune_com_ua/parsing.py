@@ -225,6 +225,20 @@ class Parsing:
         except Exception:
             return None
 
+    def parse_url(self, soup):
+        """Извлекает URL страницы из meta-тега.
+
+        Args:
+            soup (BeautifulSoup): Объект BeautifulSoup для HTML-страницы.
+
+        Returns:
+            str or None: URL страницы или None, если не найдено.
+        """
+        try:
+            return soup.find("meta", property="og:url")["content"]
+        except (TypeError, AttributeError):
+            return None
+
     def parse_single_html(self, file_html):
         """Парсит один HTML-файл для извлечения данных о продукте.
 
@@ -245,12 +259,14 @@ class Parsing:
             "name": self.parse_product_name(soup),
             "sku": self.parse_sku(soup),
             "price": self.parse_price(soup),
-            "image_url": self.parse_image_url(soup)
+            "image_url": self.parse_image_url(soup),
+            "url": self.parse_url(soup)  # Добавляем URL в данные
+
         }
 
         non_empty_count = sum(
             1 for value in company_data.values() if value is not None)
-        if non_empty_count <= 2:
+        if non_empty_count <= 3:
             return None
 
         return company_data
@@ -321,12 +337,12 @@ class Parsing:
         """
         # Сохранить результаты в JSON файл
         try:
-            with open(json_result, "w", encoding="utf-8") as json_file:
+            with open(self.json_result, "w", encoding="utf-8") as json_file:
                 json.dump(all_results, json_file, ensure_ascii=False, indent=4)
-            logger.info(f"Данные успешно сохранены в файл {json_result}")
+            logger.info(f"Данные успешно сохранены в файл {self.json_result}")
         except Exception as e:
             logger.error(f"Ошибка при сохранении данных в файл {
-                         json_result}: {e}")
+                         self.json_result}: {e}")
             raise
 
     def save_results_to_xlsx(self):

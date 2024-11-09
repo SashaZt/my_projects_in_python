@@ -1,3 +1,4 @@
+import hashlib
 import random
 import sys
 import threading
@@ -156,8 +157,8 @@ class GetResponse:
         # Извлечение всех тегов <loc> и исключение ссылок, содержащих "https://protune.com.ua/image/"
         locations = root.findall(".//ns:loc", namespace)
         urls = [
-            loc.text.strip() for loc in locations
-            if loc.text and "https://protune.com.ua/image/" not in loc.text
+            loc.text.strip() for loc in locations if loc.text
+            #  and "https://protune.com.ua/image/" not in loc.text
         ]
         logger.info("Получили список всех sitemap")
         self.working_files.save_urls_to_csv(urls, self.output_csv_file)
@@ -176,7 +177,8 @@ class GetResponse:
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = []
             for url in urls_df["url"]:
-                identifier = url.split("/")[-1]
+                hash_object = hashlib.sha256(url.encode())
+                identifier = hash_object.hexdigest()
                 file_path = self.html_files_directory / f"{identifier}.html"
 
                 if file_path.exists():
@@ -265,7 +267,7 @@ class GetResponse:
         # Многопоточность для загрузки изображений
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             for json_data in json_datas:
-                name_file = json_data["sku"]
+                name_file = json_data["model"]
                 url_file = json_data["image_url"]
                 file_path = self.img_files_directory / f"{name_file}.jpeg"
                 if file_path.exists():
