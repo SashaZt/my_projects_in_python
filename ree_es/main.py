@@ -110,8 +110,103 @@ def get_json_node():
             logger.error(f"Ошибка: {response.status_code} для узла {node}")
 
 
+# def extract_data():
+#     combined_data = []
+
+#     with open(all_node_json_file, "r", encoding="utf-8") as file:
+#         all_nodes = json.load(file)
+
+
+#     for json_file in json_node_directory.glob("node_*.json"):
+#         with open(json_file, "r", encoding="utf-8") as file:
+#             data = json.load(file)
+
+#         main_data = {}
+
+#         for item in data:
+#             html_data = item.get("data")
+#             soup = BeautifulSoup(html_data, "html.parser")
+
+#             province_tag = soup.select_one(".ree-acceso-red-modal-province")
+#             province = province_tag.text.strip() if province_tag else "Unknown"
+#             if province not in main_data:
+#                 main_data[province] = {}
+
+#             # Разделение на секции данных (категории узлов)
+#             node_categories = [
+#                 "Datos de capacidad de acceso de instalaciones (MW)",
+#                 "Datos de potencia instalada de módulos (MW)",
+#             ]
+#             node_texts = [
+#                 span.text.strip()
+#                 for span in soup.find_all("span")
+#                 if span.text.strip() in node_categories
+#             ]
+
+#             graphs = soup.select("div[class^='ree-acceso-red-modal-graph-']")
+#             midpoint = len(graphs) // 2
+#             graph_groups = [graphs[:midpoint], graphs[midpoint:]]
+
+#             for category_index, node_text in enumerate(node_texts):
+#                 if node_text not in main_data[province]:
+#                     main_data[province][node_text] = {}
+
+#                 related_graphs = (
+#                     graph_groups[category_index]
+#                     if category_index < len(graph_groups)
+#                     else []
+#                 )
+
+#                 for graph in related_graphs:
+#                     section_tag = graph.select_one(".graph-label")
+#                     section = section_tag.text.strip() if section_tag else "Unknown"
+
+#                     if section not in main_data[province][node_text]:
+#                         main_data[province][node_text][section] = []
+
+#                     table_section = graph.select_one(
+#                         "div[class^='table-subgraph']")
+#                     if table_section:
+#                         cells = [
+#                             cell.text.strip() for cell in table_section.select("td")
+#                         ]
+#                         extracted_data = {}
+
+#                         # Проверяем и пропускаем первую строку таблицы, если она содержит заголовки "RdT" и "RdD"
+#                         if cells[:3] == ["", "RdT", "RdD"]:
+#                             # Убираем первую строку с заголовками
+#                             cells = cells[3:]
+
+#                         # Ожидается структура с 3 столбцами на каждую строку (категория, RdT, RdD)
+#                         for i in range(0, len(cells), 3):
+#                             if i + 2 < len(cells):
+#                                 category = cells[i]
+#                                 rdt_value = cells[i + 1]
+#                                 rdd_value = cells[i + 2]
+
+#                                 extracted_data[f"{category} RdT"] = rdt_value
+#                                 extracted_data[f"{category} RdD"] = rdd_value
+
+#                         main_data[province][node_text][section].append(
+#                             extracted_data)
+
+#                 # Логирование для проверки да
+#         logger.info(main_data)
+
+#         combined_data.append(main_data)
+
+#     save_to_json(combined_data)
+
 def extract_data():
     combined_data = []
+
+    # Загрузка all_nodes из файла
+    with open(all_node_json_file, "r", encoding="utf-8") as file:
+        all_nodes = json.load(file)
+
+    # Создаем словарь для быстрого доступа к координатам по названию
+    node_coordinates = {node["title"]: {
+        "lat": node["lat"], "lng": node["lng"]} for node in all_nodes}
 
     for json_file in json_node_directory.glob("node_*.json"):
         with open(json_file, "r", encoding="utf-8") as file:
@@ -125,8 +220,18 @@ def extract_data():
 
             province_tag = soup.select_one(".ree-acceso-red-modal-province")
             province = province_tag.text.strip() if province_tag else "Unknown"
+
+            # Если province не в main_data, создаем структуру данных
             if province not in main_data:
                 main_data[province] = {}
+
+                # Проверяем, есть ли координаты для province в node_coordinates
+                if province in node_coordinates:
+                    main_data[province]["lat"] = node_coordinates[province]["lat"]
+                    main_data[province]["lng"] = node_coordinates[province]["lng"]
+                else:
+                    main_data[province]["lat"] = "Unknown"
+                    main_data[province]["lng"] = "Unknown"
 
             # Разделение на секции данных (категории узлов)
             node_categories = [
@@ -163,9 +268,8 @@ def extract_data():
                     table_section = graph.select_one(
                         "div[class^='table-subgraph']")
                     if table_section:
-                        cells = [
-                            cell.text.strip() for cell in table_section.select("td")
-                        ]
+                        cells = [cell.text.strip()
+                                 for cell in table_section.select("td")]
                         extracted_data = {}
 
                         # Проверяем и пропускаем первую строку таблицы, если она содержит заголовки "RdT" и "RdD"
@@ -186,7 +290,7 @@ def extract_data():
                         main_data[province][node_text][section].append(
                             extracted_data)
 
-                # Логирование для проверки да
+            # Логирование для проверки данных
         logger.info(main_data)
 
         combined_data.append(main_data)
@@ -243,7 +347,7 @@ def get_all_node_voltage():
             data = json.load(file)
             for item in data.values():
                 combined_data.append(
-                    {"node": item["node"], "title": item["title"]})
+                    {"nudo": item["nudo"], "title": item["title"], "lat": item["lat"], "lng": item["lng"]})
 
     # Сохранение объединённых данных в файл all_node.json
     with open(all_node_json_file, "w", encoding="utf-8") as output_file:
@@ -258,9 +362,60 @@ def get_all_node():
     return node_list
 
 
+def main_loop():
+    """Основной цикл программы для обработки пользовательских команд.
+
+    Функция выводит меню команд, запрашивает у пользователя действие и выполняет
+    соответствующие задачи, такие как загрузка sitemap, HTML файлов, парсинг,
+    скачивание изображений и сохранение результатов. Ввод проверяется на корректность,
+    и при ошибках программа повторно запрашивает команду.
+
+    Available commands:
+        1: Запустить полный процесс
+        2: Получить весь список Node
+        3: Скачать все файлы Node
+        4: Сформировать файл с результатом
+        0: Завершить программу
+    """
+    while True:
+        print(
+            "\nВыберите действие:\n"
+            "1 - Запустить полный процесс\n"
+            "2 - Получить весь список Node\n"
+            "3 - Скачать все файлы Node\n"
+            "4 - Сформировать файл с результатом\n"
+            "0 - Завершить программу"
+        )
+
+        # Проверка ввода от пользователя
+        try:
+            user_input = int(input("Введите номер действия: "))
+            if user_input not in range(5):
+                raise ValueError
+        except ValueError:
+            print("Ошибка: Введите корректное число от 0 до 4.")
+            continue
+
+        if user_input == 1:
+            save_json_all_node()
+            get_all_node_voltage()
+            get_json_node()
+            extract_data()
+
+        elif user_input == 2:
+            save_json_all_node()
+            get_all_node_voltage()
+
+        elif user_input == 3:
+            get_json_node()
+
+        elif user_input == 4:
+            extract_data()
+
+        elif user_input == 0:
+            print("Программа завершена.")
+            break  # Завершение программы
+
+
 if __name__ == "__main__":
-    get_cookies()
-    save_json_all_node()
-    get_all_node_voltage()
-    get_json_node()
-    extract_data()
+    main_loop()
