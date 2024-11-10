@@ -10,6 +10,7 @@ from threading import Lock
 
 import pandas as pd
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
@@ -31,6 +32,9 @@ output_csv_file = data_directory / "output.csv"
 csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
 file_proxy = configuration_directory / "proxy.txt"
+
+# Отключаем предупреждение InsecureRequestWarning
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class GetResponse:
