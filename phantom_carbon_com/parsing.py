@@ -1,6 +1,7 @@
 import json
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -82,6 +83,25 @@ class Parsing:
 
         return result
 
+    def parse_image_url(self, soup):
+        """Извлекает URL изображения продукта из HTML-страницы.
+
+        Args:
+            soup (BeautifulSoup): Объект BeautifulSoup для HTML-страницы.
+
+        Returns:
+            str or None: URL изображения или None, если не найдено.
+        """
+        try:
+            # Находим элемент <a> и извлекаем атрибут href
+            image_link = soup.select_one(
+                '#product > div.wrap > div.row > div.col.col-gallery > div > a:nth-child(1)')
+            url_raw = image_link.get('href') if image_link else None
+            url = f"https://phantom-carbon.com{url_raw}"
+            return url
+        except Exception:
+            return None
+
     def parse_price(self, soup):
         """Извлекает цену из элемента с классом 'price'."""
         price_tag = soup.select_one("div.price")
@@ -137,6 +157,8 @@ class Parsing:
         if options_div:
             # Если опции есть, обрабатываем каждую отдельно
             options_data = self.parse_name_and_options(soup)
+            image_url = self.parse_image_url(soup)
+            image_name = Path(image_url).name
             for option in options_data:
                 company_data = {
                     "breadcrumb": breadcrumb_data.get("breadcrumb"),
@@ -145,10 +167,14 @@ class Parsing:
                     "name": option["name"],
                     "price": option["price"],
                     "sku": option["sku"],
-                    "url": url
+                    "url": url,
+                    "image_url": image_url,
+                    "image_name": image_name
                 }
                 company_data_list.append(company_data)
         else:
+            image_url = self.parse_image_url(soup)
+            image_name = Path(image_url).name
             # Если опций нет, обрабатываем как один продукт
             main_name = soup.find("h1").text.strip(
             ) if soup.find("h1") else "Unknown"
@@ -164,7 +190,9 @@ class Parsing:
                 "name": main_name,
                 "price": price,
                 "sku": sku,
-                "url": url
+                "url": url,
+                "image_url": image_url,
+                "image_name": image_name
             }
             company_data_list.append(company_data)
 
@@ -246,15 +274,17 @@ class Parsing:
     def save_results_to_xlsx(self):
         """Сохраняет результаты парсинга в файл Excel с изображениями продукта."""
 
-        # Преобразуем словарь обратно в список
-        json_datas = self.working_files.read_json_result()
+        # Преобразуем вложенный список в плоский список словарей
+        json_datas_nested = self.working_files.read_json_result()
+        json_datas = [item for sublist in json_datas_nested if isinstance(
+            sublist, list) for item in sublist]
 
-        # Преобразование списка словарей в DataFrame
+        # Преобразуем список словарей в DataFrame
         df = pd.DataFrame(json_datas)
 
         # Сортировка по указанным колонкам
         df = df.sort_values(
-            by=["brand_product", "category_product"])
+            by=["breadcrumb", "brand_product", "category_product"])
 
         # Создаем новый Workbook
         wb = Workbook()
@@ -270,22 +300,19 @@ class Parsing:
                 cell = ws.cell(row=row_num, column=col_num, value=cell_value)
 
                 # Проверяем, если колонка содержит image_url
-                if df.columns[col_num - 1] == "image_url" and cell_value:
-                    model = row_data.model  # Получаем SKU для имени файла
-
+                if df.columns[col_num - 1] == "image_name" and cell_value:
                     # Путь к изображению
-                    img_path = self.img_files_directory / f"{model}.jpeg"
+                    img_path = self.img_files_directory / cell_value
 
                     # Вставляем изображение в Excel, если файл существует
                     if img_path.exists():
                         img = Image(str(img_path))
                         img.width = 250  # Ширина изображения
                         img.height = 250  # Высота изображения
-                        # Добавляем изображение в ячейку
                         ws.add_image(img, cell.coordinate)
                         # Устанавливаем высоту строки
                         ws.row_dimensions[row_num].height = 80
 
         # Сохраняем файл
         wb.save(self.xlsx_result)
-        logger.info("Файл резултата готов.")
+        logger.info("Файл результата готов.")

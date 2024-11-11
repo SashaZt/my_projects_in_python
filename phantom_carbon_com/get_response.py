@@ -262,23 +262,32 @@ class GetResponse:
         """
         json_datas = self.working_files.read_json_result()
         tasks = []
-        total_urls = len(json_datas)
+        total_urls = sum(len(item) for item in json_datas if isinstance(
+            item, list))  # Подсчитываем общее количество изображений
 
         # Создаем директорию, если ее нет
         progress_bar = tqdm(total=total_urls, desc="Обработка файлов")
 
         # Многопоточность для загрузки изображений
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            for json_data in json_datas:
-                name_file = json_data["model"]
-                url_file = json_data["image_url"]
-                file_path = self.img_files_directory / f"{name_file}.jpeg"
-                if file_path.exists():
-                    progress_bar.update(1)
-                    continue
-                # Отправляем задачу на выполнение
-                tasks.append(executor.submit(
-                    self.download_image, url_file, file_path))
+            for data_list in json_datas:
+                if isinstance(data_list, list):
+                    for json_data in data_list:
+                        # Проверяем, что json_data — словарь
+                        if isinstance(json_data, dict):
+                            name_file = json_data.get("image_name")
+                            if name_file is not None:
+                                url_file = json_data.get("image_url")
+                                file_path = self.img_files_directory / name_file
+
+                                # Пропускаем загрузку, если файл уже существует
+                                if file_path.exists():
+                                    progress_bar.update(1)
+                                    continue
+
+                                # Отправляем задачу на выполнение
+                                tasks.append(executor.submit(
+                                    self.download_image, url_file, file_path))
 
             # Обрабатываем задачи по мере завершения
             for future in as_completed(tasks):
