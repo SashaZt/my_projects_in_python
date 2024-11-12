@@ -291,7 +291,6 @@ def extract_data():
                             extracted_data)
 
             # Логирование для проверки данных
-        logger.info(main_data)
 
         combined_data.append(main_data)
 
