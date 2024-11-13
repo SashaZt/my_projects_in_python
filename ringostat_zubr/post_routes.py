@@ -27,10 +27,10 @@ async def ringostat_post(request: Request, db=Depends(get_db)):
 
         all_data = {
             'call_recording': data.get("call_recording"),
-            'company':  data.get("company"),
-            'source':  data.get("source"),
-            'keyword':  data.get("keyword"),
-            'advertisement':  data.get("advertisement"),
+            'utm_campaign':  data.get("utm_campaign"),
+            'utm_source':  data.get("utm_source"),
+            'utm_term':  data.get("utm_term"),
+            'utm_content':  data.get("utm_content"),
             'call_duration':  data.get("call_duration"),
             'call_date':  data.get("call_date"),
             'employee':  data.get("employee"),
@@ -39,7 +39,7 @@ async def ringostat_post(request: Request, db=Depends(get_db)):
             'unique_call':  data.get("unique_call"),
             'unique_target_call': data.get("unique_target_call"),
             'number_pool_name':  data.get("number_pool_name"),
-            'channel':  data.get("channel"),
+            'utm_medium':  data.get("utm_medium"),
             'substitution_type':  data.get("substitution_type"),
             'call_id':  data.get("call_id"),
         }

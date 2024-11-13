@@ -91,10 +91,11 @@ class DatabaseInitializer:
                         CREATE TABLE IF NOT EXISTS calls_zubr (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             call_recording VARCHAR(255),
-                            company VARCHAR(255),
-                            source VARCHAR(255),
-                            keyword VARCHAR(255),
-                            advertisement VARCHAR(255),
+                            utm_campaign VARCHAR(255),
+                            utm_source VARCHAR(255),
+                            utm_term VARCHAR(255),
+                            utm_content VARCHAR(255),
+							utm_medium VARCHAR(255),
                             call_duration VARCHAR(255),
                             call_date DATETIME,
                             employee VARCHAR(255),
@@ -103,7 +104,6 @@ class DatabaseInitializer:
                             unique_call VARCHAR(255),
                             unique_target_call VARCHAR(255),
                             number_pool_name VARCHAR(255),
-                            channel VARCHAR(255),
                             substitution_type VARCHAR(255),
                             call_id VARCHAR(255)
                         )
@@ -125,10 +125,10 @@ class DatabaseInitializer:
                         """
                         INSERT INTO calls_zubr (
                             call_recording,
-                            company,
-                            source,
-                            keyword,
-                            advertisement,
+                            utm_campaign,
+                            utm_source,
+                            utm_term,
+                            utm_content,
                             call_duration,
                             call_date,
                             employee,
@@ -137,7 +137,7 @@ class DatabaseInitializer:
                             unique_call,
                             unique_target_call,
                             number_pool_name,
-                            channel,
+                            utm_medium,
                             substitution_type,
                             call_id
                         )
@@ -145,10 +145,10 @@ class DatabaseInitializer:
                         """,
                         (
                             call_data["call_recording"],
-                            call_data["company"],
-                            call_data["source"],
-                            call_data["keyword"],
-                            call_data["advertisement"],
+                            call_data["utm_campaign"],
+                            call_data["utm_source"],
+                            call_data["utm_term"],
+                            call_data["utm_content"],
                             call_data["call_duration"],
                             call_data["call_date"],
                             call_data["employee"],
@@ -157,7 +157,7 @@ class DatabaseInitializer:
                             call_data["unique_call"],
                             call_data["unique_target_call"],
                             call_data["number_pool_name"],
-                            call_data["channel"],
+                            call_data["utm_medium"],
                             call_data["substitution_type"],
                             call_data["call_id"]
                         ),
