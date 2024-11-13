@@ -4,23 +4,35 @@
 # Сделайте его исполняемым: chmod +x setup_mysql.sh
 # Запустите скрипт: ./setup_mysql.sh
 
-# 1. Обновление списка пакетов
+# 1. Проверка наличия MySQL
+MYSQL_VERSION=$(mysql --version 2>/dev/null)
+if [ $? -eq 0 ]; then
+    echo "MySQL уже установлен!!!!: $MYSQL_VERSION"
+    read -p "Хотите продолжить установку и переустановить MySQL? (y/n): " choice
+    case "$choice" in
+        y|Y ) echo "Продолжаем установку...";;
+        n|N ) echo "Установка отменена."; exit 0;;
+        * ) echo "Неверный ввод. Установка отменена."; exit 1;;
+    esac
+fi
+
+# 2. Обновление списка пакетов
 echo "Обновляем список пакетов..."
 sudo apt update
 
-# 2. Установка обновлений
+# 3. Установка обновлений
 echo "Устанавливаем обновления системы..."
 sudo apt upgrade -y
 
-# 3. Установка MySQL Server
+# 4. Установка MySQL Server
 echo "Устанавливаем MySQL сервер..."
 sudo apt install mysql-server -y
 
-# 4. Запуск MySQL службы
+# 5. Запуск MySQL службы
 echo "Запускаем MySQL сервер..."
 sudo systemctl start mysql
 
-# 5. Настройка безопасности MySQL с предопределёнными ответами
+# 6. Настройка безопасности MySQL с предопределёнными ответами
 # Здесь мы используем echo для автоматизации взаимодействия с mysql_secure_installation
 echo "Настраиваем MySQL с помощью mysql_secure_installation..."
 
@@ -32,20 +44,20 @@ Y
 Y
 EOF
 
-# 6. Настройка MySQL для внешних подключений (правка bind-address)
+# 7. Настройка MySQL для внешних подключений (правка bind-address)
 echo "Настраиваем MySQL для внешних подключений (bind-address)..."
 sudo sed -i "s/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/" /etc/mysql/mysql.conf.d/mysqld.cnf
 
-# 7. Настройка брандмауэра (открытие портов 3306 и 22)
+# 8. Настройка брандмауэра (открытие портов 3306 и 22)
 echo "Настраиваем брандмауэр (открытие портов 3306 и 22)..."
 sudo ufw allow 3306/tcp
 sudo ufw allow 22/tcp
 
-# 8. Включение UFW и подтверждение включения
+# 9. Включение UFW и подтверждение включения
 echo "Включаем брандмауэр UFW..."
 sudo ufw enable <<< "y"
 
-# 9. Оптимизация конфигурации MySQL
+# 10. Оптимизация конфигурации MySQL
 echo "Оптимизируем конфигурацию MySQL для производительности..."
 
 # Вносим изменения в /etc/mysql/my.cnf
@@ -76,21 +88,17 @@ read_rnd_buffer_size = 4M
 myisam_sort_buffer_size = 64M
 EOT
 
-# 10. Создание пользователя MySQL и предоставление прав
+# 11. Создание пользователя MySQL и предоставление прав
 echo "Создаём пользователя 'python_mysql' с правами для всех баз данных..."
 
-# Создание пользователя, проверка переменной и предоставление привилегий
+# Создание пользователя и предоставление привилегий
 sudo mysql <<EOF
 CREATE USER 'python_mysql'@'%' IDENTIFIED BY 'python_mysql';
--- Проверка переменных, если нужно (необязательный шаг)
-SHOW VARIABLES LIKE 'python_mysql';
--- Предоставление всех привилегий пользователю
 GRANT ALL PRIVILEGES ON *.* TO 'python_mysql'@'%';
--- Применение изменений
 FLUSH PRIVILEGES;
 EOF
 
-# 11. Перезапуск службы MySQL для применения настроек
+# 12. Перезапуск службы MySQL для применения настроек
 echo "Перезапускаем MySQL для применения новых настроек..."
 sudo systemctl restart mysql
 

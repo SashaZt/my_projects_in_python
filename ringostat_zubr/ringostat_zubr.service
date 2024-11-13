@@ -1,0 +1,24 @@
+[Unit]
+Description=Ringostat Zubr FastAPI Service
+After=network.target
+
+[Service]
+# Путь к Python-исполнителю и к главному файлу приложения
+ExecStart=/root/ringostat_zubr/venv/bin/python3 /root/ringostat_zubr/main.py
+
+# Путь к рабочей директории приложения
+WorkingDirectory=/root/ringostat_zubr
+
+# Указываем пользователя и группу, под которыми будет запускаться служба
+User=root
+Group=root
+
+# Переменные среды (если нужно, можно указать дополнительные)
+Environment="PATH=/root/ringostat_zubr/venv/bin"
+
+# Настройки перезапуска
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

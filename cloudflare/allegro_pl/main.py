@@ -4,19 +4,35 @@ from pathlib import Path
 import nodriver as uc
 import pandas as pd
 from configuration.logger_setup import logger
+import asyncio
+import csv
+import json
+import os
+import random
+import re
+from pathlib import Path
+
+import aiofiles
+import pandas as pd
+from bs4 import BeautifulSoup
+from configuration.logger_setup import logger
 
 # Путь к папкам
 current_directory = Path.cwd()
+data_directory = current_directory / "data"
 html_files_directory = current_directory / "html_files"
 html_files_page_directory = current_directory / "html_files_page"
 configuration_directory = current_directory / "configuration"
+json_directory = current_directory / "json"
 
+data_directory.mkdir(parents=True, exist_ok=True)
 html_files_directory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
 html_files_page_directory.mkdir(parents=True, exist_ok=True)
+json_directory.mkdir(parents=True, exist_ok=True)
 
 file_proxy = configuration_directory / "roman.txt"
-csv_output_file = current_directory / "output.csv"
+csv_output_file = current_directory / "inn_data.csv"
 
 
 async def get_url():
@@ -124,77 +140,7 @@ async def get_company():
         logger.info(html_company)
     await browser.close()
 
-    #     email_field = await tab.select("#email")
-    #     if email_field:
-    #         await email_field.send_keys("radik.gizatullin.1976@mail.ru")
-    #         logger.info("Email вставлен.")
-
-    #     password_field = await tab.select("#pass")
-    #     if password_field:
-    #         await password_field.send_keys("BJVxcS")
-    #         logger.info("Пароль вставлен.")
-
-    #     login_button = await tab.select("button[type='submit']")
-    #     if login_button:
-    #         await login_button.click()
-    #         logger.info("Кнопка 'Войти' нажата.")
-
-    #     # Переход на страницу компании
-    #     await asyncio.sleep(10)  # Ожидание завершения логина
-    #     logger.info(url)
-    #     html_company = html_files_directory / f"{url.split('/')[-1]}.html"
-
-    #     if html_company.exists():
-    #         logger.warning(f"Файл {html_company} уже существует, пропускаем.")
-    #         continue  # Переходим к следующей итерации цикла
-
-    #     tab = await browser.get(url)
-
-    #     # Извлечение информации о компании
-    #     await asyncio.sleep(2)  # Ожидание загрузки страницы
-    #     # Задача 4: Найти название компании
-    #     company_name = None
-    #     company_email = None
-
-    #     try:
-    #         company_name_element = await tab.select(
-    #             "span[itemprop='name'].header-box__title"
-    #         )
-    #         company_name = company_name_element.text if company_name_element else None
-    #         logger.info(
-    #             f"Название компании: {
-    #                 company_name or 'Название компании не найдено'}"
-    #         )
-    #     except Exception as e:
-
-    #         logger.warning(f"Ошибка при получении названия компании: {e}")
-    #         continue
-
-    #     try:
-    #         # Задача 5: Найти email компании
-    #         email_element = await tab.select(
-    #             "div.media-body a[href^='mailto:'] span[itemprop='email']"
-    #         )
-    #         company_email = email_element.text if email_element else None
-    #         logger.info(
-    #             f"Email компании: {
-    #                 company_email or 'Email компании не найден'}"
-    #         )
-    #     except Exception as e:
-
-    #         logger.warning(f"Ошибка при получении email компании: {e}")
-    #         continue
-
-    #     html_content = await tab.get_content()
-    #     with open(html_company, "w", encoding="utf-8") as file:
-    #         file.write(html_content)
-    #     data = {"company_name": company_name, "company_email": company_email}
-    #     all_datas.append(data)
-    # # logger.info(all_urls)
-    # save_to_excel(all_datas)
-
-    # # await tab.close()
-    # # browser.stop()  # Остановка браузера
+    #     ema
 
 
 def save_to_excel(data_list, filename="output.xlsx"):
@@ -212,6 +158,10 @@ def save_to_excel(data_list, filename="output.xlsx"):
     print(f"Данные успешно сохранены в {filename}")
 
 
+def parsing_html():
+
+
 if __name__ == "__main__":
     # asyncio.run(get_url())
-    uc.loop().run_until_complete(get_company())
+    # uc.loop().run_until_complete(get_company())
+    parsing_html()
