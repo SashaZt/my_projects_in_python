@@ -18,7 +18,7 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 html_page_directory.mkdir(parents=True, exist_ok=True)
 
 csv_output_file = current_directory / "output.csv"
-API_KEY = "cb1cc4aa124fcfb7323e3c5925b9343b"
+
 
 # Функция для чтения городов из CSV файла
 
@@ -115,8 +115,8 @@ def get_url():
 #                 file.write(src)
 
 
-def get_page_html():
-    url_start = "https://allegro.pl/kategoria/narzedzia-mlotowiertarki-147650?price_from=200&price_to=800&stan=nowe"
+def get_all_page_html(url_start):
+
     html_company = html_page_directory / "url_start.html"
     payload = {"api_key": API_KEY, "url": url_start}
 
@@ -195,5 +195,6 @@ def parsin_page():
 
 
 if __name__ == "__main__":
-    get_page_html()
-    # parsin_page()
+    url_start = "https://allegro.pl/kategoria/narzedzia-mlotowiertarki-147650?price_from=200&price_to=800&stan=nowe"
+    # get_all_page_html(url_start)
+    parsin_page()
