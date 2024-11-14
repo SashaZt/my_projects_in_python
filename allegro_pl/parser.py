@@ -4,6 +4,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import pandas as pd
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 from tqdm import tqdm
@@ -16,14 +17,14 @@ MAX_WORKERS = int(os.getenv("MAX_WORKERS", "20"))
 # Путь к папкам
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
-html_files_directory = current_directory / "html_files"
-html_page_directory = current_directory / "html_page"
 configuration_directory = current_directory / "configuration"
 
 
 class Parser:
-    def __init__(self, html_page_directory):
+
+    def __init__(self, html_files_directory, html_page_directory, csv_output_file):
         self.html_page_directory = html_page_directory
+        self.csv_output_file = csv_output_file
 
     def parsin_page(self):
         max_page = None
@@ -220,3 +221,64 @@ class Parser:
             except (json.JSONDecodeError, TypeError, KeyError):
                 continue
         return None
+
+    def get_url_html_csv(self):
+        # Инициализируем set для хранения уникальных ссылок
+        unique_links = set()
+        for html_file in self.html_page_directory.glob("*.html"):
+            # Открываем локально сохранённый файл первой страницы
+            with open(html_file, encoding="utf-8") as file:
+                src = file.read()
+            soup = BeautifulSoup(src, "lxml")
+            # Находим контейнер для всех товаров
+            search_results_div = soup.select_one(
+                "#search-results > div:nth-child(5) > div > div > div > div > div > div"
+            )
+
+            # Проверяем каждый <article> элемент с учетом диапазона от 2 до 73
+            if search_results_div:
+                # Проверяем, что контейнер найден и содержит достаточное количество article
+                articles = search_results_div.find_all("article")
+
+                for ar in articles:
+                    # Ищем ссылку внутри целевого article
+                    link = ar.find("a", href=True)
+                    # Проверяем, что ссылка найдена, и добавляем в set
+                    if link:
+                        unique_links.add(link["href"])
+        logger.info(len(unique_links))
+        # Преобразуем set в DataFrame и сохраняем в CSV
+        df = pd.DataFrame(list(unique_links), columns=["url"])
+        df.to_csv(self.csv_output_file, index=False, encoding="utf-8")
+
+        logger.info(f"Ссылки успешно сохранены в {self.csv_output_file}")
+
+    # def parsin_page(self):
+    #     max_page = None
+    #     html_company = html_page_directory / "url_start.html"
+
+    #     # Открываем локально сохранённый файл первой страницы
+    #     with open(html_company, encoding="utf-8") as file:
+    #         src = file.read()
+    #     soup = BeautifulSoup(src, "lxml")
+
+    #     # Находим div с атрибутом aria-label="paginacja"
+    #     pagination_div = soup.find("div", {"aria-label": "paginacja"})
+
+    #     # Извлекаем максимальное количество страниц
+    #     if pagination_div:
+    #         span_element = pagination_div.find("span")
+    #         if span_element:
+    #             try:
+    #                 max_page_text = span_element.get_text(strip=True)
+    #                 max_page = int(max_page_text)
+    #             except ValueError:
+    #                 logger.error("Не удалось преобразовать max_page_text в число")
+    #         else:
+    #             logger.error(
+    #                 "Элемент span не найден или не является объектом BeautifulSoup"
+    #             )
+    #     else:
+    #         logger.error("Элемент div с aria-label='paginacja' не найден")
+
+    #     return max_page
