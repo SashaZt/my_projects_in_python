@@ -40,7 +40,7 @@
     "python.analysis.diagnosticMode": "openFilesOnly", // Выполнять диагностику только для открытых файлов
     "python.REPL.enableREPLSmartSend": false, // Отключить умную отправку в REPL
     "[python]": { // Настройки форматирования для Python
-        "editor.defaultFormatter": "ms-python.autopep8", // Использовать autopep8 для форматирования Python-кода
+        "editor.defaultFormatter": "ms-python.black-formatter", // Использовать autopep8 для форматирования Python-кода
         "editor.formatOnSave": true, // Форматировать Python-файлы при сохранении
         "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit" // Организовывать импорты при сохранении

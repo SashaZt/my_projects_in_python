@@ -42,8 +42,7 @@ class DatabaseInitializer:
             )
             async with conn.cursor() as cursor:
                 await cursor.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
-                logger.info(f"База данных '{
-                            db_name}' создана или уже существует")
+                logger.info(f"База данных '{db_name}' создана или уже существует")
             conn.close()
             await conn.ensure_closed()
         except TimeoutError:
@@ -73,6 +72,7 @@ class DatabaseInitializer:
             self.pool.close()
             await asyncio.wait_for(self.pool.wait_closed(), timeout=1.0)
             logger.info("Пул соединений закрыт")
+
     """Инициализация базы данных и создание необходимых таблиц."""
 
     async def init_db(self):
@@ -159,16 +159,16 @@ class DatabaseInitializer:
                             call_data["number_pool_name"],
                             call_data["utm_medium"],
                             call_data["substitution_type"],
-                            call_data["call_id"]
+                            call_data["call_id"],
                         ),
                     )
                     await connection.commit()
                     logger.info(
-                        f"Данные успешно добавлены в таблицу calls_zubr: {call_data}")
+                        f"Данные успешно добавлены в таблицу calls_zubr: {call_data}"
+                    )
             return True
         except Exception as e:
-            logger.error(
-                f"Ошибка при добавлении данных в таблицу calls_zubr: {e}")
+            logger.error(f"Ошибка при добавлении данных в таблицу calls_zubr: {e}")
             return False
 
 

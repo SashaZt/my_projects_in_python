@@ -1,90 +1,28 @@
-import asyncio
 from pathlib import Path
 
-import nodriver as uc
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 
 # Путь к папкам
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
 html_files_directory = current_directory / "html_files"
-html_files_page_directory = current_directory / "html_files_page"
+html_page_directory = current_directory / "html_page"
 configuration_directory = current_directory / "configuration"
-json_directory = current_directory / "json"
 
 data_directory.mkdir(parents=True, exist_ok=True)
 html_files_directory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
-html_files_page_directory.mkdir(parents=True, exist_ok=True)
-json_directory.mkdir(parents=True, exist_ok=True)
+html_page_directory.mkdir(parents=True, exist_ok=True)
 
-file_proxy = configuration_directory / "roman.txt"
-csv_output_file = current_directory / "inn_data.csv"
-
-
-async def get_url():
-    href_set = set()
-    # Запуск браузера
-    browser = await uc.start(
-        headless=False
-    )  # Установите headless=False, если хотите видеть браузер
-    tab = await browser.get(
-        "https://optlist.ru/suppliers/promishlennoe-oborudovanie-optom/rossiia--2017370?pay=2&q=&sa=1&saveQuery=true&sort="
-    )
-    await asyncio.sleep(5)
-
-    # Задача 3: Клик по селектору div:nth-child(19) > ul > li:nth-child(12) > a, пока он существует
-    try:
-        while True:
-
-            # Задача 2: Извлечение текста из селектора ul > li.page-item.active
-            try:
-                active_page = await tab.select("ul > li.page-item.active")
-                active_text = active_page.text
-                logger.info(f"Старница {active_text}")
-            except Exception as e:
-                logger.error(f"Ошибка при извлечении текста: {e}")
-            elements_find = await tab.select_all("li.page-item > a.page-link")
-            next_button = None
-
-            for element in elements_find:
-                # Проверяем текст внутри ссылки
-                text = element.text
-                if text and "Далее" in text:
-                    next_button = element
-                    break
-            # Задача 1: Извлечение всех уникальных href из тега <a>, вложенного в div.row.align-items-center > div > h2
-            try:
-                elements_find = await tab.select_all(
-                    "div.row.align-items-center > div > h2"
-                )
-
-                for element in elements_find:
-                    # Внутри каждого найденного элемента ищем тег <a>
-                    a_tag = await element.query_selector("a")
-                    if a_tag and "href" in a_tag.attributes:
-                        url = f"https://optlist.ru{a_tag["href"]}"
-                        href_set.add(url)
-
-            except Exception as e:
-                logger.error(f"Ошибка при извлечении href: {e}")
-            if next_button:
-                await next_button.click()
-                await asyncio.sleep(2)  # Задержка для загрузки новой страницы
-            else:
-                print("Элемент для клика не найден.")
-                break
-    except Exception as e:
-        print(f"Ошибка при клике: {e}")
-    save_to_csv(href_set)
-    # Закрытие вкладки и остановка браузера
-    await tab.close()
-    browser.stop()  # Остановка браузера
-
+csv_output_file = current_directory / "output.csv"
+API_KEY = "cb1cc4aa124fcfb7323e3c5925b9343b"
 
 # Функция для чтения городов из CSV файла
+
+
 def read_cities_from_csv(input_csv_file):
     df = pd.read_csv(input_csv_file)
     return df["url"].tolist()
@@ -98,10 +36,9 @@ def save_to_csv(href_set):
     logger.info(f"Данные успешно сохранены в {csv_output_file}")
 
 
-async def get_company():
+def get_url():
+
     all_urls = read_cities_from_csv(csv_output_file)  # Чтение URL из CSV файла
-    browser = await uc.Browser.create(headless=False)
-    # Переход на страницу логина и выполнение входа
 
     for url in all_urls:  # Ограничено одной URL для теста
         html_company = html_files_directory / f"{url.split('/')[-1]}.html"
@@ -109,54 +46,154 @@ async def get_company():
         if html_company.exists():
             logger.warning(f"Файл {html_company} уже существует, пропускаем.")
             continue  # Переходим к следующей итерации цикла
-        tab = await browser.get(url)
-        # Check for CAPTCHA element
-
-        # Wait for the CAPTCHA element to appear with a 30-second timeout
-        try:
-            captcha_element = await tab.select("div.captcha__human__title", timeout=5)
-            if captcha_element:
-                logger.info("CAPTCHA detected. Pausing for 30 seconds.")
-                await asyncio.sleep(30)
-        except asyncio.TimeoutError:
-            # If the CAPTCHA element does not appear within 30 seconds, continue
-            logger.info(
-                "CAPTCHA not detected. Proceeding with data extraction.")
-
-        html_content = await tab.get_content()
-        with open(html_company, "w", encoding="utf-8") as file:
-            file.write(html_content)
-        logger.info(html_company)
-    await browser.close()
-
-    #     ema
+        payload = {"api_key": API_KEY, "url": url}
+        r = requests.get(
+            "https://api.scraperapi.com/",
+            params=payload,
+            timeout=30,
+        )
+        if r.status_code == 200:
+            with open(html_company, "w", encoding="utf-8") as file:
+                file.write(r.text)
+            logger.info(html_company)
+        else:
+            logger.info(r.status_code)
 
 
-def save_to_excel(data_list, filename="output.xlsx"):
-    """
-    Записывает список словарей в Excel-файл.
+# def get_page_html():
+#     max_page = None
+#     url_start = "https://allegro.pl/kategoria/narzedzia-mlotowiertarki-147650?price_from=200&price_to=800&stan=nowe"
 
-    :param data_list: Список словарей, где каждый словарь представляет одну запись
-    :param filename: Имя файла Excel для сохранения данных
-    """
-    # Создаем DataFrame из списка словарей
-    df = pd.DataFrame(data_list)
+#     html_company = html_page_directory / "url_start.html"
+#     payload = {"api_key": API_KEY, "url": url_start}
+#     if html_company.exists():
+#         logger.warning(f"Файл {html_company} уже существует, пропускаем.")
+#     else:
+#         r = requests.get(
+#             "https://api.scraperapi.com/",
+#             params=payload,
+#             timeout=30,
+#         )
 
-    # Сохраняем DataFrame в Excel
-    df.to_excel(filename, index=False)
-    print(f"Данные успешно сохранены в {filename}")
+#         if r.status_code == 200:
+#             src = r.text
+#             with open(html_company, "w", encoding="utf-8") as file:
+#                 file.write(src)
+#             soup = BeautifulSoup(src, "lxml")
+#             # Находим div с атрибутом data-box-name="pagination top"
+#             pagination_div = soup.find("div", {"aria-label": "paginacja"})
+#             # Находим первый span внутри найденного div и проверяем, что это элемент BeautifulSoup
+#             if pagination_div:
+#                 span_element = pagination_div.find("span")
+#                 if span_element and isinstance(span_element, str) == False:
+#                     max_page_text = span_element.get_text(
+#                         strip=True
+#                     )  # Извлечение текста с удалением пробелов
+#                     max_page = int(max_page_text)
+#                 else:
+#                     logger.error(
+#                         "Элемент span не найден или не является объектом BeautifulSoup"
+#                     )
+#             else:
+#                 logger.error("Элемент div с aria-label='paginacja' не найден")
+#             logger.info(html_company)
+#         else:
+#             logger.info(r.status_code)
+#     for page in range(2, max_page + 1):
+#         html_company = html_page_directory / f"url_start_{page}.html"
+#         payload = {"api_key": API_KEY, "url": f"{url_start}&p={page}"}
+#         if html_company.exists():
+#             logger.warning(f"Файл {html_company} уже существует, пропускаем.")
+#         else:
+#             r = requests.get(
+#                 "https://api.scraperapi.com/",
+#                 params=payload,
+#                 timeout=30,
+#             )
+#             src = r.text
+#             with open(html_company, "w", encoding="utf-8") as file:
+#                 file.write(src)
 
 
-def get_html():
+def get_page_html():
+    url_start = "https://allegro.pl/kategoria/narzedzia-mlotowiertarki-147650?price_from=200&price_to=800&stan=nowe"
+    html_company = html_page_directory / "url_start.html"
+    payload = {"api_key": API_KEY, "url": url_start}
 
-    payload = {'api_key': '08ed3288dfca36359e9d28ddbe833829',
-               'url': 'https://allegro.pl/oferta/lechia-gdansk-legia-warszawa-2010-rok-16363389862'}
-    r = requests.get('https://api.scraperapi.com/', params=payload)
-    with open("proba_0.html", "w", encoding="utf-8") as file:
-        file.write(r.text)
+    # Проверяем, существует ли уже файл первой страницы
+    if html_company.exists():
+        logger.warning(f"Файл {html_company} уже существует, пропускаем загрузку.")
+        max_page = parsin_page()  # Получаем max_page из существующего файла
+    else:
+        # Запрос к API для первой страницы
+        r = requests.get("https://api.scraperapi.com/", params=payload, timeout=60)
+
+        if r.status_code == 200:
+            src = r.text
+            with open(html_company, "w", encoding="utf-8") as file:
+                file.write(src)
+            max_page = (
+                parsin_page()
+            )  # Получаем max_page из только что сохраненного файла
+            logger.info(f"Сохранена первая страница: {html_company}")
+        else:
+            logger.error(f"Ошибка при запросе первой страницы: {r.status_code}")
+            return  # Если запрос не успешен, выходим из функции
+
+    # Запрашиваем страницы с 2 по max_page, если max_page определен
+    if max_page:
+        for page in range(2, max_page + 1):
+            html_company = html_page_directory / f"url_start_{page}.html"
+            # Обновляем payload для каждой страницы
+            payload = {"api_key": API_KEY, "url": f"{url_start}&p={page}"}
+
+            if html_company.exists():
+                logger.warning(f"Файл {html_company} уже существует, пропускаем.")
+            else:
+                r = requests.get(
+                    "https://api.scraperapi.com/", params=payload, timeout=60
+                )
+
+                if r.status_code == 200:
+                    src = r.text
+                    with open(html_company, "w", encoding="utf-8") as file:
+                        file.write(src)
+                    logger.info(f"Сохранена страница {page}: {html_company}")
+                else:
+                    logger.error(f"Ошибка при запросе страницы {page}: {r.status_code}")
+
+
+def parsin_page():
+    max_page = None
+    html_company = html_page_directory / "url_start.html"
+
+    # Открываем локально сохранённый файл первой страницы
+    with open(html_company, encoding="utf-8") as file:
+        src = file.read()
+    soup = BeautifulSoup(src, "lxml")
+
+    # Находим div с атрибутом aria-label="paginacja"
+    pagination_div = soup.find("div", {"aria-label": "paginacja"})
+
+    # Извлекаем максимальное количество страниц
+    if pagination_div:
+        span_element = pagination_div.find("span")
+        if span_element:
+            try:
+                max_page_text = span_element.get_text(strip=True)
+                max_page = int(max_page_text)
+            except ValueError:
+                logger.error("Не удалось преобразовать max_page_text в число")
+        else:
+            logger.error(
+                "Элемент span не найден или не является объектом BeautifulSoup"
+            )
+    else:
+        logger.error("Элемент div с aria-label='paginacja' не найден")
+
+    return max_page
 
 
 if __name__ == "__main__":
-    get_html()
-    # asyncio.run(get_url())
-    # uc.loop().run_until_complete(get_company())
+    get_page_html()
+    # parsin_page()
