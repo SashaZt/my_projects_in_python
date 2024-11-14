@@ -3,18 +3,7 @@ from pathlib import Path
 
 import nodriver as uc
 import pandas as pd
-from configuration.logger_setup import logger
-import asyncio
-import csv
-import json
-import os
-import random
-import re
-from pathlib import Path
-
-import aiofiles
-import pandas as pd
-from bs4 import BeautifulSoup
+import requests
 from configuration.logger_setup import logger
 
 # Путь к папкам
@@ -158,10 +147,16 @@ def save_to_excel(data_list, filename="output.xlsx"):
     print(f"Данные успешно сохранены в {filename}")
 
 
-def parsing_html():
+def get_html():
+
+    payload = {'api_key': '08ed3288dfca36359e9d28ddbe833829',
+               'url': 'https://allegro.pl/oferta/lechia-gdansk-legia-warszawa-2010-rok-16363389862'}
+    r = requests.get('https://api.scraperapi.com/', params=payload)
+    with open("proba_0.html", "w", encoding="utf-8") as file:
+        file.write(r.text)
 
 
 if __name__ == "__main__":
+    get_html()
     # asyncio.run(get_url())
     # uc.loop().run_until_complete(get_company())
-    parsing_html()
