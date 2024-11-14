@@ -1,9 +1,11 @@
+import os
 from pathlib import Path
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
+from dotenv import load_dotenv
 
 # Путь к папкам
 current_directory = Path.cwd()
@@ -19,6 +21,9 @@ html_page_directory.mkdir(parents=True, exist_ok=True)
 
 csv_output_file = current_directory / "output.csv"
 
+# Указать путь к .env файлу
+env_path = os.path.join(os.getcwd(), "configuration", ".env")
+API_KEY = os.getenv("API_KEY")
 
 # Функция для чтения городов из CSV файла
 
@@ -194,7 +199,46 @@ def parsin_page():
     return max_page
 
 
+def get_url_htnl():
+    # Инициализируем set для хранения уникальных ссылок
+    unique_links = set()
+    for html_file in html_page_directory.glob("*.html"):
+        # Открываем локально сохранённый файл первой страницы
+        with open(html_file, encoding="utf-8") as file:
+            src = file.read()
+        soup = BeautifulSoup(src, "lxml")
+        # Находим контейнер для всех товаров
+        search_results_div = soup.select_one(
+            "#search-results > div:nth-child(5) > div > div > div > div > div > div"
+        )
+
+        # Проверяем каждый <article> элемент с учетом диапазона от 2 до 73
+        if search_results_div:
+            # Проверяем, что контейнер найден и содержит достаточное количество article
+            articles = search_results_div.find_all("article")
+
+            for ar in articles:
+                link = ar.find("a", href=True)  # Ищем ссылку внутри целевого article
+                # Проверяем, что ссылка найдена, и добавляем в set
+                if link:
+                    unique_links.add(link["href"])
+    logger.info(len(unique_links))
+    # Преобразуем set в DataFrame и сохраняем в CSV
+    df = pd.DataFrame(list(unique_links), columns=["url"])
+    df.to_csv(csv_output_file, index=False, encoding="utf-8")
+
+    logger.info(f"Ссылки успешно сохранены в {csv_output_file}")
+
+
+def list_html():
+    # Получаем список всех файлов в директории
+    file_list = [file for file in html_page_directory.iterdir() if file.is_file()]
+    logger.info(f"Всего компаний {len(file_list)}")
+    return file_list
+
+
 if __name__ == "__main__":
     url_start = "https://allegro.pl/kategoria/narzedzia-mlotowiertarki-147650?price_from=200&price_to=800&stan=nowe"
     # get_all_page_html(url_start)
-    parsin_page()
+    # parsin_page()
+    get_url_htnl()

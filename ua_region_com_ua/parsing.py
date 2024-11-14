@@ -43,20 +43,22 @@ class Parsing:
         for item in items:
             # Находим метку (ключ) и данные (значение)
             label_element = item.find("span", class_="company-sidebar__label")
-            data_element = item.find(
-                "div", class_="company-sidebar__data") or item
+            data_element = item.find("div", class_="company-sidebar__data") or item
 
             # Получаем текст метки
-            label = label_element.get_text(
-                strip=True) if label_element else None
+            label = label_element.get_text(strip=True) if label_element else None
             # Если data_element содержит ссылки, собираем текст всех ссылок
             if data_element.find("a"):
-                data = ", ".join([a.get_text(strip=True)
-                                  for a in data_element.find_all("a")])
+                data = ", ".join(
+                    [a.get_text(strip=True) for a in data_element.find_all("a")]
+                )
             else:
                 # Иначе просто берем текст из data_element
-                data = data_element.get_text(strip=True).replace(
-                    "\xa0", " ") if data_element else None
+                data = (
+                    data_element.get_text(strip=True).replace("\xa0", " ")
+                    if data_element
+                    else None
+                )
 
             # Сохраняем в словарь только если метка и данные найдены
             if label and data:
@@ -95,8 +97,7 @@ class Parsing:
 
         # Извлечение заголовка и юридического адреса
         page_title_raw = soup.select_one("#main > div:nth-child(1) > div > h1")
-        page_title = page_title_raw.get_text(
-            strip=True) if page_title_raw else None
+        page_title = page_title_raw.get_text(strip=True) if page_title_raw else None
         containers = soup.select(
             ".px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-8 > div, "
             ".company-sidebar.p-3.p-md-4.mb-3.border"
@@ -106,8 +107,7 @@ class Parsing:
             company_data.update(self.extract_company_data(container))
         # Извлечение кодов КВЕД
         kved_elements = soup.select('a[href^="/kved/"]')
-        kved_list = [element["href"].split(
-            "/kved/")[1] for element in kved_elements]
+        kved_list = [element["href"].split("/kved/")[1] for element in kved_elements]
         kved_string = ",".join(kved_list)
 
         # Добавляем в словарь полученные данные
@@ -116,8 +116,9 @@ class Parsing:
         # company_data["legal_address"] = legal_address
 
         # Очистка текста
-        cleaned_data = {key: self.clean_text(value)
-                        for key, value in company_data.items()}
+        cleaned_data = {
+            key: self.clean_text(value) for key, value in company_data.items()
+        }
         return cleaned_data
 
     def parsing_html(self):
@@ -145,8 +146,10 @@ class Parsing:
                     result = future.result()
                     all_results.append(result)
                 except Exception as e:
-                    logger.error(f"Ошибка при обработке файла {
-                                 file_html}: {e}")
+                    logger.error(
+                        f"Ошибка при обработке файла {
+                                 file_html}: {e}"
+                    )
                     # Добавление трассировки стека
                     logger.error(traceback.format_exc())
                 finally:
@@ -170,8 +173,7 @@ class Parsing:
             #     edrpou_df["edrpou"].astype(str)
             # )  # Возвращаем множество идентификаторов
         else:
-            logger.warning(
-                f"Файл {edrpou_csv_file} не найден. Обрабатываем все файлы.")
+            logger.warning(f"Файл {edrpou_csv_file} не найден. Обрабатываем все файлы.")
             return None  # Возвращаем None, если файл отсутствует
 
     def list_html(self):
@@ -248,6 +250,8 @@ class Parsing:
                 json.dump(all_results, json_file, ensure_ascii=False, indent=4)
             logger.info(f"Данные успешно сохранены в файл {json_result}")
         except Exception as e:
-            logger.error(f"Ошибка при сохранении данных в файл {
-                         json_result}: {e}")
+            logger.error(
+                f"Ошибка при сохранении данных в файл {
+                         json_result}: {e}"
+            )
             raise
