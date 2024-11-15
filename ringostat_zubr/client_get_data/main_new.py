@@ -78,6 +78,7 @@ LOGICAL_OPERATORS = ["И", "ИЛИ"]
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
 data_directory.mkdir(parents=True, exist_ok=True)
+temp_data_output_file = data_directory / "temp_data.json"
 result_output_file = data_directory / "result.json"
 
 
@@ -113,19 +114,23 @@ def download_data_to_file():
             data = response.json().get("data", [])
 
             # Сохраняем данные в файл result.json
-            with open(result_output_file, "w", encoding="utf-8") as f:
+            with open(temp_data_output_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
-            logger.info(f"Data saved to {result_output_file}")
+            logger.info(f"Data saved to {temp_data_output_file}")
         else:
             logger.warning(f"Failed to fetch data, status code: {response.status_code}")
     except requests.exceptions.RequestException as e:
         logger.error(f"An error occurred during the GET request: {e}")
 
 
+# Скачиваем данные в файл result.json перед запуском интерфейса
+download_data_to_file()
+
+
 def load_data_from_file():
     """Загружает данные из файла result.json для фильтрации"""
-    if result_output_file.exists():
-        with open(result_output_file, "r", encoding="utf-8") as f:
+    if temp_data_output_file.exists():
+        with open(temp_data_output_file, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
                 logger.info("Data loaded from result.json")
@@ -229,10 +234,6 @@ def fetch_all_data():
     result_text.delete(1.0, END)
     result_text.insert(END, "Filtered Data:\n")
     result_text.insert(END, json.dumps(filtered_data, ensure_ascii=False, indent=4))
-
-
-# Скачиваем данные в файл result.json перед запуском интерфейса
-download_data_to_file()
 
 
 def show_calendar(entry):
