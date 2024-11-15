@@ -25,14 +25,6 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from dotenv import load_dotenv
 from tkcalendar import Calendar
 
-# Путь к папкам
-current_directory = Path.cwd()
-data_directory = current_directory / "data"
-
-data_directory.mkdir(parents=True, exist_ok=True)
-
-result_output_file = data_directory / "result.json"
-
 # Загрузка переменных из .env
 logger.info("Loading environment variables from .env file")
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
@@ -82,6 +74,12 @@ CONDITIONS = [
 ]
 LOGICAL_OPERATORS = ["И", "ИЛИ"]
 
+# Путь к папкам и файлу для данных
+current_directory = Path.cwd()
+data_directory = current_directory / "data"
+data_directory.mkdir(parents=True, exist_ok=True)
+result_output_file = data_directory / "result.json"
+
 
 def encrypt_access_key(access_key: str) -> str:
     logger.info("Encrypting access key")
@@ -98,6 +96,46 @@ def encrypt_access_key(access_key: str) -> str:
 
     logger.info("Access key encrypted successfully")
     return encrypted_key
+
+
+def download_data_to_file():
+    """Скачивает все данные и сохраняет их в result.json"""
+    url = "https://185.233.116.213:5000/get_all_data"
+    encrypted_key = encrypt_access_key(ORIGINAL_ACCESS_KEY)
+    params = {"access_key": encrypted_key}
+
+    try:
+        logger.info("Sending GET request to the server")
+        response = requests.get(url, params=params, verify=False)
+
+        if response.status_code == 200:
+            logger.info("Data fetched successfully")
+            data = response.json().get("data", [])
+
+            # Сохраняем данные в файл result.json
+            with open(result_output_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=4)
+            logger.info(f"Data saved to {result_output_file}")
+        else:
+            logger.warning(f"Failed to fetch data, status code: {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"An error occurred during the GET request: {e}")
+
+
+def load_data_from_file():
+    """Загружает данные из файла result.json для фильтрации"""
+    if result_output_file.exists():
+        with open(result_output_file, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+                logger.info("Data loaded from result.json")
+                return data
+            except json.JSONDecodeError:
+                logger.error("Error decoding JSON from result.json")
+                return []
+    else:
+        logger.error("result.json file not found")
+        return []
 
 
 def apply_combined_filter(data, filters):
@@ -172,74 +210,25 @@ def apply_single_filter(data, field, condition, value):
 
 
 def fetch_all_data():
-    url = "https://185.233.116.213:5000/get_all_data"
-    encrypted_key = encrypt_access_key(ORIGINAL_ACCESS_KEY)
-    params = {"access_key": encrypted_key}
+    """Загружает данные из файла result.json и применяет фильтры, выводя результат в интерфейсе"""
+    data = load_data_from_file()
 
-    try:
-        logger.info("Sending GET request to the server")
-        response = requests.get(url, params=params, verify=False)
-        result_text.delete(1.0, END)
+    # Собираем данные из всех фильтров
+    filters = []
+    for i in range(5):
+        field = field_vars[i].get()
+        condition = condition_vars[i].get()
+        value = value_entries[i].get()
+        operator = operator_vars[i].get() if i < 4 else None
+        filters.append((field, condition, value, operator))
 
-        if response.status_code == 200:
-            logger.info("Data fetched successfully")
-            data = response.json().get("data", [])
+    # Применение фильтров
+    filtered_data = apply_combined_filter(data, filters)
 
-            # Собираем данные из всех фильтров
-            filters = []
-            for i in range(5):
-                field = field_vars[i].get()
-                condition = condition_vars[i].get()
-                value = value_entries[i].get()
-                operator = operator_vars[i].get() if i < 4 else None
-                filters.append((field, condition, value, operator))
-
-            # Применение комбинированных фильтров
-            filtered_data = apply_combined_filter(data, filters)
-
-            result_text.insert(END, "Filtered Data:\n")
-            result_text.insert(
-                END, json.dumps(filtered_data, ensure_ascii=False, indent=4)
-            )
-
-            with open("response_debug.json", "w", encoding="utf-8") as f:
-                json.dump(filtered_data, f, ensure_ascii=False, indent=4)
-            logger.info("Filtered response saved to response_debug.json for debugging")
-        else:
-            logger.warning(f"Failed to fetch data, status code: {response.status_code}")
-            result_text.insert(
-                END, f"Failed to fetch data, status code: {response.status_code}\n"
-            )
-            result_text.insert(END, response.json())
-
-    except requests.exceptions.RequestException as e:
-        logger.error(f"An error occurred during the GET request: {e}")
-        result_text.delete(1.0, END)
-        result_text.insert(END, f"An error occurred: {e}")
-
-
-def download_data_to_file():
-    """Скачивает все данные и сохраняет их в result.json"""
-    url = "https://185.233.116.213:5000/get_all_data"
-    encrypted_key = encrypt_access_key(ORIGINAL_ACCESS_KEY)
-    params = {"access_key": encrypted_key}
-
-    try:
-        logger.info("Sending GET request to the server")
-        response = requests.get(url, params=params, verify=False)
-
-        if response.status_code == 200:
-            logger.info("Data fetched successfully")
-            data = response.json().get("data", [])
-
-            # Сохраняем данные в файл result.json
-            with open(result_output_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=4)
-            logger.info(f"Data saved to {result_output_file}")
-        else:
-            logger.warning(f"Failed to fetch data, status code: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"An error occurred during the GET request: {e}")
+    # Очищаем текстовое поле перед выводом
+    result_text.delete(1.0, END)
+    result_text.insert(END, "Filtered Data:\n")
+    result_text.insert(END, json.dumps(filtered_data, ensure_ascii=False, indent=4))
 
 
 # Скачиваем данные в файл result.json перед запуском интерфейса
