@@ -27,4 +27,4 @@ if not exist "%PYTHON_EXE%" (
 )
 
 :: Запуск main.py
-"%PYTHON_EXE%" "%CURRENT_DIR%main_old.py"
+"%PYTHON_EXE%" "%CURRENT_DIR%client_get_data.py"

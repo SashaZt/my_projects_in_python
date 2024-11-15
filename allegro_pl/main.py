@@ -2,6 +2,7 @@ import os
 from parser import Parser
 from pathlib import Path
 
+from async_downloader import AsyncDownloader
 from dotenv import load_dotenv
 from downloader import Downloader
 from writer import Writer
@@ -13,6 +14,7 @@ def main_loop():
     load_dotenv(env_path)
     api_key = os.getenv("API_KEY")
     url_start = os.getenv("URL_START")
+    max_workers = int(os.getenv("MAX_WORKERS", "20"))
 
     # Указываем пути к файлам и папкам
     current_directory = Path.cwd()
@@ -32,7 +34,10 @@ def main_loop():
 
     # Создаем объекты классов
     downloader = Downloader(
-        api_key, html_page_directory, html_files_directory, csv_output_file
+        api_key, html_page_directory, html_files_directory, csv_output_file, max_workers
+    )
+    async_downloader = AsyncDownloader(
+        api_key, html_files_directory, csv_output_file, max_workers
     )
     writer = Writer(csv_output_file, json_result, xlsx_result)
     parser = Parser(html_files_directory, html_page_directory, csv_output_file)
@@ -44,9 +49,8 @@ def main_loop():
             "1. Скачивание страниц пагинации\n"
             "2. Парсинг страниц пагинации\n"
             "3. Сохранение результатов\n"
-            "4. Скачивание товаров\n"
-            "5. Асинхронное скачивание\n"
-            "6. Выход"
+            "4. Асинхронное скачивание\n"
+            "5. Выход"
         )
         choice = input("Введите номер действия: ")
 
@@ -62,12 +66,9 @@ def main_loop():
             writer.save_json_to_excel()
             print("Результаты сохранены.")
         elif choice == "4":
-            url_list = parser.list_html()
-            downloader.get_url(url_list)
-        elif choice == "5":
-            get_url_async()
+            async_downloader.get_url_async()
             print("Асинхронное скачивание в разработке.")
-        elif choice == "6":
+        elif choice == "5":
             break
         else:
             print("Неверный выбор. Пожалуйста, попробуйте снова.")

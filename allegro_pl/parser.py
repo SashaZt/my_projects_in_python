@@ -23,6 +23,7 @@ configuration_directory = current_directory / "configuration"
 class Parser:
 
     def __init__(self, html_files_directory, html_page_directory, csv_output_file):
+        self.html_files_directory = html_files_directory
         self.html_page_directory = html_page_directory
         self.csv_output_file = csv_output_file
 
@@ -107,7 +108,9 @@ class Parser:
         """
 
         # Получаем список всех файлов в html_files_directory
-        file_list = [file for file in html_files_directory.iterdir() if file.is_file()]
+        file_list = [
+            file for file in self.html_files_directory.iterdir() if file.is_file()
+        ]
 
         logger.info(f"Всего файлов для обработки: {len(file_list)}")
         return file_list

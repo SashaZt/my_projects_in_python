@@ -1,18 +1,27 @@
+import asyncio
 from parser import Parser
 
+import pandas as pd
 import requests
+from aiohttp import ClientSession
 from configuration.logger_setup import logger
 
 
 class Downloader:
 
     def __init__(
-        self, api_key, html_page_directory, html_files_directory, csv_output_file
+        self,
+        api_key,
+        html_page_directory,
+        html_files_directory,
+        csv_output_file,
+        max_workers,
     ):
         self.api_key = api_key
         self.html_page_directory = html_page_directory
         self.html_files_directory = html_files_directory
         self.csv_output_file = csv_output_file
+        self.max_workers = max_workers
         self.parser = Parser(
             html_files_directory, html_page_directory, csv_output_file
         )  # Создаем экземпляр Parser
@@ -101,3 +110,68 @@ class Downloader:
                 logger.info(f"Сохранен файл: {html_company}")
             else:
                 logger.warning(f"Ошибка {r.status_code} при загрузке URL: {url}")
+
+    # Главная функция для запуска асинхронной загрузки
+
+    def get_url_async(self):
+        urls = self.read_cities_from_csv(self.csv_output_file)
+        asyncio.run(self.process_urls(urls))
+
+    def read_cities_from_csv(self, input_csv_file):
+        df = pd.read_csv(input_csv_file)
+        return df["url"].tolist()
+
+    # Асинхронная функция для запуска задач в очереди с ограниченным количеством потоков
+
+    async def process_urls(self, urls):
+        queue = asyncio.Queue()
+
+        # Добавляем URL в очередь
+        for url in urls:
+            await queue.put(url)
+
+        async with ClientSession() as session:
+            tasks = []
+            # Запускаем указанное количество потоков
+            for _ in range(self.max_workers):
+                task = asyncio.create_task(self.worker(queue, session))
+                tasks.append(task)
+
+            # Ожидаем выполнения всех задач
+            await queue.join()
+
+            # Завершаем все задачи
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Асинхронная функция для обработки задач из очереди
+    async def worker(self, queue, session):
+        while True:
+            url = await queue.get()
+            await self.fetch_and_save_html(url, session)
+            queue.task_done()
+
+    # Асинхронная функция для загрузки HTML по URL и сохранения в файл
+    async def fetch_and_save_html(self, url, session):
+        html_company = self.html_files_directory / f"{url.split('/')[-1]}.html"
+
+        if html_company.exists():
+            logger.warning(f"Файл {html_company} уже существует, пропускаем.")
+            return
+        logger.info(self.api_key)
+        payload = {"api_key": self.api_key, "url": url}
+
+        try:
+            async with session.get(
+                "https://api.scraperapi.com/", params=payload, timeout=30
+            ) as response:
+                if response.status == 200:
+                    html_content = await response.text()
+                    with open(html_company, "w", encoding="utf-8") as file:
+                        file.write(html_content)
+                    logger.info(f"Сохранен файл: {html_company}")
+                else:
+                    logger.warning(f"Ошибка {response.status} при загрузке URL: {url}")
+        except Exception as e:
+            logger.error(f"Ошибка при запросе {url}: {e}")

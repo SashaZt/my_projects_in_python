@@ -32,13 +32,13 @@ json_result = data_directory / "result.json"
 xlsx_result = data_directory / "result.xlsx"
 
 
-# Указать путь к .env файлу
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
+load_dotenv(env_path)
 API_KEY = os.getenv("API_KEY")
 
 
 # Используем строку "20" как значение по умолчанию
-MAX_WORKERS = int(os.getenv("MAX_WORKERS", "20"))
+MAX_WORKERS = int(os.getenv("MAX_WORKERS", "2"))
 
 
 # Функция для чтения городов из CSV файла
@@ -59,19 +59,25 @@ def save_to_csv(href_set):
 
 def get_url():
     all_urls = read_cities_from_csv(csv_output_file)  # Чтение URL из CSV файла
-
+    logger.info(API_KEY)
     for url in all_urls:  # Ограничено одной URL для теста
         html_company = html_files_directory / f"{url.split('/')[-1]}.html"
 
         if html_company.exists():
             logger.warning(f"Файл {html_company} уже существует, пропускаем.")
             continue  # Переходим к следующей итерации цикла
-        payload = {"api_key": API_KEY, "url": url}
-        r = requests.get(
-            "https://api.scraperapi.com/",
-            params=payload,
-            timeout=30,
-        )
+        payload = {
+            "api_key": API_KEY,
+            "premium": "true",
+            "follow_redirect": "false",
+            "country_code": "eu",
+            "device_type": "mobile",
+            "url": url,
+            # "apiParams": {
+            #
+            # },
+        }
+        r = requests.get("https://api.scraperapi.com/", params=payload, timeout=60)
         if r.status_code == 200:
             with open(html_company, "w", encoding="utf-8") as file:
                 file.write(r.text)
@@ -206,7 +212,7 @@ async def fetch_and_save_html(url, session):
         return
 
     payload = {"api_key": API_KEY, "url": url}
-
+    logger.info(API_KEY)
     try:
         async with session.get(
             "https://api.scraperapi.com/", params=payload, timeout=30
@@ -481,12 +487,12 @@ def save_json_to_excel(json_file_path, excel_file_path):
 
 
 if __name__ == "__main__":
-    url_start = "https://allegro.pl/kategoria/narzedzia-mlotowiertarki-147650?price_from=200&price_to=800&stan=nowe"
-    get_all_page_html(url_start)
-    parsin_page()
-    get_url_html_csv()
-    # get_url()
-    get_url_async()
-    all_results = parsing_html()
-    save_results_to_json(all_results)
-    save_json_to_excel(json_result, xlsx_result)
+    # url_start = "https://allegro.pl/kategoria/narzedzia-mlotowiertarki-147650?price_from=200&price_to=800&stan=nowe"
+    # get_all_page_html(url_start)
+    # parsin_page()
+    # get_url_html_csv()
+    get_url()
+    # get_url_async()
+    # all_results = parsing_html()
+    # save_results_to_json(all_results)
+    # save_json_to_excel(json_result, xlsx_result)
