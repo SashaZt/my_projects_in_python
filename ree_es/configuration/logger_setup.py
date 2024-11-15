@@ -15,16 +15,4 @@ logger.add(
     format="{time:DD-MM-YYYY HH:mm:ss} - {level} - {name}:{line} - {message}",
     level="DEBUG",
     encoding="utf-8",
-    # rotation="10 MB",  # ротация после достижения 10 MB
-    # compression="zip",  # сжатие старых логов
-    # retention="1 days"  # удаление логов старше 10 дней
-    # retention="2 files" #  хранить только последние 5 файлов логов
 )
-
-# # Логирование в консоль
-# logger.add(
-#     sys.stdout,
-#     format="{time:DD-MM-YYYY HH:mm:ss} - {level} - {name}:{line} - {message}",
-#     level="DEBUG",
-#     encoding="utf-8",
-# )

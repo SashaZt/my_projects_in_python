@@ -73,7 +73,7 @@ def get_json_node():
             "_drupal_ajax": "1",
             "ajax_page_state[theme]": "ree",
             "ajax_page_state[theme_token]": "",
-            "ajax_page_state[libraries]": "eJyNk1t24yAMQDdEzNeshyNAxiQYcZCcxrP6ymmS5jFt5scHLteSJWSIUQjqauGyGMZOVYxHEewOT40Yoxtz0S3bhBU7FOOJhKVDcyxrQbatLCnXwUM4pE5LjS5QoT74JZf4s0494nvp5HiCSB9vxBn62f9ValporumNxaFTKQ7HEYPwG1nwJA5KTnXGKv8j3_cmUEdbqc8a4S-asLDQ7CAEZHap52hf0dUKE3RhJ0z2hdwcokNGT2JL9h366j7Qd7xliiBQYMVun8GLcXnzRXyKiEdtA9uH3fUs15E8FQb7DK5Ggw6B5kb1HCUV8lB2G03azemmLb7kAJKp3lLdM_Ndl8cJjpk6m0SUCjqBZJM-nvcD7OH0CGejMWgRFzMHOmJfrX6Y3p8pCGNBcTp1B-yh6CdorgvdPVBTQRCP5Fqn_TZQ-lK7Vqajlps26FdHR0iH1ty6wDb2pUEZvsmw1HP9PGE02y15YPxaXEfxz27Pu6J5WM4HT9E3NOuIQUI2jNDD5KBlB4vQdiNaF9ofuOG8LVyjtjTnC4UD238wwxQyFDdjzOA07aa9oEEmnDXmqt2bvwoRr0IC_cMWez4d7sgnT87m7g",
+            "ajax_page_state[libraries]": "eJyNk91y4yAMhV-ImKt9HkaAjEkwYpCcJvv0ld0kzc-22RsPOnxISBxDjEJQzxYui2HsVMV4FMHu8NSIMboxFw3ZJqzYoRhPJCwdmmM5F2TbypJyHTyEQ-q01OgCFeqDX3KJP-PUI76HTo4niPTxBpyhb_yvUNNGc01vKA6dSnE4jhiE38CCJ3FQcqozVvkf-H42gTraSn3WDH_RhIWFZgchILNLPUf7Kl2pMEEXdsJkX5QbQ3TI6Elsyb5DP7sP9B1vlSIIFDhjt8_CC3E5-QI-ZcSjjoHtQ3Tdy3UkT4XBPgtXokGHQHOjumVJhTyU3aomneZ0wxZfcgDJVG-l7jXz3ZfHCY6ZOptElAo6gWSTfp7jAfZwehRnozloERczBzpiP1u9mL6fKQhjQXHqugP2UPQKWuui7h5UU0EQj-Rap_1qKD3Urp2p1XLTAf3KqIXUtOY2BbaxLw3K8K0MS9365wmjWV_JA-PX4mrFP7s974rWYdk2nrKv0qwWg4S8BZUiGkboYXLQsoNFaH0abRDtD7rhvC5co7Y05wuFA9t_aIYpZChuxpjBaf0Ve5EGmXDWnGcd4_zVkXgFEuivtthtd7hTPgFCc-or",
         }
         json_file = json_node_directory / f"node_{node}.json"
 
@@ -92,9 +92,22 @@ def get_json_node():
 
         # Проверка кода ответа
         if response.status_code == 200:
-            json_data = response.json()
+            # Получаем HTML и пытаемся извлечь JSON из HTML
+            html_content = response.text
+            json_match = re.search(
+                r"<textarea.*?>(\[.*?\])<\/textarea>", html_content, re.DOTALL
+            )
+            if json_match:
+                extracted_json_str = json_match.group(1)
+                json_data = json.loads(extracted_json_str)
+            else:
+                logger.error(
+                    f"JSON не найден в HTML для узла {node}: {response.text[:100]}..."
+                )
+                continue
 
-            # Записываем данные в файл
+            # Записываем JSON данные в файл, если успешное декодирование
+            json_file = json_node_directory / f"node_{node}.json"
             with open(json_file, "w", encoding="utf-8") as f:
                 json.dump(json_data, f, ensure_ascii=False, indent=4)
 
@@ -107,7 +120,9 @@ def get_json_node():
             pause = random_pause(30, 60)  # Пауза в диапазоне 30-60 секунд
             logger.info(f"Пауза {pause:.2f} сек")
         else:
-            logger.error(f"Ошибка: {response.status_code} для узла {node}")
+            logger.error(
+                f"Ошибка: {response.status_code} для узла {node}: {response.text[:100]}..."
+            )
 
 
 # def extract_data():
@@ -197,6 +212,7 @@ def get_json_node():
 
 #     save_to_json(combined_data)
 
+
 def extract_data():
     combined_data = []
 
@@ -205,8 +221,9 @@ def extract_data():
         all_nodes = json.load(file)
 
     # Создаем словарь для быстрого доступа к координатам по названию
-    node_coordinates = {node["title"]: {
-        "lat": node["lat"], "lng": node["lng"]} for node in all_nodes}
+    node_coordinates = {
+        node["title"]: {"lat": node["lat"], "lng": node["lng"]} for node in all_nodes
+    }
 
     for json_file in json_node_directory.glob("node_*.json"):
         with open(json_file, "r", encoding="utf-8") as file:
@@ -265,11 +282,11 @@ def extract_data():
                     if section not in main_data[province][node_text]:
                         main_data[province][node_text][section] = []
 
-                    table_section = graph.select_one(
-                        "div[class^='table-subgraph']")
+                    table_section = graph.select_one("div[class^='table-subgraph']")
                     if table_section:
-                        cells = [cell.text.strip()
-                                 for cell in table_section.select("td")]
+                        cells = [
+                            cell.text.strip() for cell in table_section.select("td")
+                        ]
                         extracted_data = {}
 
                         # Проверяем и пропускаем первую строку таблицы, если она содержит заголовки "RdT" и "RdD"
@@ -287,8 +304,7 @@ def extract_data():
                                 extracted_data[f"{category} RdT"] = rdt_value
                                 extracted_data[f"{category} RdD"] = rdd_value
 
-                        main_data[province][node_text][section].append(
-                            extracted_data)
+                        main_data[province][node_text][section].append(extracted_data)
 
             # Логирование для проверки данных
 
@@ -346,7 +362,13 @@ def get_all_node_voltage():
             data = json.load(file)
             for item in data.values():
                 combined_data.append(
-                    {"nudo": item["nudo"], "title": item["title"], "lat": item["lat"], "lng": item["lng"]})
+                    {
+                        "nudo": item["nudo"],
+                        "title": item["title"],
+                        "lat": item["lat"],
+                        "lng": item["lng"],
+                    }
+                )
 
     # Сохранение объединённых данных в файл all_node.json
     with open(all_node_json_file, "w", encoding="utf-8") as output_file:
