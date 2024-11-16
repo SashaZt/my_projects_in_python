@@ -42,6 +42,7 @@ class Downloader:
     #             logger.error(f"Ошибка при запросе первой страницы: {r.status_code}")
 
     def get_all_page_html(self, url_start):
+        # Скачать все страницы пагинации
 
         html_company = self.html_page_directory / "url_start.html"
         payload = {"api_key": self.api_key, "url": url_start}
@@ -96,82 +97,82 @@ class Downloader:
                                 page}: {r.status_code}"
                         )
 
-    def get_url(self, url_list):
-        for url in url_list:
-            html_company = self.html_files_directory / f"{url.split('/')[-1]}.html"
-            if html_company.exists():
-                logger.warning(f"Файл {html_company} уже существует, пропускаем.")
-                continue
-            payload = {"api_key": self.api_key, "url": url}
-            r = requests.get("https://api.scraperapi.com/", params=payload, timeout=30)
-            if r.status_code == 200:
-                with open(html_company, "w", encoding="utf-8") as file:
-                    file.write(r.text)
-                logger.info(f"Сохранен файл: {html_company}")
-            else:
-                logger.warning(f"Ошибка {r.status_code} при загрузке URL: {url}")
+    # def get_url(self, url_list):
+    #     for url in url_list:
+    #         html_company = self.html_files_directory / f"{url.split('/')[-1]}.html"
+    #         if html_company.exists():
+    #             logger.warning(f"Файл {html_company} уже существует, пропускаем.")
+    #             continue
+    #         payload = {"api_key": self.api_key, "url": url}
+    #         r = requests.get("https://api.scraperapi.com/", params=payload, timeout=30)
+    #         if r.status_code == 200:
+    #             with open(html_company, "w", encoding="utf-8") as file:
+    #                 file.write(r.text)
+    #             logger.info(f"Сохранен файл: {html_company}")
+    #         else:
+    #             logger.warning(f"Ошибка {r.status_code} при загрузке URL: {url}")
 
-    # Главная функция для запуска асинхронной загрузки
+    # # Главная функция для запуска асинхронной загрузки
 
-    def get_url_async(self):
-        urls = self.read_cities_from_csv(self.csv_output_file)
-        asyncio.run(self.process_urls(urls))
+    # def get_url_async(self):
+    #     urls = self.read_cities_from_csv(self.csv_output_file)
+    #     asyncio.run(self.process_urls(urls))
 
-    def read_cities_from_csv(self, input_csv_file):
-        df = pd.read_csv(input_csv_file)
-        return df["url"].tolist()
+    # def read_cities_from_csv(self, input_csv_file):
+    #     df = pd.read_csv(input_csv_file)
+    #     return df["url"].tolist()
 
-    # Асинхронная функция для запуска задач в очереди с ограниченным количеством потоков
+    # # Асинхронная функция для запуска задач в очереди с ограниченным количеством потоков
 
-    async def process_urls(self, urls):
-        queue = asyncio.Queue()
+    # async def process_urls(self, urls):
+    #     queue = asyncio.Queue()
 
-        # Добавляем URL в очередь
-        for url in urls:
-            await queue.put(url)
+    #     # Добавляем URL в очередь
+    #     for url in urls:
+    #         await queue.put(url)
 
-        async with ClientSession() as session:
-            tasks = []
-            # Запускаем указанное количество потоков
-            for _ in range(self.max_workers):
-                task = asyncio.create_task(self.worker(queue, session))
-                tasks.append(task)
+    #     async with ClientSession() as session:
+    #         tasks = []
+    #         # Запускаем указанное количество потоков
+    #         for _ in range(self.max_workers):
+    #             task = asyncio.create_task(self.worker(queue, session))
+    #             tasks.append(task)
 
-            # Ожидаем выполнения всех задач
-            await queue.join()
+    #         # Ожидаем выполнения всех задач
+    #         await queue.join()
 
-            # Завершаем все задачи
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
+    #         # Завершаем все задачи
+    #         for task in tasks:
+    #             task.cancel()
+    #         await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Асинхронная функция для обработки задач из очереди
-    async def worker(self, queue, session):
-        while True:
-            url = await queue.get()
-            await self.fetch_and_save_html(url, session)
-            queue.task_done()
+    # # Асинхронная функция для обработки задач из очереди
+    # async def worker(self, queue, session):
+    #     while True:
+    #         url = await queue.get()
+    #         await self.fetch_and_save_html(url, session)
+    #         queue.task_done()
 
-    # Асинхронная функция для загрузки HTML по URL и сохранения в файл
-    async def fetch_and_save_html(self, url, session):
-        html_company = self.html_files_directory / f"{url.split('/')[-1]}.html"
+    # # Асинхронная функция для загрузки HTML по URL и сохранения в файл
+    # async def fetch_and_save_html(self, url, session):
+    #     html_company = self.html_files_directory / f"{url.split('/')[-1]}.html"
 
-        if html_company.exists():
-            logger.warning(f"Файл {html_company} уже существует, пропускаем.")
-            return
-        logger.info(self.api_key)
-        payload = {"api_key": self.api_key, "url": url}
+    #     if html_company.exists():
+    #         logger.warning(f"Файл {html_company} уже существует, пропускаем.")
+    #         return
+    #     logger.info(self.api_key)
+    #     payload = {"api_key": self.api_key, "url": url}
 
-        try:
-            async with session.get(
-                "https://api.scraperapi.com/", params=payload, timeout=30
-            ) as response:
-                if response.status == 200:
-                    html_content = await response.text()
-                    with open(html_company, "w", encoding="utf-8") as file:
-                        file.write(html_content)
-                    logger.info(f"Сохранен файл: {html_company}")
-                else:
-                    logger.warning(f"Ошибка {response.status} при загрузке URL: {url}")
-        except Exception as e:
-            logger.error(f"Ошибка при запросе {url}: {e}")
+    #     try:
+    #         async with session.get(
+    #             "https://api.scraperapi.com/", params=payload, timeout=30
+    #         ) as response:
+    #             if response.status == 200:
+    #                 html_content = await response.text()
+    #                 with open(html_company, "w", encoding="utf-8") as file:
+    #                     file.write(html_content)
+    #                 logger.info(f"Сохранен файл: {html_company}")
+    #             else:
+    #                 logger.warning(f"Ошибка {response.status} при загрузке URL: {url}")
+    #     except Exception as e:
+    #         logger.error(f"Ошибка при запросе {url}: {e}")

@@ -2,7 +2,7 @@ import os
 from parser import Parser
 from pathlib import Path
 
-from async_downloader import AsyncDownloader
+from allegro_pl.async_downloader_old import AsyncDownloader
 from dotenv import load_dotenv
 from downloader import Downloader
 from writer import Writer
