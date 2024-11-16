@@ -1,8 +1,8 @@
+import asyncio
 import os
 from parser import Parser
 from pathlib import Path
 
-from allegro_pl.async_downloader_old import AsyncDownloader
 from dotenv import load_dotenv
 from downloader import Downloader
 from writer import Writer
@@ -21,9 +21,11 @@ def main_loop():
     html_page_directory = current_directory / "html_page"
     html_files_directory = current_directory / "html_files"
     data_directory = current_directory / "data"
+    json_files_directory = current_directory / "json"
     configuration_directory = current_directory / "configuration"
 
     data_directory.mkdir(parents=True, exist_ok=True)
+    json_files_directory.mkdir(parents=True, exist_ok=True)
     html_files_directory.mkdir(exist_ok=True, parents=True)
     configuration_directory.mkdir(parents=True, exist_ok=True)
     html_page_directory.mkdir(parents=True, exist_ok=True)
@@ -36,9 +38,9 @@ def main_loop():
     downloader = Downloader(
         api_key, html_page_directory, html_files_directory, csv_output_file, max_workers
     )
-    async_downloader = AsyncDownloader(
-        api_key, html_files_directory, csv_output_file, max_workers
-    )
+    # async_downloader = AsyncDownloader(
+    #     api_key, html_files_directory, csv_output_file, json_files_directory
+    # )
     writer = Writer(csv_output_file, json_result, xlsx_result)
     parser = Parser(html_files_directory, html_page_directory, csv_output_file)
 
@@ -66,7 +68,7 @@ def main_loop():
             writer.save_json_to_excel()
             print("Результаты сохранены.")
         elif choice == "4":
-            async_downloader.get_url_async()
+            asyncio.run(downloader.main_url())  # Запускаем асинхронное скачивание
             print("Асинхронное скачивание в разработке.")
         elif choice == "5":
             break

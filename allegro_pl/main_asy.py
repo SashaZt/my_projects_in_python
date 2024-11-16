@@ -36,6 +36,13 @@ def read_cities_from_csv(input_csv_file):
 def submit_jobs():
     urls = read_cities_from_csv(csv_output_file)
     for url in urls:
+
+        html_company = html_files_directory / f"{url.split('/')[-1]}.html"
+        # Если файл HTML уже существует, удаляем JSON файл и пропускаем
+        if html_company.exists():
+            logger.warning(f"Файл {html_company} уже существует, пропускаем.")
+            continue
+
         response = requests.post(
             url="https://async.scraperapi.com/jobs",
             json={"apiKey": api_key, "url": url},
