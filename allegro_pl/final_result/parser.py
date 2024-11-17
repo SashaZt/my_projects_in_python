@@ -236,23 +236,21 @@ class Parser:
                 "#search-results > div:nth-child(5) > div > div > div > div > div > div"
             )
 
-            # Проверяем каждый <article> элемент с учетом диапазона от 2 до 73
             if search_results_div:
                 # Проверяем, что контейнер найден и содержит достаточное количество article
                 articles = search_results_div.find_all("article")
-
                 for ar in articles:
                     # Ищем ссылку внутри целевого article
                     link = ar.find("a", href=True)
-                    # Проверяем, что ссылка найдена, и добавляем в set
-                    if link:
-                        unique_links.add(link["href"])
-        logger.info(len(unique_links))
+                    href = link["href"]
+                    # Проверяем, что ссылка найдена, содержит нужную часть и добавляем в set
+                    if link and "https://allegro.pl/oferta/" in href:
+                        unique_links.add(href)
         # Преобразуем set в DataFrame и сохраняем в CSV
         df = pd.DataFrame(list(unique_links), columns=["url"])
         df.to_csv(self.csv_output_file, index=False, encoding="utf-8")
 
-        logger.info(f"Ссылки успешно сохранены в {self.csv_output_file}")
+        logger.info(f"Парсинг завершен, ссылки сохранены в {self.csv_output_file}")
 
     # def parsin_page(self):
     #     max_page = None

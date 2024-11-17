@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 from parser import Parser
 from pathlib import Path
 
@@ -43,6 +44,7 @@ def main_loop():
         csv_output_file,
         json_files_directory,
         url_start,
+        max_workers,
     )
     writer = Writer(csv_output_file, json_result, xlsx_result)
     parser = Parser(
@@ -57,7 +59,8 @@ def main_loop():
             "2. Парсинг страниц пагинации\n"
             "3. Асинхронное скачивание товаров\n"
             "4. Сохранение результатов\n"
-            "5. Выход"
+            "5. Очистить временные папки\n"
+            "6. Выход"
         )
         choice = input("Введите номер действия: ")
 
@@ -65,18 +68,17 @@ def main_loop():
             downloader.get_all_page_html()
         elif choice == "2":
             parser.get_url_html_csv()
-            logger.info("Парсинг завершен.")
         elif choice == "3":
-            asyncio.run(downloader.main_url())  # Запускаем асинхронное скачивание
-            logger.info("Асинхронное скачивание завершилось")
-
+            asyncio.run(downloader.main_url())
         elif choice == "4":
             all_results = parser.parsing_html()
             writer.save_results_to_json(all_results)
             writer.save_json_to_excel()
-            logger.info("Результаты сохранены.")
-
         elif choice == "5":
+            shutil.rmtree(html_page_directory)
+            shutil.rmtree(html_files_directory)
+            shutil.rmtree(json_files_directory)
+        elif choice == "6":
             break
         else:
             logger.info("Неверный выбор. Пожалуйста, попробуйте снова.")

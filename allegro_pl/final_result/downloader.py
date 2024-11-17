@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 import json
 from configuration.logger_setup import logger
-
+from parser import Parser
 
 class Downloader:
 
@@ -14,7 +14,8 @@ class Downloader:
         html_files_directory,
         csv_output_file,
         json_files_directory,
-        url_start
+        url_start,
+        max_workers
     ):
         self.api_key = api_key
         self.json_files_directory = json_files_directory
@@ -22,9 +23,9 @@ class Downloader:
         self.html_page_directory = html_page_directory
         self.csv_output_file = csv_output_file
         self.url_start = url_start
-        # self.parser = Parser(
-        #     html_files_directory, html_page_directory, csv_output_file
-        # )  # Создаем экземпляр Parser
+        self.parser = Parser(
+            html_files_directory, html_page_directory, csv_output_file,max_workers
+        )  # Создаем экземпляр Parser
 
     # def get_all_page_html(self, url_start):
     #     html_company = self.html_page_directory / "url_start.html"
@@ -100,6 +101,7 @@ class Downloader:
                             f"Ошибка при запросе страницы {
                                 page}: {r.status_code}"
                         )
+            logger.info("Скачали все страницы пагинации")
 
     async def fetch_results_async(self):
         while True:
@@ -159,34 +161,39 @@ class Downloader:
     # Функция для отправки задач на ScraperAPI
     def submit_jobs(self):
         urls = self.read_cities_from_csv(self.csv_output_file)
-        for url in urls:
+        batch_size = 40000  # Размер каждой порции URL
+        # Разделяем список urls на подсписки по batch_size
+        for i in range(0, len(urls), batch_size):
+            url_batch = urls[i:i + batch_size]  # Берем следующую порцию до 50 000
+            for url in url_batch:
 
-            html_company = self.html_files_directory / \
-                f"{url.split('/')[-1]}.html"
-            # Если файл HTML уже существует, удаляем JSON файл и пропускаем
-            if html_company.exists():
-                logger.warning(
-                    f"Файл {html_company} уже существует, пропускаем.")
-                continue
+                html_company = self.html_files_directory / \
+                    f"{url.split('/')[-1]}.html"
+                # Если файл HTML уже существует, удаляем JSON файл и пропускаем
+                if html_company.exists():
+                    # logger.warning(
+                    #     f"Файл {html_company} уже существует, пропускаем.")
+                    continue
 
-            response = requests.post(
-                url="https://async.scraperapi.com/jobs",
-                json={"apiKey": self.api_key, "url": url},
-                timeout=30,
-            )
-            if response.status_code == 200:
-                response_data = response.json()
-                job_id = response_data.get("id")
-                json_file = self.json_files_directory / f"{job_id}.json"
-                with open(json_file, "w", encoding="utf-8") as file:
-                    json.dump(response_data, file, indent=4)
-                logger.info(
-                    f"Задача отправлена для URL {url}, статус доступен по адресу: {response_data.get('statusUrl')}"
+                response = requests.post(
+                    url="https://async.scraperapi.com/jobs",
+                    json={"apiKey": self.api_key, "url": url},
+                    timeout=30,
                 )
-            else:
-                logger.error(
-                    f"Ошибка при отправке задачи для URL {url}: {response.status_code}"
-                )
+                if response.status_code == 200:
+                    response_data = response.json()
+                    job_id = response_data.get("id")
+                    json_file = self.json_files_directory / f"{job_id}.json"
+                    with open(json_file, "w", encoding="utf-8") as file:
+                        json.dump(response_data, file, indent=4)
+                    logger.info(f"Задача отправлена для URL {url}")
+                    # logger.info(
+                    #     f"Задача отправлена для URL {url}, статус доступен по адресу: {response_data.get('statusUrl')}"
+                    # )
+                else:
+                    logger.error(
+                        f"Ошибка при отправке задачи для URL {url}: {response.status_code}"
+                    )
     # Функция для чтения городов из CSV файла
 
     def read_cities_from_csv(self, input_csv_file):
