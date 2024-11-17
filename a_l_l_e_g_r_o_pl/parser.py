@@ -1,4 +1,5 @@
 import json
+import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -157,29 +158,64 @@ class Parser:
         return price_tag["content"] if price_tag else None
 
     def parse_sales_product(self, soup):
-        """Извлекает количество продаж продукта."""
-        sales_tag = soup.find(string=lambda text: text and "tę ofertę" in text)
-        if sales_tag:
-            sales_text = sales_tag.strip()
-            sales_number = "".join(filter(str.isdigit, sales_text))
-            return int(sales_number) if sales_number else None
-        return None
+        """Извлекает количество продаж из JSON-данных на странице."""
+        script_tags = soup.find_all("script", type="application/json")
+        sales_product = None
+
+        for script_tag in script_tags:
+            try:
+                data = json.loads(script_tag.string)
+                if isinstance(data, dict):
+                    if (
+                        "productPopularityLabel" in data
+                        and "label" in data["productPopularityLabel"]
+                    ):
+                        label_text = data["productPopularityLabel"]["label"]
+                        match = re.search(r"(\d+)", label_text)
+                        if match:
+                            sales_product = int(match.group(1))
+                            break
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        return sales_product
+        # return None
+        # """Извлекает количество продаж продукта."""
+        # sales_tag = soup.find(string=lambda text: text and "tę ofertę" in text)
+        # if sales_tag:
+        #     sales_text = sales_tag.strip()
+        #     sales_number = "".join(filter(str.isdigit, sales_text))
+        #     return int(sales_number) if sales_number else None
+        # return None
 
     def parse_average_rating(self, soup):
-        """Извлекает средний рейтинг продукта."""
-        rating_tag = soup.find(
-            "span", {"aria-label": lambda value: value and value.startswith("ocena:")}
-        )
-        if rating_tag:
-            rating_text = rating_tag.text.strip()
-            return rating_text
-        return None
+        """Извлекает средний рейтинг из JSON-данных на странице."""
+        script_tags = soup.find_all("script", type="application/json")
+        average_rating = None
+
+        for script_tag in script_tags:
+            try:
+                data = json.loads(script_tag.string)
+                if isinstance(data, dict):
+                    if "rating" in data and "ratingValue" in data["rating"]:
+                        average_rating = data["rating"]["ratingValue"]
+                        break
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        return average_rating
+        # """Извлекает средний рейтинг продукта."""
+        # rating_tag = soup.find(
+        #     "span", {"aria-label": lambda value: value and value.startswith("ocena:")}
+        # )
+        # if rating_tag:
+        #     rating_text = rating_tag.text.strip()
+        #     return rating_text
+        # return None
 
     def parse_weight_product(self, soup):
         """Извлекает вес продукта."""
-        weight_tag = soup.find(
-            "td", string=lambda text: text and "Waga produktu" in text
-        )
+        weight_tag = soup.find("td", string=lambda text: text and "Waga" in text)
         if weight_tag:
             weight_value_tag = weight_tag.find_next_sibling("td")
             if weight_value_tag:
