@@ -1,4 +1,5 @@
 import json
+import os
 
 import pandas as pd
 from configuration.logger_setup import logger
@@ -31,6 +32,10 @@ class Writer:
             df = pd.DataFrame(data)
             df.to_excel(self.xlsx_result, index=False)
             logger.info(f"Данные успешно сохранены в Excel файл {self.xlsx_result}")
+            # Удаление файла
+            if os.path.exists(self.xlsx_result):
+                os.remove(self.json_result)
+
         except Exception as e:
             logger.error(
                 f"Ошибка при сохранении данных в Excel файл {self.xlsx_result}: {e}"
