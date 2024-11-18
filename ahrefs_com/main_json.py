@@ -1,66 +1,134 @@
 import json
+import random
+import re
+import time
+from pathlib import Path
 
 import requests
+from configuration.logger_setup import logger
 
-cookies = {
-    "_pk_id.1.a4f6": "a9bdd88fceaff220.1730455246.",
-    "intercom-device-id-dic5omcp": "ceefafba-c961-4d62-a06c-5fdf62d5a407",
-    "kd-e69b6f5b4cc54159": "MctJ%2B9AzpQIC8UgBt3Ub97yQ%2FTLyK7xrUqas4vHl6DyvirTjJyxMFS4q9jU02abzLkTcQ7cnLFfLyu2R9A",
-    "__cflb": "02DiuFMJyRDQ1SqAwiXo5YsPbMTGqHELt7Y7C7rdcpjfz",
-    "__cf_bm": "ZVYBNMO4W0rMOol9HhlEsLie9wv0u3YCgh1HzWTElSE-1731693666-1.0.1.1-1CUJhE_0F2wuuTmz_HTmxEd0SflzeGf6GYBrLfT8ri7zmaJ2VHb8ZCLF1jRqmcfR3osO3jwKza201CTgumljQA",
-    "_pk_ref.1.a4f6": "%5B%22%22%2C%22%22%2C1731693667%2C%22https%3A%2F%2Fahrefs.com%2F%22%5D",
-    "_pk_ses.1.a4f6": "1",
-    "cf_clearance": "AsndzK.Rb0Gi6M0K3FPNiSuX.H93au4ONFTUH5J7iYI-1731693668-1.2.1.1-z5_0nk4fTmeIudf9bk8O_x9KSXmqK4vnghQp_VcyP6nI7Vm8.Y283FmjYKEqOS8HWmKyn49USPMkbKvQTD0QFyK1c_bZHQORCTXZy7VTgRQedlPGpp6AWimMlGYa2GoOtFTI.EDO2zZ8gkg2d850bsyMXi7j4PRHmQX0_sbKtJYTp0.QHpHoQYtX_lMwGpeRG7mUt1519gGJjzHuoyDh7jHdTAEoexHruMwMvd_l9JUADtg88EtIFwpWVKisoI8E_DoSNh0s8a1xVQwyepodK2ks.rolVguqgISZXsZh2g0MDZng3QSJ8EYtqXVyZ0KFJrarBfMZAC2ybxjppwrW4sbxxDmXMAmlNWa9FGnAnXBPBCruqoklbER9hq6Uqr2EmJNFvPOy0pSrojubOc_qqQ",
-    "BSSESSID": "nrHcFUJR13xX4tTRTrpdDI7CKvbOx00KPmxbNmlp",
-    "intercom-session-dic5omcp": "cmlVRGtrNm1WWk1JTnJKWlRzUWIzajhrNE01Zkg0VSs3eEhLMnVSUlNYam5NVzh2Tkd6UGVPMWRpSDdtL2FseC0tV2FmUnFvTUhGWmxRb1l0MGtEOEVUZz09--050f7779752b79baa66b8a81f60172ce255bf198",
-}
+current_directory = Path.cwd()
 
-headers = {
-    "accept": "*/*",
-    "accept-language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-    "priority": "u=1, i",
-    "referer": "https://app.ahrefs.com/v2-site-explorer/overview?backlinksChartMode=metrics&backlinksChartPerformanceSources=domainRating%7C%7CurlRating&backlinksCompetitorsSource=%22UrlRating%22&backlinksRefdomainsSource=%22RefDomainsNew%22&bestFilter=all&brandedTrafficSource=Branded&chartGranularity=daily&chartInterval=halfYear&competitors=&countries=&country=all&dataMode=text&generalChartBrandedTraffic=Branded%7C%7CNon-Branded&generalChartMode=metrics&generalChartPerformanceSources=organicTraffic%7C%7CrefDomains&generalChartTopPosition=top11_20%7C%7Ctop21_50%7C%7Ctop3%7C%7Ctop4_10%7C%7Ctop51&generalCompetitorsSource=%22OrganicTraffic%22&generalCountriesSource=organic-traffic&highlightChanges=3m&keywordsSource=all&mode=subdomains&organicChartBrandedTraffic=Branded%7C%7CNon-Branded&organicChartMode=metrics&organicChartPerformanceSources=organicTraffic&organicChartTopPosition=top11_20%7C%7Ctop21_50%7C%7Ctop3%7C%7Ctop4_10%7C%7Ctop51&organicCompetitorsSource=%22OrganicTraffic%22&organicCountriesSource=organic-traffic&overview_tab=general&paidTrafficSources=cost%7C%7Ctraffic&target=audioboo.fm&topLevelDomainFilter=all&topOrganicKeywordsMode=normal&topOrganicPagesMode=normal&trafficType=organic&volume_type=monthly",
-    "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "traceparent": "00-7ac51ac0c8e2d930029f9b50c693c820-bb2aa41a71c5106b-00",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    "x-client-version": "release-20241115-bk209254-bcc036846e1",
-}
+json_voltage_directory = current_directory / "json_voltage"
+json_node_directory = current_directory / "json_node"
+configuration_directory = current_directory / "configuration"
 
-params = {
-    "input": '{"args":{"competitors":[],"best_links_filter":"showAll","backlinksFilter":null,"compareDate":["Ago","Month3"],"multiTarget":["Single",{"protocol":"both","mode":"subdomains","target":"audioboo.fm/"}],"url":"audioboo.fm/","protocol":"both","mode":"subdomains"}}',
-}
+json_voltage_directory.mkdir(parents=True, exist_ok=True)
+json_node_directory.mkdir(parents=True, exist_ok=True)
+configuration_directory.mkdir(parents=True, exist_ok=True)
+
+all_node_json_file = json_voltage_directory / "all_node.json"
+config_txt_file = configuration_directory / "config.txt"
+result_json_file = current_directory / "all_combined_data.json"
 
 
-response = requests.get(
-    "https://app.ahrefs.com/v4/seGetDomainRating",
-    params=params,
-    cookies=cookies,
-    headers=headers,
-)
-# Проверка кода ответа
-if response.status_code == 200:
-    json_data = response.json()
-    with open("seGetDomainRating.json", "w", encoding="utf-8") as f:
-        json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
-else:
-    print(response.status_code)
+def random_pause(min_seconds=30, max_seconds=60):
+    pause_duration = random.uniform(min_seconds, max_seconds)
+    time.sleep(pause_duration)
+    return pause_duration
 
-response = requests.get(
-    "https://app.ahrefs.com/v4/seBacklinksStats",
-    params=params,
-    cookies=cookies,
-    headers=headers,
-)
 
-# Проверка кода ответа
-if response.status_code == 200:
-    json_data = response.json()
-    with open("seBacklinksStats.json", "w", encoding="utf-8") as f:
-        json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
-else:
-    print(response.status_code)
+def get_cookies():
+    # Чтение строки curl из файла
+    with open(config_txt_file, "r", encoding="utf-8") as f:
+        curl_text = f.read()
+
+    # Инициализация словарей для заголовков и кук
+    headers = {}
+    cookies = {}
+
+    # Извлечение всех заголовков из параметров `-H`
+    header_matches = re.findall(r"-H '([^:]+):\s?([^']+)'", curl_text)
+    for header, value in header_matches:
+        if header.lower() == "cookie":
+            # Обработка куки отдельно, разделяя их по `;`
+            cookies = {
+                k.strip(): v
+                for pair in value.split("; ")
+                if "=" in pair
+                for k, v in [pair.split("=", 1)]
+            }
+        else:
+            headers[header] = value
+
+    return headers, cookies
+
+
+def get_json_site():
+    headers, cookies = get_cookies()
+    site = "aescada.net/"
+    params = {
+        "input": {
+            "args": {
+                "competitors": [],
+                "best_links_filter": "showAll",
+                "backlinksFilter": None,
+                "compareDate": ["Ago", "Month3"],
+                "multiTarget": [
+                    "Single",
+                    {"protocol": "both", "mode": "subdomains", "target": site},
+                ],
+                "url": f"{site}",
+                "protocol": "both",
+                "mode": "subdomains",
+            }
+        }
+    }
+
+    urls = [
+        "https://app.ahrefs.com/v4/seGetDomainRating",
+        "https://app.ahrefs.com/v4/seBacklinksStats",
+        "https://app.ahrefs.com/v4/seGetUrlRating",
+        "https://app.ahrefs.com/v4/seGetMetrics",
+        "https://app.ahrefs.com/v4/seGetMetricsByCountry",
+    ]
+    for url in urls:
+        file_name = url.split("/")[-1]
+        response = requests.get(
+            url,
+            params=params,
+            cookies=cookies,
+            headers=headers,
+        )
+        # Проверка кода ответа
+        if response.status_code == 200:
+            json_data = response.json()
+            with open(f"{file_name}.json", "w", encoding="utf-8") as f:
+                json.dump(
+                    json_data, f, ensure_ascii=False, indent=4
+                )  # Записываем в файл
+        else:
+            print(response.status_code)
+        time.sleep(10)
+
+
+def parsing_json():
+    item = "seGetMetricsByCountry.json"
+    with open(item, "r", encoding="utf-8") as f:
+        json_data = json.load(f)
+    metrics = json_data[1].get("metrics", [])
+    if len(metrics) > 2:
+        country_00 = metrics[0].get("country")
+        traffic_00 = metrics[0].get("organic", {}).get("traffic", {}).get("value")
+        country_01 = metrics[1].get("country")
+        traffic_01 = metrics[1].get("organic", {}).get("traffic", {}).get("value")
+        country_02 = metrics[2].get("country")
+        traffic_02 = metrics[2].get("organic", {}).get("traffic", {}).get("value")
+    else:
+        country_00 = country_01 = country_02 = traffic_00 = traffic_01 = traffic_02 = (
+            None
+        )
+    value = [
+        country_00,
+        traffic_00,
+        country_01,
+        traffic_01,
+        country_02,
+        traffic_02,
+    ]
+    logger.info(value)
+
+
+if __name__ == "__main__":
+    get_json_site()
+    # parsing_json()

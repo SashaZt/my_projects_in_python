@@ -1,9 +1,11 @@
 import asyncio
+import json
+from parser import Parser
+
 import pandas as pd
 import requests
-import json
 from configuration.logger_setup import logger
-from parser import Parser
+
 
 class Downloader:
 
@@ -15,7 +17,7 @@ class Downloader:
         csv_output_file,
         json_files_directory,
         url_start,
-        max_workers
+        max_workers,
     ):
         self.api_key = api_key
         self.json_files_directory = json_files_directory
@@ -24,25 +26,28 @@ class Downloader:
         self.csv_output_file = csv_output_file
         self.url_start = url_start
         self.parser = Parser(
-            html_files_directory, html_page_directory, csv_output_file,max_workers
+            html_files_directory, html_page_directory, csv_output_file, max_workers
         )  # Создаем экземпляр Parser
 
     def get_all_page_html(self):
         # Скачать все страницы пагинации
 
         html_company = self.html_page_directory / "url_start.html"
-        payload = {"api_key": self.api_key, "url": self.url_start}
+        payload = {
+            "api_key": self.api_key,
+            "url": self.url_start,
+            "ultra_premium": "true",
+        }
 
         # Проверяем, существует ли уже файл первой страницы
         if html_company.exists():
-            logger.warning(
-                f"Файл {html_company} уже существует, пропускаем загрузку.")
+            logger.warning(f"Файл {html_company} уже существует, пропускаем загрузку.")
             max_page = (
                 self.parser.parsin_page()
             )  # Получаем max_page из существующего файла
         else:
             # Запрос к API для первой страницы
-            r = requests.get("https://api.scraperapi.com/",params=payload, timeout=60)
+            r = requests.get("https://api.scraperapi.com/", params=payload, timeout=60)
 
             if r.status_code == 200:
                 src = r.text
@@ -62,14 +67,12 @@ class Downloader:
         # Запрашиваем страницы с 2 по max_page, если max_page определен
         if max_page:
             for page in range(2, max_page + 1):
-                html_company = self.html_page_directory / \
-                    f"url_start_{page}.html"
+                html_company = self.html_page_directory / f"url_start_{page}.html"
                 # Обновляем payload для каждой страницы
-                payload = {"api_key": self.api_key,"url": f"{self.url_start}&p={page}"}
+                payload = {"api_key": self.api_key, "url": f"{self.url_start}&p={page}"}
 
                 if html_company.exists():
-                    logger.warning(
-                        f"Файл {html_company} уже существует, пропускаем.")
+                    logger.warning(f"Файл {html_company} уже существует, пропускаем.")
                 else:
                     r = requests.get(
                         "https://api.scraperapi.com/", params=payload, timeout=60
@@ -79,8 +82,7 @@ class Downloader:
                         src = r.text
                         with open(html_company, "w", encoding="utf-8") as file:
                             file.write(src)
-                        logger.info(
-                            f"Сохранена страница {page}: {html_company}")
+                        logger.info(f"Сохранена страница {page}: {html_company}")
                     else:
                         logger.error(
                             f"Ошибка при запросе страницы {
@@ -107,8 +109,7 @@ class Downloader:
                         try:
                             json_file.unlink()
                         except PermissionError as e:
-                            logger.error(
-                                f"Не удалось удалить файл {json_file}: {e}")
+                            logger.error(f"Не удалось удалить файл {json_file}: {e}")
                         continue
 
                     status_url = response_data.get("statusUrl")
@@ -127,11 +128,11 @@ class Downloader:
                                 json_file.unlink()
                             except PermissionError as e:
                                 logger.error(
-                                    f"Не удалось удалить файл {json_file}: {e}")
+                                    f"Не удалось удалить файл {json_file}: {e}"
+                                )
                         else:
                             all_finished = False
-                            logger.info(
-                                f"Статус задачи для {status_url}: {job_status}")
+                            logger.info(f"Статус задачи для {status_url}: {job_status}")
                     else:
                         logger.error(
                             f"Ошибка при получении статуса задачи: {response.status_code}"
@@ -149,11 +150,10 @@ class Downloader:
         batch_size = 40000  # Размер каждой порции URL
         # Разделяем список urls на подсписки по batch_size
         for i in range(0, len(urls), batch_size):
-            url_batch = urls[i:i + batch_size]  # Берем следующую порцию до 50 000
+            url_batch = urls[i : i + batch_size]  # Берем следующую порцию до 50 000
             for url in url_batch:
 
-                html_company = self.html_files_directory / \
-                    f"{url.split('/')[-1]}.html"
+                html_company = self.html_files_directory / f"{url.split('/')[-1]}.html"
                 # Если файл HTML уже существует, удаляем JSON файл и пропускаем
                 if html_company.exists():
                     # logger.warning(
@@ -179,6 +179,7 @@ class Downloader:
                     logger.error(
                         f"Ошибка при отправке задачи для URL {url}: {response.status_code}"
                     )
+
     # Функция для чтения городов из CSV файла
 
     def read_cities_from_csv(self, input_csv_file):
