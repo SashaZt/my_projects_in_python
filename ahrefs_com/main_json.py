@@ -8,6 +8,9 @@ from pathlib import Path
 import pandas as pd
 import requests
 from configuration.logger_setup import logger
+from openpyxl import load_workbook
+from openpyxl.chart import LineChart, Reference, Series
+from openpyxl.chart.axis import ChartLines
 
 current_directory = Path.cwd()
 
@@ -353,7 +356,7 @@ def write_data():
                 getmetricshistory = parsing_json_GetMetricsHistory(
                     json_file
                 )  # Ожидается, что это список словарей
-
+        logger.info(getmetricshistory)
         # Собираем все результаты в один словарь
         all_result = {
             domain: [
@@ -394,6 +397,71 @@ def write_data():
     data_df.to_excel(output_path, index=False)
 
 
+def write_graf():
+    # Открываем существующий Excel файл
+    workbook_path = "All_Result.xlsx"
+    wb = load_workbook(workbook_path)
+    ws = wb.active  # Предполагается, что данные находятся на активном листе
+
+    # Создаем объект графика
+    chart = LineChart()
+    chart.title = "Traffic History"
+    chart.x_axis.title = "Date"
+    chart.y_axis.title = "Traffic"
+
+    # Добавляем сетку для осей X и Y
+    chart.x_axis.majorGridlines = ChartLines()  # Основная сетка для оси X
+    chart.y_axis.majorGridlines = ChartLines()  # Основная сетка для оси Y
+
+    # Определяем диапазоны данных для оси X (даты) и оси Y (трафик)
+    # Даты находятся в колонках Q, S, U, W, Y, AA, а значения трафика — в колонках R, T, V, X, Z, AB
+    date_columns = [17, 19, 21, 23, 25, 27]  # Колонки Q, S, U, W, Y, AA
+    traffic_columns = [18, 20, 22, 24, 26, 28]  # Колонки R, T, V, X, Z, AB
+
+    # Добавляем данные в таблицу Excel в новую область (например, в колонки AF и AG)
+    date_start_col = 32  # Колонка AF
+    traffic_start_col = 33  # Колонка AG
+    start_row = 2
+
+    # Собираем все даты и трафик в последовательные колонки AF и AG
+    for idx, (date_col, traffic_col) in enumerate(zip(date_columns, traffic_columns)):
+        date_value = ws.cell(row=2, column=date_col).value
+        traffic_value = ws.cell(row=2, column=traffic_col).value
+        if date_value and traffic_value is not None:
+            ws.cell(row=start_row + idx, column=date_start_col).value = date_value
+            ws.cell(row=start_row + idx, column=traffic_start_col).value = traffic_value
+
+    # Создаем график с использованием данных из нового диапазона
+    categories = Reference(
+        ws,
+        min_col=date_start_col,
+        min_row=start_row,
+        max_row=start_row + len(date_columns) - 1,
+    )
+    data = Reference(
+        ws,
+        min_col=traffic_start_col,
+        min_row=start_row,
+        max_row=start_row + len(traffic_columns) - 1,
+    )
+
+    # Добавляем данные и категории в график как одну серию
+    chart.add_data(data, titles_from_data=False)
+    chart.set_categories(categories)
+
+    # Добавляем метки значений для оси Y
+    chart.y_axis.crosses = "autoZero"  # Начинаем с нуля
+    chart.y_axis.majorTickMark = "in"  # Основные метки внутри оси
+    chart.x_axis.majorTickMark = "in"  # Основные метки внутри оси
+
+    # Добавляем график на лист, в ячейку AC2
+    ws.add_chart(chart, "AC2")
+
+    # Сохраняем файл
+    wb.save(workbook_path)
+
+
 if __name__ == "__main__":
     # get_json_site_data()
-    write_data()
+    # write_data()
+    write_graf()
