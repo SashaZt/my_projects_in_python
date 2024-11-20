@@ -1,5 +1,4 @@
 import json
-import os
 import random
 import re
 import shutil
@@ -9,34 +8,27 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 import requests
+from configuration.config_utils import (
+    initialize_directories,
+    load_environment_variables,
+)
 from configuration.logger_setup import logger
-from dotenv import load_dotenv
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Reference
 from openpyxl.chart.axis import ChartLines
 
-current_directory = Path.cwd()
+# Инициализация директорий
+base_directory = Path.cwd()
+directories = initialize_directories(base_directory)
 
-json_data_directory = current_directory / "json_data"
-configuration_directory = current_directory / "configuration"
-data_directory = current_directory / "data"
 
-json_data_directory.mkdir(parents=True, exist_ok=True)
-data_directory.mkdir(parents=True, exist_ok=True)
-configuration_directory.mkdir(parents=True, exist_ok=True)
+# Загрузка переменных окружения
+env_file = directories["config_dir"] / ".env"
+env_vars = load_environment_variables(env_file)
 
-csv_output_file = data_directory / "output.csv"
-config_txt_file = configuration_directory / "config.txt"
-traffic_xlsx_file = configuration_directory / "Traffic_History_Charts.xlsx"
-result_xlsx_file = configuration_directory / "All_Result.xlsx"
-env_path = os.path.join(os.getcwd(), "configuration", ".env")
-load_dotenv(env_path)
-# Получаем переменные времени и преобразуем их в int
-time_a_str = os.getenv("TIME_A", "30")  # Значение по умолчанию задается строкой
-time_b_str = os.getenv("TIME_B", "60")  # Значение по умолчанию задается строкой
-
-time_a = int(time_a_str)
-time_b = int(time_b_str)
+time_a = int(env_vars["time_a"])
+time_b = int(env_vars["time_b"])
+limit_site = int(env_vars["site_limit"])
 
 
 def random_pause(min_seconds: int = 30, max_seconds: int = 60) -> int:
@@ -130,15 +122,70 @@ def get_cookies(config_file: str) -> Tuple[Dict[str, str], Dict[str, str]]:
     return headers, cookies
 
 
-# Скачиваем данные по каждому сайту
+# Подсчет количества подпапок в директории
+def count_subdirectories_with_json_files(
+    directory: Path, json_file_count: int = 6
+) -> int:
+    """Подсчитывает количество подпапок, в которых ровно указанное количество файлов .json.
+
+    Args:
+        directory (Path): Путь к директории.
+        json_file_count (int): Ожидаемое количество файлов .json (по умолчанию 6).
+
+    Returns:
+        int: Количество подпапок, удовлетворяющих условию.
+    """
+    count = 0
+    for subdirectory in directory.iterdir():
+        if subdirectory.is_dir():  # Проверяем, что это папка
+            json_files = list(subdirectory.glob("*.json"))
+            if (
+                len(json_files) == json_file_count
+            ):  # Проверяем, что файлов .json ровно json_file_count
+                count += 1
+    return count
+
+
 def get_json_site_data():
-    sites = read_cities_from_csv(csv_output_file)
-    headers, cookies = get_cookies(config_txt_file)
-    for site in sites[:101]:
-        site_directory = json_data_directory / site
-        # Проверка: если директория существует и содержит файлы, пропускаем итерацию
-        if site_directory.exists() and any(site_directory.iterdir()):
-            continue
+    """Скачивает данные по каждому сайту с учетом лимита и текущего прогресса.
+
+    Args:
+        limit_site (int): Лимит на количество сайтов для обработки за один запуск.
+    """
+    # Загружаем список сайтов и общее количество
+    sites = read_cities_from_csv(directories["csv_file"])
+    total_sites = len(sites)
+
+    # Получаем заголовки и куки
+    headers, cookies = get_cookies(directories["config_file"])
+
+    # Подсчитываем количество обработанных папок
+    subdirectory_count = count_subdirectories_with_json_files(
+        directories["json_data_dir"]
+    )
+
+    # Рассчитываем диапазон для обработки
+    start_index = subdirectory_count
+    end_index = min(start_index + limit_site, total_sites)
+    sites_to_process = sites[start_index:end_index]
+
+    logger.info(
+        f"Обрабатываем сайты с {start_index + 1} по {end_index} из {total_sites}"
+    )
+
+    # Обработка выбранных сайтов
+    for site in sites_to_process:
+        site_directory = directories["json_data_dir"] / site
+
+        # Пропускаем сайт, если уже есть 6 файлов .json
+        if site_directory.exists():
+            json_files = list(site_directory.glob("*.json"))
+            if len(json_files) == 6:
+                # logger.info(
+                #     f"Пропускаем {site}, в папке {site_directory} уже 6 файлов."
+                # )
+                continue
+
         logger.info(f"Получаем данные по сайту {site}")
         site_directory.mkdir(parents=True, exist_ok=True)
         params = {
@@ -378,7 +425,7 @@ def write_data():
 
     # Группируем файлы JSON по подкаталогам
     subfolder_files = {}
-    for json_file in json_data_directory.rglob("*.json"):
+    for json_file in directories["json_data_dir"].rglob("*.json"):
         subfolder = json_file.parent
         if subfolder not in subfolder_files:
             subfolder_files[subfolder] = []
@@ -448,7 +495,7 @@ def write_data():
     data_df = pd.DataFrame(flattened_data)
 
     # Сохраняем данные в новый Excel файл
-    data_df.to_excel(result_xlsx_file, index=False)
+    data_df.to_excel(directories["results_report"], index=False)
 
 
 def write_graf(data_list):
@@ -525,7 +572,7 @@ def write_graf(data_list):
         current_row += len(dates) + 10  # Сдвигаемся вниз для следующего домена
 
     # Сохраняем файл
-    wb.save(traffic_xlsx_file)
+    wb.save(directories["traffic_report"])
 
 
 def main_loop():
@@ -546,7 +593,7 @@ def main_loop():
         elif choice == "2":
             write_data()
         elif choice == "3":
-            shutil.rmtree(json_data_directory)
+            shutil.rmtree(directories["json_data_dir"])
         elif choice == "0":
             break
         else:
@@ -555,3 +602,143 @@ def main_loop():
 
 if __name__ == "__main__":
     main_loop()
+
+
+# json_data_directory = current_directory / "json_data"
+# configuration_directory = current_directory / "configuration"
+# data_directory = current_directory / "data"
+
+# json_data_directory.mkdir(parents=True, exist_ok=True)
+# data_directory.mkdir(parents=True, exist_ok=True)
+# configuration_directory.mkdir(parents=True, exist_ok=True)
+
+# csv_output_file = data_directory / "output.csv"
+# config_txt_file = configuration_directory / "config.txt"
+# traffic_xlsx_file = data_directory / "Traffic_History_Charts.xlsx"
+# result_xlsx_file = data_directory / "All_Result.xlsx"
+
+
+# env_path = os.path.join(os.getcwd(), "configuration", ".env")
+# load_dotenv(env_path)
+# # Получаем переменные времени и преобразуем их в int
+# time_a_str = os.getenv("TIME_A", "30")  # Значение по умолчанию задается строкой
+# time_b_str = os.getenv("TIME_B", "60")  # Значение по умолчанию задается строкой
+# limit_str = os.getenv("LIMIT", "100")  # Значение по умолчанию задается строкой
+
+
+# def initialize_directories(base_dir: Path) -> dict:
+#     """Создает необходимые директории и возвращает их пути.
+
+#     Args:
+#         base_dir (Path): Базовая директория проекта.
+
+#     Returns:
+#         dict: Словарь с путями к директориям и файлам.
+#     """
+#     directories = {
+#         "json_data_dir": base_dir / "json_data",
+#         "config_dir": base_dir / "config",
+#         "output_dir": base_dir / "output",
+#     }
+
+#     # Создаем директории
+#     for dir_path in directories.values():
+#         dir_path.mkdir(parents=True, exist_ok=True)
+
+#     # Возвращаем также пути к основным файлам
+#     files = {
+#         "csv_file": directories["output_dir"] / "output.csv",
+#         "config_file": directories["config_dir"] / "config.txt",
+#         "traffic_report": directories["output_dir"] / "Traffic_History_Charts.xlsx",
+#         "results_report": directories["output_dir"] / "All_Result.xlsx",
+#     }
+
+#     return {**directories, **files}
+
+
+# def load_environment_variables(env_file: Path) -> dict:
+#     """Загружает переменные окружения из указанного файла.
+
+#     Args:
+#         env_file (Path): Путь к файлу .env.
+
+#     Returns:
+#         dict: Словарь с переменными окружения.
+#     """
+#     load_dotenv(env_file)
+
+#     try:
+#         return {
+#             "time_a": int(os.getenv("TIME_A", "30")),
+#             "time_b": int(os.getenv("TIME_B", "60")),
+#             "site_limit": int(os.getenv("LIMIT", "100")),
+#         }
+#     except ValueError as e:
+#         raise ValueError(
+#             "Некорректные значения в файле .env. Ожидались целые числа."
+#         ) from e
+
+
+# # Инициализация директорий и загрузка переменных
+# base_directory = Path.cwd()
+# directories = initialize_directories(base_directory)
+# env_vars = load_environment_variables(directories["config_dir"] / ".env")
+
+
+# Скачиваем данные по каждому сайту РАБОЧИЙ КОД
+# def get_json_site_data():
+#     sites = read_cities_from_csv(csv_output_file)
+#     total_sites = len(sites)
+#     headers, cookies = get_cookies(config_txt_file)
+#     subdirectory_count = count_subdirectories_with_json_files(json_data_directory)
+#     for site in sites:
+#         site_directory = json_data_directory / site
+#         # Проверка: если директория существует и содержит файлы, пропускаем итерацию
+#         if site_directory.exists():
+#             # Подсчитываем количество файлов с расширением .json в папке
+#             json_files = list(site_directory.glob("*.json"))
+#             if len(json_files) == 6:
+#                 # logger.info(f"Пропускаем {site}, в папке {site_directory} уже 6 файлов.")
+#                 continue
+
+#         logger.info(f"Получаем данные по сайту {site}")
+#         site_directory.mkdir(parents=True, exist_ok=True)
+
+#         params = {
+#             "input": '{"args":{"competitors":[],"best_links_filter":"showAll","backlinksFilter":null,"compareDate":["Ago","Month3"],"multiTarget":["Single",{"protocol":"both","mode":"subdomains","target":"example.com/"}],"url":"example.com/","protocol":"both","mode":"subdomains"}}',
+#         }
+
+#         # Заменяем все вхождения 'aescada.net' на значение переменной `site`
+#         params["input"] = params["input"].replace("example.com", site)
+
+#         urls = [
+#             "https://app.ahrefs.com/v4/seGetDomainRating",
+#             "https://app.ahrefs.com/v4/seBacklinksStats",
+#             "https://app.ahrefs.com/v4/seGetUrlRating",
+#             "https://app.ahrefs.com/v4/seGetMetrics",
+#             "https://app.ahrefs.com/v4/seGetMetricsByCountry",
+#         ]
+#         for url in urls:
+#             file_name = url.rsplit("/", maxsplit=1)[-1]
+
+#             json_path = site_directory / f"{file_name}.json"
+#             if json_path.exists():
+#                 continue
+#             response = requests.get(
+#                 url,
+#                 params=params,
+#                 cookies=cookies,
+#                 headers=headers,
+#                 timeout=60,
+#             )
+#             # Проверка кода ответа
+#             if response.status_code == 200:
+#                 json_data = response.json()
+#                 with open(json_path, "w", encoding="utf-8") as f:
+#                     json.dump(json_data, f, ensure_ascii=False, indent=4)
+#                 logger.info(f"Файл сохранен {json_path}")
+#             else:
+#                 logger.error(f"Ошибка {response.status_code} для {file_name}")
+#             pause = random_pause(time_a, time_b)  # Пауза в диапазоне 5-10 секунд
+#         get_json_graf(site, site_directory, cookies, headers)
+#         pause = random_pause(time_a, time_b)  # Пауза в диапазоне 5-10 секунд
