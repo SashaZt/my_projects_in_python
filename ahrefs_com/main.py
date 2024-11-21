@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pandas as pd
+import pycountry
 import requests
 from configuration.config_utils import (
     initialize_directories,
@@ -341,7 +342,9 @@ def parsing_json_GetMetricsByCountry(item):
         # Значения по умолчанию, если данных по странам недостаточно
         country_00 = country_01 = country_02 = None
         traffic_00 = traffic_01 = traffic_02 = 0
-
+    country_00 = pycountry.countries.get(alpha_2=country_00.upper()).name
+    country_01 = pycountry.countries.get(alpha_2=country_01.upper()).name
+    country_02 = pycountry.countries.get(alpha_2=country_02.upper()).name
     # Считаем общий трафик
     total_traffic = traffic_00 + traffic_01 + traffic_02
 
@@ -358,20 +361,32 @@ def parsing_json_GetMetricsByCountry(item):
         traffic_share_01 = f"{traffic_share_01}%"
     if traffic_share_02 > 0:
         traffic_share_02 = f"{traffic_share_02}%"
-    # Формируем итоговый словарь с результатами
-    all_data = {
-        "country_00": country_00,
-        "traffic_00": traffic_00,
-        "traffic_share_00": traffic_share_00,
-        "country_01": country_01,
-        "traffic_01": traffic_01,
-        "traffic_share_01": traffic_share_01,
-        "country_02": country_02,
-        "traffic_02": traffic_02,
-        "traffic_share_02": traffic_share_02,
-    }
+    if int(traffic_00) == 0:
+        # Формируем итоговый словарь с результатами
+        all_data = {
+            "country_00": None,
+            "traffic_share_00": None,
+            "country_01": None,
+            "traffic_share_01": None,
+            "country_02": None,
+            "traffic_share_02": None,
+        }
 
-    return all_data
+    else:
+        # Формируем итоговый словарь с результатами
+        all_data = {
+            "country_00": country_00,
+            # "traffic_00": traffic_00,
+            "traffic_share_00": traffic_share_00,
+            "country_01": country_01,
+            # "traffic_01": traffic_01,
+            "traffic_share_01": traffic_share_01,
+            "country_02": country_02,
+            # "traffic_02": traffic_02,
+            "traffic_share_02": traffic_share_02,
+        }
+
+        return all_data
 
 
 def parsing_json_GetMetricsHistory(item):
