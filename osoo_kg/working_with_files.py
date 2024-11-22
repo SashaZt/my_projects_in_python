@@ -114,8 +114,7 @@ class Working_with_files:
             # Перезаписываем файл output_csv_file
             df_products.to_csv(self.output_csv_file, index=False)
             logger.info(
-                f"Удалено {initial_count -
-                           final_count} записей из {self.output_csv_file.name}."
+                f"Удалено {initial_count - final_count} записей из {self.output_csv_file.name}."
             )
 
             # Очищаем файл csv_file_successful

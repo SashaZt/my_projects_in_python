@@ -39,7 +39,7 @@ headers = {
 
 
 while True:
-    max_workers = 2
+    max_workers = 10
     base_url = "https://www.ua-region.com.ua"
     url_sitemap = "https://www.osoo.kg/sitemap.xml"
 
@@ -110,7 +110,8 @@ while True:
     elif user_input == 4:
         processor = Parsing(html_files_directory, xlsx_result, max_workers)
         all_results = processor.parsing_html()
-        processor.save_results_to_json(all_results)
+        # processor.save_results_to_json(all_results)
+        processor.write_to_excel(all_results)
 
     elif user_input == 0:
         print("Программа завершена.")

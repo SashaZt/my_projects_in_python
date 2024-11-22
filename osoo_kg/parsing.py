@@ -89,37 +89,56 @@ class Parsing:
     #     return company_data
 
     def parse_single_html(self, file_html):
-        # logger.info(file_html)
+        # Открытие и чтение HTML-файла
         with open(file_html, encoding="utf-8") as file:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
-        company_data = {}
 
-        # Извлечение заголовка и юридического адреса
-        page_title_raw = soup.select_one("#main > div:nth-child(1) > div > h1")
-        page_title = page_title_raw.get_text(strip=True) if page_title_raw else None
-        containers = soup.select(
-            ".px-md-4.pb-md-4.info_block.rounded.border.mt-3 > div.row > div.col-md-8 > div, "
-            ".company-sidebar.p-3.p-md-4.mb-3.border"
-        )
+        # Инициализация словаря для данных
+        data = {}
 
-        for container in containers:
-            company_data.update(self.extract_company_data(container))
-        # Извлечение кодов КВЕД
-        kved_elements = soup.select('a[href^="/kved/"]')
-        kved_list = [element["href"].split("/kved/")[1] for element in kved_elements]
-        kved_string = ",".join(kved_list)
+        # Извлечение данных из "Таблица 1"
+        table_01 = soup.find("div", {"id": "profile-overview"})
+        if table_01:
+            data["Название"] = table_01.find("h2").text.strip()
 
-        # Добавляем в словарь полученные данные
-        company_data["kved"] = kved_string
-        company_data["page_title"] = page_title
-        # company_data["legal_address"] = legal_address
+            # Извлечение списка данных
+            items = table_01.find_all("li")
+            additional_info_counter = 1
+            for item in items:
+                text = item.text.strip()
+                if text.startswith("Статус:"):
+                    data["Статус"] = text.replace("Статус:", "").strip()
+                elif text.startswith("ИНН:"):
+                    data["ИНН"] = text.replace("ИНН:", "").strip()
+                elif text.startswith("Директор:"):
+                    data["Директор"] = text.replace("Директор:", "").strip()
+                elif "Последнее обновление на сайте:" in text:
+                    data["Последнее обновление"] = text.replace(
+                        "Последнее обновление на сайте:", ""
+                    ).strip()
+                else:
+                    # Каждую строку "Дополнительной информации" добавляем в словарь с уникальным ключом
+                    key = f"Дополнительная информация {additional_info_counter}"
+                    data[key] = text
+                    additional_info_counter += 1
 
-        # Очистка текста
-        cleaned_data = {
-            key: self.clean_text(value) for key, value in company_data.items()
-        }
-        return cleaned_data
+        # Извлечение данных из "Таблица 2"
+        table_02 = soup.find("table", {"class": "table table-striped"})
+        if table_02:
+            table_rows = table_02.find_all("tr")
+            for row in table_rows:
+                cells = row.find_all("td")
+                if len(cells) == 2:
+                    key = cells[0].text.strip()
+                    value = cells[1].text.strip()
+                    # Удаление ненужных ссылок из таблицы (например, "Авторизуйтесь для просмотра")
+                    if "<a" in value:
+                        value = BeautifulSoup(value, "lxml").text.strip()
+                    # Убираем лишние пробелы и переносы строк
+                    value = " ".join(value.split())
+                    data[key] = value if value else "-"
+        return data
 
     def parsing_html(self):
         all_files = self.list_html()
@@ -247,8 +266,5 @@ class Parsing:
                 json.dump(all_results, json_file, ensure_ascii=False, indent=4)
             logger.info(f"Данные успешно сохранены в файл {json_result}")
         except Exception as e:
-            logger.error(
-                f"Ошибка при сохранении данных в файл {
-                         json_result}: {e}"
-            )
+            logger.error(f"Ошибка при сохранении данных в файл {json_result}: {e}")
             raise

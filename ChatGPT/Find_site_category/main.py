@@ -4,18 +4,14 @@ import time
 from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
 from openai import OpenAI
 from playwright.sync_api import sync_playwright
 
-# Замените на ваш ключ API OpenAI
-# os.environ["OPENAI_API_KEY"] = "YOUR_API_KEY"
-
-# Инициализация клиента
-
 # Инициализация клиента OpenAI
-
-
-# Инициализация клиента OpenAI
+env_path = os.path.join(os.getcwd(), "configuration", ".env")
+load_dotenv(env_path)
+api_key = os.getenv("API_KEY")
 client = OpenAI(api_key=api_key)
 
 
