@@ -497,9 +497,14 @@ def pr_xml():
 
 def url_test():
 
-    url = "https://www.procore.com/network/p/slidelya-sheridan"
-    file_name = url.rsplit("/", maxsplit=1)[-1]
-    print(file_name)
+    url = "https://zorra.bidsandtenders.ca/Module/Tenders/en/Tender/Detail/f773b8fe-1006-410e-aaf3-efb1aa377cea"
+    # Извлекаем 'zorra' (домен третьего уровня)
+    domain = url.split("//")[1].split(".")[0]
+
+    # Извлекаем 'f773b8fe-1006-410e-aaf3-efb1aa377cea' (последний элемент после '/')
+    file_id = url.rsplit("/", maxsplit=1)[-1]
+    print(domain)
+    print(file_id)
 
 
 def split_address_usaddress(address):
@@ -526,20 +531,132 @@ def split_address_usaddress(address):
         return None
 
 
+def format_proxies(proxy_list):
+    """
+    Преобразует список прокси в формат http://логин:пароль@IP:порт.
+
+    :param proxy_list: список прокси в формате IP:port:username:password
+    :return: список прокси в формате http://username:password@IP:port
+    """
+    formatted_list = [
+        f"http://{proxy.split(':')[2]}:{proxy.split(':')[3]}@{proxy.split(':')[0]}:{proxy.split(':')[1]}"
+        for proxy in proxy_list
+    ]
+    return formatted_list
+
+
 if __name__ == "__main__":
-    # Пример использования функции
-    address = "22 - Bertram Industrial Parkway, Midhurst, ON"
-    split_result = split_address_usaddress(address)
-    number = split_result["number"]
-    street = split_result["street"]
-    city = split_result["city"]
-    state = split_result["state"]
-    
-    if split_result:
-        print()
-    else:
-        print(f"Не удалось распарсить адрес: {address}")
-    # url_test()
+
+    # # Пример использования
+    # proxies = [
+    #     "178.253.26.108:46342:BGIG0AAX:8D3PG3F3",
+    #     "178.253.26.123:46372:BGIG0AAX:8D3PG3F3",
+    #     "178.253.26.133:46392:BGIG0AAX:8D3PG3F3",
+    #     "178.253.26.160:46446:BGIG0AAX:8D3PG3F3",
+    #     "178.253.26.240:46606:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.117:46866:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.131:46894:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.153:46938:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.155:46942:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.159:46950:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.189:47010:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.237:47106:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.33:46698:BGIG0AAX:8D3PG3F3",
+    #     "178.253.27.79:46790:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.102:45198:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.125:45244:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.14:45022:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.168:45454:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.205:45528:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.207:45532:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.23:45040:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.248:45614:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.3:45000:BGIG0AAX:8D3PG3F3",
+    #     "185.252.162.39:45072:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.11:45646:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.14:45652:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.143:45910:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.149:45922:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.207:46038:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.222:46068:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.226:46076:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.227:46078:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.231:46086:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.249:46122:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.30:45684:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.57:45738:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.63:45750:BGIG0AAX:8D3PG3F3",
+    #     "185.252.163.65:45754:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.112:49024:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.115:49030:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.140:49080:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.142:49084:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.16:48832:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.168:51203:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.179:51236:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.192:51275:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.196:51287:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.212:51335:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.223:51368:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.226:51377:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.241:51422:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.253:51458:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.30:48860:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.6:48812:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.89:48978:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.91:48982:BGIG0AAX:8D3PG3F3",
+    #     "31.57.148.95:48990:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.108:51782:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.123:51827:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.127:51839:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.147:51899:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.156:51926:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.157:51929:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.178:51992:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.185:52013:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.216:52106:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.228:52142:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.230:52148:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.234:52160:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.248:52202:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.5:51473:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.63:51647:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.76:51686:BGIG0AAX:8D3PG3F3",
+    #     "31.57.149.87:51719:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.102:53843:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.158:54011:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.16:53585:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.164:54029:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.192:54113:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.229:54224:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.232:54233:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.235:54242:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.241:54260:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.242:54263:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.43:53666:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.57:53708:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.6:53555:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.66:53735:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.67:53738:BGIG0AAX:8D3PG3F3",
+    #     "37.202.214.79:53774:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.103:54605:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.129:54683:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.138:54710:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.14:54338:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.178:54830:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.192:54872:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.232:54992:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.29:54383:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.40:54416:BGIG0AAX:8D3PG3F3",
+    #     "37.202.215.79:54533:BGIG0AAX:8D3PG3F3",
+    #     # Добавьте остальные прокси сюда
+    # ]
+
+    # # Преобразуем и выводим результат
+    # formatted_proxies = format_proxies(proxies)
+    # for proxy in formatted_proxies:
+    #     print(proxy)
+    url_test()
     # get_html()
     # download_pdf()
     # parsing_page()
