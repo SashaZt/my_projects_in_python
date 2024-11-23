@@ -11,6 +11,7 @@ import aiohttp
 import pandas as pd
 import requests
 import urllib3
+import usaddress
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 from requests.adapters import HTTPAdapter
@@ -495,13 +496,50 @@ def pr_xml():
 
 
 def url_test():
+
     url = "https://www.procore.com/network/p/slidelya-sheridan"
     file_name = url.rsplit("/", maxsplit=1)[-1]
     print(file_name)
 
 
+def split_address_usaddress(address):
+    try:
+        # Разбираем адрес с помощью usaddress
+        parsed_address, address_type = usaddress.tag(address)
+
+        # Определяем компоненты адреса
+        number = parsed_address.get("AddressNumber", "")
+        street = " ".join(
+            [
+                parsed_address.get("StreetNamePreDirectional", ""),
+                parsed_address.get("StreetName", ""),
+                parsed_address.get("StreetNamePostType", ""),
+            ]
+        ).strip()
+        city = parsed_address.get("PlaceName", "")
+        state = parsed_address.get("StateName", "")
+
+        # Возвращаем разделенный адрес как словарь
+        return {"number": number, "street": street, "city": city, "state": state}
+    except usaddress.RepeatedLabelError as e:
+        print(f"Ошибка разбора адреса: {address}")
+        return None
+
+
 if __name__ == "__main__":
-    url_test()
+    # Пример использования функции
+    address = "22 - Bertram Industrial Parkway, Midhurst, ON"
+    split_result = split_address_usaddress(address)
+    number = split_result["number"]
+    street = split_result["street"]
+    city = split_result["city"]
+    state = split_result["state"]
+    
+    if split_result:
+        print()
+    else:
+        print(f"Не удалось распарсить адрес: {address}")
+    # url_test()
     # get_html()
     # download_pdf()
     # parsing_page()

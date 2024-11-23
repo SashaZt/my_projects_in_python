@@ -5,6 +5,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import pandas as pd
+import phonenumbers
+import usaddress
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 from tqdm import tqdm
@@ -42,8 +44,9 @@ class Parsing:
         )
         for tag in phone_tags:
             phone_text = tag.get_text(strip=True)
-            if re.search(r"[+\d]", phone_text):
-                return phone_text
+            if re.search(r"^[+\d\s-]+$", phone_text):
+                phone = self.normalize_phone_number(phone_text)
+                return phone
         return None
 
     def extract_name_company(self, soup):
@@ -62,14 +65,20 @@ class Parsing:
         company_size_tag = soup.find(
             "p", {"data-test-id": "business-profile-nav-about-company-size"}
         )
-        return company_size_tag.get_text(strip=True) if company_size_tag else None
+        return (
+            company_size_tag.get_text(strip=True).replace("Company Size: ", "")
+            if company_size_tag
+            else None
+        )
 
     def extract_average_contract_size(self, soup):
         average_contract_size_tag = soup.find(
             "p", {"data-test-id": "business-profile-nav-about-avg-contract-size"}
         )
         return (
-            average_contract_size_tag.get_text(strip=True)
+            average_contract_size_tag.get_text(strip=True).replace(
+                "Average Contract Size: ", ""
+            )
             if average_contract_size_tag
             else None
         )
@@ -105,6 +114,65 @@ class Parsing:
     def get_file_name(self, file_path):
         return Path(file_path).stem
 
+    def normalize_phone_number(self, phone_number):
+        try:
+            # Парсим номер телефона
+            parsed_number = phonenumbers.parse(phone_number, "US")
+
+            # Приводим номер к международному формату (E.164)
+            formatted_number = phonenumbers.format_number(
+                parsed_number, phonenumbers.PhoneNumberFormat.E164
+            )
+
+            return formatted_number
+        except phonenumbers.NumberParseException:
+            # Обработка ошибок, если номер не удается распарсить
+            return None
+
+    def clean_address(self, address):
+        # Убираем лишние слова, которые могут вызывать ошибку
+        parts = address.split(",")
+        unique_parts = []
+        seen = set()
+
+        for part in parts:
+            cleaned_part = part.strip().lower()
+            if cleaned_part not in seen and not re.search(
+                r"\d{5}(?:-\d{4})?$", cleaned_part
+            ):
+                seen.add(cleaned_part)
+                unique_parts.append(part.strip())
+
+        return ", ".join(unique_parts)
+
+    def split_address_usaddress(self, address):
+        try:
+            # Очищаем адрес перед разбором
+            cleaned_address = self.clean_address(address)
+
+            # Разбираем адрес с помощью usaddress
+            parsed_address, address_type = usaddress.tag(cleaned_address)
+
+            # Определяем компоненты адреса
+            number = parsed_address.get("AddressNumber", "")
+            street = " ".join(
+                [
+                    parsed_address.get("StreetNamePreDirectional", ""),
+                    parsed_address.get("StreetName", ""),
+                    parsed_address.get("StreetNamePostType", ""),
+                    parsed_address.get("OccupancyType", ""),
+                    parsed_address.get("OccupancyIdentifier", ""),
+                ]
+            ).strip()
+            city = parsed_address.get("PlaceName", "")
+            state = parsed_address.get("StateName", "")
+
+            # Возвращаем разделенный адрес как словарь
+            return {"number": number, "street": street, "city": city, "state": state}
+        except usaddress.RepeatedLabelError as e:
+            logger.error(f"Ошибка разбора адреса: {address}")
+            return None
+
     def parse_single_html(self, file_html):
         file_name_json = self.get_file_name(file_html)
         # Открытие и чтение HTML-файла
@@ -131,12 +199,21 @@ class Parsing:
         trades_and_services = self.extract_trades_and_services(soup)
         web_site_company = self.extract_web_site_company(soup)
         service_areas = self.extract_service_areas(soup)
-
+        split_address = (
+            self.split_address_usaddress(adress_company) if adress_company else None
+        )
+        number = split_address["number"] if split_address else None
+        street = split_address["street"] if split_address else None
+        city = split_address["city"] if split_address else None
+        state = split_address["state"] if split_address else None
         # Собираем все данные в словарь
         company_data = {
             "phone_company": phone_company,
             "name_company": name_company,
-            "adress_company": adress_company,
+            "address_number": number,
+            "address_street": street,
+            "address_city": city,
+            "address_state": state,
             "company_size": company_size,
             "average_contract_size": average_contract_size,
             "company_types": company_types,
