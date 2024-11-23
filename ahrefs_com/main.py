@@ -375,15 +375,15 @@ def parsing_json_GetMetricsByCountry(item):
     else:
         # Формируем итоговый словарь с результатами
         all_data = {
-            "country_00": country_00,
+            "country_00": f"{country_00}    {traffic_share_00}",
             # "traffic_00": traffic_00,
-            "traffic_share_00": traffic_share_00,
-            "country_01": country_01,
+            # "traffic_share_00": traffic_share_00,
+            "country_01": f"{country_01}    {traffic_share_01}",
             # "traffic_01": traffic_01,
-            "traffic_share_01": traffic_share_01,
-            "country_02": country_02,
+            # "traffic_share_01": traffic_share_01,
+            "country_02": f"{country_02}    {traffic_share_02}",
             # "traffic_02": traffic_02,
-            "traffic_share_02": traffic_share_02,
+            # "traffic_share_02": traffic_share_02,
         }
 
         return all_data

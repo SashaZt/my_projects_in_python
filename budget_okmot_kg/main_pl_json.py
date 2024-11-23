@@ -1,7 +1,6 @@
 import asyncio
 import json
 import random
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import aiofiles
@@ -79,7 +78,7 @@ class WebScraper:
                 )
 
                 logger.info(f"Переход на страницу: {self.url}")
-                await page.goto(self.url, timeout=60000, wait_until="networkidle")
+                await page.goto(self.url, timeout=100000, wait_until="networkidle")
 
                 logger.info("Закрытие контекста и браузера...")
                 await context.close()

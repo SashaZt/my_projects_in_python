@@ -1,4 +1,6 @@
+import asyncio
 import re
+import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -6,6 +8,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
+from playwright.async_api import async_playwright
 
 # Путь к папкам
 current_directory = Path.cwd()
@@ -135,11 +138,11 @@ def save_page(url, headers, cookies, page_html_file):
         file.write(src)
 
 
-def main():
-    categories = read_cities_from_csv(output_csv_file)
+# def main():
+#     categories = read_cities_from_csv(output_csv_file)
 
-    for category_url in categories[:2]:
-        scrape_category(category_url)
+#     for category_url in categories[:2]:
+#         scrape_category(category_url)
 
 
 def parsing_product():
@@ -211,7 +214,7 @@ def parsing_product():
             value = cells[1].text.strip()  # Текст из второй ячейки
             table_data[key] = value
         # Ищем все элементы с классом "_referenceRow_1s9a0_47"
-    reference_rows = soup.find_all("div", class_="_referenceRow_1s9a0_47")
+    # reference_rows = soup.find_all("div", class_="_referenceRow_1s9a0_47")
     reference_rows = soup.find_all("div", {"class": "_referenceRow_1s9a0_47"})
 
     # Создаем словарь для хранения результатов
@@ -219,6 +222,7 @@ def parsing_product():
 
     # Проходим по каждому элементу и извлекаем данные
     for row in reference_rows:
+
         code = row.find(
             "div", class_="_code_1s9a0_56"
         ).text.strip()  # Код (например, A0001)
@@ -229,7 +233,86 @@ def parsing_product():
     logger.info(references_dict)
 
 
+# # Функция для получения контента сайта и сохранения в HTML и TXT
+# async def main():
+#     url = "https://as-pl.com/ru/p/A0001"
+#     website_name = url.rsplit("/", maxsplit=1)[-1]
+#     logger.info(website_name)
+#     async with async_playwright() as p:
+#         browser = await p.chromium.launch(headless=False)
+#         page = await browser.new_page()
+#         try:
+#             page.goto(
+#                 url, timeout=10000, wait_until="networkidle"
+#             )  # Устанавливаем таймаут на 10 секунд
+#             time.sleep(2)
+#             # Проверяем, если загрузился тег body, переходим дальше
+#             if page.locator("body").is_visible():
+#                 pass
+
+#             # Получаем HTML контент страницы
+#             html_content = page.content()
+
+#             # Сохраняем HTML в файл
+#             website_name = url.rsplit("/", maxsplit=1)[-1]
+
+#             html_filename = f"{website_name}.html"
+#             with open(file_path, "w", encoding="utf-8") as html_file:
+#                 html_file.write(html_content)
+
+#             browser.close()
+#         except Exception as e:
+#             print(f"Ошибка при обработке сайта {url}: {e}")
+#             browser.close()
+
+
+async def extract_data_hrefs_and_texts(page):
+    data_hrefs = {}
+    usage_elements = await page.query_selector_all(".usage-el")
+    for element in usage_elements:
+        data_href = await element.get_attribute("data-href")
+        data_href = f"https://as-pl.com{data_href}"
+
+        text = (await element.inner_text()).strip()
+        data_hrefs[text] = data_href
+    return data_hrefs
+
+
+# Асинхронная функция для сохранения HTML контента в файл
+async def save_html_to_file(page, filename):
+    content = await page.content()
+    with open(filename, "w", encoding="utf-8") as file:
+        file.write(content)
+
+
+# Асинхронный запуск Playwright
+async def main():
+    url = "https://as-pl.com/ru/p/A0001"
+    website_name = url.rsplit("/", maxsplit=1)[-1]
+    html_product_directory = html_files_directory / website_name
+    html_product_directory.mkdir(parents=True, exist_ok=True)
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False)
+        page = await browser.new_page()
+        output_html_file = html_product_directory / f"{website_name}.html"
+        if output_html_file.exists():
+            pass
+        await page.goto(url, timeout=10000, wait_until="networkidle")
+
+        await save_html_to_file(page, output_html_file)
+        # Извлекаем данные
+        data_hrefs_and_texts = await extract_data_hrefs_and_texts(page)
+        # Переходим на каждую страницу и сохраняем контент в HTML файл
+        for text, data_href in data_hrefs_and_texts.items():
+            await page.goto(data_href)
+            output_html_file = html_product_directory / f"{text}.html"
+
+            await save_html_to_file(page, output_html_file)
+
+
 if __name__ == "__main__":
     # main()
     # get_all_pages()
-    parsing_product()
+    # parsing_product()
+    # get_website_content()
+    asyncio.run(main())

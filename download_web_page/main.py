@@ -1,21 +1,21 @@
-import requests
-import json
-import aiohttp
 import asyncio
+import json
+import os
+import random
 import re
+import ssl
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import aiohttp
+import pandas as pd
 import requests
 import urllib3
-import ssl
-from requests.adapters import HTTPAdapter
-from urllib3.poolmanager import PoolManager
-from configuration.logger_setup import logger
-import random
 from bs4 import BeautifulSoup
-import pandas as pd
-from pathlib import Path
-import xml.etree.ElementTree as ET
-import os
+from configuration.logger_setup import logger
+from requests.adapters import HTTPAdapter
 from tqdm import tqdm
+from urllib3.poolmanager import PoolManager
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -494,7 +494,14 @@ def pr_xml():
     url_data.to_csv("urls.csv", index=False)
 
 
+def url_test():
+    url = "https://www.procore.com/network/p/slidelya-sheridan"
+    file_name = url.rsplit("/", maxsplit=1)[-1]
+    print(file_name)
+
+
 if __name__ == "__main__":
+    url_test()
     # get_html()
     # download_pdf()
     # parsing_page()
@@ -505,8 +512,8 @@ if __name__ == "__main__":
     # Запуск функции для обхода директории
 
     # get_json()
-    download_xml()
+    # download_xml()
     # pr_xml()
-    parsing_xml()
+    # parsing_xml()
     # fetch_and_save()
     # parsing_csv()
