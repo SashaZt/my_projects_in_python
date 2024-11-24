@@ -610,7 +610,7 @@ def write_data():
             # Добавляем итоговую строку в список flattened_data
             flattened_data.append(domain_data)
     write_graf(flattened_data)
-
+    logger.info(flattened_data)
     # Создаем DataFrame из подготовленных данных
     data_df = pd.DataFrame(flattened_data)
 

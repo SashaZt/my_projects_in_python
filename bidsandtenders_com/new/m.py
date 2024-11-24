@@ -85,7 +85,7 @@ def parse_data_from_script(file_html):
     soup = BeautifulSoup(src, "lxml")
 
     # Поиск тега <script> с требуемыми данными
-    script_tag = soup.find("script", text=re.compile("Ext\.net\.ResourceMgr\.init"))
+    script_tag = soup.find("script", string=re.compile(r"ResourceMgr"))
     if not script_tag:
         return None
 
@@ -302,18 +302,130 @@ def extract_bid_info(json_file_path):
     return bid_info
 
 
+def parse_data_from_json(file_html):
+    # Открытие и чтение HTML-файла
+    with open(file_html, encoding="utf-8") as file:
+        src = file.read()
+    soup = BeautifulSoup(src, "lxml")
+
+    # Поиск тега <script> с требуемыми данными
+    script_tag = soup.find("script", string=re.compile(r"ResourceMgr"))
+    if not script_tag:
+        return None
+
+    script_content = script_tag.string
+
+    # Удаление ненужных частей строк, включая поле SubmissionName
+    script_content = re.sub(r',"SubmissionName":".*?"', "", script_content)
+
+    # Словарь для хранения данных
+    result_data = {"Awarded": [], "Submitted": [], "PlanTakers": []}
+
+    # Разделение контента на логические части по ключевым словам
+    sections = {
+        "Awarded": re.search(r'"Awarded":(\[.*?\])', script_content, re.DOTALL),
+        "Submitted": re.search(r'"Submitted":(\[.*?\])', script_content, re.DOTALL),
+        "PlanTakers": re.search(r'"PlanTakers":(\[.*?\])', script_content, re.DOTALL),
+    }
+
+    for section, match in sections.items():
+        if match:
+            section_content = match.group(1)  # Извлечение содержимого списка
+
+            # Использование регулярных выражений для парсинга данных из этой секции
+            if section == "Awarded" or section == "PlanTakers":
+                pattern = re.compile(
+                    r'"CompanyName":"(.*?)","PrimaryContact":"(.*?)","Email":"(.*?)","Country":"(.*?)","ProvinceState":"(.*?)","Address1":"(.*?)","City":"(.*?)","PostalCode":"(.*?)"'
+                )
+            elif section == "Submitted":
+                pattern = re.compile(
+                    r'"CompanyName":"(.*?)","PrimaryContact":"(.*?)","Email":"(.*?)","Country":"(.*?)","ProvinceState":"(.*?)","Address1":"(.*?)","City":"(.*?)","PostalCode":"(.*?)","VerifiedValue":"(.*?)"'
+                )
+
+            # Использование finditer вместо findall для эффективного поиска
+            matches = pattern.finditer(section_content)
+            seen_entries = set()
+
+            for match in matches:
+                if section == "Submitted":
+                    (
+                        company_name,
+                        contact,
+                        email,
+                        country,
+                        province,
+                        address,
+                        city,
+                        postal_code,
+                        verified_value,
+                    ) = match.groups()
+                    entry = (
+                        company_name,
+                        contact,
+                        email,
+                        country,
+                        province,
+                        address,
+                        city,
+                        postal_code,
+                        verified_value,
+                    )
+                else:
+                    (
+                        company_name,
+                        contact,
+                        email,
+                        country,
+                        province,
+                        address,
+                        city,
+                        postal_code,
+                    ) = match.groups()
+                    entry = (
+                        company_name,
+                        contact,
+                        email,
+                        country,
+                        province,
+                        address,
+                        city,
+                        postal_code,
+                    )
+
+                if entry not in seen_entries:
+                    seen_entries.add(entry)
+                    entry_data = {
+                        "CompanyName": company_name,
+                        "PrimaryContact": contact,
+                        "Email": email,
+                        "Country": country,
+                        "ProvinceState": province,
+                        "Address1": address,
+                        "City": city,
+                        "PostalCode": postal_code,
+                    }
+                    if section == "Submitted":
+                        entry_data["VerifiedValue"] = verified_value
+
+                    result_data[section].append(entry_data)
+
+    return result_data
+
+
 if __name__ == "__main__":
 
     for html_file in html_files_directory.glob("*.html"):
+
         file_name = html_file.stem
         xlsx_result = xlsx_directory / f"{file_name}.xlsx"
         json_result = json_directory / f"{file_name}.json"
         if xlsx_result.exists() and json_result.exists():
+            html_file.unlink()
             continue
+        logger.info(html_file)
         data_script = parse_data_from_script(html_file)
-        logger.info("Данные по скрипту полученно ")
+        # data_script = parse_data_from_json(html_file)
         data = parse_single_html_data(html_file)
-        logger.info("Данные с html полученно")
         # Объединение двух словарей в один
         combined_data = data.copy()
         combined_data.update(data_script)  # Добавляем содержимое словаря data_script
@@ -321,5 +433,5 @@ if __name__ == "__main__":
         with open(json_result, "w", encoding="utf-8") as json_file:
             json.dump(combined_data, json_file, ensure_ascii=False, indent=4)
 
-        logger.info("Объединенные данные успешно сохранены в combined_output.json")
         write_exsls(json_result, xlsx_result)
+        logger.info(f"Объединенные данные успешно сохранены в {xlsx_result}")
