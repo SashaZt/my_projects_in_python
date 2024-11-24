@@ -45,13 +45,5 @@ def load_environment_variables(env_file: Path) -> dict:
     """
     load_dotenv(env_file)
 
-    try:
-        return {
-            "time_a": int(os.getenv("TIME_A", "30")),
-            "time_b": int(os.getenv("TIME_B", "60")),
-            "site_limit": int(os.getenv("LIMIT", "100")),
-        }
-    except ValueError as e:
-        raise ValueError(
-            "Некорректные значения в файле .env. Ожидались целые числа."
-        ) from e
+    # Получаем все переменные окружения из os.environ и возвращаем их в виде словаря
+    return {key: value for key, value in os.environ.items()}

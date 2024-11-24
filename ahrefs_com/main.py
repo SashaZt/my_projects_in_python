@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import gspread
 import pandas as pd
 import pycountry
 import requests
@@ -14,6 +15,7 @@ from configuration.config_utils import (
     load_environment_variables,
 )
 from configuration.logger_setup import logger
+from oauth2client.service_account import ServiceAccountCredentials
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Reference
 from openpyxl.chart.axis import ChartLines
@@ -26,10 +28,96 @@ directories = initialize_directories(base_directory)
 # Загрузка переменных окружения
 env_file = directories["config_dir"] / ".env"
 env_vars = load_environment_variables(env_file)
+time_a = int(env_vars["TIME_A"])
+time_b = int(env_vars["TIME_B"])
+limit_site = int(env_vars["LIMIT"])
+SPREADSHEET = env_vars["SPREADSHEET"]
+SHEET = env_vars["SHEET"]
 
-time_a = int(env_vars["time_a"])
-time_b = int(env_vars["time_b"])
-limit_site = int(env_vars["site_limit"])
+
+# Функция для подключения к Google Sheets и получения нужного листа
+def get_google_sheet():
+    # Настройка доступа и авторизация
+    scope = [
+        "https://spreadsheets.google.com/feeds",
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive.file",
+        "https://www.googleapis.com/auth/drive",
+    ]
+
+    # Укажи путь к файлу с учетными данными для Google API
+    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+    client = gspread.authorize(creds)
+
+    # Открыть таблицу по ключу и вернуть указанный лист
+    spreadsheet = client.open_by_key(SPREADSHEET)
+    return spreadsheet.worksheet(SHEET)
+
+
+# Получение листа Google Sheets
+sheet = get_google_sheet()
+
+
+# Добавим дополнительные колонки, если они отсутствуют
+def ensure_column_limit(sheet, required_columns):
+    current_columns = len(
+        sheet.row_values(1)
+    )  # Получаем количество существующих колонок по первой строке
+    if current_columns < required_columns:
+        additional_columns = required_columns - current_columns
+        sheet.add_cols(additional_columns)
+
+
+# Убедимся, что таблица имеет достаточное количество колонок перед обновлением данных
+ensure_column_limit(sheet, 28)  # Нам нужно минимум 28 колонок
+
+
+# Найти строку с указанным доменом
+def find_row_by_domain(sheet, domain):
+    cell = sheet.find(domain)
+    if cell:
+        return cell.row
+    return None
+
+
+# Функция для записи данных в определенные столбцы
+def update_sheet_with_data(sheet, data):
+    for entry in data:
+        domain = entry["domain"]
+        row = find_row_by_domain(sheet, domain)
+
+        if row:
+            # Укажи соответствие между ключами и индексами колонок (начиная с 1, где A=1, B=2, ...)
+            column_mapping = {
+                "backlinks_value": 8,  # H
+                "refdomains_value": 9,  # I
+                "domainRating_value": 10,  # J
+                "organic_traffic_value": 11,  # K
+                "organic_keywords_value": 12,  # L
+                "urlRating_value": 13,  # M
+                "country_00": 14,  # N
+                "country_01": 15,  # O
+                "country_02": 16,  # P
+                "history_1_date": 17,  # Q
+                "history_1_traffic": 18,  # R
+                "history_2_date": 19,  # S
+                "history_2_traffic": 20,  # T
+                "history_3_date": 21,  # U
+                "history_3_traffic": 22,  # V
+                "history_4_date": 23,  # W
+                "history_4_traffic": 24,  # X
+                "history_5_date": 25,  # Y
+                "history_5_traffic": 26,  # Z
+                "history_6_date": 27,  # AA
+                "history_6_traffic": 28,  # AB
+            }
+
+            for key, column_index in column_mapping.items():
+                if (
+                    key in entry and entry[key] is not None
+                ):  # Проверяем, что значение не None
+                    cell_address = (row, column_index)
+                    sheet.update_cell(*cell_address, entry[key])
 
 
 def random_pause(min_seconds: int = 30, max_seconds: int = 60) -> int:
@@ -611,6 +699,7 @@ def write_data():
             flattened_data.append(domain_data)
     write_graf(flattened_data)
     logger.info(flattened_data)
+    update_sheet_with_data(sheet, flattened_data)
     # Создаем DataFrame из подготовленных данных
     data_df = pd.DataFrame(flattened_data)
 
@@ -703,7 +792,8 @@ def main_loop():
             "\nВыберите действие:\n"
             "1. Скачивание данных \n"
             "2. Сохранить результат\n"
-            "3. Очистить временные папки\n"
+            "3. Запись данных в GoogleТаблицу\n"
+            "4. Очистить временные папки\n"
             "0. Выход"
         )
         choice = input("Введите номер действия: ")
@@ -713,6 +803,9 @@ def main_loop():
         elif choice == "2":
             write_data()
         elif choice == "3":
+            pass
+
+        elif choice == "4":
             shutil.rmtree(directories["json_data_dir"])
         elif choice == "0":
             break
