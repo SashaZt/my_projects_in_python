@@ -1,12 +1,16 @@
 import asyncio
 import json
-import logging
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pandas as pd
 import requests
 from configuration.logger_setup import logger
+import requests
+import json
+import logging
+from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+import pandas as pd
 
 # Указываем пути к файлам и папкам
 current_directory = Path.cwd()
@@ -17,6 +21,10 @@ configuration_directory = current_directory / "configuration"
 data_directory.mkdir(parents=True, exist_ok=True)
 json_files_directory.mkdir(parents=True, exist_ok=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
+
+csv_output_file = data_directory / "output.csv"
+json_result = data_directory / "result.json"
+xlsx_result = data_directory / "result.xlsx"
 
 
 def read_cities_from_csv(input_csv_file):

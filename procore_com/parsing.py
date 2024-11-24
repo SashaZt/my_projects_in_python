@@ -83,6 +83,16 @@ class Parsing:
             else None
         )
 
+    def extract_market_sectors(self, soup):
+        average_contract_size_tag = soup.find(
+            "p", {"data-test-id": "business-profile-nav-about-market-sectors"}
+        )
+        return (
+            average_contract_size_tag.get_text(strip=True)
+            if average_contract_size_tag
+            else None
+        )
+
     def extract_company_types(self, soup):
         company_types_tag = soup.find(
             "p", {"data-test-id": "business-profile-nav-about-business-types"}
@@ -198,6 +208,7 @@ class Parsing:
         company_types = self.extract_company_types(soup)
         trades_and_services = self.extract_trades_and_services(soup)
         web_site_company = self.extract_web_site_company(soup)
+        market_sectors = self.extract_market_sectors(soup)
         service_areas = self.extract_service_areas(soup)
         split_address = (
             self.split_address_usaddress(adress_company) if adress_company else None
@@ -219,85 +230,10 @@ class Parsing:
             "company_types": company_types,
             "trades_and_services": trades_and_services,
             "web_site_company": web_site_company,
+            "market_sectors": market_sectors,
             "service_areas": service_areas,
         }
         return company_data
-        # Сохраняем данные в JSON файл
-        with open("company_data.json", "w", encoding="utf-8") as json_file:
-            json.dump(company_data, json_file, indent=4, ensure_ascii=False)
-
-        print("Данные успешно сохранены в файл company_data.json")
-
-        # script_tags = soup.find("script", type="application/json")
-        # # Извлекаем содержимое и парсим его как JSON
-        # if script_tags:
-        #     json_content = json.loads(script_tags.string)
-
-        #     # name_company = json_content["props"][""]
-        #     # Записываем json_content в файл
-        #     with open("data.json", "w", encoding="utf-8") as json_file:
-        #         json.dump(json_content, json_file, indent=4, ensure_ascii=False)
-        # else:
-        #     print("Тег <script> с type='application/json' не найден")
-
-        # for script_tag in script_tags:
-        #     try:
-        #         data = json.loads(script_tag.string)
-        #         if isinstance(data, dict):
-        #             if (
-        #                 "productPopularityLabel" in data
-        #                 and "label" in data["productPopularityLabel"]
-        #             ):
-        #                 label_text = data["productPopularityLabel"]["label"]
-        #                 match = re.search(r"(\d+)", label_text)
-        #                 if match:
-        #                     sales_product = int(match.group(1))
-        #                     break
-        # # Инициализация словаря для данных
-        # data = {}
-
-        # # Извлечение данных из "Таблица 1"
-        # table_01 = soup.find("div", {"id": "profile-overview"})
-        # if table_01:
-        #     data["Название"] = table_01.find("h2").text.strip()
-
-        #     # Извлечение списка данных
-        #     items = table_01.find_all("li")
-        #     additional_info_counter = 1
-        #     for item in items:
-        #         text = item.text.strip()
-        #         if text.startswith("Статус:"):
-        #             data["Статус"] = text.replace("Статус:", "").strip()
-        #         elif text.startswith("ИНН:"):
-        #             data["ИНН"] = text.replace("ИНН:", "").strip()
-        #         elif text.startswith("Директор:"):
-        #             data["Директор"] = text.replace("Директор:", "").strip()
-        #         elif "Последнее обновление на сайте:" in text:
-        #             data["Последнее обновление"] = text.replace(
-        #                 "Последнее обновление на сайте:", ""
-        #             ).strip()
-        #         else:
-        #             # Каждую строку "Дополнительной информации" добавляем в словарь с уникальным ключом
-        #             key = f"Дополнительная информация {additional_info_counter}"
-        #             data[key] = text
-        #             additional_info_counter += 1
-
-        # # Извлечение данных из "Таблица 2"
-        # table_02 = soup.find("table", {"class": "table table-striped"})
-        # if table_02:
-        #     table_rows = table_02.find_all("tr")
-        #     for row in table_rows:
-        #         cells = row.find_all("td")
-        #         if len(cells) == 2:
-        #             key = cells[0].text.strip()
-        #             value = cells[1].text.strip()
-        #             # Удаление ненужных ссылок из таблицы (например, "Авторизуйтесь для просмотра")
-        #             if "<a" in value:
-        #                 value = BeautifulSoup(value, "lxml").text.strip()
-        #             # Убираем лишние пробелы и переносы строк
-        #             value = " ".join(value.split())
-        #             data[key] = value if value else "-"
-        # return data
 
     def parsing_html(self):
         all_files = self.list_html()

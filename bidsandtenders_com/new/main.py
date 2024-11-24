@@ -46,7 +46,7 @@ headers = {
 
 
 while True:
-    max_workers = 10
+    max_workers = 5
     base_url = ""
     url_sitemap = "https://www.procore.com/network/profiles-sitemap.xml"
 

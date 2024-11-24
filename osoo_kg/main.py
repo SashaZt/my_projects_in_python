@@ -39,7 +39,7 @@ headers = {
 
 
 while True:
-    max_workers = 10
+    max_workers = 50
     base_url = "https://www.ua-region.com.ua"
     url_sitemap = "https://www.osoo.kg/sitemap.xml"
 
@@ -48,8 +48,8 @@ while True:
         "Введите 1 для запуска полного процесса\n"
         "Введите 2 для скачивания sitemap\n"
         "Введите 3 для скачивания html файлов\n"
-        "Введите 4 для запуска парсинга\n"
-        "Введите 5 для записи в БД\n"
+        "Введите 4 для запуска парсинга и записи данных в json\n"
+        "Введите 5 для записи данныех в excel\n"
         "Введите 6 для запуска сверки данных\n"
         "Введите 0 для закрытия программы"
     )
@@ -111,8 +111,10 @@ while True:
         processor = Parsing(html_files_directory, xlsx_result, max_workers)
         all_results = processor.parsing_html()
         # processor.save_results_to_json(all_results)
-        processor.write_to_excel(all_results)
 
+    elif user_input == 5:
+        processor = Parsing(html_files_directory, xlsx_result, max_workers)
+        processor.write_to_excel()
     elif user_input == 0:
         print("Программа завершена.")
         break  # Выход из цикла, завершение программы

@@ -178,22 +178,22 @@ class GetResponse:
             return
 
         try:
-            # proxies_dict = (
-            #     self._choose_proxy()
-            # )  # Теперь используем _choose_proxy напрямую
+            proxies_dict = (
+                self._choose_proxy()
+            )  # Теперь используем _choose_proxy напрямую
 
-            # Прокси-сервер
-            proxy = "5.79.73.131:13010"
+            # # Прокси-сервер
+            # proxy = "37.48.118.4:13010"
 
-            # Настройки прокси для requests
-            proxies = {
-                "http": f"http://{proxy}",
-                "https": f"http://{proxy}",
-            }
+            # # Настройки прокси для requests
+            # proxies = {
+            #     "http": f"http://{proxy}",
+            #     "https": f"http://{proxy}",
+            # }
             response = requests.get(
                 url,
                 headers=self.headers,
-                proxies=proxies,
+                proxies=proxies_dict,
                 timeout=30,
                 verify=False,
             )

@@ -251,12 +251,15 @@ class Parsing:
 
         return cleaned_text.strip()
 
-    def write_to_excel(self, all_results):
-        if not all_results:
+    def write_to_excel(self):
+        with json_result.open(encoding="utf-8") as file:
+            # Прочитать содержимое JSON файла
+            data = json.load(file)
+        if not data:
             print("Нет данных для записи.")
             return
 
-        df = pd.DataFrame(all_results)
+        df = pd.DataFrame(data)
         df.to_excel("output.xlsx", index=False, sheet_name="Data")
 
     def save_results_to_json(self, all_results):

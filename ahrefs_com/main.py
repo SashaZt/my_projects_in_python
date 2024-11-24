@@ -262,20 +262,40 @@ def get_json_graf(site, site_directory, cookies, headers):
 def parsing_json_BacklinksStats(item):
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
+
     try:
-        backlinks_value = (
-            json_data[1].get("backlinks", {}).get("current", {}).get("value")
-        )
-        refdomains_value = (
-            json_data[1].get("refdomains", {}).get("current", {}).get("value")
-        )
-        all_data = {
-            "backlinks_value": backlinks_value,
-            "refdomains_value": refdomains_value,
-        }
-        return all_data
+        if (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], dict)
+        ):
+            backlinks_value = (
+                json_data[1].get("backlinks", {}).get("current", {}).get("value")
+            )
+            refdomains_value = (
+                json_data[1].get("refdomains", {}).get("current", {}).get("value")
+            )
+            all_data = {
+                "backlinks_value": backlinks_value,
+                "refdomains_value": refdomains_value,
+            }
+            return all_data
+        elif (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], list)
+        ):
+            if "FairUseLimitReached" in json_data[1][1]:
+                logger.warning("FairUseLimitReached")
+                logger.warning(item)
+                return None
+        else:
+
+            raise TypeError(
+                "Unexpected data format. Expected a list with a dictionary at index 1."
+            )
     except (IndexError, TypeError) as e:
-        print(f"Error extracting data: {e}")
+        logger.warning(f"Error extracting data: {e}")
         return None
 
 
@@ -283,13 +303,32 @@ def parsing_json_GetDomainRating(item):
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     try:
-        domainRating_value = json_data[1].get("domainRating", {}).get("value")
-        all_data = {
-            "domainRating_value": domainRating_value,
-        }
-        return all_data
+        if (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], dict)
+        ):
+            domainRating_value = json_data[1].get("domainRating", {}).get("value")
+            all_data = {
+                "domainRating_value": domainRating_value,
+            }
+            return all_data
+        elif (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], list)
+        ):
+            if "FairUseLimitReached" in json_data[1][1]:
+                logger.warning("FairUseLimitReached")
+                logger.warning(item)
+                return None
+        else:
+
+            raise TypeError(
+                "Unexpected data format. Expected a list with a dictionary at index 1."
+            )
     except (IndexError, TypeError) as e:
-        print(f"Error extracting data: {e}")
+        logger.warning(f"Error extracting data: {e}")
         return None
 
 
@@ -297,19 +336,38 @@ def parsing_json_GetMetrics(item):
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     try:
-        organic_traffic_value = (
-            json_data[1].get("organic", {}).get("traffic", {}).get("value")
-        )
-        organic_keywords_value = (
-            json_data[1].get("organic", {}).get("keywords", {}).get("value")
-        )
-        all_data = {
-            "organic_traffic_value": organic_traffic_value,
-            "organic_keywords_value": organic_keywords_value,
-        }
-        return all_data
+        if (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], dict)
+        ):
+            organic_traffic_value = (
+                json_data[1].get("organic", {}).get("traffic", {}).get("value")
+            )
+            organic_keywords_value = (
+                json_data[1].get("organic", {}).get("keywords", {}).get("value")
+            )
+            all_data = {
+                "organic_traffic_value": organic_traffic_value,
+                "organic_keywords_value": organic_keywords_value,
+            }
+            return all_data
+        elif (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], list)
+        ):
+            if "FairUseLimitReached" in json_data[1][1]:
+                logger.warning("FairUseLimitReached")
+                logger.warning(item)
+                return None
+        else:
+
+            raise TypeError(
+                "Unexpected data format. Expected a list with a dictionary at index 1."
+            )
     except (IndexError, TypeError) as e:
-        print(f"Error extracting data: {e}")
+        logger.warning(f"Error extracting data: {e}")
         return None
 
 
@@ -317,117 +375,164 @@ def parsing_json_GetUrlRating(item):
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     try:
-        urlRating_value = json_data[1].get("urlRating", {}).get("value")
-        all_data = {
-            "urlRating_value": urlRating_value,
-        }
-        return all_data
+        if (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], dict)
+        ):
+            urlRating_value = json_data[1].get("urlRating", {}).get("value")
+            all_data = {
+                "urlRating_value": urlRating_value,
+            }
+            return all_data
+        elif (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], list)
+        ):
+            if "FairUseLimitReached" in json_data[1][1]:
+                logger.warning("FairUseLimitReached")
+                logger.warning(item)
+                return None
+        else:
+
+            raise TypeError(
+                "Unexpected data format. Expected a list with a dictionary at index 1."
+            )
     except (IndexError, TypeError) as e:
-        print(f"Error extracting data: {e}")
+        logger.warning(f"Error extracting data: {e}")
         return None
 
 
 def parsing_json_GetMetricsByCountry(item):
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
-    metrics = json_data[1].get("metrics", [])
-    if len(metrics) > 2:
-        country_00 = metrics[0].get("country")
-        traffic_00 = metrics[0].get("organic", {}).get("traffic", {}).get("value")
-        country_01 = metrics[1].get("country")
-        traffic_01 = metrics[1].get("organic", {}).get("traffic", {}).get("value")
-        country_02 = metrics[2].get("country")
-        traffic_02 = metrics[2].get("organic", {}).get("traffic", {}).get("value")
-    else:
-        # Значения по умолчанию, если данных по странам недостаточно
-        country_00 = country_01 = country_02 = None
-        traffic_00 = traffic_01 = traffic_02 = 0
-    country_00 = pycountry.countries.get(alpha_2=country_00.upper()).name
-    country_01 = pycountry.countries.get(alpha_2=country_01.upper()).name
-    country_02 = pycountry.countries.get(alpha_2=country_02.upper()).name
-    # Считаем общий трафик
-    total_traffic = traffic_00 + traffic_01 + traffic_02
+    try:
+        if (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], dict)
+        ):
+            metrics = json_data[1].get("metrics", [])
+            if len(metrics) > 2:
+                country_00 = metrics[0].get("country")
+                traffic_00 = (
+                    metrics[0].get("organic", {}).get("traffic", {}).get("value", 0)
+                )
+                country_01 = metrics[1].get("country")
+                traffic_01 = (
+                    metrics[1].get("organic", {}).get("traffic", {}).get("value", 0)
+                )
+                country_02 = metrics[2].get("country")
+                traffic_02 = (
+                    metrics[2].get("organic", {}).get("traffic", {}).get("value", 0)
+                )
+            else:
+                country_00 = country_01 = country_02 = None
+                traffic_00 = traffic_01 = traffic_02 = 0
 
-    # Рассчитываем долю трафика для каждой страны (в процентах)
-    def calculate_percentage(traffic, total):
-        return round((traffic / total * 100), 2) if total > 0 else 0
+            country_00 = (
+                pycountry.countries.get(alpha_2=country_00.upper()).name
+                if country_00
+                else None
+            )
+            country_01 = (
+                pycountry.countries.get(alpha_2=country_01.upper()).name
+                if country_01
+                else None
+            )
+            country_02 = (
+                pycountry.countries.get(alpha_2=country_02.upper()).name
+                if country_02
+                else None
+            )
 
-    traffic_share_00 = int(calculate_percentage(traffic_00, total_traffic))
-    traffic_share_01 = int(calculate_percentage(traffic_01, total_traffic))
-    traffic_share_02 = int(calculate_percentage(traffic_02, total_traffic))
-    if traffic_share_00 > 0:
-        traffic_share_00 = f"{traffic_share_00}%"
-    if traffic_share_01 > 0:
-        traffic_share_01 = f"{traffic_share_01}%"
-    if traffic_share_02 > 0:
-        traffic_share_02 = f"{traffic_share_02}%"
-    if int(traffic_00) == 0:
-        # Формируем итоговый словарь с результатами
-        all_data = {
-            "country_00": None,
-            "traffic_share_00": None,
-            "country_01": None,
-            "traffic_share_01": None,
-            "country_02": None,
-            "traffic_share_02": None,
-        }
+            total_traffic = traffic_00 + traffic_01 + traffic_02
 
-    else:
-        # Формируем итоговый словарь с результатами
-        all_data = {
-            "country_00": f"{country_00}    {traffic_share_00}",
-            # "traffic_00": traffic_00,
-            # "traffic_share_00": traffic_share_00,
-            "country_01": f"{country_01}    {traffic_share_01}",
-            # "traffic_01": traffic_01,
-            # "traffic_share_01": traffic_share_01,
-            "country_02": f"{country_02}    {traffic_share_02}",
-            # "traffic_02": traffic_02,
-            # "traffic_share_02": traffic_share_02,
-        }
+            def calculate_percentage(traffic, total):
+                return round((traffic / total * 100), 2) if total > 0 else 0
 
-        return all_data
+            traffic_share_00 = int(calculate_percentage(traffic_00, total_traffic))
+            traffic_share_01 = int(calculate_percentage(traffic_01, total_traffic))
+            traffic_share_02 = int(calculate_percentage(traffic_02, total_traffic))
+
+            traffic_share_00 = f"{traffic_share_00}%" if traffic_share_00 > 0 else None
+            traffic_share_01 = f"{traffic_share_01}%" if traffic_share_01 > 0 else None
+            traffic_share_02 = f"{traffic_share_02}%" if traffic_share_02 > 0 else None
+
+            all_data = {
+                "country_00": (
+                    f"{country_00}    {traffic_share_00}" if traffic_share_00 else None
+                ),
+                "country_01": (
+                    f"{country_01}    {traffic_share_01}" if traffic_share_01 else None
+                ),
+                "country_02": (
+                    f"{country_02}    {traffic_share_02}" if traffic_share_02 else None
+                ),
+            }
+            return all_data
+        elif (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], list)
+        ):
+            if "FairUseLimitReached" in json_data[1][1]:
+                logger.warning(item)
+                logger.warning("FairUseLimitReached")
+                return None
+        else:
+
+            raise TypeError(
+                "Unexpected data format. Expected a list with a dictionary at index 1."
+            )
+    except (IndexError, TypeError, AttributeError) as e:
+        logger.warning(f"Error extracting data: {e}")
+        return None
 
 
 def parsing_json_GetMetricsHistory(item):
-    # Открываем и читаем JSON файл
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
-    # Проверяем, что json_data - это список и индекс 1 существует
-    if not isinstance(json_data, list) or len(json_data) < 2:
-        print("Unexpected JSON structure.")
-        return []
-
-    # Получаем данные из второго элемента списка
-    metrics_data = json_data[1]
-
-    # Получаем трафик из metrics_data
-    traffic_data = []
     try:
-        # Извлекаем список rows из metrics_data
-        metrics = metrics_data.get("rows", [])
+        if (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], dict)
+        ):
+            metrics_data = json_data[1]
+            traffic_data = []
+            metrics = metrics_data.get("rows", [])
+            if isinstance(metrics, list):
+                last_entries = metrics[-6:]
+                for entry in last_entries:
+                    if isinstance(entry, dict):
+                        date = entry.get("date", "Unknown Date")
+                        organic_traffic = entry.get("organic", {}).get("traffic", 0)
+                        traffic_data.append(
+                            {
+                                "date": date,
+                                "traffic": organic_traffic,
+                            }
+                        )
+            return traffic_data
+        elif (
+            isinstance(json_data, list)
+            and len(json_data) > 1
+            and isinstance(json_data[1], list)
+        ):
+            if "FairUseLimitReached" in json_data[1][1]:
+                logger.warning("FairUseLimitReached")
+                logger.warning(item)
+                return []
+        else:
 
-        if metrics:
-            # Берём последние 6 элементов из списка metrics
-            last_entries = metrics[-6:]
-
-            # Итерируемся по последним 6 элементам и извлекаем нужные значения
-            for entry in last_entries:
-                date = entry.get("date", "Unknown Date")
-                organic_traffic = entry.get("organic", {}).get("traffic", 0)
-                # Формируем результат для каждого элемента
-                traffic_data.append(
-                    {
-                        "date": date,
-                        "traffic": organic_traffic,
-                    }
-                )
-
-    except KeyError as e:
-        print(f"Error processing JSON data: {e}")
-
-    # Логируем полученные данные
-    return traffic_data
+            raise TypeError(
+                "Unexpected data format. Expected a list with a dictionary at index 1."
+            )
+    except (IndexError, TypeError) as e:
+        logger.warning(f"Error extracting data: {e}")
+        return []
 
 
 def get_domain_name(subfolder):
