@@ -24,19 +24,28 @@ from openpyxl.chart.axis import ChartLines
 base_directory = Path.cwd()
 directories = initialize_directories(base_directory)
 
-
 # Загрузка переменных окружения
 env_file = directories["config_dir"] / ".env"
 env_vars = load_environment_variables(env_file)
+
+# Настройка временных параметров и лимитов
 time_a = int(env_vars["TIME_A"])
 time_b = int(env_vars["TIME_B"])
-limit_site = int(env_vars["LIMIT"])
 SPREADSHEET = env_vars["SPREADSHEET"]
 SHEET = env_vars["SHEET"]
 
+# количество строк, которых можно записать за один проход
+BATCH_SIZE = env_vars["BATCH_SIZE"]
 
-# Функция для подключения к Google Sheets и получения нужного листа
+# Пауза между запросами на сайт
+PAUSE_DURATION = env_vars["PAUSE_DURATION"]
+
+
 def get_google_sheet():
+    """Подключается к Google Sheets и возвращает указанный лист.
+
+    Настраивает доступ, авторизуется и открывает таблицу по ключу.
+    """
     # Настройка доступа и авторизация
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -70,17 +79,45 @@ sheet = get_google_sheet()
 ensure_column_limit(sheet, 28)  # Нам нужно минимум 28 колонок
 
 
-# Найти строку с указанным доменом
 def find_row_by_domain(sheet, domain):
+    """Находит строку в листе Google Sheets, содержащую указанный домен.
+
+    Args:
+        sheet: Объект листа Google Sheets, в котором осуществляется поиск.
+        domain (str): Домен, который нужно найти в листе.
+
+    Returns:
+        int: Номер строки, содержащей указанный домен, или None, если домен не найден.
+    """
     cell = sheet.find(domain)
     if cell:
         return cell.row
     return None
 
 
-# Функция для записи данных в определенные столбцы
 def update_sheet_with_data(sheet, data):
-    for entry in data:
+    """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления.
+
+    Для каждой записи в `data`, функция находит соответствующую строку по домену,
+    и обновляет определенные столбцы на основании ключей словаря `entry`.
+    Обновления выполняются пакетно (`batch update`) для повышения эффективности.
+
+    Args:
+        sheet: Объект листа Google Sheets, в который будет производиться запись.
+        data (list of dict): Список словарей, содержащих данные для обновления.
+            Каждый словарь должен иметь ключ 'domain' и дополнительные ключи
+            для значений, которые будут записаны в соответствующие столбцы.
+
+    Примечания:
+        - Пакетное обновление (`batch_update`) выполняется каждые `BATCH_SIZE` записей или по завершению обработки всех данных.
+        - Пауза (`PAUSE_DURATION`) добавляется после каждых `BATCH_SIZE` записей для предотвращения превышения квоты запросов.
+
+    Примеры использования:
+        update_sheet_with_data(sheet, [{"domain": "example.com", "backlinks_value": 123, "organic_traffic_value": 456}])
+
+    """
+    updates = []
+    for i, entry in enumerate(data):
         domain = entry["domain"]
         row = find_row_by_domain(sheet, domain)
 
@@ -114,12 +151,41 @@ def update_sheet_with_data(sheet, data):
                 if (
                     key in entry and entry[key] is not None
                 ):  # Проверяем, что значение не None
-                    cell_address = (row, column_index)
-                    sheet.update_cell(*cell_address, entry[key])
+                    cell_range = gspread.utils.rowcol_to_a1(row, column_index)
+                    updates.append({"range": cell_range, "values": [[entry[key]]]})
+
+        # Добавляем паузу после каждых batch_size записей
+        if (i + 1) % BATCH_SIZE == 0 or i == len(data) - 1:
+            if updates:
+                sheet.batch_update(
+                    [
+                        {"range": update["range"], "values": update["values"]}
+                        for update in updates
+                    ]
+                )
+                updates = []
+            logger.info(
+                f"Пауза на {PAUSE_DURATION} секунд для предотвращения превышения квоты..."
+            )
+            time.sleep(PAUSE_DURATION)
 
 
-# Функция для получения строк, у которых нет данных с 8 по 28 колонку с использованием pandas
 def get_rows_without_data(sheet):
+    """Возвращает строки из листа Google Sheets, у которых отсутствуют данные в колонках с 8 по 28.
+
+    Функция получает все значения из указанного листа и преобразует их в DataFrame с помощью pandas.
+    Затем находит строки, у которых отсутствуют данные (пустые значения или None) в колонках с 8 по 28,
+    и возвращает список таких строк.
+
+    Args:
+        sheet: Объект листа Google Sheets, из которого будут извлечены данные.
+
+    Returns:
+        list: Список строк (значения первого столбца), у которых отсутствуют данные в колонках с 8 по 28.
+
+    Примечания:
+        - Нумерация колонок начинается с 1, где 8-я колонка соответствует H, а 28-я — AB.
+    """
     # Получаем все значения из таблицы и преобразуем их в DataFrame
     all_values = sheet.get_all_values()
     df = pd.DataFrame(
@@ -135,8 +201,18 @@ def get_rows_without_data(sheet):
     return empty_rows.tolist()
 
 
-# Функция для записи данных в CSV файл с использованием pandas
 def write_to_csv(data, file_path):
+    """Записывает данные в CSV файл с использованием pandas.
+
+    Функция принимает список данных и записывает его в указанный CSV файл, создавая DataFrame с колонкой "Domain".
+
+    Args:
+        data (list): Список значений для записи в CSV файл. Каждое значение будет представлять отдельную строку.
+        file_path (str): Путь к файлу, в который будут записаны данные.
+
+    Примечания:
+        - Данные записываются в CSV файл без индекса и с кодировкой UTF-8.
+    """
     df = pd.DataFrame(data, columns=["Domain"])
     df.to_csv(file_path, index=False, encoding="utf-8")
 
@@ -314,6 +390,10 @@ def get_json_site_data():
             # Проверка кода ответа
             if response.status_code == 200:
                 json_data = response.json()
+                if "FairUseLimitReached" in json_data[1][1]:
+                    logger.error("Привышен лимит")
+                    break
+
                 with open(json_path, "w", encoding="utf-8") as f:
                     json.dump(json_data, f, ensure_ascii=False, indent=4)
                 logger.info(f"Файл сохранен {json_path}")
@@ -325,6 +405,25 @@ def get_json_site_data():
 
 
 def get_json_graf(site, site_directory, cookies, headers):
+    """Получает JSON данные с сайта Ahrefs и сохраняет их в файл, если он еще не существует.
+
+    Функция отправляет GET-запрос на указанный URL с параметрами, включая заголовки и cookies.
+    Если файл с именем JSON еще не существует в `site_directory`, данные сохраняются в новый файл.
+
+    Args:
+        site (str): Домен, для которого необходимо получить данные.
+        site_directory (Path): Директория, в которую будет сохранен файл с JSON данными.
+        cookies (dict): Словарь cookies для запроса.
+        headers (dict): Словарь заголовков для запроса.
+
+    Примечания:
+        - Запрос отправляется на URL Ahrefs, и если ответ имеет статус 200, данные сохраняются в JSON файл.
+        - Пауза в 10 секунд добавляется после запроса, чтобы избежать превышения квот или блокировки.
+        - Имя файла формируется на основе конечной части URL.
+
+    Возвращает:
+        None: Возвращает None, если файл уже существует.
+    """
     url = "https://app.ahrefs.com/v4/seGetMetricsHistory"
     file_name = url.rsplit("/", maxsplit=1)[-1]
 
@@ -355,6 +454,25 @@ def get_json_graf(site, site_directory, cookies, headers):
 
 
 def parsing_json_BacklinksStats(item):
+    """Парсит JSON файл и извлекает статистику по обратным ссылкам и ссылающимся доменам.
+
+    Функция открывает JSON файл и извлекает значения метрик "backlinks" и "refdomains" из вложенного словаря.
+    Если в данных содержится сообщение о достижении лимита использования (FairUseLimitReached), выводится предупреждение в лог.
+    В случае несоответствия ожидаемому формату данных, выбрасывается исключение и выводится предупреждение.
+
+    Args:
+        item (str): Путь к JSON файлу, который нужно распарсить.
+
+    Returns:
+        dict or None: Словарь со значениями метрик "backlinks_value" и "refdomains_value", или None, если данные не могут быть извлечены.
+
+    Исключения:
+        - В случае неожиданных данных вызывается исключение TypeError с описанием ожидаемого формата.
+
+    Примечания:
+        - Функция ожидает, что JSON файл представляет собой список, где на индексе 1 находится словарь с необходимыми метриками.
+        - Если лимит использования достигнут, функция записывает предупреждение и возвращает None.
+    """
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
 
@@ -631,11 +749,33 @@ def parsing_json_GetMetricsHistory(item):
 
 
 def get_domain_name(subfolder):
-    # Извлекаем имя домена из пути подкаталога, например "aescada.net"
+    """Извлекает имя домена из пути подкаталога.
+
+    Функция принимает объект подкаталога и возвращает его имя, которое предполагается быть доменным именем.
+
+    Args:
+        subfolder (Path): Объект пути подкаталога, содержащий имя домена.
+
+    Returns:
+        str: Имя домена, извлеченное из имени подкаталога.
+
+    Пример:
+        subfolder = Path("/path/to/aescada.net")
+        get_domain_name(subfolder) -> "aescada.net"
+    """
     return subfolder.name
 
 
 def write_data():
+    """Собирает данные из JSON файлов, преобразует их и записывает в Excel файл, Google Sheets, а также создает график.
+
+    Функция группирует файлы JSON по подкаталогам, парсит каждый файл, собирает результаты в один словарь и добавляет данные
+    в итоговый список. Затем данные записываются в Google Sheets, создается график, и сохраняется Excel файл.
+
+    Примечания:
+        - Подкаталоги используются для группировки файлов по доменам.
+        - Итоговые данные записываются в Excel и Google Sheets, а также обрабатываются для графического отображения.
+    """
     flattened_data = []
 
     # Группируем файлы JSON по подкаталогам
@@ -705,7 +845,6 @@ def write_data():
             # Добавляем итоговую строку в список flattened_data
             flattened_data.append(domain_data)
     write_graf(flattened_data)
-    logger.info(flattened_data)
     update_sheet_with_data(sheet, flattened_data)
     # Создаем DataFrame из подготовленных данных
     data_df = pd.DataFrame(flattened_data)
@@ -715,6 +854,20 @@ def write_data():
 
 
 def write_graf(data_list):
+    """Создает график истории трафика для каждого домена и записывает данные в Excel файл.
+
+    Функция создает новую книгу Excel, записывает исторические данные трафика для каждого домена
+    и добавляет график на основе этих данных. Для каждого домена создается отдельный график с метками на осях.
+
+    Args:
+        data_list (list of dict): Список словарей с данными о доменах, содержащих даты и значения трафика.
+
+    Примечания:
+        - История трафика записывается и визуализируется с помощью графиков.
+        - Данные и графики добавляются на лист "Traffic History".
+        - Для каждого домена график добавляется с заголовком и соответствующими метками осей.
+    """
+
     # Создаем новую книгу Excel
     wb = Workbook()
     ws = wb.active

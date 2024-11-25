@@ -40,50 +40,33 @@ def get_html():
     proxies_dict = {"http": proxy, "https": proxy}
 
     cookies = {
-        "JSESSIONID": "e2YvkSjs9SnaZMCgCHly9MtAnkIeyAOAqGIS8bWe.msc01-popp01:main-popp",
-        "csfcfc": "LUHMyYO8lXrs5g%3D%3D",
+        "cc_cookie": "%7B%22categories%22%3A%5B%22necessary%22%2C%22analytics%22%2C%22marketing%22%5D%2C%22revision%22%3A0%2C%22data%22%3Anull%2C%22consentTimestamp%22%3A%222024-11-25T10%3A20%3A39.466Z%22%2C%22consentId%22%3A%2239ed2fe3-7324-4f88-9812-35d7b359f89d%22%2C%22services%22%3A%7B%22necessary%22%3A%5B%5D%2C%22analytics%22%3A%5B%5D%2C%22marketing%22%3A%5B%5D%7D%2C%22lastConsentTimestamp%22%3A%222024-11-25T10%3A20%3A39.466Z%22%2C%22expirationTime%22%3A1748254839467%7D",
+        "Shop5": "5152bb30a3178d0580d86dce5ec6d314",
     }
 
     headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-        "Cache-Control": "max-age=0",
-        "Connection": "keep-alive",
-        "Content-Type": "application/x-www-form-urlencoded",
-        # 'Cookie': 'JSESSIONID=e2YvkSjs9SnaZMCgCHly9MtAnkIeyAOAqGIS8bWe.msc01-popp01:main-popp; csfcfc=LUHMyYO8lXrs5g%3D%3D',
-        "DNT": "1",
-        "Origin": "http://zakupki.gov.kg",
-        "Referer": "http://zakupki.gov.kg/popp/view/services/registry/suppliers.xhtml",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "referer": "https://polanik.shop/en_GB/c/Womens-premium/102",
+        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
-    params = {
-        "cid": "10",
-    }
-
-    data = {
-        "form": "form",
-        "j_idt66": "21209200000769",
-        "j_idt69": "",
-        "ownershipType_focus": "",
-        "ownershipType_input": "",
-        "status_focus": "",
-        "status_input": "",
-        "table_rppDD": "10",
-        "table_selection": "",
-        "javax.faces.ViewState": "-282286081613019871:216579941631514373",
-        "table:0:j_idt86": "table:0:j_idt86",
-    }
-
-    response = requests.post(
-        "http://zakupki.gov.kg/popp/view/services/registry/suppliers.xhtml",
-        params=params,
+    response = requests.get(
+        "https://polanik.shop/en_GB/p/PH-4-G-Premium-Hammer-Gold-hammer-bag-HB-or-competition-glove-FREE/466",
         cookies=cookies,
         headers=headers,
-        data=data,
-        verify=False,
-        proxies=proxies_dict,
         timeout=timeout,
     )
 
@@ -497,13 +480,14 @@ def pr_xml():
 
 def url_test():
 
-    url = "https://zorra.bidsandtenders.ca/Module/Tenders/en/Tender/Detail/f773b8fe-1006-410e-aaf3-efb1aa377cea"
+    url = "https://polanik.shop/en_GB/p/CA19-600-CARBON-PREMIUM-LINE-Competition-javelin/1335"
     # Извлекаем 'zorra' (домен третьего уровня)
     domain = url.split("//")[1].split(".")[0]
 
     # Извлекаем 'f773b8fe-1006-410e-aaf3-efb1aa377cea' (последний элемент после '/')
     file_id = url.rsplit("/", maxsplit=1)[-1]
-    print(domain)
+    file_id = url.rsplit("/", maxsplit=2)[-2]
+    # print(domain)
     print(file_id)
 
 
@@ -657,7 +641,7 @@ if __name__ == "__main__":
     # for proxy in formatted_proxies:
     #     print(proxy)
     url_test()
-    # get_html()
+    get_html()
     # download_pdf()
     # parsing_page()
     # Вызов функции с файлом unique_itm_urls.csv
