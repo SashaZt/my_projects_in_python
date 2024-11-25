@@ -49,6 +49,8 @@ async def search_inn(inns):
         # browser = await p.chromium.launch(proxy=proxy_config, headless=False)
         browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
+
+        
         for inn in inns:
             try:
                 file_path = html_files_directory / f"{inn}.html"
@@ -58,11 +60,18 @@ async def search_inn(inns):
                 # Открытие URL
                 await page.goto("https://www.osoo.kg/", wait_until="domcontentloaded")
                 await random_pause()  # Пауза после загрузки URL
-
+                # Проверка наличия элемента перед заполнением
+                try:
+                    await page.wait_for_selector("input#id_text", timeout=5000)
+                    # Вставка ИНН в поле ввода и нажатие кнопки поиска
+                    await page.fill("input#id_text", inn)
+                    await page.click("button#button-search")
+                except Exception:
+                    continue  # Если элемент не найден, пропускаем текущую итерацию
                 # Вставка ИНН в поле ввода и нажатие кнопки поиска
-                await page.fill("input#id_text", inn)
+                # await page.fill("input#id_text", inn)
                 await random_pause()  # Пауза после заполнения поля
-                await page.click("button#button-search")
+
                 await page.wait_for_load_state(
                     "domcontentloaded"
                 )  # Ожидание полной загрузки страницы

@@ -54,10 +54,6 @@ def get_google_sheet():
     return spreadsheet.worksheet(SHEET)
 
 
-# Получение листа Google Sheets
-sheet = get_google_sheet()
-
-
 # Добавим дополнительные колонки, если они отсутствуют
 def ensure_column_limit(sheet, required_columns):
     current_columns = len(
@@ -68,6 +64,8 @@ def ensure_column_limit(sheet, required_columns):
         sheet.add_cols(additional_columns)
 
 
+# Получение листа Google Sheets
+sheet = get_google_sheet()
 # Убедимся, что таблица имеет достаточное количество колонок перед обновлением данных
 ensure_column_limit(sheet, 28)  # Нам нужно минимум 28 колонок
 
@@ -118,6 +116,29 @@ def update_sheet_with_data(sheet, data):
                 ):  # Проверяем, что значение не None
                     cell_address = (row, column_index)
                     sheet.update_cell(*cell_address, entry[key])
+
+
+# Функция для получения строк, у которых нет данных с 8 по 28 колонку с использованием pandas
+def get_rows_without_data(sheet):
+    # Получаем все значения из таблицы и преобразуем их в DataFrame
+    all_values = sheet.get_all_values()
+    df = pd.DataFrame(
+        all_values[1:], columns=all_values[0]
+    )  # Пропускаем заголовок, если он есть
+
+    # Находим строки, у которых в колонках с 8 по 28 отсутствуют данные
+    empty_rows = df.loc[
+        (df.iloc[:, 7:28].isnull() | (df.iloc[:, 7:28] == "")).all(axis=1),
+        df.columns[0],
+    ]
+
+    return empty_rows.tolist()
+
+
+# Функция для записи данных в CSV файл с использованием pandas
+def write_to_csv(data, file_path):
+    df = pd.DataFrame(data, columns=["Domain"])
+    df.to_csv(file_path, index=False, encoding="utf-8")
 
 
 def random_pause(min_seconds: int = 30, max_seconds: int = 60) -> int:
@@ -247,20 +268,6 @@ def get_json_site_data():
 
     # Получаем заголовки и куки
     headers, cookies = get_cookies(directories["config_file"])
-
-    # # Подсчитываем количество обработанных папок
-    # subdirectory_count = count_subdirectories_with_json_files(
-    #     directories["json_data_dir"]
-    # )
-
-    # # Рассчитываем диапазон для обработки
-    # start_index = subdirectory_count
-    # end_index = min(start_index + limit_site, total_sites)
-    # sites_to_process = sites[start_index:end_index]
-
-    # logger.info(
-    #     f"Обрабатываем сайты с {start_index + 1} по {end_index} из {total_sites}"
-    # )
 
     # Обработка выбранных сайтов
     for site in sites:
@@ -792,7 +799,7 @@ def main_loop():
             "\nВыберите действие:\n"
             "1. Скачивание данных \n"
             "2. Сохранить результат\n"
-            "3. Запись данных в GoogleТаблицу\n"
+            "3. Обновить данные сайтов\n"
             "4. Очистить временные папки\n"
             "0. Выход"
         )
@@ -802,11 +809,14 @@ def main_loop():
             get_json_site_data()
         elif choice == "2":
             write_data()
-        elif choice == "3":
-            pass
-
         elif choice == "4":
             shutil.rmtree(directories["json_data_dir"])
+        elif choice == "3":
+            # Получаем строки без данных в колонках с 8 по 28
+            empty_rows = get_rows_without_data(sheet)
+
+            # Записываем эти строки в CSV файл
+            write_to_csv(empty_rows, directories["csv_file"])
         elif choice == "0":
             break
         else:

@@ -181,7 +181,7 @@ def parsing_product():
     #     "Content-Type", ""
     # ):
     #     file_path.write_text(response.text, encoding="utf-8")
-    file_path = Path("page.html")
+    file_path = Path("A0001.html")
 
     # Чтение HTML и парсинг
     html_content = file_path.read_text(encoding="utf-8")
@@ -230,7 +230,7 @@ def parsing_product():
             "div", class_="_producer_1s9a0_56"
         ).text.strip()  # Производитель (например, AS-PL)
         references_dict[code] = producer
-    logger.info(references_dict)
+    logger.info(table_data)
 
 
 # # Функция для получения контента сайта и сохранения в HTML и TXT
@@ -313,6 +313,6 @@ async def main():
 if __name__ == "__main__":
     # main()
     # get_all_pages()
-    # parsing_product()
+    parsing_product()
     # get_website_content()
-    asyncio.run(main())
+    # asyncio.run(main())

@@ -1,6 +1,7 @@
 import asyncio
 import json
 from pathlib import Path
+from openpyxl import Workbook
 
 import pandas as pd
 import requests
@@ -95,6 +96,60 @@ def get_json(num_threads=10):
             executor.submit(process_tin, tin, years)
 
 
+def parsin_json():
+    # Список словарей для результата
+    result = []
+
+    for json_file in json_files_directory.glob("*.json"):
+        # Разделяем имя файла, чтобы извлечь INN и год
+        inn, year = json_file.stem.split(
+            "_"
+        )  # Используем .stem для имени файла без расширения
+
+        # Читаем содержимое файла
+        with open(json_file, encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Извлекаем значение "Sum" из содержимого файла
+        file_sum = data.get("Sum", "0.00")
+
+        # Ищем словарь с текущим INN в результате
+        inn_entry = next((entry for entry in result if entry["inn"] == inn), None)
+
+        if not inn_entry:
+            # Если словаря с таким INN еще нет, создаем его
+            inn_entry = {"inn": inn}
+            result.append(inn_entry)
+
+        # Добавляем год и сумму в словарь
+        inn_entry[year] = file_sum
+    save_to_excel(result)
+
+
+def save_to_excel(result, output_file="result.xlsx"):
+    # Создаем новую книгу Excel
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Data"
+
+    # Записываем заголовки
+    headers = ["INN"] + sorted(
+        {year for entry in result for year in entry.keys() if year != "inn"}
+    )
+    sheet.append(headers)
+
+    # Записываем данные
+    for entry in result:
+        row = [entry.get("inn", "")]
+        for year in headers[1:]:
+            row.append(entry.get(year, "0.00"))
+        sheet.append(row)
+
+    # Сохраняем в файл
+    workbook.save(output_file)
+
+
 if __name__ == "__main__":
     num_threads = 10  # Задайте нужное количество потоков
     get_json(num_threads=num_threads)
+    parsin_json()
