@@ -31,14 +31,14 @@ env_vars = load_environment_variables(env_file)
 # Настройка временных параметров и лимитов
 time_a = int(env_vars["TIME_A"])
 time_b = int(env_vars["TIME_B"])
-SPREADSHEET = env_vars["SPREADSHEET"]
-SHEET = env_vars["SHEET"]
+SPREADSHEET = str(env_vars["SPREADSHEET"])
+SHEET = str(env_vars["SHEET"])
 
 # количество строк, которых можно записать за один проход
-BATCH_SIZE = env_vars["BATCH_SIZE"]
+BATCH_SIZE = int(env_vars["BATCH_SIZE"])
 
 # Пауза между запросами на сайт
-PAUSE_DURATION = env_vars["PAUSE_DURATION"]
+PAUSE_DURATION = int(env_vars["PAUSE_DURATION"])
 
 
 def get_google_sheet():
@@ -255,10 +255,10 @@ def read_cities_from_csv(input_csv_file: str) -> List[str]:
     try:
         df = pd.read_csv(input_csv_file)
 
-        if "url" not in df.columns:
-            raise ValueError("Входной файл не содержит столбца 'url'.")
+        if "Domain" not in df.columns:
+            raise ValueError("Входной файл не содержит столбца 'Domain'.")
 
-        urls = df["url"].dropna().tolist()  # Удаляем пустые значения, если они есть
+        urls = df["Domain"].dropna().tolist()  # Удаляем пустые значения, если они есть
         return urls
 
     except FileNotFoundError as e:
@@ -390,13 +390,21 @@ def get_json_site_data():
             # Проверка кода ответа
             if response.status_code == 200:
                 json_data = response.json()
-                if "FairUseLimitReached" in json_data[1][1]:
-                    logger.error("Привышен лимит")
-                    break
-
-                with open(json_path, "w", encoding="utf-8") as f:
-                    json.dump(json_data, f, ensure_ascii=False, indent=4)
-                logger.info(f"Файл сохранен {json_path}")
+                if (
+                    isinstance(json_data, list)
+                    and len(json_data) > 1
+                    and isinstance(json_data[1], list)
+                    and len(json_data[1]) > 1
+                ):
+                    if "FairUseLimitReached" in json_data[1][1]:
+                        logger.error(
+                            f"Превышен лимит по сайту {site}. Останавливаем обработку."
+                        )
+                        break
+                else:
+                    with open(json_path, "w", encoding="utf-8") as f:
+                        json.dump(json_data, f, ensure_ascii=False, indent=4)
+                    logger.info(f"Файл сохранен {json_path}")
             else:
                 logger.error(f"Ошибка {response.status_code} для {file_name}")
             pause = random_pause(time_a, time_b)  # Пауза в диапазоне 5-10 секунд
