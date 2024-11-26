@@ -188,7 +188,6 @@ def get_html():
         - HTML-страницы сохраняются в указанной директории.
     """
     sites = read_urls_from_txt(directories["txt_file"])
-    # Получаем заголовки и куки
     # Создаем сессию
     session = requests.Session()
     # Делаем POST запрос для авторизации
@@ -366,7 +365,7 @@ def update_sheet_with_data(sheet, data, batch_size=10, pause_duration=5):
                 updates.append({"range": cell_range, "values": [[value]]})
 
         # Добавляем паузу после каждых batch_size записей
-        if (i + 1) % batch_size == 0 or i == len(data) - 1:
+        if (i + 1) % BATCH_SIZE == 0 or i == len(data) - 1:
             if updates:
                 sheet.batch_update(
                     [
@@ -376,9 +375,9 @@ def update_sheet_with_data(sheet, data, batch_size=10, pause_duration=5):
                 )
                 updates = []
             logger.info(
-                f"Пауза на {pause_duration} секунд для предотвращения превышения квоты..."
+                f"Пауза на {PAUSE_DURATION} секунд для предотвращения превышения квоты..."
             )
-            time.sleep(pause_duration)
+            time.sleep(PAUSE_DURATION)
     shutil.rmtree(directories["html_dir"])
 
 
