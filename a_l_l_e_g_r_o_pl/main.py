@@ -3,6 +3,7 @@ import os
 import shutil
 from parser import Parser
 from pathlib import Path
+from urllib.parse import urlencode
 
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
@@ -10,13 +11,34 @@ from downloader import Downloader
 from writer import Writer
 
 
+def link_formation():
+    env_path = os.path.join(os.getcwd(), "configuration", ".env")
+    load_dotenv(env_path)
+    url_start = os.getenv("URL_START")
+    order = str(os.getenv("ORDER", "qd"))
+    stan = str(os.getenv("STAN", "nowe"))
+    price_from = int(os.getenv("PRICE_FROM", "150"))
+    price_to = int(os.getenv("PRICE_TO", "1500"))
+    page = int(os.getenv("PAGE", "1"))
+    # Параметры запроса
+    query_params = {
+        "order": order,
+        "stan": stan,
+        "price_from": price_from,
+        "price_to": price_to,
+        "page": page,
+    }
+    full_url = f"{url_start}?{urlencode(query_params)}"
+    return full_url
+
+
 def main_loop():
 
     env_path = os.path.join(os.getcwd(), "configuration", ".env")
     load_dotenv(env_path)
     api_key = os.getenv("API_KEY")
-    url_start = os.getenv("URL_START")
     max_workers = int(os.getenv("MAX_WORKERS", "20"))
+    url_start = link_formation()
 
     # Указываем пути к файлам и папкам
     current_directory = Path.cwd()

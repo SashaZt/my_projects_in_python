@@ -580,8 +580,145 @@ def get_session_html():
         print(f"Ошибка авторизации. Статус код: {response.status_code}")
 
 
+def get_contact_prom():
+    import requests
+
+    cookies = {
+        "cid": "38151285142402004135884277792469422435",
+        "evoauth": "we73d6bf140cf439eba971a0483a05c8f",
+        "timezone_offset": "120",
+        "last_search_term": "",
+        "auth": "879752e05b9c2bfa0a928626b3981767a3741e97",
+        "user_tracker": "101dfcb70c3124fa578c8a1209895e39f55a10a6|193.24.221.34|2024-11-26",
+        "csrf_token": "2c09e87f92be4d98bd481efbd7066117",
+        "wasProductCardVisited_120153155": "true",
+        "wasProductCardVisited_112024327": "true",
+        "wasProductCardVisited_48311559": "true",
+        "visited_products": "106553552.48311559.112024327.120153155",
+        "wasProductCardVisited_106553552": "true",
+    }
+
+    headers = {
+        "accept": "*/*",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "content-type": "application/json",
+        # 'cookie': 'cid=38151285142402004135884277792469422435; evoauth=we73d6bf140cf439eba971a0483a05c8f; timezone_offset=120; last_search_term=; auth=879752e05b9c2bfa0a928626b3981767a3741e97; user_tracker=101dfcb70c3124fa578c8a1209895e39f55a10a6|193.24.221.34|2024-11-26; csrf_token=2c09e87f92be4d98bd481efbd7066117; wasProductCardVisited_120153155=true; wasProductCardVisited_112024327=true; wasProductCardVisited_48311559=true; visited_products=106553552.48311559.112024327.120153155; wasProductCardVisited_106553552=true',
+        "dnt": "1",
+        "origin": "https://satu.kz",
+        "priority": "u=1, i",
+        "referer": "https://satu.kz/c782481-satservice.html",
+        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-forwarded-proto": "https",
+        "x-language": "ru",
+        "x-requested-with": "XMLHttpRequest",
+    }
+
+    json_data = {
+        "operationName": "CompanyContactsQuery",
+        "variables": {
+            "withGroupManagerPhones": False,
+            "withWorkingHoursWarning": False,
+            "getProductDetails": False,
+            "company_id": 726240,
+            "groupId": -1,
+            "productId": -1,
+        },
+        "query": "query CompanyContactsQuery($company_id: Int!, $groupId: Int!, $productId: Long!, $withGroupManagerPhones: Boolean = false, $withWorkingHoursWarning: Boolean = false, $getProductDetails: Boolean = false) {\n  context {\n    context_meta\n    currentRegionId\n    recaptchaToken\n    __typename\n  }\n  company(id: $company_id) {\n    ...CompanyWorkingHoursFragment @include(if: $withWorkingHoursWarning)\n    ...CompanyRatingFragment\n    id\n    name\n    contactPerson\n    contactEmail\n    phones {\n      id\n      description\n      number\n      __typename\n    }\n    addressText\n    isChatVisible\n    mainLogoUrl(width: 100, height: 50)\n    slug\n    isOneClickOrderAllowed\n    isOrderableInCatalog\n    isPackageCPA\n    addressMapDescription\n    region {\n      id\n      __typename\n    }\n    geoCoordinates {\n      id\n      latitude\n      longtitude\n      __typename\n    }\n    branches {\n      id\n      name\n      phones\n      address {\n        region_id\n        country_id\n        city\n        zipCode\n        street\n        regionText\n        __typename\n      }\n      __typename\n    }\n    webSiteUrl\n    site {\n      id\n      isDisabled\n      __typename\n    }\n    operationType\n    __typename\n  }\n  productGroup(id: $groupId) @include(if: $withGroupManagerPhones) {\n    id\n    managerPhones {\n      id\n      number\n      __typename\n    }\n    __typename\n  }\n  product(id: $productId) @include(if: $getProductDetails) {\n    id\n    name\n    image(width: 60, height: 60)\n    price\n    signed_id\n    discountedPrice\n    priceCurrencyLocalized\n    buyButtonDisplayType\n    regions {\n      id\n      name\n      isCity\n      __typename\n    }\n    __typename\n  }\n}\n\nfragment CompanyWorkingHoursFragment on Company {\n  id\n  isWorkingNow\n  isOrderableInCatalog\n  scheduleSettings {\n    id\n    currentDayCaption\n    __typename\n  }\n  scheduleDays {\n    id\n    name\n    dayType\n    hasBreak\n    workTimeRangeStart\n    workTimeRangeEnd\n    breakTimeRangeStart\n    breakTimeRangeEnd\n    __typename\n  }\n  __typename\n}\n\nfragment CompanyRatingFragment on Company {\n  id\n  inTopSegment\n  opinionStats {\n    id\n    opinionPositivePercent\n    opinionTotal\n    __typename\n  }\n  __typename\n}",
+    }
+
+    response = requests.post(
+        "https://satu.kz/graphql", cookies=cookies, headers=headers, json=json_data
+    )
+    json_data = response.json()
+    with open("kyky.json", "w", encoding="utf-8") as f:
+        json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
+
+
+def get_category_html():
+    # cookies = {
+    #     "_cmuid": "2dda2bfa-7c83-4d7a-b8c2-c2b019abfc9c",
+    #     "gdpr_permission_given": "1",
+    #     "__gfp_64b": "-TURNEDOFF",
+    #     "OptOutOnRequest": "groups=googleAnalytics:1,googleAdvertisingProducts:1,tikTok:1,allegroAdsNetwork:1,facebook:1",
+    #     "_fbp": "fb.1.1730705513360.2103671403",
+    #     "_meta_facebookTag_sync": "1730705513360",
+    #     "_meta_googleGtag_ga_library_loaded": "1732617414758",
+    #     "_ga": "GA1.1.764773296.1732617054",
+    #     "_gcl_au": "1.1.2068937467.1732617415",
+    #     "_tt_enable_cookie": "1",
+    #     "_ttp": "w0twNdkVuWimw_xIZvxkeal5NyI.tt.1",
+    #     "_meta_googleGtag_ga": "GA1.1.764773296.1732617054",
+    #     "wdctx": "v5.69gDzY2U7Ol17F4jy_x0a2sImZ8whsNP5CXj29072flaj0pnm-8EX_IN3hwXZXxgn8eGUpZ2mof7mdiTSliTWFXprkFXdif51XJ6_SRQwedBA-UEhpyDZRY-Am54KkDgudLQ874kQps2gmlR1pEBKWmcthGT8B4HCdKDJxb1VmtPLo8CkxWoqWa2kUa4WcQcRWt7LzmPaQ5QoO9VZqOS2JTEN9mV3kIiOrVC7_yIdtBG.RtXzRMINTbaq9hS7Zee1RQ.94i3MVtwceE",
+    #     "_meta_googleGtag_session_id": "1732620824",
+    #     "_meta_googleGtag_ga_session_count": "2",
+    #     "__rtbh.lid": "%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%2256My64JmEnNIiIZYza72%22%2C%22expiryDate%22%3A%222025-11-26T11%3A47%3A36.091Z%22%7D",
+    #     "datadome": "E4BUmy3j9MMqlFpLZYHVXlED7~4HOAA2Mtmjf~6i7GaDv8xJZtiYrjGD8bAwdQXeEt_jS_YL2fcGXzj3kH0_kv3gd3yGmdCpcEI0BCbE6RE9y89WNw6iZCCBq9TPKeiY",
+    #     "__rtbh.uid": "%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%22undefined%22%2C%22expiryDate%22%3A%222025-11-26T11%3A47%3A36.637Z%22%7D",
+    #     "_ga_G64531DSC4": "GS1.1.1732620826.2.1.1732621661.53.0.0",
+    # }
+
+    # headers = {
+    #     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    #     "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    #     "cache-control": "no-cache",
+    #     # 'cookie': '_cmuid=2dda2bfa-7c83-4d7a-b8c2-c2b019abfc9c; gdpr_permission_given=1; __gfp_64b=-TURNEDOFF; OptOutOnRequest=groups=googleAnalytics:1,googleAdvertisingProducts:1,tikTok:1,allegroAdsNetwork:1,facebook:1; _fbp=fb.1.1730705513360.2103671403; _meta_facebookTag_sync=1730705513360; _meta_googleGtag_ga_library_loaded=1732617414758; _ga=GA1.1.764773296.1732617054; _gcl_au=1.1.2068937467.1732617415; _tt_enable_cookie=1; _ttp=w0twNdkVuWimw_xIZvxkeal5NyI.tt.1; _meta_googleGtag_ga=GA1.1.764773296.1732617054; wdctx=v5.69gDzY2U7Ol17F4jy_x0a2sImZ8whsNP5CXj29072flaj0pnm-8EX_IN3hwXZXxgn8eGUpZ2mof7mdiTSliTWFXprkFXdif51XJ6_SRQwedBA-UEhpyDZRY-Am54KkDgudLQ874kQps2gmlR1pEBKWmcthGT8B4HCdKDJxb1VmtPLo8CkxWoqWa2kUa4WcQcRWt7LzmPaQ5QoO9VZqOS2JTEN9mV3kIiOrVC7_yIdtBG.RtXzRMINTbaq9hS7Zee1RQ.94i3MVtwceE; _meta_googleGtag_session_id=1732620824; _meta_googleGtag_ga_session_count=2; __rtbh.lid=%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%2256My64JmEnNIiIZYza72%22%2C%22expiryDate%22%3A%222025-11-26T11%3A47%3A36.091Z%22%7D; datadome=E4BUmy3j9MMqlFpLZYHVXlED7~4HOAA2Mtmjf~6i7GaDv8xJZtiYrjGD8bAwdQXeEt_jS_YL2fcGXzj3kH0_kv3gd3yGmdCpcEI0BCbE6RE9y89WNw6iZCCBq9TPKeiY; __rtbh.uid=%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%22undefined%22%2C%22expiryDate%22%3A%222025-11-26T11%3A47%3A36.637Z%22%7D; _ga_G64531DSC4=GS1.1.1732620826.2.1.1732621661.53.0.0',
+    #     "dnt": "1",
+    #     "dpr": "1",
+    #     "pragma": "no-cache",
+    #     "priority": "u=0, i",
+    #     "sec-ch-device-memory": "8",
+    #     "sec-ch-prefers-color-scheme": "light",
+    #     "sec-ch-prefers-reduced-motion": "reduce",
+    #     "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    #     "sec-ch-ua-arch": '"x86"',
+    #     "sec-ch-ua-full-version-list": '"Google Chrome";v="131.0.6778.86", "Chromium";v="131.0.6778.86", "Not_A Brand";v="24.0.0.0"',
+    #     "sec-ch-ua-mobile": "?0",
+    #     "sec-ch-ua-model": '""',
+    #     "sec-ch-ua-platform": '"Windows"',
+    #     "sec-ch-viewport-height": "1031",
+    #     "sec-fetch-dest": "document",
+    #     "sec-fetch-mode": "navigate",
+    #     "sec-fetch-site": "none",
+    #     "sec-fetch-user": "?1",
+    #     "upgrade-insecure-requests": "1",
+    #     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    #     "viewport-width": "1149",
+    # }
+
+    # params = {
+    #     "order": "qd",
+    #     "stan": "nowe",
+    #     "price_from": "150",
+    #     "price_to": "1500",
+    #     "page": "1",
+    # }
+
+    # response = requests.get(
+    #     "https://allegro.pl/kategoria/silownia-i-fitness-trening-silowy-110145",
+    #     params=params,
+    #     cookies=cookies,
+    #     headers=headers,
+    # )
+    # # Сохраняем HTML содержимое страницы в файл
+    filename = "allegro_category.html"
+    # with open(filename, "w", encoding="utf-8") as file:
+    #     file.write(response.text)
+    with open(filename, encoding="utf-8") as file:
+        src = file.read()
+    soup = BeautifulSoup(src, "lxml")
+    pagination_div = soup.find("div", {"aria-label": "paginacja"})
+
+
 if __name__ == "__main__":
-    get_session_html()
+    # get_contact_prom()
+    get_category_html()
+    # get_session_html()
     # # Пример использования
     # proxies = [
     #     "178.253.26.108:46342:BGIG0AAX:8D3PG3F3",

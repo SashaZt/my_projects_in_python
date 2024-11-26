@@ -283,7 +283,7 @@ def get_parsing():
             sku_product = soup.select_one(
                 "div.productdetails-more-details.clearfix > div > div.row.code > span"
             ).text
-            sku_product = f"INT-{sku_product}"
+            # sku_product = f"INT-{sku_product}"
         except:
             sku_product = None
         result = {
