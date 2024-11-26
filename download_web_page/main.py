@@ -529,8 +529,59 @@ def format_proxies(proxy_list):
     return formatted_list
 
 
-if __name__ == "__main__":
+def get_session_html():
+    import requests
 
+    # Создаем сессию
+    session = requests.Session()
+
+    # Делаем POST запрос для авторизации
+    login_url = "https://polanik.shop/en_GB/login"
+    login_payload = {"mail": "hdsport2006@gmail.com", "pass": "15987532"}
+    login_headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "content-type": "application/x-www-form-urlencoded",
+        "origin": "https://polanik.shop",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "referer": "https://polanik.shop/en_GB/login",
+    }
+
+    # Авторизуемся на сайте и сохраняем куки в сессии
+    response = session.post(login_url, data=login_payload, headers=login_headers)
+
+    # Проверяем, успешно ли прошел логин (статус код 200 и наличие нужной информации в ответе)
+    if response.status_code == 200:
+        print("Авторизация прошла успешно")
+
+        # Делаем GET запрос к защищенной странице
+        protected_url = "https://polanik.shop/en_GB/p/BL-2-square-block/850"
+        protected_headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            "referer": "https://polanik.shop/en_GB/",
+        }
+        response = session.get(protected_url, headers=protected_headers)
+
+        # Проверяем, успешно ли мы получили доступ к защищенной странице
+        if response.status_code == 200:
+            print("Доступ к защищенной странице получен")
+
+            # Сохраняем HTML содержимое страницы в файл
+            filename = "protected_page.html"
+            with open(filename, "w", encoding="utf-8") as file:
+                file.write(response.text)
+            print(f"HTML содержимое страницы сохранено в файл: {filename}")
+
+        else:
+            print(
+                f"Не удалось получить доступ к защищенной странице. Статус код: {response.status_code}"
+            )
+
+    else:
+        print(f"Ошибка авторизации. Статус код: {response.status_code}")
+
+
+if __name__ == "__main__":
+    get_session_html()
     # # Пример использования
     # proxies = [
     #     "178.253.26.108:46342:BGIG0AAX:8D3PG3F3",
@@ -640,8 +691,8 @@ if __name__ == "__main__":
     # formatted_proxies = format_proxies(proxies)
     # for proxy in formatted_proxies:
     #     print(proxy)
-    url_test()
-    get_html()
+    # url_test()
+    # get_html()
     # download_pdf()
     # parsing_page()
     # Вызов функции с файлом unique_itm_urls.csv

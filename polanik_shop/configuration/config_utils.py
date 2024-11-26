@@ -28,8 +28,7 @@ def initialize_directories(base_dir: Path) -> dict:
         "csv_file": directories["output_dir"] / "output.csv",
         "txt_file": directories["output_dir"] / "output.txt",
         "config_file": directories["config_dir"] / "config.txt",
-        "traffic_report": directories["output_dir"] / "Traffic_History_Charts.xlsx",
-        "results_report": directories["output_dir"] / "All_Result.xlsx",
+        "credentials": directories["config_dir"] / "credentials.json",
     }
 
     return {**directories, **files}
