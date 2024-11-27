@@ -60,6 +60,7 @@ Thumbs.db
 *.db
 *.pem
 *.crt
+*.mp3
 *.session-journal
 # Здесь мы игнорируем все .txt файлы...
 *.txt

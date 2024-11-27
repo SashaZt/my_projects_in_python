@@ -175,8 +175,8 @@ class Downloader:
                 logger.info("Все страницы успешно загружены.")
                 break
 
-            # Определяем, какие страницы ещё нужно скачать
-            pages_to_download = set(range(1, max_page + 1)) - {
+            # Определяем, какие страницы ещё нужно скачать, начиная со второй страницы
+            pages_to_download = set(range(2, max_page + 1)) - {
                 int(f.stem.split("_")[-1])
                 for f in downloaded_files
                 if f.stem.split("_")[-1].isdigit()

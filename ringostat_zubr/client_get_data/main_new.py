@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import wave
 from datetime import datetime
 from pathlib import Path
 from tkinter import (
@@ -17,6 +18,7 @@ from tkinter import (
     Tk,
 )
 
+import lameenc
 import requests
 import urllib3
 from configuration.logger_setup import logger
@@ -24,6 +26,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from dotenv import load_dotenv
+from pydrive2.auth import GoogleAuth
+from pydrive2.drive import GoogleDrive
 from tkcalendar import Calendar
 
 # Загрузка переменных из .env
@@ -33,6 +37,7 @@ load_dotenv(env_path)
 
 SECRET_AES_KEY = os.getenv("SECRET_AES_KEY")
 IP = os.getenv("IP")
+FOLDER_ID = os.getenv("FOLDER_ID")
 ORIGINAL_ACCESS_KEY = os.getenv("ORIGINAL_ACCESS_KEY")
 
 if SECRET_AES_KEY is None or ORIGINAL_ACCESS_KEY is None:
@@ -79,7 +84,9 @@ LOGICAL_OPERATORS = ["И", "ИЛИ"]
 # Путь к папкам и файлу для данных
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
+call_recording_directory = current_directory / "call_recording"
 data_directory.mkdir(parents=True, exist_ok=True)
+call_recording_directory.mkdir(parents=True, exist_ok=True)
 temp_data_output_file = data_directory / "temp_data.json"
 recordings_output_file = data_directory / "recording.json"
 result_output_file = data_directory / "result.json"
@@ -124,10 +131,6 @@ def download_data_to_file():
             logger.warning(f"Failed to fetch data, status code: {response.status_code}")
     except requests.exceptions.RequestException as e:
         logger.error(f"An error occurred during the GET request: {e}")
-
-
-# Скачиваем данные в файл result.json перед запуском интерфейса
-download_data_to_file()
 
 
 def load_data_from_file():
@@ -238,12 +241,6 @@ def fetch_all_data():
 
     # Применение фильтров
     filtered_data = apply_combined_filter(data, filters)
-    # all_recordings = [
-    #     call.get("call_recording")
-    #     for call in filtered_data
-    #     if call.get("call_recording")
-    # ]
-    # write_recordings_to_json(recordings_output_file, all_recordings)
     all_recordings = []
 
     for call in filtered_data:
@@ -262,6 +259,91 @@ def fetch_all_data():
     result_text.delete(1.0, END)
     result_text.insert(END, "Filtered Data:\n")
     result_text.insert(END, json.dumps(filtered_data, ensure_ascii=False, indent=4))
+
+
+def download_and_convert_to_mp3():
+    """
+    Скачивает запись по URL, сохраняет как .wav, и конвертирует в .mp3.
+
+    :param call_recording_url: Ссылка на файл записи
+    :param output_directory: Директория для сохранения файла
+    :return: Путь к сохраненному файлу mp3
+    """
+
+    with open(recordings_output_file, "r", encoding="utf-8") as f:
+        datas = json.load(f)
+
+    # Итерация по данным
+    for data in datas:
+        # Получаем ключ (дата) и значение (URL) из каждого словаря
+        for file_name, call_recording_url in data.items():
+            try:
+                # Скачиваем файл
+                response = requests.get(call_recording_url, timeout=30, stream=True)
+                wav_file_path = call_recording_directory / f"{file_name}.wav"
+                mp3_file_path = call_recording_directory / f"{file_name}.mp3"
+                if wav_file_path.exists():
+                    continue
+                if response.status_code == 200:
+                    with open(wav_file_path, "wb") as f:
+                        f.write(response.content)
+                    logger.info(f"File downloaded: {wav_file_path}")
+
+                    # Конвертация .wav в .mp3 через lameenc
+                    with wave.open(str(wav_file_path), "rb") as wav_file:
+                        params = wav_file.getparams()
+                        num_channels = params.nchannels
+                        sample_rate = params.framerate
+                        pcm_data = wav_file.readframes(params.nframes)
+
+                        encoder = lameenc.Encoder()
+                        encoder.set_bit_rate(128)
+                        encoder.set_in_sample_rate(sample_rate)
+                        encoder.set_channels(num_channels)
+                        mp3_data = encoder.encode(pcm_data)
+                        mp3_data += encoder.flush()
+
+                    # Сохранение MP3 файла
+                    with open(mp3_file_path, "wb") as mp3_file:
+                        mp3_file.write(mp3_data)
+                    logger.info(f"File converted to MP3: {mp3_file_path}")
+
+                    # Удаление оригинального WAV файла
+                    os.remove(wav_file_path)
+                else:
+                    logger.error(
+                        f"Failed to download file. Status code: {response.status_code}"
+                    )
+            except Exception as e:
+                logger.error(f"An error occurred: {e}")
+    recordings_output_file.unlink()
+
+
+def upload_to_google_drive():
+    """
+    Загрузка всех файлов из директории call_recording_directory в указанную папку Google Drive.
+    """
+    try:
+        # Аутентификация с использованием Google Drive API
+        gauth = GoogleAuth()
+        gauth.LocalWebserverAuth()  # Локальный веб-сервер для авторизации
+        drive = GoogleDrive(gauth)
+
+        # Перебор всех файлов в директории
+        for file_path in call_recording_directory.iterdir():
+            if file_path.is_file():  # Проверяем, что это файл, а не поддиректория
+                file_name = file_path.name
+                print(f"Uploading file: {file_name}")
+
+                # Создание файла на Google Drive
+                file_drive = drive.CreateFile(
+                    {"title": file_name, "parents": [{"id": FOLDER_ID}]}
+                )
+                file_drive.SetContentFile(str(file_path))
+                file_drive.Upload()
+                print(f"File uploaded to Google Drive: {file_name}")
+    except Exception as e:
+        print(f"An error occurred while uploading to Google Drive: {e}")
 
 
 def show_calendar(entry):
@@ -352,9 +434,29 @@ for i in range(5):
         operator_menu.config(width=5)
         operator_menu.grid(row=i, column=4, padx=5, pady=5, sticky="w")
 
-# Кнопка получения данных
-fetch_button = Button(root, text="Получить данные", command=fetch_all_data)
-fetch_button.pack(pady=10)
+# Создаем фрейм для кнопок
+button_frame = Frame(root)
+button_frame.pack(pady=10, padx=10)
+
+# Кнопки в один ряд
+fetch_button_1 = Button(
+    button_frame, text="Получить данные с сервера", command=download_data_to_file
+)
+fetch_button_1.pack(side="left", padx=5, pady=5)
+
+fetch_button_2 = Button(button_frame, text="Отфильтровать", command=fetch_all_data)
+fetch_button_2.pack(side="left", padx=5, pady=5)
+
+download_button = Button(
+    button_frame, text="Скачать записи", command=download_and_convert_to_mp3
+)
+download_button.pack(side="left", padx=5, pady=5)
+
+upload_button = Button(
+    button_frame, text="Загрузить на GoogleDrive", command=upload_to_google_drive
+)
+upload_button.pack(side="left", padx=5, pady=5)
+
 
 # Поле вывода результатов
 result_text = Text(root, wrap="word", width=80, height=20)
