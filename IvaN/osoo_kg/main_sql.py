@@ -18,6 +18,7 @@ DB_PORT = int(os.getenv("DB_PORT", 5430))
 
 table_name = "kg"
 json_file = "result.json"
+json_file = "output_data.json"
 
 # Create a connection pool
 db_pool = pool.ThreadedConnectionPool(
@@ -200,6 +201,49 @@ def process_file(file_path):
         yield batch
 
 
+def map_record(record):
+    """Map JSON keys to database columns."""
+    return (
+        record.get("Полное фирменное наименование на официальном языке"),  # "Название"
+        f"{record.get('Текущий статус', '')} {record.get('Дата первичной регистрации', '')}",  # "Статус"
+        record.get("ИНН"),  # "ИНН"
+        record.get("Руководитель"),  # "Директор"
+        None,  # "Дополнительная информация 1"
+        None,  # "Дополнительная информация 2"
+        None,  # "Дополнительная информация 3"
+        None,  # "Дополнительная информация 4"
+        None,  # "Дополнительная информация 5"
+        None,  # "Последнее обновление"
+        None,  # "Форма"
+        None,  # "Форма собственности"
+        record.get(
+            "Количество учредителей/участников, членов"
+        ),  # "Количество участников"
+        None,  # "Вид деятельности"
+        record.get("Регистрационный номер"),  # "Регистрационный номер"
+        record.get("Код ОКПО"),  # "ОКПО"
+        record.get("Юридический адрес"),  # "Адрес"
+        None,  # "Телефон"
+    )
+
+
+def process_file_miniy(file_path):
+    """Read the JSON file and process it."""
+    batch_size = 1000
+    with open(file_path, "r", encoding="utf-8") as file:
+        data = json.load(file)  # Load entire JSON as a list of dictionaries
+
+    batch = []
+    for record in data:
+        mapped_record = map_record(record)  # Apply mapping
+        batch.append(mapped_record)
+        if len(batch) >= batch_size:
+            yield batch
+            batch = []
+    if batch:
+        yield batch
+
+
 def main():
     # get_tables()
     # check_table_data()
@@ -208,7 +252,8 @@ def main():
 
     # Process the JSON file and insert or update data
     with ThreadPoolExecutor(max_workers=4) as executor:
-        for batch in process_file(json_file):
+        # for batch in process_file(json_file):
+        for batch in process_file_miniy(json_file):
             executor.submit(upsert_batch, batch)
 
     logger.info("Data loading complete.")

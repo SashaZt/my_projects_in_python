@@ -11,6 +11,7 @@ from tkinter import (
     Label,
     Menu,
     OptionMenu,
+    Scrollbar,
     StringVar,
     Text,
     Tk,
@@ -31,6 +32,7 @@ env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(env_path)
 
 SECRET_AES_KEY = os.getenv("SECRET_AES_KEY")
+IP = os.getenv("IP")
 ORIGINAL_ACCESS_KEY = os.getenv("ORIGINAL_ACCESS_KEY")
 
 if SECRET_AES_KEY is None or ORIGINAL_ACCESS_KEY is None:
@@ -79,6 +81,7 @@ current_directory = Path.cwd()
 data_directory = current_directory / "data"
 data_directory.mkdir(parents=True, exist_ok=True)
 temp_data_output_file = data_directory / "temp_data.json"
+recordings_output_file = data_directory / "recording.json"
 result_output_file = data_directory / "result.json"
 
 
@@ -101,7 +104,7 @@ def encrypt_access_key(access_key: str) -> str:
 
 def download_data_to_file():
     """Скачивает все данные и сохраняет их в result.json"""
-    url = "https://185.233.116.213:5000/get_all_data"
+    url = f"https://{IP}/get_all_data"
     encrypted_key = encrypt_access_key(ORIGINAL_ACCESS_KEY)
     params = {"access_key": encrypted_key}
 
@@ -214,6 +217,12 @@ def apply_single_filter(data, field, condition, value):
     return data
 
 
+def write_recordings_to_json(data_output_file, data):
+    # Сохраняем данные в файл result.json
+    with open(data_output_file, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+
 def fetch_all_data():
     """Загружает данные из файла result.json и применяет фильтры, выводя результат в интерфейсе"""
     data = load_data_from_file()
@@ -229,6 +238,25 @@ def fetch_all_data():
 
     # Применение фильтров
     filtered_data = apply_combined_filter(data, filters)
+    # all_recordings = [
+    #     call.get("call_recording")
+    #     for call in filtered_data
+    #     if call.get("call_recording")
+    # ]
+    # write_recordings_to_json(recordings_output_file, all_recordings)
+    all_recordings = []
+
+    for call in filtered_data:
+        call_recording = call.get("call_recording")  # Получение записи
+        call_date = call.get("call_date")  # Получение даты
+
+        if call_recording and call_date:  # Проверка на наличие данных
+            file_name = datetime.strptime(call_date, "%Y-%m-%d %H:%M:%S").strftime(
+                "%Y-%m-%d_%H-%M-%S"
+            )
+            data_result = {file_name: call_recording}  # Формирование результата
+            all_recordings.append(data_result)  # Добавление в список
+    write_recordings_to_json(recordings_output_file, all_recordings)
 
     # Очищаем текстовое поле перед выводом
     result_text.delete(1.0, END)
@@ -273,6 +301,7 @@ def add_context_menu(entry_widget):
 # Основное окно
 root = Tk()
 root.title("Data Fetcher with Filters")
+
 
 field_vars, condition_vars, value_entries, operator_vars = [], [], [], []
 
@@ -330,5 +359,8 @@ fetch_button.pack(pady=10)
 # Поле вывода результатов
 result_text = Text(root, wrap="word", width=80, height=20)
 result_text.pack(pady=10)
+scrollbar = Scrollbar(root, orient="vertical", command=result_text.yview)
+result_text.config(yscrollcommand=scrollbar.set)
+scrollbar.pack(side="right", fill="y")
 
 root.mainloop()

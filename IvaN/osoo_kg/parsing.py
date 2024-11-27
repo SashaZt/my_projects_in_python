@@ -221,36 +221,6 @@ class Parsing:
 
     # Функция для очистки данных
 
-    def clean_text(self, text):
-        # Проверяем, что text не равен None
-        if text is None:
-            return None
-
-        # Убираем лишние пробелы и символы \xa0
-        cleaned_text = text.replace("\xa0", " ").strip()
-
-        # Если текст не содержит ключевые слова, возвращаем его без изменений
-        if not any(
-            keyword in cleaned_text
-            for keyword in [
-                "Код ЄДРПОУ",
-                "Дата реєстрації",
-                "Дата оновлення",
-                "Кількість працівників",
-                "Дата реєстрації",
-            ]
-        ):
-            return cleaned_text
-
-        # Убираем заголовки, если они присутствуют
-        cleaned_text = re.sub(
-            r"^(Код ЄДРПОУ|Дата реєстрації|Дата оновлення|Кількість працівників)",
-            "",
-            cleaned_text,
-        )
-
-        return cleaned_text.strip()
-
     def write_to_excel(self):
         with json_result.open(encoding="utf-8") as file:
             # Прочитать содержимое JSON файла

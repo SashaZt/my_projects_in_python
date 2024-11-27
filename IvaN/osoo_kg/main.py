@@ -110,7 +110,7 @@ while True:
     elif user_input == 4:
         processor = Parsing(html_files_directory, xlsx_result, max_workers)
         all_results = processor.parsing_html()
-        # processor.save_results_to_json(all_results)
+        processor.save_results_to_json(all_results)
 
     elif user_input == 5:
         processor = Parsing(html_files_directory, xlsx_result, max_workers)

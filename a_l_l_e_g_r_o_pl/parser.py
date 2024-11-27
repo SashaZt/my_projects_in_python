@@ -27,7 +27,7 @@ class Parser:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
 
-        pagination_div = soup.find("div", {"aria-label": "paginacja"})
+        pagination_div = soup.find("ul", {"aria-label": "paginacja"})
         if pagination_div:
             span_element = pagination_div.find("span")
             if span_element:

@@ -1,3 +1,8 @@
+    """_summary_
+    Скачивание данных с помощью playwright и прокси разхных вариантов
+    Returns:
+        _type_: _description_
+    """
 import asyncio
 import random
 from concurrent.futures import ThreadPoolExecutor
@@ -16,6 +21,7 @@ data_directory.mkdir(parents=True, exist_ok=True)
 html_files_directory.mkdir(exist_ok=True, parents=True)
 
 output_csv_file = data_directory / "output.csv"
+input_csv_file = data_directory / "input.csv"
 
 
 def read_from_csv(input_csv_file):
@@ -26,7 +32,7 @@ def read_from_csv(input_csv_file):
 
 async def random_pause():
     pause_time = (
-        random.randint(10, 30) * 1000
+        random.randint(1, 2) * 1000
     )  # Случайная пауза от 5 до 10 секунд в миллисекундах
     await asyncio.sleep(pause_time / 1000)
 
@@ -34,23 +40,36 @@ async def random_pause():
 async def search_inn(inns):
     # protocol = "http"
     # server = "res.proxy-seller.io:10000"
-    # username = "57e9132c4de5b24e"
+    # username = "637b14e61756d372"
     # password = "RNW78Fm5"
     # proxy_config = {
     #     "server": f"{protocol}://{server}",
     #     "username": username,
     #     "password": password,
     # }
-    # proxy_config = {
-    #     "server": "http://37.48.118.4:13010",
-    # }
-    proxy_config = {}
+    proxy_config = {
+        "server": "http://5.79.73.131:13010",
+    }
+    # proxy_config = {}
     async with async_playwright() as p:
-        # browser = await p.chromium.launch(proxy=proxy_config, headless=False)
-        browser = await p.chromium.launch(headless=False)
+        browser = await p.chromium.launch(proxy=proxy_config, headless=False)
+        # browser = await p.chromium.launch(headless=False)
         page = await browser.new_page()
 
-        
+        # Отключение загрузки медиафайлов, кроме JavaScript
+        async def block_non_js(route, request):
+            if request.resource_type in [
+                "image",
+                "stylesheet",
+                "font",
+                "media",
+                "other",
+            ]:
+                await route.abort()
+            else:
+                await route.continue_()
+
+        await page.route("**/*", block_non_js)
         for inn in inns:
             try:
                 file_path = html_files_directory / f"{inn}.html"
@@ -70,8 +89,7 @@ async def search_inn(inns):
                     continue  # Если элемент не найден, пропускаем текущую итерацию
                 # Вставка ИНН в поле ввода и нажатие кнопки поиска
                 # await page.fill("input#id_text", inn)
-                await random_pause()  # Пауза после заполнения поля
-
+                await random_pause()  # Пауза после заполнения пол
                 await page.wait_for_load_state(
                     "domcontentloaded"
                 )  # Ожидание полной загрузки страницы
@@ -114,7 +132,7 @@ async def search_inn(inns):
 
 async def main():
     urls = read_from_csv(output_csv_file)
-    n = 5  # Количество потоков
+    n = 10  # Количество потоков
     chunk_size = len(urls) // n
     tasks = []
 
@@ -128,5 +146,22 @@ async def main():
     await asyncio.gather(*tasks)
 
 
+# Функция для проверки наличия файлов
+def filter_missing_files(input_csv_file, output_csv_file):
+    # Шаг 1: Загрузка списка URL из CSV
+    df = pd.read_csv(input_csv_file, dtype={"url": str})
+    url_list = df["url"].tolist()
+
+    # Шаг 2: Проверка наличия файлов
+    filtered_urls = [
+        url for url in url_list if not (html_files_directory / f"{url}.html").exists()
+    ]
+
+    # Шаг 3: Сохранение отфильтрованного списка в новый CSV
+    pd.DataFrame(filtered_urls, columns=["url"]).to_csv(output_csv_file, index=False)
+    print(f"Сохранено: {output_csv_file}")
+
+
+filter_missing_files(input_csv_file, output_csv_file)
 # Запуск основных задач
 asyncio.run(main())

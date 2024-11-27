@@ -1,10 +1,15 @@
 import asyncio
 import json
+import time
 from parser import Parser
 
 import pandas as pd
 import requests
 from configuration.logger_setup import logger
+
+# Настройте максимальное количество попыток, если требуется
+MAX_RETRIES = 30
+RETRY_DELAY = 5  # Задержка между попытками в секундах
 
 
 class Downloader:
@@ -29,66 +34,200 @@ class Downloader:
             html_files_directory, html_page_directory, csv_output_file, max_workers
         )  # Создаем экземпляр Parser
 
-    def get_all_page_html(self):
-        # Скачать все страницы пагинации
+    # def get_all_page_html(self):
+    #     # Скачать все страницы пагинации
 
-        html_company = self.html_page_directory / "url_start.html"
+    #     html_company = self.html_page_directory / "url_start.html"
+    #     payload = {
+    #         "api_key": self.api_key,
+    #         "url": self.url_start,
+    #         "ultra_premium": "true",
+    #     }
+
+    #     # Проверяем, существует ли уже файл первой страницы
+    #     if html_company.exists():
+    #         logger.warning(f"Файл {html_company} уже существует, пропускаем загрузку.")
+    #         max_page = (
+    #             self.parser.parsin_page()
+    #         )  # Получаем max_page из существующего файла
+    #     else:
+    #         # Запрос к API для первой страницы
+    #         r = requests.get("https://api.scraperapi.com/", params=payload, timeout=60)
+
+    #         retries = 0
+    #         while retries < MAX_RETRIES:
+    #             try:
+    #                 r = self.get_request()  # Замените на ваш метод выполнения запроса
+    #                 if r.status_code == 200:
+    #                     src = r.text
+    #                     with open(html_company, "w", encoding="utf-8") as file:
+    #                         file.write(src)
+    #                     max_page = (
+    #                         self.parser.parsin_page()
+    #                     )  # Получаем max_page из существующего файла
+    #                     logger.info(f"Сохранена первая страница: {html_company}")
+    #                     break  # Прерываем цикл, если статус код 200
+    #                 else:
+    #                     logger.error(f"Ошибка при запросе страницы: {r.status_code}")
+    #                     retries += 1
+    #                     if retries < MAX_RETRIES:
+    #                         logger.info(
+    #                             f"Повторная попытка через {RETRY_DELAY} секунд..."
+    #                         )
+    #                         time.sleep(RETRY_DELAY)
+    #             except Exception as e:
+    #                 logger.error(f"Произошла ошибка: {e}")
+    #                 retries += 1
+    #                 if retries < MAX_RETRIES:
+    #                     logger.info(f"Повторная попытка через {RETRY_DELAY} секунд...")
+    #                     time.sleep(RETRY_DELAY)
+
+    #         if retries >= MAX_RETRIES:
+    #             logger.error(
+    #                 "Не удалось получить статус 200 после максимального числа попыток."
+    #             )
+    #             return  # Выходим из функции, если все попытки не удались
+
+    #     # Запрашиваем страницы с 2 по max_page, если max_page определен
+    #     if max_page:
+    #         for page in range(2, max_page + 1):
+    #             html_company = self.html_page_directory / f"url_start_{page}.html"
+    #             # Обновляем payload для каждой страницы
+    #             payload = {"api_key": self.api_key, "url": f"{self.url_start}&p={page}"}
+
+    #             if html_company.exists():
+    #                 logger.warning(f"Файл {html_company} уже существует, пропускаем.")
+    #             else:
+    #                 r = requests.get(
+    #                     "https://api.scraperapi.com/", params=payload, timeout=60
+    #                 )
+
+    #                 if r.status_code == 200:
+    #                     src = r.text
+    #                     with open(html_company, "w", encoding="utf-8") as file:
+    #                         file.write(src)
+    #                     logger.info(f"Сохранена страница {page}: {html_company}")
+    #                 else:
+    #                     logger.error(
+    #                         f"Ошибка при запросе страницы {
+    #                             page}: {r.status_code}"
+    #                     )
+    #         logger.info("Скачали все страницы пагинации")
+    def get_all_page_html(self):
+        """
+        Скачивает все страницы пагинации до тех пор, пока количество файлов
+        в директории не будет равно max_page.
+        """
         payload = {
             "api_key": self.api_key,
             "url": self.url_start,
             "ultra_premium": "true",
         }
 
-        # Проверяем, существует ли уже файл первой страницы
+        # Проверяем первую страницу
+        html_company = self.html_page_directory / "url_start.html"
         if html_company.exists():
-            logger.warning(f"Файл {html_company} уже существует, пропускаем загрузку.")
-            max_page = (
-                self.parser.parsin_page()
-            )  # Получаем max_page из существующего файла
+            logger.info(f"Файл {html_company} уже существует, пропускаем загрузку.")
+            max_page = self.parser.parsin_page()
         else:
-            # Запрос к API для первой страницы
-            r = requests.get("https://api.scraperapi.com/", params=payload, timeout=60)
-
-            if r.status_code == 200:
-                src = r.text
-                with open(html_company, "w", encoding="utf-8") as file:
-                    file.write(src)
-                max_page = (
-                    self.parser.parsin_page()
-                )  # Получаем max_page из существующего файла
-                logger.info(f"Сохранена первая страница: {html_company}")
-            else:
-                logger.error(
-                    f"Ошибка при запросе первой страницы: {
-                        r.status_code}"
-                )
-                return  # Если запрос не успешен, выходим из функции
-
-        # Запрашиваем страницы с 2 по max_page, если max_page определен
-        if max_page:
-            for page in range(2, max_page + 1):
-                html_company = self.html_page_directory / f"url_start_{page}.html"
-                # Обновляем payload для каждой страницы
-                payload = {"api_key": self.api_key, "url": f"{self.url_start}&p={page}"}
-
-                if html_company.exists():
-                    logger.warning(f"Файл {html_company} уже существует, пропускаем.")
-                else:
+            retries = 0
+            while True:
+                try:
                     r = requests.get(
                         "https://api.scraperapi.com/", params=payload, timeout=60
                     )
-
                     if r.status_code == 200:
                         src = r.text
                         with open(html_company, "w", encoding="utf-8") as file:
                             file.write(src)
-                        logger.info(f"Сохранена страница {page}: {html_company}")
+                        max_page = self.parser.parsin_page()
+                        logger.info(f"Сохранена первая страница: {html_company}")
+                        break
                     else:
                         logger.error(
-                            f"Ошибка при запросе страницы {
-                                page}: {r.status_code}"
+                            f"Ошибка при запросе первой страницы: {r.status_code}"
                         )
-            logger.info("Скачали все страницы пагинации")
+                        retries += 1
+                        if retries >= MAX_RETRIES:
+                            raise Exception(
+                                "Превышено максимальное количество попыток."
+                            )
+                        logger.info(f"Повторная попытка через {RETRY_DELAY} секунд...")
+                        time.sleep(RETRY_DELAY)
+                except Exception as e:
+                    logger.error(f"Произошла ошибка при запросе первой страницы: {e}")
+                    retries += 1
+                    if retries >= MAX_RETRIES:
+                        raise Exception(
+                            "Не удалось загрузить первую страницу после повторных попыток."
+                        )
+                    time.sleep(RETRY_DELAY)
+
+        # Цикл для загрузки всех страниц до достижения max_page
+        while True:
+            downloaded_files = [
+                f
+                for f in self.html_page_directory.iterdir()
+                if f.name.startswith("url_start_") and f.suffix == ".html"
+            ]
+
+            if len(downloaded_files) >= max_page:
+                logger.info("Все страницы успешно загружены.")
+                break
+
+            # Определяем, какие страницы ещё нужно скачать
+            pages_to_download = set(range(1, max_page + 1)) - {
+                int(f.stem.split("_")[-1])
+                for f in downloaded_files
+                if f.stem.split("_")[-1].isdigit()
+            }
+
+            for page in pages_to_download:
+                page_file = self.html_page_directory / f"url_start_{page}.html"
+                page_payload = {
+                    "api_key": self.api_key,
+                    "url": f"{self.url_start}&p={page}",
+                }
+
+                retries = 0
+                while True:
+                    try:
+                        r = requests.get(
+                            "https://api.scraperapi.com/",
+                            params=page_payload,
+                            timeout=60,
+                        )
+                        if r.status_code == 200:
+                            src = r.text
+                            with open(page_file, "w", encoding="utf-8") as file:
+                                file.write(src)
+                            logger.info(f"Сохранена страница {page}: {page_file}")
+                            break
+                        else:
+                            logger.error(
+                                f"Ошибка при запросе страницы {page}: {r.status_code}"
+                            )
+                            retries += 1
+                            if retries >= MAX_RETRIES:
+                                logger.error(
+                                    f"Пропущена страница {page} после {MAX_RETRIES} попыток."
+                                )
+                                break
+                            logger.info(
+                                f"Повторная попытка через {RETRY_DELAY} секунд..."
+                            )
+                            time.sleep(RETRY_DELAY)
+                    except Exception as e:
+                        logger.error(
+                            f"Произошла ошибка при запросе страницы {page}: {e}"
+                        )
+                        retries += 1
+                        if retries >= MAX_RETRIES:
+                            logger.error(
+                                f"Пропущена страница {page} после {MAX_RETRIES} попыток."
+                            )
+                            break
+                        time.sleep(RETRY_DELAY)
 
     async def fetch_results_async(self):
         while True:
