@@ -1,15 +1,18 @@
 import json
 import os
+import shutil
 
 import pandas as pd
 from configuration.logger_setup import logger
 
 
 class Writer:
-    def __init__(self, csv_output_file, json_result, xlsx_result):
+
+    def __init__(self, csv_output_file, json_result, xlsx_result, json_page_directory):
         self.csv_output_file = csv_output_file
         self.json_result = json_result
         self.xlsx_result = xlsx_result
+        self.json_page_directory = json_page_directory
 
     def save_to_csv(self, href_set):
         """Сохраняет множество ссылок в CSV-файл.
@@ -23,6 +26,7 @@ class Writer:
         """
         df = pd.DataFrame(list(href_set), columns=["url"])
         df.to_csv(self.csv_output_file, index=False, encoding="utf-8")
+
         logger.info(f"Данные успешно сохранены в {self.csv_output_file}")
 
     def save_results_to_json(self, all_results):
@@ -38,6 +42,7 @@ class Writer:
         try:
             with open(self.json_result, "w", encoding="utf-8") as json_file:
                 json.dump(all_results, json_file, ensure_ascii=False, indent=4)
+            # shutil.rmtree(self.json_files_directory)
             # logger.info(f"Данные успешно сохранены в файл {self.json_result}")
         except Exception as e:
             logger.error(f"Ошибка при сохранении данных в файл {self.json_result}: {e}")

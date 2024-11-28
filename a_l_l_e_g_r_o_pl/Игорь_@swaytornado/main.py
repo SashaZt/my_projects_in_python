@@ -45,11 +45,13 @@ def main_loop():
     html_page_directory = current_directory / "html_page"
     html_files_directory = current_directory / "html_files"
     data_directory = current_directory / "data"
-    json_files_directory = current_directory / "json"
+    json_files_directory = current_directory / "json_file"
+    json_page_directory = current_directory / "json_page"
     configuration_directory = current_directory / "configuration"
 
     data_directory.mkdir(parents=True, exist_ok=True)
     json_files_directory.mkdir(parents=True, exist_ok=True)
+    json_page_directory.mkdir(parents=True, exist_ok=True)
     html_files_directory.mkdir(exist_ok=True, parents=True)
     configuration_directory.mkdir(parents=True, exist_ok=True)
     html_page_directory.mkdir(parents=True, exist_ok=True)
@@ -69,10 +71,16 @@ def main_loop():
         max_workers,
         json_result,
         xlsx_result,
+        json_page_directory,
     )
-    writer = Writer(csv_output_file, json_result, xlsx_result)
+    writer = Writer(csv_output_file, json_result, xlsx_result, json_page_directory)
     parser = Parser(
-        html_files_directory, html_page_directory, csv_output_file, max_workers
+        html_files_directory,
+        html_page_directory,
+        csv_output_file,
+        max_workers,
+        json_files_directory,
+        json_page_directory,
     )
 
     # Основной цикл программы
@@ -80,7 +88,7 @@ def main_loop():
         print(
             "\nВыберите действие:\n"
             "1. Скачивание страниц пагинации\n"
-            "2. Парсинг страниц пагинации\n"
+            # "2. Парсинг страниц пагинации\n"
             "3. Асинхронное скачивание товаров\n"
             "4. Сохранение результатов\n"
             "5. Очистить временные папки\n"
@@ -90,8 +98,8 @@ def main_loop():
 
         if choice == "1":
             downloader.get_all_page_html()
-        elif choice == "2":
-            parser.get_url_html_csv()
+        # elif choice == "2":
+        #     parser.get_url_html_csv()
         elif choice == "3":
             asyncio.run(downloader.main_url())
         elif choice == "4":

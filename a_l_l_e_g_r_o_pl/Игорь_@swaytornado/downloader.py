@@ -10,7 +10,7 @@ from writer import Writer
 
 # Настройте максимальное количество попыток, если требуется
 MAX_RETRIES = 30
-RETRY_DELAY = 5  # Задержка между попытками в секундах
+RETRY_DELAY = 30  # Задержка между попытками в секундах
 
 
 class Downloader:
@@ -26,9 +26,11 @@ class Downloader:
         max_workers,
         json_result,
         xlsx_result,
+        json_page_directory,
     ):
         self.api_key = api_key
         self.json_files_directory = json_files_directory
+        self.json_page_directory = json_page_directory
         self.html_files_directory = html_files_directory
         self.html_page_directory = html_page_directory
         self.json_result = json_result
@@ -36,89 +38,17 @@ class Downloader:
         self.csv_output_file = csv_output_file
         self.url_start = url_start
         self.parser = Parser(
-            html_files_directory, html_page_directory, csv_output_file, max_workers
+            html_files_directory,
+            html_page_directory,
+            csv_output_file,
+            max_workers,
+            json_files_directory,
+            json_page_directory,
         )  # Создаем экземпляр Parser
-        self.writer = Writer(csv_output_file, json_result, xlsx_result)
+        self.writer = Writer(
+            csv_output_file, json_result, xlsx_result, json_page_directory
+        )
 
-    # def get_all_page_html(self):
-    #     # Скачать все страницы пагинации
-
-    #     html_company = self.html_page_directory / "url_start.html"
-    #     payload = {
-    #         "api_key": self.api_key,
-    #         "url": self.url_start,
-    #         "ultra_premium": "true",
-    #     }
-
-    #     # Проверяем, существует ли уже файл первой страницы
-    #     if html_company.exists():
-    #         logger.warning(f"Файл {html_company} уже существует, пропускаем загрузку.")
-    #         max_page = (
-    #             self.parser.parsin_page()
-    #         )  # Получаем max_page из существующего файла
-    #     else:
-    #         # Запрос к API для первой страницы
-    #         r = requests.get("https://api.scraperapi.com/", params=payload, timeout=60)
-
-    #         retries = 0
-    #         while retries < MAX_RETRIES:
-    #             try:
-    #                 r = self.get_request()  # Замените на ваш метод выполнения запроса
-    #                 if r.status_code == 200:
-    #                     src = r.text
-    #                     with open(html_company, "w", encoding="utf-8") as file:
-    #                         file.write(src)
-    #                     max_page = (
-    #                         self.parser.parsin_page()
-    #                     )  # Получаем max_page из существующего файла
-    #                     logger.info(f"Сохранена первая страница: {html_company}")
-    #                     break  # Прерываем цикл, если статус код 200
-    #                 else:
-    #                     logger.error(f"Ошибка при запросе страницы: {r.status_code}")
-    #                     retries += 1
-    #                     if retries < MAX_RETRIES:
-    #                         logger.info(
-    #                             f"Повторная попытка через {RETRY_DELAY} секунд..."
-    #                         )
-    #                         time.sleep(RETRY_DELAY)
-    #             except Exception as e:
-    #                 logger.error(f"Произошла ошибка: {e}")
-    #                 retries += 1
-    #                 if retries < MAX_RETRIES:
-    #                     logger.info(f"Повторная попытка через {RETRY_DELAY} секунд...")
-    #                     time.sleep(RETRY_DELAY)
-
-    #         if retries >= MAX_RETRIES:
-    #             logger.error(
-    #                 "Не удалось получить статус 200 после максимального числа попыток."
-    #             )
-    #             return  # Выходим из функции, если все попытки не удались
-
-    #     # Запрашиваем страницы с 2 по max_page, если max_page определен
-    #     if max_page:
-    #         for page in range(2, max_page + 1):
-    #             html_company = self.html_page_directory / f"url_start_{page}.html"
-    #             # Обновляем payload для каждой страницы
-    #             payload = {"api_key": self.api_key, "url": f"{self.url_start}&p={page}"}
-
-    #             if html_company.exists():
-    #                 logger.warning(f"Файл {html_company} уже существует, пропускаем.")
-    #             else:
-    #                 r = requests.get(
-    #                     "https://api.scraperapi.com/", params=payload, timeout=60
-    #                 )
-
-    #                 if r.status_code == 200:
-    #                     src = r.text
-    #                     with open(html_company, "w", encoding="utf-8") as file:
-    #                         file.write(src)
-    #                     logger.info(f"Сохранена страница {page}: {html_company}")
-    #                 else:
-    #                     logger.error(
-    #                         f"Ошибка при запросе страницы {
-    #                             page}: {r.status_code}"
-    #                     )
-    #         logger.info("Скачали все страницы пагинации")
     def get_all_page_html(self):
         """Получает HTML всех страниц пагинации и сохраняет уникальные ссылки.
 
@@ -163,6 +93,10 @@ class Downloader:
         }
         all_data = set()
         retries = 0
+        # Добавляем обработку None с повторной попыткой
+        url_r = None
+        retry_json_attempts = 0  # Счётчик попыток обработки JSON
+        max_json_retries = 30  # Максимальное количество попыток
 
         # Загрузка первой страницы и определение max_page
         while True:
@@ -172,8 +106,29 @@ class Downloader:
                 )
                 if r.status_code == 200:
                     src = r.text
-                    max_page = self.parsing_page_max_page(src)
-                    url_r = self.parsin_page(src)
+                    page_number = 1
+                    max_page = self.parser.parsing_page_max_page(src)
+                    logger.info(f"Всего страниц {max_page}")
+                    while url_r is None and retry_json_attempts < max_json_retries:
+                        url_r = self.parser.parsin_page_json(src, page_number)
+                        if url_r is None:
+                            retry_json_attempts += 1
+                            logger.warning(
+                                f"Не удалось обработать страницу. Повторная попытка {retry_json_attempts}/{max_json_retries}."
+                            )
+                            time.sleep(RETRY_DELAY)
+
+                        if url_r is None:
+                            logger.error(
+                                "Не удалось обработать страницу после нескольких попыток."
+                            )
+                            retries += 1
+                            if retries >= MAX_RETRIES:
+                                logger.error(
+                                    f"Пропущена страница {page} после {MAX_RETRIES} попыток."
+                                )
+                                break
+                            continue  # Переходим к следующей итерации основного цикла
                     all_data.update(url_r)
                     logger.info(
                         f"Первая страница обработана, найдено {len(url_r)} ссылок."
@@ -213,7 +168,30 @@ class Downloader:
                     )
                     if r.status_code == 200:
                         src = r.text
-                        url_r = self.parsin_page(src)
+                        # Добавляем обработку None с повторной попыткой
+                        url_r = None
+                        retry_json_attempts = 0  # Счётчик попыток обработки JSON
+                        max_json_retries = 30  # Максимальное количество попыток
+                        while url_r is None and retry_json_attempts < max_json_retries:
+                            url_r = self.parser.parsin_page_json(src, page)
+                            if url_r is None:
+                                retry_json_attempts += 1
+                                logger.warning(
+                                    f"Не удалось обработать страницу. Повторная попытка {retry_json_attempts}/{max_json_retries}."
+                                )
+                                time.sleep(RETRY_DELAY)
+
+                        if url_r is None:
+                            logger.error(
+                                "Не удалось обработать страницу после нескольких попыток."
+                            )
+                            retries += 1
+                            if retries >= MAX_RETRIES:
+                                logger.error(
+                                    f"Пропущена страница {page} после {MAX_RETRIES} попыток."
+                                )
+                                break
+                            continue  # Переходим к следующей итерации основного цикла
                         before_update = len(all_data)
                         all_data.update(url_r)
                         added_count = len(all_data) - before_update
@@ -230,6 +208,10 @@ class Downloader:
                                 logger.info(
                                     "Достигнут лимит подряд страниц без добавлений. Завершаем обработку."
                                 )
+                                logger.info(f"Всего ссылок {len(all_data)}")
+                                self.writer.save_to_csv(
+                                    all_data
+                                )  # Сохраняем данные в CSV после завершения
                                 return all_data
                         else:
                             consecutive_no_additions = 0
@@ -254,6 +236,7 @@ class Downloader:
                         )
                         break
                     time.sleep(RETRY_DELAY)
+        logger.info(f"Всего ссылок {len(all_data)}")
         self.writer.save_to_csv(all_data)  # Сохраняем данные в CSV после завершения
 
         # return all_data
@@ -266,8 +249,7 @@ class Downloader:
                     with open(json_file, "r", encoding="utf-8") as file:
                         response_data = json.load(file)
                     html_company = (
-                        self.html_files_directory
-                        / f"{response_data.get('url').split('/')[-1]}.html"
+                        self.html_files_directory / f"{response_data.get('id')}.html"
                     )
                     # Если файл HTML уже существует, удаляем JSON файл и пропускаем
                     if html_company.exists():

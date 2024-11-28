@@ -3,6 +3,7 @@ import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import demjson3
 import pandas as pd
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
@@ -12,12 +13,20 @@ from tqdm import tqdm
 class Parser:
 
     def __init__(
-        self, html_files_directory, html_page_directory, csv_output_file, max_workers
+        self,
+        html_files_directory,
+        html_page_directory,
+        csv_output_file,
+        max_workers,
+        json_files_directory,
+        json_page_directory,
     ):
         self.html_files_directory = html_files_directory
         self.html_page_directory = html_page_directory
         self.csv_output_file = csv_output_file
         self.max_workers = max_workers
+        self.json_files_directory = json_files_directory
+        self.json_page_directory = json_page_directory
 
     def parsing_page_max_page(self, src):
         """Парсит HTML-страницу и возвращает максимальный номер страницы из блока пагинации.
@@ -46,29 +55,116 @@ class Parser:
 
         return max_page
 
-    def parsin_page(self, src):
-        """Парсит HTML-страницу и извлекает ссылки на статьи с числом упоминаний "osób" больше или равно 50.
+    def parsin_page_json(self, src, page_number):
+        """
+        Находит первый тег <script type="application/json">, который начинается с '{"__listing_StoreState'`.
+        Преобразует содержимое тега в JSON, исправляет распространённые проблемы и извлекает URL через parse_listing_store_state.
 
-        Args:
-            src (str): HTML-код страницы, который необходимо распарсить.
-
-        Returns:
-            set: Множество URL-адресов, извлеченных из статей, соответствующих условию.
+        :param src: HTML-код страницы
+        :return: Список URL или None, если данные не найдены
         """
         soup = BeautifulSoup(src, "lxml")
-        url_r = set()
 
-        result = soup.find_all("span", string=lambda t: t and "osób" in t)
-        for rs in result:
-            osob = int(rs.text.replace(" osób", ""))
-            if osob >= 50:
-                article = rs.find_parent("article")
-                if article:
-                    link_raw = article.find("a", href=True)
-                    if link_raw:
-                        url_r.add(link_raw["href"])
+        # Поиск всех тэгов <script type="application/json">
+        script_tags = soup.find_all("script", {"type": "application/json"})
 
-        return url_r
+        for script in script_tags:
+            if script.string and script.string.strip().startswith(
+                '{"__listing_StoreState'
+            ):
+                try:
+                    # Читаем содержимое и исправляем распространённые проблемы
+                    raw_content = script.string
+
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+
+                    # Разбираем исправленный JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+
+                    # Логируем успешную загрузку JSON
+                    json_result = (
+                        self.json_page_directory / f"result_{page_number}.json"
+                    )
+                    # Записываем JSON в файл для проверки
+                    with open(json_result, "w", encoding="utf-8") as json_file:
+                        json.dump(json_data, json_file, indent=4, ensure_ascii=False)
+
+                    # Загружаем JSON из файла для теста
+                    with open(json_result, "r", encoding="utf-8") as json_file:
+                        loaded_json_data = json.load(json_file)
+                    # Извлекаем URL через parse_listing_store_state
+                    return self.parse_listing_store_state(loaded_json_data)
+
+                except demjson3.JSONDecodeError as e:
+                    # Логируем ошибку при декодировании JSON
+                    logger.error(f"Ошибка")
+                    return None
+
+        # Логируем отсутствие подходящего JSON
+        return None
+
+    def parse_listing_store_state(self, json_data):
+        """
+        Парсит JSON-данные из __listing_StoreState, извлекает URL, если count >= 50.
+
+        :param json_data: JSON-объект, содержащий __listing_StoreState
+        :return: Список URL, где count >= 50
+        """
+        urls = set()
+
+        try:
+            # Navigate to elements under items
+            elements = json_data["__listing_StoreState"]["items"]["elements"]
+
+            for element in elements:
+                # Extract URL
+                url = element.get("url", None)
+
+                # Extract productPopularity label and parse count
+                product_popularity = element.get("productPopularity", {})
+                label = product_popularity.get("label", "")
+
+                # Extract the numeric value from the label (e.g., "614 osób kupiło ostatnio")
+                count = None
+                # Регулярное выражение для извлечения числа перед 'osoby', 'osób', или 'osoba'
+                match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
+                count = int(match.group(1)) if match else 0
+                if count >= 50 and url:
+                    urls.add(url)
+
+        except KeyError as e:
+            pass
+        except Exception as e:
+            pass
+
+        return urls
+
+    # def parsin_page(self, src):
+    #     """Парсит HTML-страницу и извлекает ссылки на статьи с числом упоминаний "osób" больше или равно 50.
+
+    #     Args:
+    #         src (str): HTML-код страницы, который необходимо распарсить.
+
+    #     Returns:
+    #         set: Множество URL-адресов, извлеченных из статей, соответствующих условию.
+    #     """
+    #     soup = BeautifulSoup(src, "lxml")
+    #     url_r = set()
+
+    #     result = soup.find_all("span", string=lambda t: t and "osób" in t)
+    #     for rs in result:
+    #         osob = int(rs.text.replace(" osób", ""))
+    #         if osob >= 50:
+    #             article = rs.find_parent("article")
+    #             if article:
+    #                 link_raw = article.find("a", href=True)
+    #                 if link_raw:
+    #                     url_r.add(link_raw["href"])
+
+    #     return url_r
 
     # Добавьте сюда другие функции для парсинга
     def parsing_html(self):
@@ -144,6 +240,10 @@ class Parser:
 
         company_data = {
             "EAN_product": self.parse_ean_product(soup),
+            "sellername": self.pares_sellername(soup),
+            "sellerid": self.pares_sellerid(soup),
+            "iditem": self.pares_iditem(soup),
+            "category_product": self.pares_category(soup),
             "brand_product": self.parse_brand_product(soup),
             "name_product": self.parse_name_product(soup),
             "url_product": self.parse_url_product(soup),
@@ -156,6 +256,101 @@ class Parser:
         }
 
         return company_data
+
+    def pares_sellername(self, soup):
+        """
+        Извлекает имя продавца (sellerName) из dataLayer JSON.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Имя продавца (sellerName) или None, если данные не найдены
+        """
+        # Извлекаем JSON из dataLayer
+        json_data = self.extract_datalayer_json(soup)
+
+        if json_data:
+            # Безопасно извлекаем sellerName через метод get
+            sellername = (
+                json_data[0].get("sellerName") if isinstance(json_data, list) else None
+            )
+            return sellername
+
+        return None
+
+    def pares_sellerid(self, soup):
+        """
+        Извлекает имя продавца (sellerName) из dataLayer JSON.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Имя продавца (sellerName) или None, если данные не найдены
+        """
+        # Извлекаем JSON из dataLayer
+        json_data = self.extract_datalayer_json(soup)
+
+        if json_data:
+            # Безопасно извлекаем sellerName через метод get
+            sellername = (
+                json_data[0].get("sellerId") if isinstance(json_data, list) else None
+            )
+            return sellername
+
+        return None
+
+    def pares_iditem(self, soup):
+        """
+        Извлекает имя продавца (sellerName) из dataLayer JSON.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Имя продавца (sellerName) или None, если данные не найдены
+        """
+        # Извлекаем JSON из dataLayer
+        json_data = self.extract_datalayer_json(soup)
+
+        if json_data:
+            # Безопасно извлекаем sellerName через метод get
+            sellername = (
+                json_data[0].get("idItem") if isinstance(json_data, list) else None
+            )
+            return sellername
+
+        return None
+
+    def extract_datalayer_json(self, soup):
+        """
+        Извлекает JSON из тега <script>, содержащего 'dataLayer='.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Python-объект, разобранный из JSON, или None, если данные не найдены
+        """
+        try:
+            # Поиск всех тегов <script>
+            script_tags = soup.find_all("script")
+
+            for script in script_tags:
+                # Используем script.text для извлечения всего содержимого внутри <script>
+                if script.text and "dataLayer=" in script.text:
+                    # Логируем текст найденного тега
+
+                    # Попробуем извлечь dataLayer с помощью регулярного выражения
+                    match = re.search(
+                        r"dataLayer\s*=\s*(\[\{.*?\}\])", script.text, re.DOTALL
+                    )
+                    if match:
+                        json_content = match.group(1)  # Извлекаем JSON-строку
+                        return json.loads(json_content)  # Преобразуем в Python-объект
+
+            return None
+
+        except json.JSONDecodeError as e:
+            return None
+        except Exception as e:
+            return None
+
+    def pares_category(self, soup):
+        """Извлекает EAN продукта."""
+        category_tag = soup.select_one(
+            "header > div.false > div > div > div > form > div > span > span"
+        )
+        return category_tag.text if category_tag else None
 
     def parse_ean_product(self, soup):
         """Извлекает EAN продукта."""
