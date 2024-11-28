@@ -2,6 +2,7 @@ import json
 import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
 import demjson3
 import pandas as pd
@@ -239,15 +240,20 @@ class Parser:
         soup = BeautifulSoup(src, "lxml")
 
         company_data = {
+            "date": self.get_current_date(),
             "EAN_product": self.parse_ean_product(soup),
+            "foto_01": self.parse_foto_01(soup),
             "sellername": self.pares_sellername(soup),
             "sellerid": self.pares_sellerid(soup),
             "iditem": self.pares_iditem(soup),
+            "productid": self.pares_productid(soup),
             "category_product": self.pares_category(soup),
+            "same_offers_count": self.parse_other_product_offers(soup),
             "brand_product": self.parse_brand_product(soup),
             "name_product": self.parse_name_product(soup),
             "url_product": self.parse_url_product(soup),
             "price_product": self.parse_price_product(soup),
+            "sales_all_product": self.parse_sales_all_product(soup),
             "sales_product": self.parse_sales_product(soup),
             "weight_product": self.parse_weight_product(soup),
             "condition": self.parse_condition(soup),
@@ -256,6 +262,24 @@ class Parser:
         }
 
         return company_data
+
+    def parse_foto_01(self, soup):
+        """
+        Извлекает ссылку на изображение из тега <link> с атрибутом as="image".
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Строка с URL изображения или None, если элемент не найден
+        """
+        ean_tag = soup.find("link", {"as": "image"})  # Поиск тега с указанным атрибутом
+        return ean_tag["href"] if ean_tag and "href" in ean_tag.attrs else None
+
+    def get_current_date(self):
+        """
+        Возвращает текущую дату в формате YYYY-MM-DD.
+
+        :return: Строка с текущей датой
+        """
+        return datetime.now().strftime("%Y-%m-%d")
 
     def pares_sellername(self, soup):
         """
@@ -295,6 +319,30 @@ class Parser:
 
         return None
 
+    def parse_other_product_offers(self, soup):
+        """
+        Извлекает данные из объекта `otherProductOffers` в JSON.
+
+        :param json_data: Данные JSON.
+        :return: Словарь с `productId` и `linkName` или сообщение об отсутствии данных.
+        """
+        json_data = self.extract_price_json(soup)
+        try:
+            # Проверяем наличие ключа `otherProductOffers` в JSON
+            other_product_offers = json_data.get("otherProductOffers", {})
+            if other_product_offers:
+                # product_id = other_product_offers.get("productId", "Не найдено")
+                link_name = other_product_offers.get("linkName", "Не найдено")
+                match = re.search(r"\d+", link_name)
+                number = None
+                if match:
+                    number = int(match.group(0))  # Преобразуем найденное число в int
+                return number
+            else:
+                return {"error": "Данные `otherProductOffers` отсутствуют"}
+        except Exception as e:
+            return {"error": f"Ошибка при извлечении данных: {e}"}
+
     def pares_iditem(self, soup):
         """
         Извлекает имя продавца (sellerName) из dataLayer JSON.
@@ -313,6 +361,33 @@ class Parser:
             return sellername
 
         return None
+
+    def pares_productid(self, soup):
+        """
+        Извлекает идентификатор продукта (productId) из JSON <script>.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Идентификатор продукта (productId) или None, если данные не найдены
+        """
+        # Извлекаем JSON из <script> с sourceType:product
+        json_data = self.extract_product_json(soup)
+
+        try:
+            # Проверяем, что json_data — это словарь
+            if isinstance(json_data, dict):
+                product_id = json_data.get("productId")
+                return product_id
+
+            logger.warning("JSON data не является словарём. Возвращён None.")
+            return None
+
+        except Exception as e:
+            logger.error(f"Произошла ошибка при извлечении productId: {e}")
+            return None
+
+    """
+    Блок извлечения из страницы все json
+    """
 
     def extract_datalayer_json(self, soup):
         """
@@ -344,6 +419,64 @@ class Parser:
             return None
         except Exception as e:
             return None
+
+    def extract_product_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"sourceType":"product"}'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
+            if script.string and script.string.strip().startswith(
+                '{"sourceType":"product"'
+            ):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
+
+    def extract_price_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"price":{"formattedPric'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
+            if script.string and script.string.strip().startswith(
+                '{"price":{"formattedPric'
+            ):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
 
     def pares_category(self, soup):
         """Извлекает EAN продукта."""
@@ -377,7 +510,7 @@ class Parser:
         price_tag = soup.find("meta", itemprop="price")
         return price_tag["content"] if price_tag else None
 
-    def parse_sales_product(self, soup):
+    def parse_sales_all_product(self, soup):
         """Извлекает количество продаж из JSON-данных на странице."""
         script_tags = soup.find_all("script", type="application/json")
         sales_product = None
@@ -399,14 +532,47 @@ class Parser:
                 continue
 
         return sales_product
-        # return None
-        # """Извлекает количество продаж продукта."""
-        # sales_tag = soup.find(string=lambda text: text and "tę ofertę" in text)
-        # if sales_tag:
-        #     sales_text = sales_tag.strip()
-        #     sales_number = "".join(filter(str.isdigit, sales_text))
-        #     return int(sales_number) if sales_number else None
-        # return None
+
+    def parse_sales_product(self, soup):
+        """
+        Извлекает информацию о покупке из указанного HTML.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Строка с текстом покупки или None, если элемент не найден
+        """
+        try:
+            # Ищем контейнер data-role="app-container"
+            app_container = soup.find("div", {"data-box-name": "summaryOneColumn"})
+            if not app_container:
+                logger.warning("Контейнер с data-role='app-container' не найден.")
+                return None
+
+            # Внутри контейнера ищем div с текстом "osób kupiło"
+            target_div = app_container.find(
+                "div", string=lambda text: text and "osób kupiło" in text
+            )
+            # Если элемент найден, возвращаем его текст
+            if target_div:
+                all_sellers = target_div.get_text(strip=True)
+                match = re.search(r"\d+", all_sellers)
+                number = None
+                if match:
+                    number = int(match.group(0))  # Преобразуем найденное число в int
+                return number
+            else:
+                return None
+            # # Если текст в дочерних элементах
+            # parent_div = app_container.find("div", {"class": "mpof_vs"})
+            # if parent_div:
+            #     return parent_div.get_text(strip=True)
+
+            # # Если ничего не найдено, возвращаем None
+            # logger.warning("Информация о покупках не найдена в app-container.")
+            # return None
+
+        except Exception as e:
+            logger.error(f"Ошибка при извлечении информации о покупке: {e}")
+            return None
 
     def parse_average_rating(self, soup):
         """Извлекает средний рейтинг из JSON-данных на странице."""
