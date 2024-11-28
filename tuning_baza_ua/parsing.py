@@ -14,7 +14,15 @@ from working_with_files import Working_with_files
 class Parsing:
     """Класс для парсинга HTML-файлов и сохранения данных в формате JSON и Excel."""
 
-    def __init__(self, html_files_directory, xlsx_result, max_workers, file_proxy, json_result, img_files_directory) -> None:
+    def __init__(
+        self,
+        html_files_directory,
+        xlsx_result,
+        max_workers,
+        file_proxy,
+        json_result,
+        img_files_directory,
+    ) -> None:
         """Инициализирует параметры для работы с файлами и настройками парсинга.
 
         Args:
@@ -43,10 +51,7 @@ class Parsing:
         Returns:
             dict: Словарь с данными о brand_product и category_product.
         """
-        result = {
-            "brand_product": None,
-            "category_product": None
-        }
+        result = {"brand_product": None, "category_product": None}
 
         # Поиск всех JSON-скриптов в документе
         scripts = soup.find_all("script", type="application/ld+json")
@@ -89,9 +94,10 @@ class Parsing:
             "image": None,
             "brand": None,
             "model": None,
+            "name": None,
             "price": None,
             "priceCurrency": None,
-            "availability": None
+            "availability": None,
         }
 
         # Поиск всех JSON-скриптов в документе
@@ -105,6 +111,7 @@ class Parsing:
                     result["url"] = data.get("url")
                     result["image"] = data.get("image")
                     result["model"] = data.get("model")
+                    result["name"] = data.get("name")
 
                     # Извлекаем brand или manufacturer
                     if "brand" in data:
@@ -150,14 +157,14 @@ class Parsing:
             "image_url": product_data.get("image"),
             "brand": product_data.get("brand"),
             "model": product_data.get("model"),
+            "name": product_data.get("name"),
             "price": product_data.get("price"),
             "priceCurrency": product_data.get("priceCurrency"),
-            "availability": product_data.get("availability")
+            "availability": product_data.get("availability"),
         }
 
         # Проверка на наличие полезных данных
-        non_empty_count = sum(
-            1 for value in company_data.values() if value is not None)
+        non_empty_count = sum(1 for value in company_data.values() if value is not None)
         if non_empty_count <= 2:
             return None
 
@@ -200,8 +207,10 @@ class Parsing:
                         # Добавляем результат в итоговый список
                         all_results.append(result)
                 except Exception as e:
-                    logger.error(f"Ошибка при обработке файла {
-                                 file_html}: {e}")
+                    logger.error(
+                        f"Ошибка при обработке файла {
+                                 file_html}: {e}"
+                    )
                     # Добавление трассировки стека
                     logger.error(traceback.format_exc())
                 finally:
@@ -220,8 +229,9 @@ class Parsing:
         """
 
         # Получаем список всех файлов в html_files_directory
-        file_list = [file for file in self.html_files_directory.iterdir()
-                     if file.is_file()]
+        file_list = [
+            file for file in self.html_files_directory.iterdir() if file.is_file()
+        ]
 
         logger.info(f"Всего файлов для обработки: {len(file_list)}")
         return file_list
@@ -238,8 +248,10 @@ class Parsing:
                 json.dump(all_results, json_file, ensure_ascii=False, indent=4)
             logger.info(f"Данные успешно сохранены в файл {self.json_result}")
         except Exception as e:
-            logger.error(f"Ошибка при сохранении данных в файл {
-                         self.json_result}: {e}")
+            logger.error(
+                f"Ошибка при сохранении данных в файл {
+                         self.json_result}: {e}"
+            )
             raise
 
     def save_results_to_xlsx(self):
@@ -252,8 +264,7 @@ class Parsing:
         df = pd.DataFrame(json_datas)
 
         # Сортировка по указанным колонкам
-        df = df.sort_values(
-            by=["brand_product", "category_product"])
+        df = df.sort_values(by=["brand_product", "category_product"])
 
         # Создаем новый Workbook
         wb = Workbook()

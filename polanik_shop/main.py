@@ -293,7 +293,6 @@ def get_parsing():
             "Наявність": availability_product,
         }
         all_data.append(result)
-    logger.info("Загружаем данные в Google Таблицу")
     update_sheet_with_data(sheet, all_data)
     # data_df = pd.DataFrame(all_data)
 
@@ -333,54 +332,58 @@ def write_headers(sheet, headers):
 
 
 # Функция для записи данных в указанные столбцы листа Google Sheets с использованием пакетного обновления
-def update_sheet_with_data(sheet, data, batch_size=10, pause_duration=5):
+def update_sheet_with_data(sheet, data, total_rows=1500):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления.
 
-    Для каждой записи в `data`, функция находит соответствующую строку по домену,
-    и обновляет определенные столбцы на основании ключей словаря `entry`.
-    Обновления выполняются пакетно (`batch update`) для повышения эффективности.
+    Для каждой записи в `data`, функция формирует строки данных и обновляет соответствующие столбцы,
+    начиная со второй строки листа Google Sheets. Обновления выполняются пакетно для повышения эффективности.
 
     Args:
         sheet: Объект листа Google Sheets, в который будет производиться запись.
         data (list of dict): Список словарей, содержащих данные для обновления.
+        total_rows (int, optional): Общее количество строк, включая пустые строки для заполнения листа. По умолчанию 1500.
+
+    Raises:
+        ValueError: Если список данных пуст.
 
     Примечания:
-        - Пакетное обновление (`batch_update`) выполняется каждые `batch_size` записей или по завершению обработки всех данных.
-        - Пауза (`pause_duration`) добавляется после каждых `batch_size` записей для предотвращения превышения квоты запросов.
+        - Заголовки формируются из ключей словарей `data` и записываются в первую строку листа.
+        - Если данных меньше `total_rows`, добавляются пустые строки для достижения указанного количества.
+        - Данные записываются с использованием диапазона от A2 до указанного столбца и строки.
+        - Параметр `value_input_option="USER_ENTERED"` используется для того, чтобы значения воспринимались так, как если бы они вводились пользователем, что позволяет интерпретировать формулы и форматировать данные.
+        - Пустая директория `html_dir` удаляется после завершения обновления.
     """
+    if not data:
+        raise ValueError("Данные для обновления отсутствуют.")
+
+    # Получаем заголовки из ключей словаря
     headers = list(data[0].keys())
-    write_headers(sheet, headers)  # Записываем заголовки один раз
 
-    updates = []
-    for i, entry in enumerate(data):
-        for key, value in entry.items():
-            if key in headers:  # Используем сохраненные заголовки
-                col_index = (
-                    headers.index(key) + 1
-                )  # Находим индекс колонки по заголовку
-                row_index = (
-                    i + 2
-                )  # Начинаем со 2 строки, так как первая строка - заголовок
-                cell_range = gspread.utils.rowcol_to_a1(row_index, col_index)
-                updates.append({"range": cell_range, "values": [[value]]})
+    # Записываем заголовки в первую строку
+    sheet.update(range_name="A1", values=[headers], value_input_option="RAW")
 
-        # Добавляем паузу после каждых batch_size записей
-        if (i + 1) % BATCH_SIZE == 0 or i == len(data) - 1:
-            if updates:
-                sheet.batch_update(
-                    [
-                        {"range": update["range"], "values": update["values"]}
-                        for update in updates
-                    ]
-                )
-                updates = []
-            logger.info(
-                f"Пауза на {PAUSE_DURATION} секунд для предотвращения превышения квоты..."
-            )
-            time.sleep(PAUSE_DURATION)
+    # Формируем данные для записи
+    rows = []
+    for entry in data:
+        row = [entry.get(header, "") for header in headers]
+        rows.append(row)
+
+    # Добавляем пустые строки, если их меньше total_rows
+    if len(rows) < total_rows:
+        empty_row = [""] * len(headers)  # Пустая строка с нужным числом столбцов
+        rows.extend([empty_row] * (total_rows - len(rows)))
+
+    # Записываем данные начиная со второй строки
+    end_col = chr(
+        65 + len(headers) - 1
+    )  # Преобразуем номер колонки в букву (например, A, B, C)
+    range_name = (
+        f"A2:{end_col}{total_rows + 1}"  # Диапазон включает заголовок и 1500 строк
+    )
+    sheet.update(range_name=range_name, values=rows, value_input_option="USER_ENTERED")
     shutil.rmtree(directories["html_dir"])
 
 
 if __name__ == "__main__":
-    get_html()
+    # get_html()
     get_parsing()

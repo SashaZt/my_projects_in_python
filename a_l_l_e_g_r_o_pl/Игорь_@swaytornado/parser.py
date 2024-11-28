@@ -238,28 +238,43 @@ class Parser:
         with open(file_html, encoding="utf-8") as file:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
-
+        foto_01 = self.parse_foto_01(soup)
+        fotos = self.parse_photos(soup)
+        max_photos = 9  # Максимальное количество полей Фото_X в company_data
         company_data = {
-            "date": self.get_current_date(),
-            "EAN_product": self.parse_ean_product(soup),
-            "foto_01": self.parse_foto_01(soup),
-            "sellername": self.pares_sellername(soup),
-            "sellerid": self.pares_sellerid(soup),
-            "iditem": self.pares_iditem(soup),
-            "productid": self.pares_productid(soup),
-            "category_product": self.pares_category(soup),
-            "same_offers_count": self.parse_other_product_offers(soup),
-            "brand_product": self.parse_brand_product(soup),
-            "name_product": self.parse_name_product(soup),
-            "url_product": self.parse_url_product(soup),
-            "price_product": self.parse_price_product(soup),
-            "sales_all_product": self.parse_sales_all_product(soup),
-            "sales_product": self.parse_sales_product(soup),
-            "weight_product": self.parse_weight_product(soup),
-            "condition": self.parse_condition(soup),
-            "warehouse_balances": self.parse_warehouse_balances(soup),
-            "average_rating": self.parse_average_rating(soup),
+            "Категория": self.pares_category(soup),
+            "ShopID": self.pares_sellerid(soup),
+            "Наш ID": f"{self.pares_productid(soup)}-{self.pares_iditem(soup)}",
+            "ID_MP": self.pares_iditem(soup),
+            "SO_ID": self.pares_productid(soup),
+            "SO_CNT": self.parse_other_product_offers(soup),
+            "EAN": self.parse_ean_product(soup),
+            "Марка": self.parse_brand_product(soup),
+            "Название товара": self.parse_name_product(soup),
+            "URL": self.parse_url_product(soup),
+            "Дата": self.get_current_date(),
+            "FOTO_1": foto_01.replace("s512", "original"),
+            "Цена, ZLT": self.parse_price_product(soup),
+            "Цена, $": "",
+            "Sales": self.parse_sales_product(soup),
+            "Sales_all": self.parse_sales_all_product(soup),
+            "All_Buyers": self.parse_other_product_offers(soup),
+            "Вес": "",
+            "Длина": "",
+            "Ширина": "",
+            "Высота": "",
+            "FOTO_0": foto_01.replace("s512", "s360"),
+            "Состояние": self.parse_condition(soup),
+            "Остатки на складах": self.parse_warehouse_balances(soup),
+            "Средняя оценка": self.parse_average_rating(soup),
+            "Количество оценок": self.parse_number_ratings(soup),
+            "Количество отзывов": self.parse_number_of_reviews(soup),
+            "Описание": self.extract_description_texts(soup),
+            # "sellername": self.pares_sellername(soup),  # В JSON
         }
+        # Заполнение полей Фото_1 - Фото_9
+        for i in range(min(len(fotos), max_photos)):
+            company_data[f"Фото_{i + 1}"] = fotos[i]
 
         return company_data
 
@@ -385,6 +400,15 @@ class Parser:
             logger.error(f"Произошла ошибка при извлечении productId: {e}")
             return None
 
+    def parse_photos(self, soup):
+        json_data = self.extract_photo_json(soup)
+        image_urls = []
+        for section in json_data.get("standardized", {}).get("sections", []):
+            for item in section.get("items", []):
+                if item.get("type") == "IMAGE":
+                    image_urls.append(item.get("url"))
+        return image_urls
+
     """
     Блок извлечения из страницы все json
     """
@@ -463,6 +487,35 @@ class Parser:
             # Проверяем, что содержимое начинается с '{"sourceType":"product"'
             if script.string and script.string.strip().startswith(
                 '{"price":{"formattedPric'
+            ):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
+
+    def extract_photo_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"price":{"formattedPric'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
+            if script.string and script.string.strip().startswith(
+                '{"standardized":{"sections"'
             ):
                 try:
                     raw_content = script.string
@@ -590,14 +643,62 @@ class Parser:
                 continue
 
         return average_rating
-        # """Извлекает средний рейтинг продукта."""
-        # rating_tag = soup.find(
-        #     "span", {"aria-label": lambda value: value and value.startswith("ocena:")}
-        # )
-        # if rating_tag:
-        #     rating_text = rating_tag.text.strip()
-        #     return rating_text
-        # return None
+
+    def parse_number_ratings(self, soup):
+        """Извлекает средний рейтинг из JSON-данных на странице."""
+        script_tags = soup.find_all("script", type="application/json")
+        average_rating = None
+
+        for script_tag in script_tags:
+            try:
+                data = json.loads(script_tag.string)
+                if isinstance(data, dict):
+                    if "rating" in data and "ratingValue" in data["rating"]:
+                        average_rating = data["rating"]["ratingCount"]
+                        break
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        return average_rating
+
+    def extract_description_texts(self, soup):
+        """
+        Извлекает теги (h1, h2, p, b) внутри div с data-box-name="Description".
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список тегов (элементов BeautifulSoup)
+        """
+        # Находим div с атрибутом data-box-name="Description"
+        description_div = soup.find("div", {"data-box-name": "Description"})
+
+        if not description_div:
+            return ""  # Возвращаем пустую строку, если div не найден
+
+        # Извлекаем текстовые теги внутри найденного div
+        tags = description_div.find_all(["h1", "h2", "p", "b"])
+
+        # Преобразуем все теги в строки и объединяем их через join
+        return "".join(str(tag) for tag in tags)
+
+    def parse_number_of_reviews(self, soup):
+        """Извлекает средний рейтинг из JSON-данных на странице."""
+        script_tags = soup.find_all("script", type="application/json")
+        average_rating = None
+
+        for script_tag in script_tags:
+            try:
+                data = json.loads(script_tag.string)
+                if isinstance(data, dict):
+                    if "rating" in data and "ratingValue" in data["rating"]:
+                        average_rating = data["rating"]["ratingCountLabel"]
+                        match = re.search(r"(\d+)\s+recenzj", average_rating)
+                        if match:
+                            return int(match.group(1))
+                        break
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        return average_rating
 
     def parse_weight_product(self, soup):
         """Извлекает вес продукта."""
