@@ -419,6 +419,45 @@ class Parser:
             logger.error(f"Произошла ошибка при извлечении productId: {e}")
             return None
 
+    def pares_reviews_rating(self, soup):
+        """
+        Извлекает идентификатор продукта (productId) из JSON <script>.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Идентификатор продукта (productId) или None, если данные не найдены
+        """
+        # Извлекаем JSON из <script> с sourceType:product
+        json_data = self.extract_product_json(soup)
+        # Извлекаем ratingDistribution
+        rating_distribution = json_data.get("ratingDistribution")
+        return rating_distribution
+
+    def pares_reviews(self, soup):
+        """
+        Извлекает идентификатор продукта (productId) из JSON <script>.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Идентификатор продукта (productId) или None, если данные не найдены
+        """
+        # Извлекаем JSON из <script> с sourceType:product
+        json_data = self.extract_product_json(soup)
+
+        reviews = []
+        for review in json_data.get("reviews", []):
+
+            # Извлекаем "id", "name" и "url"
+            review_text = review.get("content")
+            review_score = review.get("rating")
+            review_date = review.get("datePublished")
+
+            # Добавляем элемент в список, если все три поля существуют
+            if review_text and review_score and review_date:
+                reviews.append(
+                    {"text": review_text, "score": review_score, "date": review_date}
+                )
+
+        return reviews
+
     def parse_photos(self, soup):
 
         json_data = self.extract_photo_json(soup)
@@ -456,15 +495,71 @@ class Parser:
         # Проходим по каждому элементу в "breadcrumbs"
         for breadcrumb in json_data.get("breadcrumbs", []):
             # Извлекаем "id", "name" и "url"
-            id = breadcrumb.get("id")
+            id_br = breadcrumb.get("id")
             name = breadcrumb.get("name")
             url = breadcrumb.get("url")
 
             # Добавляем элемент в список, если все три поля существуют
-            if id and name and url:
-                breadcrumbs_list.append({"id": id, "name": name, "url": url})
+            if id_br and name and url:
+                breadcrumbs_list.append({"id": id_br, "name": name, "url": url})
 
         return breadcrumbs_list
+
+    def extract_images(self, soup):
+        json_data = self.extract_images_json(soup)
+
+        images_list = []
+
+        # Проходим по каждому элементу в "breadcrumbs"
+        for image in json_data.get("images", []):
+            # Извлекаем "id", "name" и "url"
+            original_image = image.get("original")
+            thumbnail_image = image.get("thumbnail")
+            embeded_image = image.get("embeded")
+            alt_image = image.get("alt")
+
+            # Добавляем элемент в список, если все три поля существуют
+            if original_image and thumbnail_image and embeded_image and alt_image:
+                images_list.append(
+                    {
+                        "original": original_image,
+                        "thumbnail": thumbnail_image,
+                        "embeded": embeded_image,
+                        "alt": alt_image,
+                    }
+                )
+
+        return images_list
+
+    def extract_description(self, soup):
+        json_data = self.extract_photo_json(soup)
+
+        # Список для хранения всех извлеченных элементов из "sections"
+        sections_list = []
+        # Проходим по каждому элементу в "sections"
+        for section in json_data.get("standardized", {}).get("sections", []):
+
+            section_items = {"items": []}
+
+            for item in section.get("items", []):
+                item_data = {}
+
+                if item.get("type") == "IMAGE":
+                    item_data = {
+                        "type": "IMAGE",
+                        "alt": item.get("alt"),
+                        "url": item.get("url"),
+                    }
+                elif item.get("type") == "TEXT":
+                    item_data = {"type": "TEXT", "content": item.get("content")}
+
+                # Добавляем данные об элементе, если они существуют
+                if item_data:
+                    section_items["items"].append(item_data)
+
+            if section_items["items"]:
+                sections_list.append(section_items)
+        return sections_list
 
     """
     Блок извлечения из страницы все json
@@ -503,7 +598,6 @@ class Parser:
 
     def extract_seller_json(self, soup):
         """
-        Извлекает JSON из всех <script type="application/json"> с началом '{"sourceType":"product"}'.
         Для productid
         :param soup: Объект BeautifulSoup для HTML-страницы
         :return: Список JSON-объектов или пустой список, если данные не найдены
@@ -512,7 +606,6 @@ class Parser:
         script_tags = soup.find_all("script", {"type": "application/json"})
 
         for script in script_tags:
-            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
             if script.string and script.string.strip().startswith('{"sellerName'):
                 try:
                     raw_content = script.string
@@ -568,7 +661,6 @@ class Parser:
         script_tags = soup.find_all("script", {"type": "application/json"})
 
         for script in script_tags:
-            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
             if script.string and script.string.strip().startswith(
                 '{"price":{"formattedPric'
             ):
@@ -597,7 +689,6 @@ class Parser:
         script_tags = soup.find_all("script", {"type": "application/json"})
 
         for script in script_tags:
-            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
             if script.string and script.string.strip().startswith(
                 '{"standardized":{"sections"'
             ):
@@ -626,7 +717,6 @@ class Parser:
         script_tags = soup.find_all("script", {"type": "application/json"})
 
         for script in script_tags:
-            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
             if script.string and script.string.strip().startswith(
                 '{"dynamicBottomMargin":true'
             ):
@@ -655,8 +745,59 @@ class Parser:
         script_tags = soup.find_all("script", {"type": "application/json"})
 
         for script in script_tags:
-            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
             if script.string and script.string.strip().startswith('{"breadcrumbs'):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
+
+    def extract_images_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"price":{"formattedPric'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            if script.string and script.string.strip().startswith('{"actionsSlot'):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
+
+    def extract_description_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"price":{"formattedPric'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            if script.string and script.string.strip().startswith('{"actionsSlot'):
                 try:
                     raw_content = script.string
                     # Исправляем 'True', 'False', 'None' в корректные JSON-значения
@@ -1104,7 +1245,7 @@ class Parser:
                 },
             },
             "currency": "PLN",
-            "category_path": [  # НАЙТИ ХлебнаяКрошка
+            "category_path": [
                 {"id": "", "name": "", "url": ""},
                 {"id": "", "name": "", "url": ""},
                 {"id": "", "name": "", "url": ""},
@@ -1139,7 +1280,7 @@ class Parser:
                     "Informacje o bezpieczeństwie": "",
                 }
             },
-            "images": [  # СЛАЙДЕР
+            "images": [
                 {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
                 {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
                 {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
@@ -1224,5 +1365,11 @@ class Parser:
 
         # br = self.extract_breadcrumbs(soup)
         all_data["category_path"] = self.extract_breadcrumbs(soup)
+        all_data["images"] = self.extract_images(soup)
+        all_data["description"]["sections"] = self.extract_description(soup)
         # logger.info(br)
-        logger.info(all_data)
+        all_data["reviews_rating"] = self.pares_reviews_rating(soup)
+        all_data["reviews"] = self.pares_reviews(soup)
+        # logger.info(all_data)
+        with open("json_result.json", "w", encoding="utf-8") as json_file:
+            json.dump(all_data, json_file, indent=4, ensure_ascii=False)
