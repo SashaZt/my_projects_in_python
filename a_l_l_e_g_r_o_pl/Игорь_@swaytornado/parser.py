@@ -3,6 +3,7 @@ import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from pathlib import Path
 
 import demjson3
 import pandas as pd
@@ -188,6 +189,54 @@ class Parser:
         all_results = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             # ПОСЕЛ ТЕСТА ОТКРЫТЬ
+            futures = {
+                executor.submit(self.parse_single_html, file_html): file_html
+                for file_html in all_files
+            }
+            # futures = {
+            #     executor.submit(self.parse_single_html_json, file_html): file_html
+            #     for file_html in all_files
+            # }
+
+            # Сбор результатов по мере завершения каждого потока
+            for future in as_completed(futures):
+                file_html = futures[future]
+                try:
+                    result = future.result()
+                    if result is not None:
+                        all_results.append(result)
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке файла {file_html}: {e}")
+                    # Добавление трассировки стека
+                    logger.error(traceback.format_exc())
+                finally:
+                    # Обновляем прогресс-бар после завершения обработки каждого файла
+                    progress_bar.update(1)
+
+        # Закрываем прогресс-бар
+        progress_bar.close()
+        return all_results
+
+    def parsing_json(self):
+        """Выполняет многопоточный парсинг всех HTML-файлов в директории.
+
+        Returns:
+            list: Список словарей с данными о продуктах из всех файлов.
+        """
+
+        all_files = self.list_html()
+        # Инициализация прогресс-бараedrpou.csv
+        total_urls = len(all_files)
+        progress_bar = tqdm(
+            total=total_urls,
+            desc="Обработка файлов",
+            bar_format="{l_bar}{bar} | Время: {elapsed} | Осталось: {remaining} | Скорость: {rate_fmt}",
+        )
+
+        # Многопоточная обработка файлов
+        all_results = []
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # ПОСЕЛ ТЕСТА ОТКРЫТЬ
             # futures = {
             #     executor.submit(self.parse_single_html, file_html): file_html
             #     for file_html in all_files
@@ -320,17 +369,24 @@ class Parser:
 
     def pares_seller_rating(self, soup):
         """
-        Извлекает имя продавца (sellerName) из dataLayer JSON.
+        Извлекает рейтинг продавца (sellerRating) из dataLayer JSON.
 
         :param soup: Объект BeautifulSoup для HTML-страницы
-        :return: Имя продавца (sellerName) или None, если данные не найдены
+        :return: Рейтинг продавца (sellerRating) в виде float или None, если данные не найдены
         """
         # Извлекаем JSON из dataLayer
         json_data = self.extract_seller_json(soup)
-        if "sellerRating" in json_data:
-            rating = json_data["sellerRating"]
+
+        # Безопасно извлекаем значение "sellerRating"
+        rating = json_data.get("sellerRating")
+
+        # Если значение найдено, заменяем запятую на точку и убираем знак процента, затем преобразуем в число
+        if rating:
             rating = rating.replace(",", ".").replace("%", "")
-            return rating
+            try:
+                return float(rating)
+            except ValueError:
+                return None
 
         return None
 
@@ -560,6 +616,29 @@ class Parser:
             if section_items["items"]:
                 sections_list.append(section_items)
         return sections_list
+
+    def extract_last_three_urls(self, soup):
+        """
+        Извлекает последние три URL из списка словарей и возвращает их в виде именованных элементов.
+
+        :param data: Список словарей, содержащих "id", "name" и "url"
+        :return: Словарь с именами "parent_directory", "directory" и "file"
+        """
+        data = self.extract_breadcrumbs(soup)
+        if len(data) < 3:
+            raise ValueError("Входной список должен содержать минимум 3 элемента.")
+
+        # Извлекаем последние три элемента
+        last_three = data[-3:]
+
+        # Формируем итоговый словарь
+        names = {
+            "parent_directory": last_three[0]["url"].split("/")[-1],
+            "directory": last_three[1]["url"].split("/")[-1],
+            "file": last_three[2]["url"].split("/")[-1],
+        }
+
+        return names
 
     """
     Блок извлечения из страницы все json
@@ -829,9 +908,14 @@ class Parser:
         return ean_tag["content"] if ean_tag else None
 
     def parse_brand_product(self, soup):
+        parametry = self.extract_params(soup)
         """Извлекает бренд продукта."""
-        brand_tag = soup.find("meta", itemprop="brand")
-        return brand_tag["content"] if brand_tag else None
+
+        # Безопасно извлекаем значение ключа "Marka"
+        marka = parametry.get("Marka")
+
+        # Возвращаем бренд, если значение не пустое, иначе возвращаем None
+        return marka if marka else None
 
     def parse_name_product(self, soup):
         """Извлекает название продукта."""
@@ -1069,7 +1153,6 @@ class Parser:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
         parametry = self.extract_params(soup)
-
         with open(file_html, encoding="utf-8") as file:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
@@ -1370,6 +1453,19 @@ class Parser:
         # logger.info(br)
         all_data["reviews_rating"] = self.pares_reviews_rating(soup)
         all_data["reviews"] = self.pares_reviews(soup)
-        # logger.info(all_data)
-        with open("json_result.json", "w", encoding="utf-8") as json_file:
+        all_names_folders_and_file = self.extract_last_three_urls(soup)
+        data_folder = self.get_current_date()
+        # Базовый путь для записи (C:\Temp)
+        base_directory = Path("C:/Temp")
+        parent_directory = (
+            base_directory
+            / f'{data_folder}-{all_names_folders_and_file["parent_directory"]}'
+        )
+        directory = parent_directory / f'{all_names_folders_and_file["directory"]}-ids'
+
+        parent_directory.mkdir(parents=True, exist_ok=True)
+        directory.mkdir(parents=True, exist_ok=True)
+
+        json_result = directory / f'{all_names_folders_and_file["file"]}.json'
+        with open(json_result, "w", encoding="utf-8") as json_file:
             json.dump(all_data, json_file, indent=4, ensure_ascii=False)
