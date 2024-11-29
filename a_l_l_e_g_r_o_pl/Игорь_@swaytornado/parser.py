@@ -287,6 +287,7 @@ class Parser:
         with open(file_html, encoding="utf-8") as file:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
+        weight, length, width, height = self.extract_dimensions(soup)
         foto_01 = self.parse_foto_01(soup)
         fotos = self.parse_photos(soup)
         max_photos = 9  # Максимальное количество полей Фото_X в company_data
@@ -308,10 +309,10 @@ class Parser:
             "Sales": self.parse_sales_product(soup),
             "Sales_all": self.parse_sales_all_product(soup),
             "All_Sellers": self.parse_other_product_offers(soup),
-            "Вес": "",
-            "Длина": "",
-            "Ширина": "",
-            "Высота": "",
+            "Вес": weight,
+            "Длина": length,
+            "Ширина": width,
+            "Высота": height,
             "FOTO_0": foto_01.replace("s512", "s360"),
             "Состояние": self.parse_condition(soup),
             "Остатки на складах": self.parse_warehouse_balances(soup),
@@ -326,6 +327,39 @@ class Parser:
             company_data[f"Фото_{i + 1}"] = fotos[i]
 
         return company_data
+
+    def extract_dimensions(self, soup):
+        """
+        Извлекает параметры веса, длины, ширины и высоты из переданного словаря.
+
+        :param parametry: Словарь с параметрами продукта.
+        :return: Кортеж из четырех переменных (weight, length, width, height).
+        """
+        # Инициализация переменных
+        weight = None
+        length = None
+        width = None
+        height = None
+        parametry = self.extract_params(soup)
+        # Проверка наличия параметров и присвоение значений переменным
+        if (
+            "Waga" in parametry
+            or "Waga produktu z opakowaniem jednostkowym" in parametry
+        ):
+            weight = parametry.get("Waga") or parametry.get(
+                "Waga produktu z opakowaniem jednostkowym"
+            )
+
+        if "Głębokość" in parametry or "Głębokość produktu" in parametry:
+            length = parametry.get("Głębokość") or parametry.get("Głębokość produktu")
+
+        if "Szerokość" in parametry or "Szerokość produktu" in parametry:
+            width = parametry.get("Szerokość") or parametry.get("Szerokość produktu")
+
+        if "Wysokość" in parametry or "Wysokość produktu" in parametry:
+            height = parametry.get("Wysokość") or parametry.get("Wysokość продукта")
+
+        return weight, length, width, height
 
     def parse_foto_01(self, soup):
         """
@@ -355,10 +389,15 @@ class Parser:
         """
         # Извлекаем JSON из dataLayer
         json_data = self.extract_seller_json(soup)
-        if "sellerRating" in json_data:
-            rating = json_data["sellerName"]
-            rating = rating.replace(",", ".").replace("%", "")
-            return rating
+
+        # Безопасное извлечение имени продавца
+        try:
+            if "sellerName" in json_data:
+                seller_name = json_data.get("sellerName")
+                return seller_name if seller_name else None
+        except Exception as e:
+            # Логирование или обработка ошибок при необходимости
+            pass
 
         return None
 
@@ -396,11 +435,11 @@ class Parser:
         json_data = self.extract_datalayer_json(soup)
 
         if json_data:
-            # Безопасно извлекаем sellerName через метод get
-            sellername = (
-                json_data[0].get("sellerId") if isinstance(json_data, list) else None
-            )
-            return sellername
+            # Проверяем, является ли json_data списком и имеет ли он хотя бы один элемент
+            if isinstance(json_data, list) and len(json_data) > 0:
+                # Безопасно извлекаем sellerId через метод get
+                sellername = json_data[0].get("sellerId")
+                return sellername if sellername else None
 
         return None
 
@@ -461,9 +500,12 @@ class Parser:
             # Проверяем, что json_data — это словарь
             if isinstance(json_data, dict):
                 product_id = json_data.get("productId")
-                return product_id
+                if product_id is not None:
+                    return product_id
 
-            logger.warning("JSON data не является словарём. Возвращён None.")
+            logger.warning(
+                "JSON data не является словарём или не содержит productId. Возвращён None."
+            )
             return None
 
         except Exception as e:
@@ -978,15 +1020,6 @@ class Parser:
                 return number
             else:
                 return None
-            # # Если текст в дочерних элементах
-            # parent_div = app_container.find("div", {"class": "mpof_vs"})
-            # if parent_div:
-            #     return parent_div.get_text(strip=True)
-
-            # # Если ничего не найдено, возвращаем None
-            # logger.warning("Информация о покупках не найдена в app-container.")
-            # return None
-
         except Exception as e:
             logger.error(f"Ошибка при извлечении информации о покупке: {e}")
             return None
