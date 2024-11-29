@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-import aiofiles
 import gspread
 import pandas as pd
 import requests
@@ -23,8 +22,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Reference
 from openpyxl.chart.axis import ChartLines
-from playwright.async_api import async_playwright
-from playwright.sync_api import sync_playwright
 
 # Инициализация директорий
 base_directory = Path.cwd()
@@ -385,5 +382,5 @@ def update_sheet_with_data(sheet, data, total_rows=1500):
 
 
 if __name__ == "__main__":
-    # get_html()
+    get_html()
     get_parsing()
