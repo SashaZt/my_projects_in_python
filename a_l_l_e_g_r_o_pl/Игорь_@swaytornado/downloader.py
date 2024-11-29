@@ -129,6 +129,7 @@ class Downloader:
                                 )
                                 break
                             continue  # Переходим к следующей итерации основного цикла
+                    
                     all_data.update(url_r)
                     logger.info(
                         f"Первая страница обработана, найдено {len(url_r)} ссылок."

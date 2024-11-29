@@ -124,7 +124,7 @@ class Parser:
             for element in elements:
                 # Extract URL
                 url = element.get("url", None)
-
+                exception_url = "https://allegro.pl/events"
                 # Extract productPopularity label and parse count
                 product_popularity = element.get("productPopularity", {})
                 label = product_popularity.get("label", "")
@@ -134,7 +134,7 @@ class Parser:
                 # Регулярное выражение для извлечения числа перед 'osoby', 'osób', или 'osoba'
                 match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
                 count = int(match.group(1)) if match else 0
-                if count >= 50 and url:
+                if count >= 50 and url and "https://allegro.pl/events" not in url:
                     urls.add(url)
 
         except KeyError as e:
@@ -193,11 +193,6 @@ class Parser:
                 executor.submit(self.parse_single_html, file_html): file_html
                 for file_html in all_files
             }
-            # futures = {
-            #     executor.submit(self.parse_single_html_json, file_html): file_html
-            #     for file_html in all_files
-            # }
-
             # Сбор результатов по мере завершения каждого потока
             for future in as_completed(futures):
                 file_html = futures[future]
@@ -1044,7 +1039,7 @@ class Parser:
             return ""  # Возвращаем пустую строку, если div не найден
 
         # Извлекаем текстовые теги внутри найденного div
-        tags = description_div.find_all(["h1", "h2", "p", "b"])
+        tags = description_div.find_all(["h1", "h2", "p", "b", "ul", "li", "img"])
 
         # Преобразуем все теги в строки и объединяем их через join
         return "".join(str(tag) for tag in tags)
@@ -1336,33 +1331,7 @@ class Parser:
                 {"id": "", "name": "", "url": ""},
                 {"id": "", "name": "", "url": ""},
             ],
-            "specifications": {
-                "Parametry": {
-                    "Stan": "",
-                    "Faktura": "",
-                    "Marka": "",
-                    "Kolor dominujący": "",
-                    "Model": "",
-                    "Typ akumulatora": "",
-                    "Napięcie akumulatora": "",
-                    "Moc": "",
-                    "Pojemność zbiornika na kurz": "",
-                    "Filtr": "",
-                    "Czas pracy bezprzewodowej": "",
-                    "Czujniki": ["", "", "", ""],
-                    "Opcje czyszczenia": ["", ""],
-                    "Funkcje robota": "",
-                    "Załączone wyposażenie": "",
-                    "Szerokość produktu": "",
-                    "Wysokość produktu": "",
-                    "Głębokość produktu": "",
-                    "Waga produktu": "",
-                    "Kod producenta": "",
-                    "EAN (GTIN)": "",
-                    "Stan opakowania": "",
-                    "Informacje o bezpieczeństwie": "",
-                }
-            },
+            "specifications": {"Parametry": {}},
             "images": [
                 {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
                 {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
@@ -1431,18 +1400,9 @@ class Parser:
             ],
             "compatibility": [],
         }
-        parametry_template = all_data["specifications"]["Parametry"].copy()
-        # Обновляем параметры на основе "parametry"
-        for key in parametry_template.keys():
-            if key in parametry:
-                parametry_template[key] = parametry[key]
-            else:
-                parametry_template[key] = (
-                    ""  # Оставляем пусто, если значения нет в "parametry"
-                )
-
         # Обновляем "all_data" с измененными параметрами
-        all_data["specifications"]["Parametry"] = parametry_template
+        all_data["specifications"]["Parametry"] = parametry
+        # logger.info(parametry)
         seller_rating = self.pares_seller_rating(soup)
         all_data["seller_rating"] = seller_rating
 
