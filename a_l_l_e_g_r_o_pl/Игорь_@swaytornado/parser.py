@@ -187,8 +187,13 @@ class Parser:
         # Многопоточная обработка файлов
         all_results = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            # ПОСЕЛ ТЕСТА ОТКРЫТЬ
+            # futures = {
+            #     executor.submit(self.parse_single_html, file_html): file_html
+            #     for file_html in all_files
+            # }
             futures = {
-                executor.submit(self.parse_single_html, file_html): file_html
+                executor.submit(self.parse_single_html_json, file_html): file_html
                 for file_html in all_files
             }
 
@@ -258,7 +263,7 @@ class Parser:
             "Цена, $": "",
             "Sales": self.parse_sales_product(soup),
             "Sales_all": self.parse_sales_all_product(soup),
-            "All_Buyers": self.parse_other_product_offers(soup),
+            "All_Sellers": self.parse_other_product_offers(soup),
             "Вес": "",
             "Длина": "",
             "Ширина": "",
@@ -270,8 +275,8 @@ class Parser:
             "Количество оценок": self.parse_number_ratings(soup),
             "Количество отзывов": self.parse_number_of_reviews(soup),
             "Описание": self.extract_description_texts(soup),
-            # "sellername": self.pares_sellername(soup),  # В JSON
         }
+        self.extract_params(soup)
         # Заполнение полей Фото_1 - Фото_9
         for i in range(min(len(fotos), max_photos)):
             company_data[f"Фото_{i + 1}"] = fotos[i]
@@ -298,20 +303,34 @@ class Parser:
 
     def pares_sellername(self, soup):
         """
+        ТУТ ЕЩЕ КАТЕГОРИИ
         Извлекает имя продавца (sellerName) из dataLayer JSON.
 
         :param soup: Объект BeautifulSoup для HTML-страницы
         :return: Имя продавца (sellerName) или None, если данные не найдены
         """
         # Извлекаем JSON из dataLayer
-        json_data = self.extract_datalayer_json(soup)
+        json_data = self.extract_seller_json(soup)
+        if "sellerRating" in json_data:
+            rating = json_data["sellerName"]
+            rating = rating.replace(",", ".").replace("%", "")
+            return rating
 
-        if json_data:
-            # Безопасно извлекаем sellerName через метод get
-            sellername = (
-                json_data[0].get("sellerName") if isinstance(json_data, list) else None
-            )
-            return sellername
+        return None
+
+    def pares_seller_rating(self, soup):
+        """
+        Извлекает имя продавца (sellerName) из dataLayer JSON.
+
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Имя продавца (sellerName) или None, если данные не найдены
+        """
+        # Извлекаем JSON из dataLayer
+        json_data = self.extract_seller_json(soup)
+        if "sellerRating" in json_data:
+            rating = json_data["sellerRating"]
+            rating = rating.replace(",", ".").replace("%", "")
+            return rating
 
         return None
 
@@ -401,6 +420,7 @@ class Parser:
             return None
 
     def parse_photos(self, soup):
+
         json_data = self.extract_photo_json(soup)
         image_urls = []
         for section in json_data.get("standardized", {}).get("sections", []):
@@ -408,6 +428,43 @@ class Parser:
                 if item.get("type") == "IMAGE":
                     image_urls.append(item.get("url"))
         return image_urls
+
+    def extract_params(self, soup):
+        json_data = self.extract_parametr_json(soup)
+
+        # Словарь для хранения всех параметров singleValueParams
+        params_dict = {}
+
+        # Проходим по всем группам в "groups"
+        for group in json_data.get("groups", []):
+            # Проходим по всем параметрам в "singleValueParams"
+            for param in group.get("singleValueParams", []):
+                # Получаем название параметра и его значение
+                name = param.get("name")
+                value = param.get("value", {}).get("name")
+
+                # Добавляем в словарь, если и ключ, и значение существуют
+                if name and value:
+                    params_dict[name] = value
+        return params_dict
+
+    def extract_breadcrumbs(self, soup):
+        json_data = self.extract_breadcrumbs_json(soup)
+
+        breadcrumbs_list = []
+
+        # Проходим по каждому элементу в "breadcrumbs"
+        for breadcrumb in json_data.get("breadcrumbs", []):
+            # Извлекаем "id", "name" и "url"
+            id = breadcrumb.get("id")
+            name = breadcrumb.get("name")
+            url = breadcrumb.get("url")
+
+            # Добавляем элемент в список, если все три поля существуют
+            if id and name and url:
+                breadcrumbs_list.append({"id": id, "name": name, "url": url})
+
+        return breadcrumbs_list
 
     """
     Блок извлечения из страницы все json
@@ -443,6 +500,33 @@ class Parser:
             return None
         except Exception as e:
             return None
+
+    def extract_seller_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"sourceType":"product"}'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
+            if script.string and script.string.strip().startswith('{"sellerName'):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
 
     def extract_product_json(self, soup):
         """
@@ -530,6 +614,66 @@ class Parser:
                     # Логируем ошибку декодирования JSON
                     logger.error(f"Ошибка декодирования JSON: {e}")
                     continue
+
+    def extract_parametr_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"price":{"formattedPric'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
+            if script.string and script.string.strip().startswith(
+                '{"dynamicBottomMargin":true'
+            ):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
+
+    def extract_breadcrumbs_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"price":{"formattedPric'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            # Проверяем, что содержимое начинается с '{"sourceType":"product"'
+            if script.string and script.string.strip().startswith('{"breadcrumbs'):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
+
+    """
+    Блок извлечения из страницы все json
+    """
 
     def pares_category(self, soup):
         """Извлекает EAN продукта."""
@@ -711,9 +855,15 @@ class Parser:
         return None
 
     def parse_condition(self, soup):
-        """Извлекает состояние продукта."""
-        condition_tag = soup.find("meta", itemprop="itemCondition")
-        return condition_tag["content"].split("/")[-1] if condition_tag else None
+        json_data = self.extract_parametr_json(soup)
+        # Проходим по всем группам в "groups"
+        for group in json_data.get("groups", []):
+            # Проходим по всем параметрам в "singleValueParams"
+            for param in group.get("singleValueParams", []):
+                # Проверяем, если имя параметра равно "Stan"
+                if param.get("name") == "Stan":
+                    return param.get("value", {}).get("name")
+        return None
 
     def parse_warehouse_balances(self, soup):
         """Извлекает количество товара на складе."""
@@ -764,3 +914,315 @@ class Parser:
         df.to_csv(self.csv_output_file, index=False, encoding="utf-8")
 
         logger.info(f"Парсинг завершен, ссылки сохранены в {self.csv_output_file}")
+
+    def parse_single_html_json(self, file_html):
+        """Парсит один HTML-файл для извлечения данных о продукте.
+
+        Args:
+            file_html (Path): Путь к HTML-файлу.
+
+        Returns:
+            dict or None: Словарь с данными о продукте или None, если данные не найдены.
+        """
+        with open(file_html, encoding="utf-8") as file:
+            src = file.read()
+        soup = BeautifulSoup(src, "lxml")
+        parametry = self.extract_params(soup)
+
+        with open(file_html, encoding="utf-8") as file:
+            src = file.read()
+        soup = BeautifulSoup(src, "lxml")
+        all_data = {
+            "success": True,
+            "id": self.pares_iditem(soup),
+            "title": self.parse_name_product(soup),
+            "url": self.parse_url_product(soup),
+            "active": True,
+            "price": self.parse_price_product(soup),
+            "price_with_delivery": 0,
+            "availableQuantity": self.parse_warehouse_balances(soup),
+            "buyers": self.parse_other_product_offers(soup),
+            "rating": self.parse_average_rating(soup),
+            "reviews_count": self.parse_number_of_reviews(soup),
+            "same_offers_id": self.pares_productid(soup),
+            "same_offers_count": self.parse_other_product_offers(soup),
+            "seller_id": self.pares_sellerid(soup),
+            "seller_login": self.pares_sellername(soup),
+            "seller_rating": "",
+            "seller_positive_count": "",
+            "seller_negative_count": "",
+            "delivery_options": {
+                "Odbiór w punkcie": {
+                    "Punkt DHL POP, DHL": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Automat DHL BOX 24/7, DHL": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Poczta Polska, Allegro Pocztex": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Żabka, Allegro Pocztex": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Lewiatan, Allegro Pocztex": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Sklep ABC, Allegro Pocztex": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Delikatesy Centrum, Allegro Pocztex": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Allegro One Box, Allegro One": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Allegro One Punkt, Allegro One": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Kolporter, Allegro One": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Epaka, Allegro One": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Automat ORLEN Paczka, ORLEN Paczka": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Punkt Orlen Paczka, ORLEN Paczka": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Furgonetka, Allegro One": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Auchan, Allegro One": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Pakersi, Allegro One": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Bonito, Allegro One": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Automat Pocztex, Allegro Pocztex": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Paczkomat InPost, InPost": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "PaczkoPunkt InPost, InPost": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                },
+                "Na adres": {
+                    "Kurier, DPD": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Kurier": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                },
+                "Na adres za pobraniem": {
+                    "Kurier pobranie, DPD": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                    "Kurier pobranie": {
+                        "price": "",
+                        "price_next_item": "",
+                        "package_size": "",
+                        "time": "",
+                    },
+                },
+            },
+            "currency": "PLN",
+            "category_path": [  # НАЙТИ ХлебнаяКрошка
+                {"id": "", "name": "", "url": ""},
+                {"id": "", "name": "", "url": ""},
+                {"id": "", "name": "", "url": ""},
+                {"id": "", "name": "", "url": ""},
+                {"id": "", "name": "", "url": ""},
+                {"id": "", "name": "", "url": ""},
+            ],
+            "specifications": {
+                "Parametry": {
+                    "Stan": "",
+                    "Faktura": "",
+                    "Marka": "",
+                    "Kolor dominujący": "",
+                    "Model": "",
+                    "Typ akumulatora": "",
+                    "Napięcie akumulatora": "",
+                    "Moc": "",
+                    "Pojemność zbiornika na kurz": "",
+                    "Filtr": "",
+                    "Czas pracy bezprzewodowej": "",
+                    "Czujniki": ["", "", "", ""],
+                    "Opcje czyszczenia": ["", ""],
+                    "Funkcje robota": "",
+                    "Załączone wyposażenie": "",
+                    "Szerokość produktu": "",
+                    "Wysokość produktu": "",
+                    "Głębokość produktu": "",
+                    "Waga produktu": "",
+                    "Kod producenta": "",
+                    "EAN (GTIN)": "",
+                    "Stan opakowania": "",
+                    "Informacje o bezpieczeństwie": "",
+                }
+            },
+            "images": [  # СЛАЙДЕР
+                {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
+                {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
+                {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
+                {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
+                {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
+                {"original": "", "thumbnail": "", "embeded": "", "alt": ""},
+            ],
+            "description": {
+                "sections": [
+                    {
+                        "items": [
+                            {"type": "", "alt": "", "url": ""},
+                            {"type": "", "content": ""},
+                        ]
+                    },
+                    {"items": [{"type": "", "content": ""}]},
+                    {"items": [{"type": "", "content": ""}]},
+                    {"items": [{"type": "", "content": ""}]},
+                    {"items": [{"type": "", "content": ""}]},
+                    {"items": [{"type": "", "content": ""}]},
+                    {
+                        "items": [
+                            {"type": "", "alt": "", "url": ""},
+                            {"type": "", "alt": "", "url": ""},
+                        ]
+                    },
+                    {
+                        "items": [
+                            {"type": "", "alt": "", "url": ""},
+                            {"type": "", "alt": "", "url": ""},
+                        ]
+                    },
+                    {
+                        "items": [
+                            {"type": "", "alt": "", "url": ""},
+                            {"type": "", "alt": "", "url": ""},
+                        ]
+                    },
+                    {"items": [{"type": "", "content": ""}]},
+                ]
+            },
+            "reviews_rating": {  # Opinie o produkcie
+                "5": {"count": "", "percentage": ""},
+                "4": {"count": "", "percentage": ""},
+                "3": {"count": "", "percentage": ""},
+                "2": {"count": "", "percentage": ""},
+                "1": {"count": "", "percentage": ""},
+            },
+            "reviews": [
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+                {"text": "", "score": "", "date": ""},
+            ],
+            "compatibility": [],
+        }
+        parametry_template = all_data["specifications"]["Parametry"].copy()
+        # Обновляем параметры на основе "parametry"
+        for key in parametry_template.keys():
+            if key in parametry:
+                parametry_template[key] = parametry[key]
+            else:
+                parametry_template[key] = (
+                    ""  # Оставляем пусто, если значения нет в "parametry"
+                )
+
+        # Обновляем "all_data" с измененными параметрами
+        all_data["specifications"]["Parametry"] = parametry_template
+        seller_rating = self.pares_seller_rating(soup)
+        all_data["seller_rating"] = seller_rating
+
+        # br = self.extract_breadcrumbs(soup)
+        all_data["category_path"] = self.extract_breadcrumbs(soup)
+        # logger.info(br)
+        logger.info(all_data)
