@@ -1,6 +1,8 @@
 import base64
 import json
 import os
+import shutil
+import threading
 import wave
 from datetime import datetime
 from pathlib import Path
@@ -31,7 +33,7 @@ from pydrive2.drive import GoogleDrive
 from tkcalendar import Calendar
 
 # Загрузка переменных из .env
-logger.info("Loading environment variables from .env file")
+# logger.info("Loading environment variables from .env file")
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(env_path)
 
@@ -41,11 +43,11 @@ FOLDER_ID = os.getenv("FOLDER_ID")
 ORIGINAL_ACCESS_KEY = os.getenv("ORIGINAL_ACCESS_KEY")
 
 if SECRET_AES_KEY is None or ORIGINAL_ACCESS_KEY is None:
-    logger.error("SECRET_AES_KEY или ORIGINAL_ACCESS_KEY не найдены в .env файле")
+    # logger.error("SECRET_AES_KEY или ORIGINAL_ACCESS_KEY не найдены в .env файле")
     raise ValueError("SECRET_AES_KEY или ORIGINAL_ACCESS_KEY не найдены в .env файле")
 
 SECRET_AES_KEY = SECRET_AES_KEY.encode()
-logger.info("Environment variables loaded successfully")
+# logger.info("Environment variables loaded successfully")
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -96,7 +98,7 @@ service_account_file = configuration_directory / "service_account.json"
 
 
 def encrypt_access_key(access_key: str) -> str:
-    logger.info("Encrypting access key")
+    # logger.info("Encrypting access key")
     iv = os.urandom(16)
     padder = padding.PKCS7(algorithms.AES.block_size).padder()
     padded_data = padder.update(access_key.encode()) + padder.finalize()
@@ -108,32 +110,36 @@ def encrypt_access_key(access_key: str) -> str:
     encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
     encrypted_key = base64.b64encode(iv + encrypted_data).decode()
 
-    logger.info("Access key encrypted successfully")
+    # logger.info("Access key encrypted successfully")
     return encrypted_key
 
 
 def download_data_to_file():
     """Скачивает все данные и сохраняет их в result.json"""
+    if call_recording_directory:
+        shutil.rmtree(call_recording_directory)
     url = f"https://{IP}/get_all_data"
     encrypted_key = encrypt_access_key(ORIGINAL_ACCESS_KEY)
     params = {"access_key": encrypted_key}
 
     try:
-        logger.info("Sending GET request to the server")
+        # logger.info("Sending GET request to the server")
         response = requests.get(url, params=params, timeout=30, verify=False)
 
         if response.status_code == 200:
-            logger.info("Data fetched successfully")
+            # logger.info("Data fetched successfully")
             data = response.json().get("data", [])
 
             # Сохраняем данные в файл result.json
             with open(temp_data_output_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=4)
-            logger.info(f"Data saved to {temp_data_output_file}")
+            result_text.insert(END, "Данные с сервера получены\n")
+            result_text.see(END)  # Прокрутка до конца
         else:
             logger.warning(f"Failed to fetch data, status code: {response.status_code}")
     except requests.exceptions.RequestException as e:
         logger.error(f"An error occurred during the GET request: {e}")
+    call_recording_directory.mkdir(parents=True, exist_ok=True)
 
 
 def load_data_from_file():
@@ -142,7 +148,7 @@ def load_data_from_file():
         with open(temp_data_output_file, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
-                logger.info("Data loaded from result.json")
+                # logger.info("Data loaded from result.json")
                 return data
             except json.JSONDecodeError:
                 logger.error("Error decoding JSON from result.json")
@@ -157,9 +163,9 @@ def apply_combined_filter(data, filters):
     for i, filter_data in enumerate(filters):
         field, condition, value, operator = filter_data
         if field and condition and value:
-            logger.info(
-                f"Applying filter {i + 1}: field={field}, condition={condition}, value={value}, operator={operator}"
-            )
+            # logger.info(
+            #     f"Applying filter {i + 1}: field={field}, condition={condition}, value={value}, operator={operator}"
+            # )
             current_filtered = apply_single_filter(
                 filtered_data, field, condition, value
             )
@@ -251,10 +257,18 @@ def fetch_all_data():
     for call in filtered_data:
         call_recording = call.get("call_recording")  # Получение записи
         call_date = call.get("call_date")  # Получение даты
+        caller_number = call.get("caller_number")  # Получение номера
+        employee_ext_number = call.get(
+            "employee_ext_number"
+        )  # Получение внутреннего номера
+        employee = call.get("employee").replace(" ", "_")  # Получение сотрудника
 
         if call_recording and call_date:  # Проверка на наличие данных
-            file_name = datetime.strptime(call_date, "%Y-%m-%d %H:%M:%S").strftime(
-                "%Y-%m-%d_%H-%M-%S"
+            call_date_format = datetime.strptime(
+                call_date, "%Y-%m-%d %H:%M:%S"
+            ).strftime("%Y-%m-%d_%H-%M-%S")
+            file_name = (
+                f"{call_date_format}_{caller_number}_{employee_ext_number}_{employee}"
             )
             data_result = {file_name: call_recording}  # Формирование результата
             all_recordings.append(data_result)  # Добавление в список
@@ -296,7 +310,7 @@ def output_of_the_result(data):
         **costs,  # Добавляем расчёты стоимости
     }
 
-    logger.info(result)
+    # logger.info(result)
     return result
 
 
@@ -319,33 +333,32 @@ def calculate_costs(total_seconds):
     return costs
 
 
-def download_and_convert_to_mp3():
-    """
-    Скачивает запись по URL, сохраняет как .wav, и конвертирует в .mp3.
-
-    :param call_recording_url: Ссылка на файл записи
-    :param output_directory: Директория для сохранения файла
-    :return: Путь к сохраненному файлу mp3
-    """
-
+def task_download_and_convert_to_mp3():
+    # Здесь можно разместить вашу функцию download_and_convert_to_mp3
     with open(recordings_output_file, "r", encoding="utf-8") as f:
         datas = json.load(f)
-
+    # Очищаем текстовое поле перед выводом
+    result_text.delete(1.0, END)
     # Итерация по данным
     for data in datas:
-        # Получаем ключ (дата) и значение (URL) из каждого словаря
         for file_name, call_recording_url in data.items():
             try:
                 # Скачиваем файл
                 response = requests.get(call_recording_url, timeout=30, stream=True)
                 wav_file_path = call_recording_directory / f"{file_name}.wav"
                 mp3_file_path = call_recording_directory / f"{file_name}.mp3"
+
+                # Пропускаем файл, если он уже существует
                 if wav_file_path.exists():
+                    result_text.insert(END, f"Файл в наличии {wav_file_path}\n")
+                    result_text.see(END)  # Прокрутка до конца
                     continue
+
                 if response.status_code == 200:
                     with open(wav_file_path, "wb") as f:
                         f.write(response.content)
-                    logger.info(f"File downloaded: {wav_file_path}")
+                    # result_text.insert(END, f"Файл wAv скачан {wav_file_path}\n")
+                    # result_text.see(END)
 
                     # Конвертация .wav в .mp3 через lameenc
                     with wave.open(str(wav_file_path), "rb") as wav_file:
@@ -364,20 +377,130 @@ def download_and_convert_to_mp3():
                     # Сохранение MP3 файла
                     with open(mp3_file_path, "wb") as mp3_file:
                         mp3_file.write(mp3_data)
-                    logger.info(f"File converted to MP3: {mp3_file_path}")
+
+                    result_text.insert(
+                        END, f"Файл конвертирован в MP3: {mp3_file_path}\n"
+                    )
+                    result_text.see(END)
 
                     # Удаление оригинального WAV файла
                     os.remove(wav_file_path)
                 else:
-                    logger.error(
-                        f"Failed to download file. Status code: {response.status_code}"
+                    result_text.insert(
+                        END,
+                        f"Failed to download: {call_recording_url} (status code: {response.status_code})\n",
                     )
+                    result_text.see(END)
             except Exception as e:
-                logger.error(f"An error occurred: {e}")
+                result_text.insert(END, f"An error occurred: {e}\n")
+                result_text.see(END)
+
+    # Удаление временного файла JSON (при необходимости)
     recordings_output_file.unlink()
 
 
-def upload_to_google_drive():
+# def download_and_convert_to_mp3():
+#     """
+#     Скачивает записи, конвертирует их в MP3 и обновляет текстовое поле без блокировки интерфейса.
+#     """
+
+#     def task():
+#         with open(recordings_output_file, "r", encoding="utf-8") as f:
+#             datas = json.load(f)
+#         # Очищаем текстовое поле перед выводом
+#         result_text.delete(1.0, END)
+#         # Итерация по данным
+#         for data in datas:
+#             for file_name, call_recording_url in data.items():
+#                 try:
+#                     # Скачиваем файл
+#                     response = requests.get(call_recording_url, timeout=30, stream=True)
+#                     wav_file_path = call_recording_directory / f"{file_name}.wav"
+#                     mp3_file_path = call_recording_directory / f"{file_name}.mp3"
+
+#                     # Пропускаем файл, если он уже существует
+#                     if wav_file_path.exists():
+#                         result_text.insert(
+#                             END, f"File already exists: {wav_file_path}\n"
+#                         )
+#                         result_text.see(END)  # Прокрутка до конца
+#                         continue
+
+#                     if response.status_code == 200:
+#                         with open(wav_file_path, "wb") as f:
+#                             f.write(response.content)
+#                         result_text.insert(END, f"File downloaded: {wav_file_path}\n")
+#                         result_text.see(END)
+
+#                         # Конвертация .wav в .mp3 через lameenc
+#                         with wave.open(str(wav_file_path), "rb") as wav_file:
+#                             params = wav_file.getparams()
+#                             num_channels = params.nchannels
+#                             sample_rate = params.framerate
+#                             pcm_data = wav_file.readframes(params.nframes)
+
+#                             encoder = lameenc.Encoder()
+#                             encoder.set_bit_rate(128)
+#                             encoder.set_in_sample_rate(sample_rate)
+#                             encoder.set_channels(num_channels)
+#                             mp3_data = encoder.encode(pcm_data)
+#                             mp3_data += encoder.flush()
+
+#                         # Сохранение MP3 файла
+#                         with open(mp3_file_path, "wb") as mp3_file:
+#                             mp3_file.write(mp3_data)
+
+#                         result_text.insert(
+#                             END, f"File converted to MP3: {mp3_file_path}\n"
+#                         )
+#                         result_text.see(END)
+
+#                         # Удаление оригинального WAV файла
+#                         os.remove(wav_file_path)
+#                     else:
+#                         result_text.insert(
+#                             END,
+#                             f"Failed to download: {call_recording_url} (status code: {response.status_code})\n",
+#                         )
+#                         result_text.see(END)
+#                 except Exception as e:
+#                     result_text.insert(END, f"An error occurred: {e}\n")
+#                     result_text.see(END)
+
+#         # Удаление временного файла JSON (при необходимости)
+#         recordings_output_file.unlink()
+
+
+# def task_upload_to_google_drive():
+#     """
+#     Загрузка всех файлов из директории call_recording_directory в указанную папку Google Drive.
+#     """
+#     try:
+#         # Аутентификация с использованием сервисного аккаунта
+#         gauth = GoogleAuth()
+#         gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+#             service_account_file,
+#             scopes=["https://www.googleapis.com/auth/drive"],
+#         )
+#         drive = GoogleDrive(gauth)
+
+#         # Перебор всех файлов в директории
+#         for file_path in call_recording_directory.iterdir():
+#             if file_path.is_file():  # Проверяем, что это файл
+#                 file_name = file_path.name
+#                 # Создание файла на Google Drive
+#                 file_drive = drive.CreateFile(
+#                     {"title": file_name, "parents": [{"id": FOLDER_ID}]}
+#                 )
+#                 file_drive.SetContentFile(str(file_path))
+#                 file_drive.Upload()
+#                 result_text.insert(END, f"Файл {file_name} загружен на Google Drive\n")
+#                 result_text.see(END)
+
+
+#     except Exception as e:
+#         print(f"An error occurred while uploading to Google Drive: {e}")
+def task_upload_to_google_drive():
     """
     Загрузка всех файлов из директории call_recording_directory в указанную папку Google Drive.
     """
@@ -385,26 +508,43 @@ def upload_to_google_drive():
         # Аутентификация с использованием сервисного аккаунта
         gauth = GoogleAuth()
         gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-            service_account_file,  # Укажите путь к вашему JSON-файлу сервисного аккаунта
+            service_account_file,
             scopes=["https://www.googleapis.com/auth/drive"],
         )
         drive = GoogleDrive(gauth)
+
+        # Получение списка файлов в целевой папке на Google Drive
+        existing_files = {
+            file["title"]: file["id"]
+            for file in drive.ListFile(
+                {"q": f"'{FOLDER_ID}' in parents and trashed=false"}
+            ).GetList()
+        }
 
         # Перебор всех файлов в директории
         for file_path in call_recording_directory.iterdir():
             if file_path.is_file():  # Проверяем, что это файл
                 file_name = file_path.name
-                print(f"Uploading file: {file_name}")
 
-                # Создание файла на Google Drive
+                if file_name in existing_files:
+                    result_text.insert(
+                        END, f"Файл {file_name} уже существует на Google Drive\n"
+                    )
+                    result_text.see(END)
+                    continue  # Пропускаем загрузку
+
+                # Создание и загрузка нового файла
                 file_drive = drive.CreateFile(
                     {"title": file_name, "parents": [{"id": FOLDER_ID}]}
                 )
                 file_drive.SetContentFile(str(file_path))
                 file_drive.Upload()
-                print(f"File uploaded to Google Drive: {file_name}")
+                result_text.insert(END, f"Файл {file_name} загружен на Google Drive\n")
+                result_text.see(END)
+
     except Exception as e:
-        print(f"An error occurred while uploading to Google Drive: {e}")
+        result_text.insert(END, f"An error occurred: {e}\n")
+        result_text.see(END)
 
 
 def show_calendar(entry):
@@ -509,19 +649,30 @@ fetch_button_2 = Button(button_frame, text="Отфильтровать", command
 fetch_button_2.pack(side="left", padx=5, pady=5)
 
 download_button = Button(
-    button_frame, text="Скачать записи", command=download_and_convert_to_mp3
+    button_frame,
+    text="Скачать записи",
+    command=lambda: threading.Thread(target=task_download_and_convert_to_mp3).start(),
 )
 download_button.pack(side="left", padx=5, pady=5)
 
+# upload_button = Button(
+#     button_frame, text="Загрузить на GoogleDrive", command=upload_to_google_drive
+# )
 upload_button = Button(
-    button_frame, text="Загрузить на GoogleDrive", command=upload_to_google_drive
+    button_frame,
+    text="Загрузить на GoogleDrive",
+    command=lambda: threading.Thread(target=task_upload_to_google_drive).start(),
 )
+
 upload_button.pack(side="left", padx=5, pady=5)
 
 
 # Поле вывода результатов
 result_text = Text(root, wrap="word", width=80, height=20)
-result_text.pack(pady=10)
+result_text.pack(
+    pady=10, fill="both", expand=True
+)  # Заполняет доступное пространство и изменяет размер при увеличении окна
+
 scrollbar = Scrollbar(root, orient="vertical", command=result_text.yview)
 result_text.config(yscrollcommand=scrollbar.set)
 scrollbar.pack(side="right", fill="y")
