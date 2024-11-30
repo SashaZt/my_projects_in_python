@@ -107,7 +107,7 @@ def main_loop():
             writer.save_results_to_json(all_results)
             writer.save_json_to_excel()
 
-            # all_results = parser.parsing_json()
+            all_results = parser.parsing_json()
 
         elif choice == "5":
             shutil.rmtree(html_page_directory)

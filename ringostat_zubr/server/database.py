@@ -105,7 +105,8 @@ class DatabaseInitializer:
                             unique_target_call VARCHAR(255),
                             number_pool_name VARCHAR(255),
                             substitution_type VARCHAR(255),
-                            call_id VARCHAR(255)
+                            call_id VARCHAR(255),
+                            talk_time VARCHAR(255)
                         )
                         """
                     )
@@ -139,9 +140,10 @@ class DatabaseInitializer:
                             number_pool_name,
                             utm_medium,
                             substitution_type,
-                            call_id
+                            call_id,
+                            talk_time
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """,
                         (
                             call_data["call_recording"],
@@ -160,6 +162,7 @@ class DatabaseInitializer:
                             call_data["utm_medium"],
                             call_data["substitution_type"],
                             call_data["call_id"],
+                            call_data["talk_time"],
                         ),
                     )
                     await connection.commit()

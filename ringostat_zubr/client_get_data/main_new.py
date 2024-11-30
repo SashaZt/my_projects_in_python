@@ -26,7 +26,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from dotenv import load_dotenv
-from pydrive2.auth import GoogleAuth
+from pydrive2.auth import GoogleAuth, ServiceAccountCredentials
 from pydrive2.drive import GoogleDrive
 from tkcalendar import Calendar
 
@@ -66,6 +66,7 @@ FIELDS = [
     "utm_medium",
     "substitution_type",
     "call_id",
+    "talk_time",
 ]
 CONDITIONS = [
     "равно",
@@ -117,7 +118,7 @@ def download_data_to_file():
 
     try:
         logger.info("Sending GET request to the server")
-        response = requests.get(url, params=params, verify=False)
+        response = requests.get(url, params=params, timeout=30, verify=False)
 
         if response.status_code == 200:
             logger.info("Data fetched successfully")
@@ -324,14 +325,17 @@ def upload_to_google_drive():
     Загрузка всех файлов из директории call_recording_directory в указанную папку Google Drive.
     """
     try:
-        # Аутентификация с использованием Google Drive API
+        # Аутентификация с использованием сервисного аккаунта
         gauth = GoogleAuth()
-        gauth.LocalWebserverAuth()  # Локальный веб-сервер для авторизации
+        gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            "kotelzubr-c6c2d314f075.json",  # Укажите путь к вашему JSON-файлу сервисного аккаунта
+            scopes=["https://www.googleapis.com/auth/drive"],
+        )
         drive = GoogleDrive(gauth)
 
         # Перебор всех файлов в директории
         for file_path in call_recording_directory.iterdir():
-            if file_path.is_file():  # Проверяем, что это файл, а не поддиректория
+            if file_path.is_file():  # Проверяем, что это файл
                 file_name = file_path.name
                 print(f"Uploading file: {file_name}")
 
