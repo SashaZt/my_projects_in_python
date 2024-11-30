@@ -40,18 +40,25 @@ def get_html():
     proxies_dict = {"http": proxy, "https": proxy}
 
     cookies = {
-        "cc_cookie": "%7B%22categories%22%3A%5B%22necessary%22%2C%22analytics%22%2C%22marketing%22%5D%2C%22revision%22%3A0%2C%22data%22%3Anull%2C%22consentTimestamp%22%3A%222024-11-25T10%3A20%3A39.466Z%22%2C%22consentId%22%3A%2239ed2fe3-7324-4f88-9812-35d7b359f89d%22%2C%22services%22%3A%7B%22necessary%22%3A%5B%5D%2C%22analytics%22%3A%5B%5D%2C%22marketing%22%3A%5B%5D%7D%2C%22lastConsentTimestamp%22%3A%222024-11-25T10%3A20%3A39.466Z%22%2C%22expirationTime%22%3A1748254839467%7D",
-        "Shop5": "5152bb30a3178d0580d86dce5ec6d314",
+        "cid": "38151285142402004135884277792469422435",
+        "evoauth": "we73d6bf140cf439eba971a0483a05c8f",
+        "timezone_offset": "120",
+        "auth": "879752e05b9c2bfa0a928626b3981767a3741e97",
+        "user_tracker": "101dfcb70c3124fa578c8a1209895e39f55a10a6|193.24.221.34|2024-11-26",
+        "csrf_token": "2c09e87f92be4d98bd481efbd7066117",
+        "visited_products": "120535748.106553552.48311559.112024327.120153155",
+        "ext_referer": "aHR0cHM6Ly92dGVsbC5zYXR1Lmt6Lw==",
+        "last_search_term": "",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
         "cache-control": "no-cache",
+        # 'cookie': 'cid=38151285142402004135884277792469422435; evoauth=we73d6bf140cf439eba971a0483a05c8f; timezone_offset=120; auth=879752e05b9c2bfa0a928626b3981767a3741e97; user_tracker=101dfcb70c3124fa578c8a1209895e39f55a10a6|193.24.221.34|2024-11-26; csrf_token=2c09e87f92be4d98bd481efbd7066117; visited_products=120535748.106553552.48311559.112024327.120153155; ext_referer=aHR0cHM6Ly92dGVsbC5zYXR1Lmt6Lw==; last_search_term=',
         "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "referer": "https://polanik.shop/en_GB/c/Womens-premium/102",
         "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
@@ -64,16 +71,13 @@ def get_html():
     }
 
     response = requests.get(
-        "https://polanik.shop/en_GB/p/PH-4-G-Premium-Hammer-Gold-hammer-bag-HB-or-competition-glove-FREE/466",
-        cookies=cookies,
-        headers=headers,
-        timeout=timeout,
+        "https://satu.kz/Tehnika-i-elektronika", cookies=cookies, headers=headers
     )
 
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
-        with open("proba_0.html", "w", encoding="utf-8") as file:
+        with open("satu.html", "w", encoding="utf-8") as file:
             file.write(response.text)
     logger.info(response.status_code)
 
@@ -257,16 +261,14 @@ def parsing_page():
             # Прочитать содержимое файла
             content = file.read()
             # Создать объект BeautifulSoup
-            phone_number = None
             soup = BeautifulSoup(content, "lxml")
-            div_element = soup.find("div", attrs={"class": "card bg-gray-100"})
-
+            table = soup.find("div", attrs={"data-qaid": "product_gallery"})
+            div_element = table.find_all("a")
+            logger.info(len(div_element))
             if div_element:
-
-                phone_number_tag = div_element.find("b")
-                if phone_number_tag:
-                    phone_number = phone_number_tag.get_text(strip=True)
-                    logger.info(phone_number.replace(" ", "").replace("\n", ""))
+                for href in div_element:
+                    url_company = href.get("href")
+                    logger.info(url_company)
 
 
 def get_url():
@@ -491,30 +493,6 @@ def url_test():
     print(file_id)
 
 
-def split_address_usaddress(address):
-    try:
-        # Разбираем адрес с помощью usaddress
-        parsed_address, address_type = usaddress.tag(address)
-
-        # Определяем компоненты адреса
-        number = parsed_address.get("AddressNumber", "")
-        street = " ".join(
-            [
-                parsed_address.get("StreetNamePreDirectional", ""),
-                parsed_address.get("StreetName", ""),
-                parsed_address.get("StreetNamePostType", ""),
-            ]
-        ).strip()
-        city = parsed_address.get("PlaceName", "")
-        state = parsed_address.get("StateName", "")
-
-        # Возвращаем разделенный адрес как словарь
-        return {"number": number, "street": street, "city": city, "state": state}
-    except usaddress.RepeatedLabelError as e:
-        print(f"Ошибка разбора адреса: {address}")
-        return None
-
-
 def format_proxies(proxy_list):
     """
     Преобразует список прокси в формат http://логин:пароль@IP:порт.
@@ -717,7 +695,7 @@ def get_category_html():
 
 if __name__ == "__main__":
     # get_contact_prom()
-    get_category_html()
+    # get_category_html()
     # get_session_html()
     # # Пример использования
     # proxies = [
@@ -831,7 +809,7 @@ if __name__ == "__main__":
     # url_test()
     # get_html()
     # download_pdf()
-    # parsing_page()
+    parsing_page()
     # Вызов функции с файлом unique_itm_urls.csv
     # parsing_product()
     # get_responses_from_urls("unique_itm_urls.csv")
