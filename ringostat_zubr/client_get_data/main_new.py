@@ -85,12 +85,14 @@ LOGICAL_OPERATORS = ["И", "ИЛИ"]
 # Путь к папкам и файлу для данных
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
+configuration_directory = current_directory / "configuration"
 call_recording_directory = current_directory / "call_recording"
 data_directory.mkdir(parents=True, exist_ok=True)
 call_recording_directory.mkdir(parents=True, exist_ok=True)
 temp_data_output_file = data_directory / "temp_data.json"
 recordings_output_file = data_directory / "recording.json"
 result_output_file = data_directory / "result.json"
+service_account_file = configuration_directory / "service_account.json"
 
 
 def encrypt_access_key(access_key: str) -> str:
@@ -242,6 +244,8 @@ def fetch_all_data():
 
     # Применение фильтров
     filtered_data = apply_combined_filter(data, filters)
+    result = output_of_the_result(filtered_data)
+    # logger.info(filtered_data)
     all_recordings = []
 
     for call in filtered_data:
@@ -258,8 +262,61 @@ def fetch_all_data():
 
     # Очищаем текстовое поле перед выводом
     result_text.delete(1.0, END)
-    result_text.insert(END, "Filtered Data:\n")
-    result_text.insert(END, json.dumps(filtered_data, ensure_ascii=False, indent=4))
+    # result_text.insert(END, "Filtered Data:\n")
+    result_text.insert(END, json.dumps(result, ensure_ascii=False, indent=4))
+
+
+def output_of_the_result(data):
+    """
+    Формирует словарь с итоговым временем, количеством записей и стоимостью.
+
+    :param data: Список данных с полем "talk_time"
+    :return: Словарь с итоговым временем, количеством записей и стоимостью
+    """
+    number_of_records = len(data)
+    total_talk_time = sum(
+        int(talk["talk_time"])
+        for talk in data
+        if talk.get("talk_time") and talk["talk_time"].isdigit()
+    )
+
+    # Расчёт часов, минут и секунд
+    hours = total_talk_time // 3600
+    minutes = (total_talk_time % 3600) // 60
+    seconds = total_talk_time % 60
+    formatted_time = f"{hours:02}ч {minutes:02}мин {seconds:02}сек"
+
+    # Расчёт стоимости
+    costs = calculate_costs(total_talk_time)
+
+    # Итоговый словарь
+    result = {
+        "Количество записей": number_of_records,
+        "Время": formatted_time,
+        **costs,  # Добавляем расчёты стоимости
+    }
+
+    logger.info(result)
+    return result
+
+
+def calculate_costs(total_seconds):
+    """
+    Рассчитывает стоимость для GPT-4o, GPT-4o mini и Chat GPT 4 Turbo.
+
+    :param total_seconds: Общее количество секунд
+    :return: Словарь с расчётом стоимости для каждого тарифа
+    """
+    total_minutes = total_seconds / 60  # Перевод секунд в минуты
+
+    # Стоимость на различных тарифах
+    costs = {
+        "GPT-4o": round(total_minutes * 0.031, 2),
+        "GPT-4o mini": round(total_minutes * 0.0233, 2),
+        "Chat GPT 4 Turbo": round(total_minutes * 0.0465, 2),
+    }
+
+    return costs
 
 
 def download_and_convert_to_mp3():
@@ -328,7 +385,7 @@ def upload_to_google_drive():
         # Аутентификация с использованием сервисного аккаунта
         gauth = GoogleAuth()
         gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-            "kotelzubr-c6c2d314f075.json",  # Укажите путь к вашему JSON-файлу сервисного аккаунта
+            service_account_file,  # Укажите путь к вашему JSON-файлу сервисного аккаунта
             scopes=["https://www.googleapis.com/auth/drive"],
         )
         drive = GoogleDrive(gauth)
