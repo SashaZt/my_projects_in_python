@@ -461,11 +461,11 @@ async def run(playwright):
     # Запускаем браузер с использованием прокси и отключаем проверку сертификата
     browser = await playwright.chromium.launch(
         headless=False,
-        proxy={
-            "server": "http://proxy-server.scraperapi.com:8001",
-            "username": "scraperapi",
-            "password": "5edddbdddb89aed6e9d529c4ff127e8f",
-        },
+        # proxy={
+        #     "server": "http://proxy-server.scraperapi.com:8001",
+        #     "username": "scraperapi",
+        #     "password": "5edddbdddb89aed6e9d529c4ff127e8f",
+        # },
     )
     context = await browser.new_context(
         bypass_csp=True,  # Обходим CSP для загрузки JS
@@ -488,7 +488,7 @@ async def run(playwright):
     )
 
     # Переходим на URL
-    url = "https://allegro.pl/oferta/mlotowiertarka-3050w-skrzynia-ogrodowa-190l-orpyskiwacz-reczny-zestaw-16403870557"  # Замените на нужный вам URL
+    url = "https://satu.kz/Tehnika-i-elektronika"  # Замените на нужный вам URL
     await page.goto(url)
 
     # Ожидаем 5 секунд

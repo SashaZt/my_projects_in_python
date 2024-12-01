@@ -23,6 +23,7 @@ from tkinter import (
 import lameenc
 import requests
 import urllib3
+import whisper
 from configuration.logger_setup import logger
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
@@ -399,107 +400,6 @@ def task_download_and_convert_to_mp3():
     recordings_output_file.unlink()
 
 
-# def download_and_convert_to_mp3():
-#     """
-#     Скачивает записи, конвертирует их в MP3 и обновляет текстовое поле без блокировки интерфейса.
-#     """
-
-#     def task():
-#         with open(recordings_output_file, "r", encoding="utf-8") as f:
-#             datas = json.load(f)
-#         # Очищаем текстовое поле перед выводом
-#         result_text.delete(1.0, END)
-#         # Итерация по данным
-#         for data in datas:
-#             for file_name, call_recording_url in data.items():
-#                 try:
-#                     # Скачиваем файл
-#                     response = requests.get(call_recording_url, timeout=30, stream=True)
-#                     wav_file_path = call_recording_directory / f"{file_name}.wav"
-#                     mp3_file_path = call_recording_directory / f"{file_name}.mp3"
-
-#                     # Пропускаем файл, если он уже существует
-#                     if wav_file_path.exists():
-#                         result_text.insert(
-#                             END, f"File already exists: {wav_file_path}\n"
-#                         )
-#                         result_text.see(END)  # Прокрутка до конца
-#                         continue
-
-#                     if response.status_code == 200:
-#                         with open(wav_file_path, "wb") as f:
-#                             f.write(response.content)
-#                         result_text.insert(END, f"File downloaded: {wav_file_path}\n")
-#                         result_text.see(END)
-
-#                         # Конвертация .wav в .mp3 через lameenc
-#                         with wave.open(str(wav_file_path), "rb") as wav_file:
-#                             params = wav_file.getparams()
-#                             num_channels = params.nchannels
-#                             sample_rate = params.framerate
-#                             pcm_data = wav_file.readframes(params.nframes)
-
-#                             encoder = lameenc.Encoder()
-#                             encoder.set_bit_rate(128)
-#                             encoder.set_in_sample_rate(sample_rate)
-#                             encoder.set_channels(num_channels)
-#                             mp3_data = encoder.encode(pcm_data)
-#                             mp3_data += encoder.flush()
-
-#                         # Сохранение MP3 файла
-#                         with open(mp3_file_path, "wb") as mp3_file:
-#                             mp3_file.write(mp3_data)
-
-#                         result_text.insert(
-#                             END, f"File converted to MP3: {mp3_file_path}\n"
-#                         )
-#                         result_text.see(END)
-
-#                         # Удаление оригинального WAV файла
-#                         os.remove(wav_file_path)
-#                     else:
-#                         result_text.insert(
-#                             END,
-#                             f"Failed to download: {call_recording_url} (status code: {response.status_code})\n",
-#                         )
-#                         result_text.see(END)
-#                 except Exception as e:
-#                     result_text.insert(END, f"An error occurred: {e}\n")
-#                     result_text.see(END)
-
-#         # Удаление временного файла JSON (при необходимости)
-#         recordings_output_file.unlink()
-
-
-# def task_upload_to_google_drive():
-#     """
-#     Загрузка всех файлов из директории call_recording_directory в указанную папку Google Drive.
-#     """
-#     try:
-#         # Аутентификация с использованием сервисного аккаунта
-#         gauth = GoogleAuth()
-#         gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
-#             service_account_file,
-#             scopes=["https://www.googleapis.com/auth/drive"],
-#         )
-#         drive = GoogleDrive(gauth)
-
-#         # Перебор всех файлов в директории
-#         for file_path in call_recording_directory.iterdir():
-#             if file_path.is_file():  # Проверяем, что это файл
-#                 file_name = file_path.name
-#                 # Создание файла на Google Drive
-#                 file_drive = drive.CreateFile(
-#                     {"title": file_name, "parents": [{"id": FOLDER_ID}]}
-#                 )
-#                 file_drive.SetContentFile(str(file_path))
-#                 file_drive.Upload()
-#                 result_text.insert(END, f"Файл {file_name} загружен на Google Drive\n")
-#                 result_text.see(END)
-
-
-#     except Exception as e:
-#         print(f"An error occurred while uploading to Google Drive: {e}")
 def task_upload_to_google_drive():
     """
     Загрузка всех файлов из директории call_recording_directory в указанную папку Google Drive.
@@ -545,6 +445,7 @@ def task_upload_to_google_drive():
     except Exception as e:
         result_text.insert(END, f"An error occurred: {e}\n")
         result_text.see(END)
+    transcribe_audio_files()
 
 
 def show_calendar(entry):
@@ -579,6 +480,51 @@ def add_context_menu(entry_widget):
         context_menu.post(event.x_root, event.y_root)
 
     entry_widget.bind("<Button-3>", show_context_menu)
+
+
+def transcribe_audio_files():
+    """
+    Транскрибирует файлы .mp3 из директории call_recording_directory,
+    создает .txt файлы с результатами транскрипции.
+    """
+    try:
+        # Загрузка модели Whisper
+        model = whisper.load_model(
+            "base"
+        )  # Можно использовать "small", "medium", "large"
+
+        # Перебор всех файлов .mp3 в директории
+        for file_path in call_recording_directory.glob("*.mp3"):
+            txt_file_path = file_path.with_suffix(
+                ".txt"
+            )  # Путь к .txt файлу с тем же именем
+
+            # Пропускаем, если транскрипция уже выполнена
+            if txt_file_path.exists():
+                result_text.insert(
+                    END, f"Транскрипция уже существует: {txt_file_path}\n"
+                )
+                result_text.see(END)
+                continue
+
+            result_text.insert(END, f"Транскрибирование файла: {file_path}\n")
+            result_text.see(END)
+
+            # Транскрибирование аудиофайла
+            result = model.transcribe(str(file_path))
+
+            # Запись текста в файл
+            with open(txt_file_path, "w", encoding="utf-8") as txt_file:
+                txt_file.write(result["text"])
+
+            result_text.insert(
+                END, f"Файл транскрибирован и сохранен как: {txt_file_path}\n"
+            )
+            result_text.see(END)
+
+    except Exception as e:
+        result_text.insert(END, f"Ошибка при транскрибировании: {e}\n")
+        result_text.see(END)
 
 
 # Основное окно
