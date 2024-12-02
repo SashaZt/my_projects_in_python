@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any
 import aiomysql
 from pydantic import BaseModel, Field
 import dependencies  # Импортируем модуль для доступа к db_initializer
+from fastapi import APIRouter, Depends, Body
 
 
 router = APIRouter()
@@ -66,6 +67,46 @@ async def get_calls(request: Request):
         )
 
 
+# РАБОЧИЙ КОД БЫЛ
+# @router.get("/contacts")
+# async def get_all_contacts(
+#     name: Optional[str] = None,
+#     surname: Optional[str] = None,
+#     formal_title: Optional[str] = None,
+#     phone_number: Optional[str] = None,
+#     email: Optional[str] = None,
+# ):
+#     db = await get_db()
+#     try:
+#         logger.info("Начало получения данных с фильтрацией по параметрам.")
+
+#         # Собираем все переданные параметры в словарь
+#         filters = {
+#             "name": name,
+#             "surname": surname,
+#             "formal_title": formal_title,
+#             "phone_number": phone_number,
+#             "email": email,
+#         }
+#         # Убираем параметры, значение которых None
+#         filters = {k: v for k, v in filters.items() if v is not None}
+
+#         # Вызов функции с фильтрами
+#         result = await db.get_all_contact_data(filters=filters)
+
+#         if not result:
+#             logger.warning("Данные из таблиц contacts_ не найдены.")
+#             raise HTTPException(status_code=404, detail="No contact data found")
+
+#         logger.info(f"Данные успешно получены из всех таблиц contacts_: {result}")
+#         return {"status": "success", "data": result}
+
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при получении данных из всех таблиц contacts_: {e}")
+#         raise HTTPException(
+#             status_code=500, detail=f"Failed to retrieve contact data: {e}"
+#         )
 @router.get("/contact/{contact_id}")
 async def get_contact(contact_id: int, db=Depends(get_db)):
     try:
@@ -98,6 +139,98 @@ async def get_contact(contact_id: int, db=Depends(get_db)):
         logger.error(f"Ошибка при получении данных контакта: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
+# # Маршрут для HEAD-запроса
+# @router.head("/contacts")
+# async def head_contacts():
+#     return {"message": "Contacts list"}
+
+# РАбочий
+# @router.get("/contacts")
+# async def get_filtered_contacts(
+#     searchString: Optional[str] = None,
+#     statusFilter: Optional[str] = None,
+#     contactFilter: Optional[str] = None,
+#     start: Optional[str] = None,
+#     end: Optional[str] = None,
+#     activeRecords: Optional[str] = None,
+#     limit: int = 10,
+#     page: int = 1,
+#     sortBy: Optional[str] = None,
+#     sortOrder: Optional[str] = "asc",
+#     db=Depends(get_db)
+# ):
+#     try:
+#         # Динамическое формирование списка полей для запроса
+#         contact_columns = await db.get_dynamic_columns("contacts")
+#         columns = ", ".join(contact_columns)
+
+#         # Формирование базового SQL-запроса
+#         query = f"SELECT {columns} FROM contacts WHERE 1=1"
+#         parameters = []
+
+#         # Добавление условий фильтрации
+#         if searchString:
+#             query += " AND (username LIKE %s OR userphone LIKE %s OR useremail LIKE %s)"
+#             search_pattern = f"%{searchString}%"
+#             parameters.extend([search_pattern, search_pattern, search_pattern])
+
+#         if statusFilter:
+#             query += " AND contact_status = %s"
+#             parameters.append(statusFilter)
+
+#         if contactFilter:
+#             query += " AND contact_type = %s"
+#             parameters.append(contactFilter)
+
+#         if start and end:
+#             query += " AND created_at BETWEEN %s AND %s"
+#             parameters.extend([start, end])
+
+#         if activeRecords:
+#             query += " AND active = %s"
+#             parameters.append(activeRecords)
+
+#         # Добавление условий сортировки
+#         if sortBy:
+#             query += f" ORDER BY {sortBy} {sortOrder}"
+
+#         # Добавление условий пагинации
+#         offset = (page - 1) * limit
+#         query += " LIMIT %s OFFSET %s"
+#         parameters.extend([limit, offset])
+
+#         async with db.pool.acquire() as connection:
+#             async with connection.cursor(aiomysql.DictCursor) as cursor:
+#                 await cursor.execute(query, parameters)
+#                 contacts = await cursor.fetchall()
+
+#                 # Преобразование datetime в строку
+#                 for contact in contacts:
+#                     if isinstance(contact.get('created_at'), datetime):
+#                         contact['created_at'] = contact['created_at'].strftime('%d.%m.%Y')
+
+#         # Получаем общее количество записей
+#         async with db.pool.acquire() as connection:
+#             async with connection.cursor() as cursor:
+#                 await cursor.execute("SELECT COUNT(*) FROM contacts WHERE 1=1")
+#                 total_records = await cursor.fetchone()
+#                 total_pages = (total_records['COUNT(*)'] // limit) + 1
+
+#         # Формирование итогового ответа
+#         return JSONResponse(status_code=200, content={
+#             "data": contacts,
+#             "totalPages": total_pages,
+#             "currentPage": page
+#         },headers={
+#             "Access-Control-Allow-Origin": "*",
+#             "Access-Control-Allow-Methods": "GET, POST, OPTIONS, PUT, DELETE",
+#             "Access-Control-Allow-Headers": "Authorization, Content-Type"
+#         })
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при получении списка контактов: {e}")
+#         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/contacts")
@@ -252,7 +385,7 @@ async def get_task_by_id(task_id: int, db=Depends(get_db)):
 # Добавление в `get_routes.py`
 
 
-@router.get("/getconfig")
+@router.get("/getTaskConfigSettings")
 async def get_config(db=Depends(get_db)):
     """Получает конфигурационные данные для формы 'Задачи'."""
     try:
@@ -306,38 +439,47 @@ async def get_config(db=Depends(get_db)):
         )
 
 
-@router.get("/getTaskConfigSettings")
-async def get_task_config_settings(db=Depends(get_db)):
+@router.get("/getrole")
+async def get_role_permissions(role: dict = Body(...), db=Depends(get_db)):
     try:
-        # Получение конфигурационных данных из базы данных
-        config_data = ConfigModel(
-            Reviewers=[
-                SimpleContactModel(name="Назар Скварок", email="office@labfox.space"),
-                SimpleContactModel(name="Михаил Иванченко", email="miha125@gmail.com"),
-            ],
-            Admin=[
-                SimpleContactModel(
-                    name="office@labfox.space-", email="office@labfox.space-"
+        role_name = role.get("roles")
+
+        # Проверка, передано ли имя роли
+        if not role_name:
+            return JSONResponse(
+                status_code=400,
+                content={"status": "failure", "message": "Role name is required"},
+            )
+
+        async with db.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                # Извлечение прав доступа для конкретной роли
+                await cursor.execute(
+                    """
+                    SELECT m.module_id, rp.access_rights
+                    FROM roles r
+                    JOIN role_permissions rp ON r.id = rp.role_id
+                    JOIN modules m ON rp.module_id = m.id
+                    WHERE r.role_name = %s
+                    """,
+                    (role_name,),
                 )
-            ],
-            Initiators=[
-                SimpleContactModel(name="Назар Скварок", email="office@labfox.space"),
-                SimpleContactModel(name="Михаил Иванченко", email="miha125@gmail.com"),
-            ],
-            Performers=[
-                SimpleContactModel(name="Назар Скварок", email="office@labfox.space"),
-                SimpleContactModel(name="Михаил Иванченко", email="miha125@gmail.com"),
-            ],
-        )
+                permissions_data = await cursor.fetchall()
 
-        # Преобразование данных для JSON-сериализации
-        config_data = jsonable_encoder(config_data)
+                # Формирование ответа с правами
+                permissions = {}
+                for module_id, access_rights in permissions_data:
+                    permissions[module_id] = access_rights
 
-        return JSONResponse(
-            status_code=200, content=config_data
-        )  # Возврат настроек в виде JSON-ответа
+        # Возврат успешного ответа с правами доступа
+        return JSONResponse(status_code=200, content={"permissions": permissions})
 
     except Exception as e:
-        # Логирование ошибки и возврат HTTP-исключения
-        logger.error(f"Ошибка при получении настроек задач: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.error(f"Ошибка при получении прав для роли: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "failure",
+                "message": f"Failed to retrieve permissions: {e}",
+            },
+        )

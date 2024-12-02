@@ -228,26 +228,49 @@ class DatabaseInitializer:
                         );"""
                         )
 
+                        # # Создание таблицы Вызовов
+                        # await cursor.execute(
+                        #     """
+                        # CREATE TABLE IF NOT EXISTS calls (
+                        #     id INT AUTO_INCREMENT PRIMARY KEY,
+                        #     id_call INT,
+                        #     date_and_time DATETIME,
+                        #     client_id INT,
+                        #     phone_number VARCHAR(255),
+                        #     company_number VARCHAR(255),
+                        #     call_type VARCHAR(255),
+                        #     client_status VARCHAR(255),
+                        #     interaction_status VARCHAR(255),
+                        #     employee VARCHAR(255),
+                        #     commentary VARCHAR(255),
+                        #     action VARCHAR(255),
+                        #     FOREIGN KEY (client_id) REFERENCES contacts(id)
+                        # )
+                        # """
+                        # )
                         # Создание таблицы Вызовов
                         await cursor.execute(
                             """
                         CREATE TABLE IF NOT EXISTS calls (
                             id INT AUTO_INCREMENT PRIMARY KEY,
-                            id_call INT,
-                            date_and_time DATETIME,
-                            client_id INT,
-                            phone_number VARCHAR(255),
-                            company_number VARCHAR(255),
-                            call_type VARCHAR(255),
-                            client_status VARCHAR(255),
-                            interaction_status VARCHAR(255),
-                            employee VARCHAR(255),
-                            commentary VARCHAR(255),
-                            action VARCHAR(255),
+                            caller_id VARCHAR(255),  -- Уникальный идентификатор звонка
+                            call_type VARCHAR(255),  -- Тип вызова
+                            call_date DATETIME,  -- Дата и время вызова
+                            who_is_connected VARCHAR(255),  -- С кем соеденили
+                            call_status VARCHAR(255),  -- Статус вызова
+                            you_call VARCHAR(255),  -- Куда звонили
+                            employee_extension_number VARCHAR(255),  -- Внутренний номер сотрудника
+                            callers_number VARCHAR(255),  -- Номер звонившего
+                            link_record VARCHAR(255),  -- Ссылка на запись звонка
+                            duration_of_conversation VARCHAR(50),  -- Длительность разговора
+                            call_duration VARCHAR(50),  -- Общая длительность вызова
+                            waiting_time VARCHAR(50),  -- Время ожидания
+                            client_id INT,  -- Идентификатор клиента
                             FOREIGN KEY (client_id) REFERENCES contacts(id)
                         )
                         """
                         )
+
                         # Создаем таблицу config, если она еще не существует
                         await cursor.execute(
                             """
@@ -257,6 +280,86 @@ class DatabaseInitializer:
                             config_value TEXT NOT NULL
                         );
                         """
+                        )
+                        await cursor.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS modules (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                module_name VARCHAR(255) NOT NULL,
+                                module_id VARCHAR(255) NOT NULL
+                            );
+                            """
+                        )
+
+                        await cursor.execute(
+                            """
+                            -- Создание пустой таблицы modules
+                            CREATE TABLE IF NOT EXISTS modules (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                module_name VARCHAR(255) NOT NULL,
+                                module_id VARCHAR(255) NOT NULL UNIQUE
+                            );
+                            """
+                        )
+
+                        await cursor.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS permissions (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                access_rights VARCHAR(10) NOT NULL,
+                                explanation TEXT NOT NULL
+                            );
+                            """
+                        )
+
+                        await cursor.execute(
+                            """
+                            INSERT INTO permissions (id, access_rights, explanation) VALUES
+                            (1, '100', 'Читает свои'),
+                            (2, '101', 'Читает и просматривает свои (входит в Заявку/Звонок…)'),
+                            (3, '110', 'Читает и пишет свои (без входа)'),
+                            (4, '111', 'Читает, пишет и просматривает (входит) свои'),
+                            (5, '1000', 'Читает записи всех'),
+                            (6, '1101', 'Читает и просматривает всех'),
+                            (7, '1110', 'Читает и редактирует всех'),
+                            (8, '1111', 'Читает и редактирует всех'),
+                            (9, '11111', 'Читает, редактирует и просматривает всех (все права, админ)')
+                            ON DUPLICATE KEY UPDATE access_rights=VALUES(access_rights);
+                            """
+                        )
+
+                        await cursor.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS module_permissions (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                module_id INT,
+                                permission_id INT,
+                                FOREIGN KEY (module_id) REFERENCES modules(id),
+                                FOREIGN KEY (permission_id) REFERENCES permissions(id)
+                            );
+                            """
+                        )
+
+                        await cursor.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS roles (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                role_name VARCHAR(255) NOT NULL,
+                                description TEXT
+                            );
+                            """
+                        )
+
+                        await cursor.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS role_permissions (
+                                role_id INT,
+                                module_id INT,
+                                access_rights VARCHAR(10),
+                                FOREIGN KEY (role_id) REFERENCES roles(id),
+                                FOREIGN KEY (module_id) REFERENCES modules(id)
+                            );
+                            """
                         )
                         await cursor.execute(
                             """
@@ -377,8 +480,47 @@ class DatabaseInitializer:
 
     """Добавление данных о вызове в таблицу calls."""
 
-    async def insert_call_data(self, call_data):
+    # async def insert_call_data(self, call_data):
 
+    #     if self.pool is None:
+    #         logger.error("Пул соединений не инициализирован.")
+    #         return False
+
+    #     try:
+    #         connection = await asyncio.wait_for(self.pool.acquire(), timeout=1.0)
+    #         async with connection:
+    #             async with connection.cursor() as cursor:
+    #                 await cursor.execute(
+    #                     """
+    #                     INSERT INTO calls (id_call, date_and_time, client_id, phone_number, company_number, call_type, client_status, interaction_status, employee, commentary, action)
+    #                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    #                 """,
+    #                     (
+    #                         call_data["id_call"],
+    #                         call_data["date_and_time"],
+    #                         call_data["client_id"],
+    #                         call_data["phone_number"],
+    #                         call_data["company_number"],
+    #                         call_data["call_type"],
+    #                         call_data["client_status"],
+    #                         call_data["interaction_status"],
+    #                         call_data["employee"],
+    #                         call_data["commentary"],
+    #                         call_data.get("action", None),
+    #                     ),
+    #                 )
+    #                 await connection.commit()
+    #                 logger.info(
+    #                     f"Данные успешно добавлены в таблицу calls: {call_data}"
+    #                 )
+    #         return True
+    #     except asyncio.TimeoutError:
+    #         logger.error("Таймаут при попытке получить соединение из пула")
+    #         return False
+    #     except Exception as e:
+    #         logger.error(f"Ошибка при добавлении данных в таблицу calls: {e}")
+    #         return False
+    async def insert_call_data(self, call_data):
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
             return False
@@ -389,21 +531,27 @@ class DatabaseInitializer:
                 async with connection.cursor() as cursor:
                     await cursor.execute(
                         """
-                        INSERT INTO calls (id_call, date_and_time, client_id, phone_number, company_number, call_type, client_status, interaction_status, employee, commentary, action)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """,
+                        INSERT INTO calls (
+                            caller_id, call_type, call_date, who_is_connected, call_status,
+                            you_call, employee_extension_number, callers_number,
+                            link_record, duration_of_conversation, call_duration,
+                            waiting_time, client_id
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
                         (
-                            call_data["id_call"],
-                            call_data["date_and_time"],
-                            call_data["client_id"],
-                            call_data["phone_number"],
-                            call_data["company_number"],
+                            call_data["caller_id"],
                             call_data["call_type"],
-                            call_data["client_status"],
-                            call_data["interaction_status"],
-                            call_data["employee"],
-                            call_data["commentary"],
-                            call_data.get("action", None),
+                            call_data["call_date"],
+                            call_data["who_is_connected"],
+                            call_data["call_status"],
+                            call_data["you_call"],
+                            call_data["employee_extension_number"],
+                            call_data["callers_number"],
+                            call_data["link_record"],
+                            call_data["duration_of_conversation"],
+                            call_data["call_duration"],
+                            call_data["waiting_time"],
+                            call_data["client_id"],
                         ),
                     )
                     await connection.commit()

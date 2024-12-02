@@ -1,11 +1,10 @@
-import requests
 import json
-import re
-from configuration.logger_setup import logger
 import random
-import pandas as pd
-import itertools
 from pathlib import Path
+
+import pandas as pd
+import requests
+from configuration.logger_setup import logger
 
 current_directory = Path.cwd()
 configuration_directory = current_directory / "configuration"

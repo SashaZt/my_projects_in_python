@@ -22,6 +22,9 @@ from configuration.logger_setup import logger  # Настройка логиро
 from pydantic import BaseModel, Field, EmailStr
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import PlainTextResponse
+from configuration.logger_setup import logger
+from starlette.responses import Response
+
 
 router = APIRouter()
 
@@ -353,15 +356,85 @@ async def post_filtered_contacts(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+# @router.post("/ringostat")
+# async def ringostat_post(request: Request):
+#     db = await get_db()
+#     try:
+#         data = await request.json()
+#         logger.debug(f"Получены JSON данные: {data}")
+
+#         # Подготовка данных для записи в базу данных
+#         phone_number = data["additional_call_data"]["userfield"]
+#         contacts = await db.get_all_contact_data()
+
+#         # По умолчанию статус клиента - "Новий"
+#         client_status = "Новий"
+#         client_id = None
+
+#         # Проверяем номера телефонов в базе данных
+#         for contact in contacts:
+#             client_id_bd = contact.get("contact_id")
+#             phone_number_bd = contact.get("phone_number")
+
+#             if phone_number_bd == phone_number:
+#                 client_id = client_id_bd
+#                 client_status = "Существует"
+#                 logger.info(f"Найден клиент с ID {client_id} и номером {phone_number}")
+#                 break
+
+#         all_data = {
+#             "id_call": data["uniqueid"],
+#             "date_and_time": data["calldate"],
+#             "client_id": client_id,  # Значение client_id после проверки в базе данных
+#             "phone_number": phone_number,
+#             "company_number": data["additional_call_data"]["dst"],
+#             "call_type": data["additional_call_data"]["call_type"],
+#             "client_status": client_status,  # Обновленный статус клиента
+#             "interaction_status": "Договір",
+#             "employee": "Хтось",
+#             "commentary": "commentary",
+#             "action": data["additional_call_data"].get("action", "Нет действия"),
+#         }
+
+#         # Попытка записи данных в базу данных
+#         success = await db.insert_call_data(all_data)
+#         if success:
+#             logger.info(f"Данные успешно добавлены в БД: {all_data}")
+#         else:
+#             logger.error(f"Ошибка при добавлении данных в БД: {all_data}")
+#             return JSONResponse(
+#                 status_code=500,
+#                 content={"status": "failure", "message": "Failed to save data"},
+#             )
+
+#     except json.JSONDecodeError:
+#         logger.error("Ошибка декодирования JSON данных")
+#         return JSONResponse(
+#             status_code=400,
+#             content={"status": "failure", "message": "Invalid JSON data"},
+#         )
+#     except Exception as e:
+#         logger.error(f"Не удалось сохранить данные: {e}")
+#         return JSONResponse(
+#             status_code=500,
+#             content={"status": "failure", "message": f"Failed to save data: {e}"},
+#         )
+
+
+#     return JSONResponse(status_code=200, content={"status": "success", "data": data})
+
+
+# НОВЫЙ ЕСЛИ ЧТО СВЕРХУ РАБОЧИЙ СТАРЫЙ
 @router.post("/ringostat")
 async def ringostat_post(request: Request):
     db = await get_db()
     try:
+        # Получение и логирование данных
         data = await request.json()
         logger.debug(f"Получены JSON данные: {data}")
 
         # Подготовка данных для записи в базу данных
-        phone_number = data["additional_call_data"]["userfield"]
+        phone_number = data["callers_number"]
         contacts = await db.get_all_contact_data()
 
         # По умолчанию статус клиента - "Новий"
@@ -380,17 +453,19 @@ async def ringostat_post(request: Request):
                 break
 
         all_data = {
-            "id_call": data["uniqueid"],
-            "date_and_time": data["calldate"],
-            "client_id": client_id,  # Значение client_id после проверки в базе данных
-            "phone_number": phone_number,
-            "company_number": data["additional_call_data"]["dst"],
-            "call_type": data["additional_call_data"]["call_type"],
-            "client_status": client_status,  # Обновленный статус клиента
-            "interaction_status": "Договір",
-            "employee": "Хтось",
-            "commentary": "commentary",
-            "action": data["additional_call_data"].get("action", "Нет действия"),
+            "caller_id": data["caller_id"],
+            "call_type": data["call_type"],
+            "call_date": data["call_date"],
+            "who_is_connected": data.get("who_is_connected", "Нет действия"),
+            "call_status": data.get("call_status", "Неизвестно"),
+            "you_call": data["you_call"],
+            "employee_extension_number": data.get("employee_extension_number", "Хтось"),
+            "callers_number": phone_number,
+            "link_record": data.get("link_record", "Нет записи"),
+            "duration_of_conversation": data.get("duration_of_conversation"),
+            "call_duration": data.get("call_duration"),
+            "waiting_time": data.get("waiting_time"),
+            "client_id": client_id,
         }
 
         # Попытка записи данных в базу данных
@@ -514,7 +589,7 @@ class ConfigModel(BaseModel):
 
 
 # Новый маршрут для сохранения конфигурации с ручной обработкой JSON
-@router.post("/setconfig")
+@router.post("/setTaskConfigSettings")
 async def set_config(request: Request, db=Depends(get_db)):
     """Сохраняет конфигурационные данные для формы 'Задачи'."""
     try:
@@ -651,3 +726,93 @@ async def get_task_list_response(filter: TaskFilterModel, db=Depends(get_db)):
         # Логирование ошибки и возврат HTTP-исключения
         logger.error(f"Ошибка при получении ответа на список задач: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.post("/roles/new")
+async def create_or_update_role(role: dict = Body(...), db=Depends(get_db)):
+    try:
+        role_name = role["role_name"]
+        description = role.get("description", "")
+        permissions = role.get("permissions", {})
+
+        async with db.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                # Проверяем, существует ли уже роль с таким именем
+                await cursor.execute(
+                    "SELECT id FROM roles WHERE role_name = %s", (role_name,)
+                )
+                existing_role = await cursor.fetchone()
+
+                # Если такая роль существует, возвращаем ее ID и не делаем ничего больше
+                if existing_role:
+                    existing_role_id = existing_role["id"]
+                    logger.info(
+                        f"Роль '{role_name}' уже существует с ID {existing_role_id}"
+                    )
+                    # Проверка роли в логе перед возвратом
+                    logger.info(f"Возврат существующего role_id: {existing_role_id}")
+                    response_content = {"status": "ok", "role_id": existing_role_id}
+                    logger.info(f"Ответ перед отправкой: {response_content}")
+                    return Response(
+                        content=json.dumps(response_content),
+                        media_type="application/json",
+                        status_code=200,
+                    )
+
+                # Если роли нет, создаем новую
+                await cursor.execute(
+                    "INSERT INTO roles (role_name, description) VALUES (%s, %s)",
+                    (role_name, description),
+                )
+
+                # Извлечение только что созданного идентификатора
+                await cursor.execute(
+                    "SELECT id FROM roles WHERE role_name = %s", (role_name,)
+                )
+                role_id_row = await cursor.fetchone()
+                new_role_id = role_id_row["id"]
+
+                # Проверка и добавление модулей, если они не существуют
+                for module_id in permissions.keys():
+                    await cursor.execute(
+                        "SELECT id FROM modules WHERE module_id = %s", (module_id,)
+                    )
+                    module = await cursor.fetchone()
+
+                    # Если модуль не существует, добавляем его в таблицу
+                    if module is None:
+                        await cursor.execute(
+                            "INSERT INTO modules (module_name, module_id) VALUES (%s, %s)",
+                            (module_id, module_id),
+                        )
+
+                # Добавление прав для каждого модуля
+                for module_id, access_right in permissions.items():
+                    await cursor.execute(
+                        """
+                        INSERT INTO role_permissions (role_id, module_id, access_rights)
+                        VALUES (%s, (SELECT id FROM modules WHERE module_id = %s LIMIT 1), %s)
+                        """,
+                        (new_role_id, module_id, access_right),
+                    )
+
+        # Проверка роли в логе перед возвратом
+        logger.info(f"Возврат нового role_id: {new_role_id}")
+        response_content = {"status": "ok", "role_id": new_role_id}
+        logger.info(f"Ответ перед отправкой: {response_content}")
+
+        # Возвращаем успешный ответ с ID созданной роли
+        return Response(
+            content=json.dumps(response_content),
+            media_type="application/json",
+            status_code=200,
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при создании или обновлении роли: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "failure",
+                "message": f"Failed to create or update role: {e}",
+            },
+        )
