@@ -177,54 +177,33 @@ def download_xml():
     save_path = "sitemap.xml"
 
     cookies = {
-        "ssid": "c129000win-j6zs7BQ_l9zz",
-        "locale": "de",
-        "esid": "iegIWqG6NihH-1khB2SppBEr",
-        "astid": "%7B%22id%22%3A%22973e0bee-9103-4f01-b7d3-014aeda1188f%22%7D",
-        "altid": "%7B%22id%22%3A%22fceb72fc-7492-49fe-baac-a0c543d66955%22%7D",
-        "didomi_token": "eyJ1c2VyX2lkIjoiMTkyOTAwMzktNGUzOC02MjAzLWE0OTUtMDhlMTU0YTQ5NTk4IiwiY3JlYXRlZCI6IjIwMjQtMTAtMTVUMTE6NTA6MDYuODE5WiIsInVwZGF0ZWQiOiIyMDI0LTEwLTE1VDExOjUwOjMyLjQwOFoiLCJ2ZW5kb3JzIjp7ImVuYWJsZWQiOlsiYzpkaWRvbWktZllQQll4V2EiLCJjOmRvY3RvbGlibi1XcDg3Q3BYQSIsImM6ZG9jdG9saWJhLXRndGIzVzhQIl19LCJwdXJwb3NlcyI6eyJlbmFibGVkIjpbImFuYWx5dGljcy1OR3F4V2JtbiIsImFuYWx5dGlrLU4yWkg5QnFRIiwiZGlzcGxheXRhLVY4a01lbllhIiwiZGlzcGxheXRhLVZyUFBWbkhoIl19LCJ2ZXJzaW9uIjoyfQ==",
-        "euconsent-v2": "CQGiOUAQGiOUAAHABBENBLFgAAAAAAAAAAAAAAAAAAAA.YAAAAAAAAAAA",
-        "booking_funnel_tracking": "{%22id%22:%22obk_3fe2ca4f-c14f-4187-8676-b06fdb24b275%22%2C%22source%22:%22external_referral%22}",
-        "cf_clearance": "FJZx3dFF7vDXKezGN8yFC8QlElTFaAFI1uooLVBIvOo-1729002026-1.2.1.1-GgiS.XXdVCjzICLsHhy8sVohn98CguO3RkY7m7DoURueNjLYWLjDzlFdQLwR7YpoyXkheww7Mswr4lmV8JwjzkaDAFbUZl8jMf5fj79vhYh0acWWlaJFOl6dalbM5jCwXcphsiVlxYYKKfIfyLqtMf3x7jPPzPPUGH0I5R8jItN9eCMwI5wZeblOUUz1fi9VZVuAxwZHilrBXeeUizvSMICR90GHyg1xBHi3nP4by73RfE4POSqI7SCYd6cclgmrutracmKDP5S79Sh8BLhB80eSp3ujBqWy2IsNSj3fdZbrD0af7IJppXshim.3zZQEgRGibPavg7mL9lg94ipRgU9_Knwbv0FVMA4mHr426HtQ5n8hJP6ZViZ_tzhycugX9_Y23zEtxLaM.UAxHGBBjWA.LBjQUg9qYHsr9IaYN0DgFiV_z9F2g2IRqUYBh7CB",
-        "_cfuvid": "JdsH.M511IaA0Vbl1Ld88GLYT0OhNQo6gTtnJ3sFVD4-1730120569271-0.0.1.1-604800000",
-        "__cf_bm": "o3H7BxQoTKZ71o8wVnhnOHgUUoMO4kIYT.eQesQ_kC0-1730192873-1.0.1.1-vM3F5yMtaf90YM90iBl36XTLKmSl6ReVzlLGAk878iRNb6mFcC3uV1cjVWcnMP3VAXzRX2LiFgkNyErQdbmk_.lIyYikkwB80e0pCaoZJTw",
-        "utm_b2b": "utm_source%3Ddirect%26utm_medium%3D",
-        "acid_search_result_page_spe": "{%22id%22:%22d2df0fad-1e75-46ad-b0e4-3797a72d0120%22%2C%22count%22:3}",
-        "acid_booking_traffic_and_cvr": "{%22id%22:%221ccaf965-30ff-491f-bc81-91e026ad4ab8%22%2C%22count%22:4}",
-        "acid_smart_ranking_booking_behaviour": "{%22id%22:%2288881c80-6c1e-431c-a344-c047e4b9d15e%22%2C%22count%22:3}",
-        "_doctolib_session": "bQKJF93RSrE6ATENHov8yxdGyAeJ7k805Ye8D8hmIiW6D8rPEuLKYAgiUK93ItoCwuDPW83XdDwTEZqPyN9c6EiOdvoTK9RQzXEzSQPMPdQn8Vsm2q3bKCu46QfpRdXjAo5d9e5mjXDc2x47MkXYhcXPcgqfs506ft40lVmqLuNsTbhvQl2i5D5v0J8hIRofYPsb4mXQ0uokKYayGRrabEAtkiWWIDie%2BMrd0BJNhX%2BaUAjArOT%2BejNdZSii6MF6KWqLyTPgKL%2BVtUIKKLgzRw6610HyEXcy7TSaeZikvqqWH%2BbgatUwj3ramCOKQ0vbG9tg2MIEGPoBCVxGB13ruikHT%2BlW%2BNySiw%3D%3D--VoxfHEKoQXJNHkHP--tWQUxXYkQ93GjGEG%2BUXKXQ%3D%3D",
+        "euconsent-v2": "CQJAbUAQJAbUAAjABCENBRFgAP_AAEPAACgAIzBV5CpMDWFAMHBRYNMgGYAW10ARIEQAABCBAyABCAGA8IAA0QECMAQAAAACAAIAoBABAAAAAABEAEAAIAAAAABEAAAAAAAIIAAAAAEQQAAAAAgAAAAAEAAIAAABAAQAkAAAAYKABEAAAIAgCAAAAAABAAAAAAMACAAIAAAAAAIAAAAAAAIAAAAAAEEAARAyyAYAAgABQAFwAtgD7AJSAa8A_oC6AGCAMhAZYAMEgQgAIAAWABUADgAIIAZABoAEQAJgAVQA3gB-AEJAIYAiQBLACaAGGAMoAc8A-wD9AIoARoAkQBcwDFAG0ANwAcQBQ4C8wGrgOCAeOBCEdAjAAWABUADgAIIAZABoAEQAJgAVQAuABiADeAH6AQwBEgCWAE0AMMAZQA0QBzwD7AP2AigCLAEiALmAYoA2gBuADiAIvATIAocBeYDLAGmgNXAeOQgGAALACqAFwAMQAbwBzgEUAJSAXMAxQBtAHjkoB4ACAAFgAcACIAEwAKoAXAAxQCGAIkAfgBcwDFAIvAXmBCEpAdAAWABUADgAIIAZABoAEQAJgAUgAqgBiAD9AIYAiQBlADRAHPAPwA_QCLAEiALmAYoA2gBuAEXgKHAXmAywBwQDxwIQlQAQACgAtgAA.YAAAAAAAAAAA",
+        "consentUUID": "6cb56b4f-3f34-435d-b1d3-c1977cb47e33_38",
+        "consentDate": "2024-12-02T11:46:43.209Z",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        # 'cookie': 'ssid=c129000win-j6zs7BQ_l9zz; locale=de; esid=iegIWqG6NihH-1khB2SppBEr; astid=%7B%22id%22%3A%22973e0bee-9103-4f01-b7d3-014aeda1188f%22%7D; altid=%7B%22id%22%3A%22fceb72fc-7492-49fe-baac-a0c543d66955%22%7D; didomi_token=eyJ1c2VyX2lkIjoiMTkyOTAwMzktNGUzOC02MjAzLWE0OTUtMDhlMTU0YTQ5NTk4IiwiY3JlYXRlZCI6IjIwMjQtMTAtMTVUMTE6NTA6MDYuODE5WiIsInVwZGF0ZWQiOiIyMDI0LTEwLTE1VDExOjUwOjMyLjQwOFoiLCJ2ZW5kb3JzIjp7ImVuYWJsZWQiOlsiYzpkaWRvbWktZllQQll4V2EiLCJjOmRvY3RvbGlibi1XcDg3Q3BYQSIsImM6ZG9jdG9saWJhLXRndGIzVzhQIl19LCJwdXJwb3NlcyI6eyJlbmFibGVkIjpbImFuYWx5dGljcy1OR3F4V2JtbiIsImFuYWx5dGlrLU4yWkg5QnFRIiwiZGlzcGxheXRhLVY4a01lbllhIiwiZGlzcGxheXRhLVZyUFBWbkhoIl19LCJ2ZXJzaW9uIjoyfQ==; euconsent-v2=CQGiOUAQGiOUAAHABBENBLFgAAAAAAAAAAAAAAAAAAAA.YAAAAAAAAAAA; booking_funnel_tracking={%22id%22:%22obk_3fe2ca4f-c14f-4187-8676-b06fdb24b275%22%2C%22source%22:%22external_referral%22}; cf_clearance=FJZx3dFF7vDXKezGN8yFC8QlElTFaAFI1uooLVBIvOo-1729002026-1.2.1.1-GgiS.XXdVCjzICLsHhy8sVohn98CguO3RkY7m7DoURueNjLYWLjDzlFdQLwR7YpoyXkheww7Mswr4lmV8JwjzkaDAFbUZl8jMf5fj79vhYh0acWWlaJFOl6dalbM5jCwXcphsiVlxYYKKfIfyLqtMf3x7jPPzPPUGH0I5R8jItN9eCMwI5wZeblOUUz1fi9VZVuAxwZHilrBXeeUizvSMICR90GHyg1xBHi3nP4by73RfE4POSqI7SCYd6cclgmrutracmKDP5S79Sh8BLhB80eSp3ujBqWy2IsNSj3fdZbrD0af7IJppXshim.3zZQEgRGibPavg7mL9lg94ipRgU9_Knwbv0FVMA4mHr426HtQ5n8hJP6ZViZ_tzhycugX9_Y23zEtxLaM.UAxHGBBjWA.LBjQUg9qYHsr9IaYN0DgFiV_z9F2g2IRqUYBh7CB; _cfuvid=JdsH.M511IaA0Vbl1Ld88GLYT0OhNQo6gTtnJ3sFVD4-1730120569271-0.0.1.1-604800000; __cf_bm=o3H7BxQoTKZ71o8wVnhnOHgUUoMO4kIYT.eQesQ_kC0-1730192873-1.0.1.1-vM3F5yMtaf90YM90iBl36XTLKmSl6ReVzlLGAk878iRNb6mFcC3uV1cjVWcnMP3VAXzRX2LiFgkNyErQdbmk_.lIyYikkwB80e0pCaoZJTw; utm_b2b=utm_source%3Ddirect%26utm_medium%3D; acid_search_result_page_spe={%22id%22:%22d2df0fad-1e75-46ad-b0e4-3797a72d0120%22%2C%22count%22:3}; acid_booking_traffic_and_cvr={%22id%22:%221ccaf965-30ff-491f-bc81-91e026ad4ab8%22%2C%22count%22:4}; acid_smart_ranking_booking_behaviour={%22id%22:%2288881c80-6c1e-431c-a344-c047e4b9d15e%22%2C%22count%22:3}; _doctolib_session=bQKJF93RSrE6ATENHov8yxdGyAeJ7k805Ye8D8hmIiW6D8rPEuLKYAgiUK93ItoCwuDPW83XdDwTEZqPyN9c6EiOdvoTK9RQzXEzSQPMPdQn8Vsm2q3bKCu46QfpRdXjAo5d9e5mjXDc2x47MkXYhcXPcgqfs506ft40lVmqLuNsTbhvQl2i5D5v0J8hIRofYPsb4mXQ0uokKYayGRrabEAtkiWWIDie%2BMrd0BJNhX%2BaUAjArOT%2BejNdZSii6MF6KWqLyTPgKL%2BVtUIKKLgzRw6610HyEXcy7TSaeZikvqqWH%2BbgatUwj3ramCOKQ0vbG9tg2MIEGPoBCVxGB13ruikHT%2BlW%2BNySiw%3D%3D--VoxfHEKoQXJNHkHP--tWQUxXYkQ93GjGEG%2BUXKXQ%3D%3D',
+        "cache-control": "max-age=0",
+        # 'cookie': 'euconsent-v2=CQJAbUAQJAbUAAjABCENBRFgAP_AAEPAACgAIzBV5CpMDWFAMHBRYNMgGYAW10ARIEQAABCBAyABCAGA8IAA0QECMAQAAAACAAIAoBABAAAAAABEAEAAIAAAAABEAAAAAAAIIAAAAAEQQAAAAAgAAAAAEAAIAAABAAQAkAAAAYKABEAAAIAgCAAAAAABAAAAAAMACAAIAAAAAAIAAAAAAAIAAAAAAEEAARAyyAYAAgABQAFwAtgD7AJSAa8A_oC6AGCAMhAZYAMEgQgAIAAWABUADgAIIAZABoAEQAJgAVQA3gB-AEJAIYAiQBLACaAGGAMoAc8A-wD9AIoARoAkQBcwDFAG0ANwAcQBQ4C8wGrgOCAeOBCEdAjAAWABUADgAIIAZABoAEQAJgAVQAuABiADeAH6AQwBEgCWAE0AMMAZQA0QBzwD7AP2AigCLAEiALmAYoA2gBuADiAIvATIAocBeYDLAGmgNXAeOQgGAALACqAFwAMQAbwBzgEUAJSAXMAxQBtAHjkoB4ACAAFgAcACIAEwAKoAXAAxQCGAIkAfgBcwDFAIvAXmBCEpAdAAWABUADgAIIAZABoAEQAJgAUgAqgBiAD9AIYAiQBlADRAHPAPwA_QCLAEiALmAYoA2gBuAEXgKHAXmAywBwQDxwIQlQAQACgAtgAA.YAAAAAAAAAAA; consentUUID=6cb56b4f-3f34-435d-b1d3-c1977cb47e33_38; consentDate=2024-12-02T11:46:43.209Z',
         "dnt": "1",
-        "pragma": "no-cache",
         "priority": "u=0, i",
-        "sec-ch-ua": '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-        "sec-ch-ua-arch": '"x86"',
-        "sec-ch-ua-bitness": '"64"',
-        "sec-ch-ua-full-version": '"130.0.6723.70"',
-        "sec-ch-ua-full-version-list": '"Chromium";v="130.0.6723.70", "Google Chrome";v="130.0.6723.70", "Not?A_Brand";v="99.0.0.0"',
+        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
         "sec-ch-ua-platform": '"Windows"',
-        "sec-ch-ua-platform-version": '"15.0.0"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
         "sec-fetch-site": "cross-site",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://www.doctolib.de/sitemap.xml",
+        "https://www.focus-gesundheit.de/sitemap/sitemap.gesundheit.entries.xml",
         cookies=cookies,
         headers=headers,
-        # proxies=proxies_dict,
     )
 
     # Проверка успешности запроса
@@ -809,7 +788,7 @@ if __name__ == "__main__":
     # url_test()
     # get_html()
     # download_pdf()
-    parsing_page()
+    # parsing_page()
     # Вызов функции с файлом unique_itm_urls.csv
     # parsing_product()
     # get_responses_from_urls("unique_itm_urls.csv")
@@ -817,8 +796,8 @@ if __name__ == "__main__":
     # Запуск функции для обхода директории
 
     # get_json()
-    # download_xml()
-    # pr_xml()
-    # parsing_xml()
+    download_xml()
+    pr_xml()
+    parsing_xml()
     # fetch_and_save()
     # parsing_csv()

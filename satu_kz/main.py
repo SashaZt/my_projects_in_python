@@ -82,7 +82,131 @@ async def extract_next_page_number(page):
         return None
 
 
+# async def run(playwright):
+#     browser = await playwright.chromium.launch(headless=False)
+#     context = await browser.new_context(
+#         bypass_csp=True,
+#         java_script_enabled=True,
+#         permissions=["geolocation"],
+#         device_scale_factor=1.0,
+#         has_touch=True,
+#         ignore_https_errors=True,
+#     )
+#     page = await context.new_page()
+
+#     await context.route(
+#         "**/*",
+#         lambda route, request: (
+#             route.abort()
+#             if request.resource_type in ["image", "media", "font", "stylesheet"]
+#             else route.continue_()
+#         ),
+#     )
+
+#     url = "https://satu.kz/Kartridzhi-fotobarabany?a18=13401"
+
+#     await page.goto(url)
+#     # Находим кнопку "Продавцы"
+#     more_button = await page.locator(
+#         '//div[@data-qatitle="Продавцы"]//button[@data-qaid="more_button"]'
+#     )
+#     if not await more_button.is_visible():
+#         print("Кнопка 'Продавцы' не найдена.")
+#         return
+
+#     # Получаем текст и извлекаем число
+#     text = await more_button.inner_text()
+#     try:
+#         number = int("".join(filter(str.isdigit, text)))
+#         print(f"Число найдено: {number}")
+#     except ValueError:
+#         print("Не удалось извлечь число из текста.")
+#         return
+
+#     if number == 93:
+#         # Находим блок "Страна производитель"
+#         country_block = await page.locator(
+#             '//div[@data-qatitle="Страна производитель"]'
+#         )
+#         if not await country_block.is_visible():
+#             print("Блок 'Страна производитель' не найден.")
+#             return
+
+#         # Находим все чекбоксы внутри блока
+#         checkboxes = await country_block.locator('//input[@type="checkbox"]').all()
+#         if not checkboxes:
+#             print("Чекбоксы в блоке 'Страна производитель' не найдены.")
+#             return
+
+#         # Проходимся по всем чекбоксам
+#         for idx, checkbox in enumerate(checkboxes):
+#             if not await checkbox.is_checked():
+#                 await checkbox.click()
+#                 # Снова проверяем "Продавцы"
+#                 text_after_click = await more_button.inner_text()
+#                 try:
+#                     new_number = int("".join(filter(str.isdigit, text_after_click)))
+#                     print(f"Новое число после клика на чекбокс {idx + 1}: {new_number}")
+#                     if new_number < 93:
+#                         print("Число меньше 93, выходим из цикла.")
+#                         parts = url.rsplit("/", maxsplit=1)[-1].split(";")
+#                         url_id = parts[0].split("?")[0]  # Извлекаем url_id
+
+#                         # Прокручиваем страницу вниз
+#                         await page.evaluate(
+#                             "window.scrollTo(0, document.body.scrollHeight)"
+#                         )
+#                         await asyncio.sleep(5)  # Ждем, чтобы страница догрузилась
+#                         first_page = 1
+#                         first_html_file = (
+#                             html_files_directory / f"{url_id}_0{first_page}.html"
+#                         )
+#                         html_content = await page.content()
+
+#                         await save_html_to_file(first_html_file, html_content)
+#                         while True:
+#                             await page.evaluate(
+#                                 "window.scrollTo(0, document.body.scrollHeight)"
+#                             )
+#                             await asyncio.sleep(5)  # Ждем, чтобы страница догрузилась
+
+#                             next_page_number = await extract_next_page_number(page)
+
+#                             output_html_file = (
+#                                 html_files_directory
+#                                 / f"{url_id}_0{next_page_number}.html"
+#                             )
+#                             html_content = await page.content()
+#                             await save_html_to_file(output_html_file, html_content)
+#                             # Ищем кнопку "Вперед"
+#                             try:
+#                                 next_button = await page.query_selector(
+#                                     '[data-qaid="next_page"]'
+#                                 )
+#                                 if next_button:
+#                                     print("Кнопка 'Вперед' найдена. Нажимаем...")
+#                                     await next_button.click()
+#                                     await page.wait_for_load_state("load")
+#                                     await asyncio.sleep(
+#                                         2
+#                                     )  # Ждем загрузки новой страницы
+#                                 else:
+#                                     print("Кнопка 'Вперед' не найдена. Завершаем...")
+#                                     break
+#                             except Exception as e:
+#                                 print("Ошибка при поиске кнопки 'Вперед':", e)
+#                                 break
+#                 except ValueError:
+#                     print(
+#                         f"Не удалось извлечь новое число после клика на чекбокс {idx + 1}."
+#                     )
+#                     continue
+
+
+#     await browser.close()
+# Основная функция
 async def run(playwright):
+    # Запускаем браузер
     browser = await playwright.chromium.launch(headless=False)
     context = await browser.new_context(
         bypass_csp=True,
@@ -94,6 +218,7 @@ async def run(playwright):
     )
     page = await context.new_page()
 
+    # Отключаем загрузку ненужных ресурсов (изображения, шрифты и т.д.)
     await context.route(
         "**/*",
         lambda route, request: (
@@ -103,42 +228,117 @@ async def run(playwright):
         ),
     )
 
-    url = "https://satu.kz/Kartridzhi-fotobarabany?a18=13401"
-
+    # URL для обработки
+    url = "https://satu.kz/Spetsialnye-tkani"
     await page.goto(url)
-    parts = url.rsplit("/", maxsplit=1)[-1].split(";")
-    url_id = parts[0].split("?")[0]  # Извлекаем url_id
-
-    # Прокручиваем страницу вниз
     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    await asyncio.sleep(5)  # Ждем, чтобы страница догрузилась
-    first_page = 1
-    first_html_file = html_files_directory / f"{url_id}_0{first_page}.html"
-    html_content = await page.content()
-    await save_html_to_file(first_html_file, html_content)
-    while True:
-        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await asyncio.sleep(5)  # Ждем, чтобы страница догрузилась
+    await asyncio.sleep(5)  # Ждем загрузки
 
-        next_page_number = await extract_next_page_number(page)
+    # Находим кнопку "Продавцы"
+    more_button = page.locator(
+        '//div[@data-qatitle="Продавцы"]//button[@data-qaid="more_button"]'
+    )
+    # await asyncio.sleep(30)
 
-        output_html_file = html_files_directory / f"{url_id}_0{next_page_number}.html"
-        html_content = await page.content()
-        await save_html_to_file(output_html_file, html_content)
-        # Ищем кнопку "Вперед"
-        try:
-            next_button = await page.query_selector('[data-qaid="next_page"]')
-            if next_button:
-                print("Кнопка 'Вперед' найдена. Нажимаем...")
-                await next_button.click()
-                await page.wait_for_load_state("load")
-                await asyncio.sleep(2)  # Ждем загрузки новой страницы
-            else:
-                print("Кнопка 'Вперед' не найдена. Завершаем...")
-                break
-        except Exception as e:
-            print("Ошибка при поиске кнопки 'Вперед':", e)
-            break
+    # Проверяем, видна ли кнопка
+    if not await more_button.is_visible():
+        logger.error("Кнопка 'Продавцы' не найдена.")
+        return
+
+    # Извлекаем текст кнопки
+    text = await more_button.inner_text()
+
+    try:
+        number = int("".join(filter(str.isdigit, text)))
+        logger.info(f"Количество продавцов: {number}")
+    except ValueError:
+        logger.error("Не удалось извлечь число продавцов.")
+        return
+
+    # Если продавцов больше 93, обрабатываем фильтры по производителю
+    if number >= 93:
+        country_block = page.locator('//div[@data-qatitle="Страна производитель"]')
+
+        # Проверяем, виден ли блок
+        if not await country_block.is_visible():
+            logger.error("Блок 'Страна производитель' не найден.")
+            return
+
+        # Находим все чекбоксы внутри блока
+        checkboxes = await country_block.locator('//input[@type="checkbox"]').all()
+
+        if not checkboxes:
+            logger.error("Чекбоксы в блоке 'Страна производитель' не найдены.")
+            return
+
+        # Обрабатываем каждый чекбокс
+        for idx, checkbox in enumerate(checkboxes):
+            if not await checkbox.is_checked():
+                await checkbox.click()
+                logger.info(f"Чекбокс {idx + 1} нажат.")
+                country = await checkbox.evaluate(
+                    "(el) => el.closest('label').querySelector('.M3v0L.f6ZzV .enxrt').innerText"
+                )
+                # await country, await count = label_text.split()
+
+                # Проверяем количество продавцов после клика
+                text_after_click = await more_button.inner_text()
+                try:
+                    new_number = int("".join(filter(str.isdigit, text_after_click)))
+                    logger.info(f"Новое количество продавцов: {new_number}")
+                    if new_number <= 93:
+                        logger.info(
+                            "Количество продавцов меньше 93, начинаем сбор страниц."
+                        )
+
+                        # Сохраняем первую страницу
+                        url_id = url.split("?", maxsplit=1)[0].split("/")[-1]
+
+                        page_number = 1
+                        file_name = (
+                            html_files_directory
+                            / f"{url_id}_{country}_page_{page_number}.html"
+                        )
+                        html_content = await page.content()
+                        await save_html_to_file(file_name, html_content)
+
+                        # Переходим по страницам и сохраняем их
+                        while True:
+                            await page.evaluate(
+                                "window.scrollTo(0, document.body.scrollHeight)"
+                            )
+                            await asyncio.sleep(5)  # Ждем загрузки
+
+                            next_page = await extract_next_page_number(page)
+                            if not next_page:
+                                logger.error("Следующей страницы нет, завершаем.")
+                                break
+
+                            # Сохраняем страницу
+                            file_name = (
+                                html_files_directory
+                                / f"{url_id}_{country}_page_{next_page}.html"
+                            )
+                            html_content = await page.content()
+                            await save_html_to_file(file_name, html_content)
+
+                            # Кликаем "Вперед"
+                            next_button = await page.query_selector(
+                                '[data-qaid="next_page"]'
+                            )
+                            if next_button:
+                                await next_button.click()
+                                await page.wait_for_load_state("load")
+                                await asyncio.sleep(2)
+                            else:
+                                break
+                except ValueError:
+                    logger.error(
+                        f"Не удалось извлечь новое количество продавцов после чекбокса {idx + 1}."
+                    )
+                    continue
+    else:
+        logger.error("Количество продавцов меньше 93, фильтры не обрабатываем.")
 
     await browser.close()
 
@@ -330,7 +530,7 @@ def get_json():
 if __name__ == "__main__":
 
     # Запуск основной функции
-    # asyncio.run(main())
+    asyncio.run(main())
     # parsing_page()
-    get_json()
+    # get_json()
     # parsing_json()
