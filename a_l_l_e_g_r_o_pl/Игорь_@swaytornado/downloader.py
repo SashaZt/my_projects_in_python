@@ -18,36 +18,32 @@ class Downloader:
     def __init__(
         self,
         api_key,
-        html_page_directory,
         html_files_directory,
         csv_output_file,
-        json_files_directory,
+        json_products,
+        json_scrapy,
         url_start,
         max_workers,
         json_result,
         xlsx_result,
-        json_page_directory,
     ):
         self.api_key = api_key
-        self.json_files_directory = json_files_directory
-        self.json_page_directory = json_page_directory
         self.html_files_directory = html_files_directory
-        self.html_page_directory = html_page_directory
+        self.csv_output_file = csv_output_file
+        self.json_products = json_products
+        self.json_scrapy = json_scrapy
+        self.url_start = url_start
+        self.max_workers = max_workers
         self.json_result = json_result
         self.xlsx_result = xlsx_result
-        self.csv_output_file = csv_output_file
-        self.url_start = url_start
+
         self.parser = Parser(
             html_files_directory,
-            html_page_directory,
             csv_output_file,
             max_workers,
-            json_files_directory,
-            json_page_directory,
+            json_products,
         )  # Создаем экземпляр Parser
-        self.writer = Writer(
-            csv_output_file, json_result, xlsx_result, json_page_directory
-        )
+        self.writer = Writer(csv_output_file, json_result, xlsx_result)
 
     def get_all_page_html(self):
         """Получает HTML всех страниц пагинации и сохраняет уникальные ссылки.
@@ -91,6 +87,7 @@ class Downloader:
             "url": self.url_start,
             "ultra_premium": "true",
         }
+        logger.info(payload)
         all_data = set()
         retries = 0
         # Добавляем обработку None с повторной попыткой
@@ -245,13 +242,14 @@ class Downloader:
     async def fetch_results_async(self):
         while True:
             all_finished = True
-            for json_file in self.json_files_directory.glob("*.json"):
+            for json_file in self.json_scrapy.glob("*.json"):
                 try:
                     with open(json_file, "r", encoding="utf-8") as file:
                         response_data = json.load(file)
-                    html_company = (
-                        self.html_files_directory / f"{response_data.get('id')}.html"
+                    name_file = (
+                        response_data.get("url").split("/")[-1].replace("-", "_")
                     )
+                    html_company = self.html_files_directory / f"{name_file}.html"
                     # Если файл HTML уже существует, удаляем JSON файл и пропускаем
                     if html_company.exists():
                         logger.info(
@@ -303,12 +301,10 @@ class Downloader:
         for i in range(0, len(urls), batch_size):
             url_batch = urls[i : i + batch_size]  # Берем следующую порцию до 50 000
             for url in url_batch:
-
-                html_company = self.html_files_directory / f"{url.split('/')[-1]}.html"
+                name_file = url.split("/")[-1].replace("-", "_")
+                html_company = self.html_files_directory / f"{name_file}.html"
                 # Если файл HTML уже существует, удаляем JSON файл и пропускаем
                 if html_company.exists():
-                    # logger.warning(
-                    #     f"Файл {html_company} уже существует, пропускаем.")
                     continue
 
                 response = requests.post(
@@ -319,7 +315,7 @@ class Downloader:
                 if response.status_code == 200:
                     response_data = response.json()
                     job_id = response_data.get("id")
-                    json_file = self.json_files_directory / f"{job_id}.json"
+                    json_file = self.json_scrapy / f"{job_id}.json"
                     with open(json_file, "w", encoding="utf-8") as file:
                         json.dump(response_data, file, indent=4)
                     logger.info(f"Задача отправлена для URL {url}")
@@ -340,7 +336,7 @@ class Downloader:
     # Основная функция для скачивания все товаров
     async def main_url(self):
         # Проверка наличия файлов в json_files_directory
-        if any(self.json_files_directory.glob("*.json")):
+        if any(self.json_scrapy.glob("*.json")):
             # Получение результатов задач, если есть несохраненные результаты
             await self.fetch_results_async()
         else:

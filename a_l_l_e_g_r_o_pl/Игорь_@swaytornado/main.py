@@ -42,19 +42,17 @@ def main_loop():
 
     # Указываем пути к файлам и папкам
     current_directory = Path.cwd()
-    html_page_directory = current_directory / "html_page"
     html_files_directory = current_directory / "html_files"
+    json_products = current_directory / "json_products"
+    json_scrapy = current_directory / "json_scrapy"
     data_directory = current_directory / "data"
-    json_files_directory = current_directory / "json_file"
-    json_page_directory = current_directory / "json_page"
     configuration_directory = current_directory / "configuration"
 
-    data_directory.mkdir(parents=True, exist_ok=True)
-    json_files_directory.mkdir(parents=True, exist_ok=True)
-    json_page_directory.mkdir(parents=True, exist_ok=True)
     html_files_directory.mkdir(exist_ok=True, parents=True)
+    json_products.mkdir(parents=True, exist_ok=True)
+    json_scrapy.mkdir(parents=True, exist_ok=True)
+    data_directory.mkdir(parents=True, exist_ok=True)
     configuration_directory.mkdir(parents=True, exist_ok=True)
-    html_page_directory.mkdir(parents=True, exist_ok=True)
 
     csv_output_file = data_directory / "output.csv"
     json_result = data_directory / "result.json"
@@ -63,24 +61,21 @@ def main_loop():
     # Создаем объекты классов
     downloader = Downloader(
         api_key,
-        html_page_directory,
         html_files_directory,
         csv_output_file,
-        json_files_directory,
+        json_products,
+        json_scrapy,
         url_start,
         max_workers,
         json_result,
         xlsx_result,
-        json_page_directory,
     )
-    writer = Writer(csv_output_file, json_result, xlsx_result, json_page_directory)
+    writer = Writer(csv_output_file, json_result, xlsx_result)
     parser = Parser(
         html_files_directory,
-        html_page_directory,
         csv_output_file,
         max_workers,
-        json_files_directory,
-        json_page_directory,
+        json_products,
     )
 
     # Основной цикл программы
@@ -89,10 +84,10 @@ def main_loop():
             "\nВыберите действие:\n"
             "1. Скачивание страниц пагинации\n"
             # "2. Парсинг страниц пагинации\n"
-            "3. Асинхронное скачивание товаров\n"
-            "4. Сохранение результатов\n"
-            "5. Очистить временные папки\n"
-            "6. Выход"
+            "2. Асинхронное скачивание товаров\n"
+            "3. Сохранение результатов\n"
+            "4. Очистить временные папки\n"
+            "0. Выход"
         )
         choice = input("Введите номер действия: ")
 
@@ -100,20 +95,19 @@ def main_loop():
             downloader.get_all_page_html()
         # elif choice == "2":
         #     parser.get_url_html_csv()
-        elif choice == "3":
+        elif choice == "2":
             asyncio.run(downloader.main_url())
-        elif choice == "4":
+        elif choice == "3":
             all_results = parser.parsing_html()
             writer.save_results_to_json(all_results)
             writer.save_json_to_excel()
 
             all_results = parser.parsing_json()
 
-        elif choice == "5":
-            shutil.rmtree(html_page_directory)
+        elif choice == "4":
+            shutil.rmtree(json_products)
             shutil.rmtree(html_files_directory)
-            shutil.rmtree(json_files_directory)
-        elif choice == "6":
+        elif choice == "0":
             break
         else:
             logger.info("Неверный выбор. Пожалуйста, попробуйте снова.")

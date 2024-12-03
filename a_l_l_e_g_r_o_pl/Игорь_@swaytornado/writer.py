@@ -8,11 +8,10 @@ from configuration.logger_setup import logger
 
 class Writer:
 
-    def __init__(self, csv_output_file, json_result, xlsx_result, json_page_directory):
+    def __init__(self, csv_output_file, json_result, xlsx_result):
         self.csv_output_file = csv_output_file
         self.json_result = json_result
         self.xlsx_result = xlsx_result
-        self.json_page_directory = json_page_directory
 
     def save_to_csv(self, href_set):
         """Сохраняет множество ссылок в CSV-файл.

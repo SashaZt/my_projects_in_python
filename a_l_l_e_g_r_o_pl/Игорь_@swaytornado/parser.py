@@ -17,18 +17,14 @@ class Parser:
     def __init__(
         self,
         html_files_directory,
-        html_page_directory,
         csv_output_file,
         max_workers,
-        json_files_directory,
-        json_page_directory,
+        json_products,
     ):
         self.html_files_directory = html_files_directory
-        self.html_page_directory = html_page_directory
         self.csv_output_file = csv_output_file
         self.max_workers = max_workers
-        self.json_files_directory = json_files_directory
-        self.json_page_directory = json_page_directory
+        self.json_products = json_products
 
     def parsing_page_max_page(self, src):
         """Парсит HTML-страницу и возвращает максимальный номер страницы из блока пагинации.
@@ -274,59 +270,6 @@ class Parser:
 
         logger.info(f"Всего файлов для обработки: {len(file_list)}")
         return file_list
-
-    def parse_single_html(self, file_html):
-        """Парсит один HTML-файл для извлечения данных о продукте.
-
-        Args:
-            file_html (Path): Путь к HTML-файлу.
-
-        Returns:
-            dict or None: Словарь с данными о продукте или None, если данные не найдены.
-        """
-        with open(file_html, encoding="utf-8") as file:
-            src = file.read()
-        soup = BeautifulSoup(src, "lxml")
-        weight, length, width, height = self.extract_dimensions(soup)
-        foto_01 = self.parse_foto_01(soup)
-        fotos = self.parse_photos(soup)
-        max_photos = 9  # Максимальное количество полей Фото_X в company_data
-        company_data = {
-            "Категория": self.pares_category(soup),
-            "ShopID": self.pares_sellerid(soup),
-            "Наш ID": f"{self.pares_productid(soup)}-{self.pares_iditem(soup)}",
-            "ID_MP": self.pares_iditem(soup),
-            "SO_ID": self.pares_productid(soup),
-            "SO_CNT": self.parse_other_product_offers(soup),
-            "EAN": self.parse_ean_product(soup),
-            "Марка": self.parse_brand_product(soup),
-            "Название товара": self.parse_name_product(soup),
-            "URL": self.parse_url_product(soup),
-            "Дата": self.get_current_date(),
-            "FOTO_1": foto_01.replace("s512", "original"),
-            "Цена, ZLT": self.parse_price_product(soup),
-            "Цена, $": "",
-            "Sales": self.parse_sales_product(soup),
-            "Sales_all": self.parse_sales_all_product(soup),
-            "All_Sellers": self.parse_other_product_offers(soup),
-            "Вес": weight,
-            "Длина": length,
-            "Ширина": width,
-            "Высота": height,
-            "FOTO_0": foto_01.replace("s512", "s360"),
-            "Состояние": self.parse_condition(soup),
-            "Остатки на складах": self.parse_warehouse_balances(soup),
-            "Средняя оценка": self.parse_average_rating(soup),
-            "Количество оценок": self.parse_number_ratings(soup),
-            "Количество отзывов": self.parse_number_of_reviews(soup),
-            "Описание": self.extract_description_texts(soup),
-        }
-        self.extract_params(soup)
-        # Заполнение полей Фото_1 - Фото_9
-        for i in range(min(len(fotos), max_photos)):
-            company_data[f"Фото_{i + 1}"] = fotos[i]
-
-        return company_data
 
     def extract_dimensions(self, soup):
         """
@@ -1168,6 +1111,59 @@ class Parser:
 
         logger.info(f"Парсинг завершен, ссылки сохранены в {self.csv_output_file}")
 
+    def parse_single_html(self, file_html):
+        """Парсит один HTML-файл для извлечения данных о продукте.
+
+        Args:
+            file_html (Path): Путь к HTML-файлу.
+
+        Returns:
+            dict or None: Словарь с данными о продукте или None, если данные не найдены.
+        """
+        with open(file_html, encoding="utf-8") as file:
+            src = file.read()
+        soup = BeautifulSoup(src, "lxml")
+        weight, length, width, height = self.extract_dimensions(soup)
+        foto_01 = self.parse_foto_01(soup)
+        fotos = self.parse_photos(soup)
+        max_photos = 9  # Максимальное количество полей Фото_X в company_data
+        company_data = {
+            "Категория": self.pares_category(soup),
+            "ShopID": self.pares_sellerid(soup),
+            "Наш ID": f"{self.pares_productid(soup)}-{self.pares_iditem(soup)}",
+            "ID_MP": self.pares_iditem(soup),
+            "SO_ID": self.pares_productid(soup),
+            "SO_CNT": self.parse_other_product_offers(soup),
+            "EAN": self.parse_ean_product(soup),
+            "Марка": self.parse_brand_product(soup),
+            "Название товара": self.parse_name_product(soup),
+            "URL": self.parse_url_product(soup),
+            "Дата": self.get_current_date(),
+            "FOTO_1": foto_01.replace("s512", "original"),
+            "Цена, ZLT": self.parse_price_product(soup),
+            "Цена, $": "",
+            "Sales": self.parse_sales_product(soup),
+            "Sales_all": self.parse_sales_all_product(soup),
+            "All_Sellers": self.parse_other_product_offers(soup),
+            "Вес": weight,
+            "Длина": length,
+            "Ширина": width,
+            "Высота": height,
+            "FOTO_0": foto_01.replace("s512", "s360"),
+            "Состояние": self.parse_condition(soup),
+            "Остатки на складах": self.parse_warehouse_balances(soup),
+            "Средняя оценка": self.parse_average_rating(soup),
+            "Количество оценок": self.parse_number_ratings(soup),
+            "Количество отзывов": self.parse_number_of_reviews(soup),
+            "Описание": self.extract_description_texts(soup),
+        }
+        self.extract_params(soup)
+        # Заполнение полей Фото_1 - Фото_9
+        for i in range(min(len(fotos), max_photos)):
+            company_data[f"Фото_{i + 1}"] = fotos[i]
+
+        return company_data
+
     def parse_single_html_json(self, file_html):
         """Парсит один HTML-файл для извлечения данных о продукте.
 
@@ -1448,13 +1444,12 @@ class Parser:
         all_data["reviews"] = self.pares_reviews(soup)
         all_names_folders_and_file = self.extract_last_three_urls(soup)
         data_folder = self.get_current_date()
-        # Базовый путь для записи (C:\Temp)
-        base_directory = Path("C:/Temp")
+
         parent_directory = (
-            base_directory
+            self.json_products
             / f'{data_folder}-{all_names_folders_and_file["parent_directory"]}'
         )
-        directory = parent_directory / f'{all_names_folders_and_file["directory"]}-ids'
+        directory = parent_directory / f'{all_names_folders_and_file["directory"]}'
 
         parent_directory.mkdir(parents=True, exist_ok=True)
         directory.mkdir(parents=True, exist_ok=True)
