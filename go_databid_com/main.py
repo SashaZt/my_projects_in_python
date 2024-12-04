@@ -3,30 +3,33 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import pandas as pd
 import requests
 from configuration.logger_setup import logger
 
 # Путь к папкам
 current_directory = Path.cwd()
+json_tenders_diretory = current_directory / "json_tenders"
 json_page_diretory = current_directory / "json_page"
+data_diretory = current_directory / "data"
 configuration_directory = current_directory / "configuration"
 
 json_page_diretory.mkdir(exist_ok=True, parents=True)
+json_tenders_diretory.mkdir(exist_ok=True, parents=True)
+data_diretory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
 file_proxy = configuration_directory / "roman.txt"
+output_csv_file = data_diretory / "output.csv"
 
 
-# Загружаем прокси
-def load_proxies():
-    with open(file_proxy, "r", encoding="utf-8") as file:
-        proxies = [line.strip() for line in file]
-    return proxies
-
-
-proxies = load_proxies()
+# Функция для чтения городов из CSV файла
+def read_cities_from_csv(input_csv_file):
+    df = pd.read_csv(input_csv_file)
+    return df["id"].tolist()
 
 
 def get_json_details():
+    all_id = read_cities_from_csv(output_csv_file)
     cookies = {
         "messagesUtk": "a24cb7b40f42455191b94f513aa4b2c6",
         "ASP.NET_SessionId": "bal1jnkkkrw3c4oae45yxxs3",
@@ -49,23 +52,38 @@ def get_json_details():
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
     }
-
-    params = {
-        "UserId": "106640",
-        "ProjectID": "280403",
-    }
-
-    response = requests.get(
-        "https://go.databid.com/newdashboard/api/api/ProjectDetails/GetProjectDetails",
-        params=params,
-        cookies=cookies,
-        headers=headers,
-        timeout=30,
-    )
-    projectid = params["ProjectID"]
-    json_data = response.json()
-    with open(f"{projectid}_Details.json", "w", encoding="utf-8") as f:
-        json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
+    for pr_id in all_id:
+        params = {
+            "UserId": "106640",
+            "ProjectID": pr_id,
+        }
+        file_name = json_tenders_diretory / f"{pr_id}_Details.json"
+        if file_name.exists():
+            continue
+        try:
+            if response.status_code == 200:
+                response = requests.get(
+                    "https://go.databid.com/newdashboard/api/api/ProjectDetails/GetProjectDetails",
+                    params=params,
+                    cookies=cookies,
+                    headers=headers,
+                    timeout=30,
+                )
+                json_data = response.json()
+                with open(file_name, "w", encoding="utf-8") as f:
+                    json.dump(
+                        json_data, f, ensure_ascii=False, indent=4
+                    )  # Записываем в файл
+            else:
+                break
+        except requests.exceptions.ReadTimeout:
+            break
+        except requests.exceptions.SSLError as e:
+            break
+        except requests.exceptions.RequestException as e:
+            break
+        except Exception as e:
+            break
 
 
 def get_json_projectInvolvement():
@@ -311,10 +329,28 @@ def parsing_json_project():
     logger.info(all_data_project)
 
 
+def parsing_json_page():
+    # Обход всех JSON файлов в директории
+    all_projectid = []
+    for json_file in json_page_diretory.glob("*.json"):
+        with json_file.open(encoding="utf-8") as file:
+            # Прочитать содержимое JSON файла
+            data = json.load(file)
+        for json_data in data:
+
+            projectid = json_data["projectID"]
+            all_projectid.append(projectid)
+
+    # Создаем DataFrame из списка с заголовком 'url'
+    df = pd.DataFrame(all_projectid, columns=["id"])
+
+    # Записываем DataFrame в CSV файл
+    df.to_csv(output_csv_file, index=False, encoding="utf-8")
+
+
 if __name__ == "__main__":
-    # main()
     while True:
-        get_page_json()
+        get_json_details()
         time.sleep(10)
     # get_json_details()
     # get_json_projectInvolvement()
@@ -322,3 +358,4 @@ if __name__ == "__main__":
 
     # parsing_json_details()
     # parsing_json_project()
+    # parsing_json_page()
