@@ -468,7 +468,10 @@ def parsing_html():
     Обрабатывает HTML-файлы в указанной директории, извлекает данные из тегов, сохраняет в файл JSON.
     """
     output_file = Path("extracted_profile_data.json")
-    extracted_data = []
+    extracted_data = {
+        "project": "doctolib.de",
+        "data": [],  # Список для хранения словарей
+    }
 
     # Проверяем, существует ли директория
     if not html_directory.is_dir():
@@ -486,6 +489,7 @@ def parsing_html():
                 languages = None
                 dl_transport = None
                 dl_profile_bio = None
+                href = None
                 content = file.read()
                 soup = BeautifulSoup(content, "lxml")
                 script_tags = soup.find("script", {"type": "application/ld+json"})
@@ -493,8 +497,34 @@ def parsing_html():
                 # logger.info(ld_json)
                 # Извлекаем данные
                 title = soup.find("h1", {"id": "profile-name-with-title"})
+
                 speciality = soup.find("div", {"class": "dl-profile-header-speciality"})
+
+                specialities = None
+                if speciality:
+                    # Извлекаем все элементы <span> внутри блока
+                    spans = speciality.find_all("span")
+                    # Объединяем текст из всех <span> в одну строку
+                    raw_text = " ".join(span.text.strip() for span in spans)
+                    # Разделяем строку по запятым и "und"
+                    specialities = [
+                        spec.strip()
+                        for spec in raw_text.replace(" und ", ", ").split(",")
+                    ]
+                else:
+                    specialities = None
+
                 dl_profile = soup.find("div", {"class": "dl-profile-text"})
+                insurance_types = None
+                if dl_profile:
+                    raw_text = dl_profile.text.strip()
+                    # Разделяем строку по ключевым словам "und", "sowie"
+                    insurance_types = [
+                        item.strip()
+                        for item in raw_text.replace(" sowie ", ", ")
+                        .replace(" und ", ", ")
+                        .split(",")
+                    ]
                 dl_profile_skills = soup.find("div", {"class": "dl-profile-skills"})
 
                 # Обрабатываем навыки
@@ -506,15 +536,17 @@ def parsing_html():
                     for skill_raw in profile_skill_raw:
                         if skill_raw:
                             skills.append(skill_raw.text.strip())
-                skills = ", ".join(skills)  # Преобразуем список в строку
                 image_profile = ld_json.get("image", None)
-                image_profile = f"https://{image_profile}"
+                image_profile = f"https:{image_profile}"
 
                 dl_profile_practice_transport = soup.select_one(
                     "#main-content > div.dl-profile-bg.dl-profile > div.dl-profile-wrapper.dl-profile-responsive-wrapper.dl-profile-wrapper-gap > div.dl-profile-body-wrapper.mt-8 > div:nth-child(8) > div > div.dl-profile-card-content > div:nth-child(3)"
                 )
+                # Извлекаем текст всех элементов <span>
+                dl_transport = []
                 if dl_profile_practice_transport:
-                    dl_transport = dl_profile_practice_transport.text.strip()
+                    spans = dl_profile_practice_transport.find_all("span")
+                    dl_transport = [span.text.strip() for span in spans]
 
                 practice_map_div = soup.find("div", {"class": "js-maps-doctor-map"})
                 if practice_map_div:
@@ -547,26 +579,31 @@ def parsing_html():
                 # Формируем результат
                 if dl_profile_title and dl_profile_bio:
                     description = {
-                        "title": dl_profile_title,
+                        "title": "Profil",
                         "Herzlich willkommen": dl_profile_bio,
                     }
                     # logger.info(description)
                 else:
                     logger.warning("Данные профиля отсутствуют.")
+
                 language_section = soup.select_one(
                     ".dl-profile-row-section h3.dl-profile-card-subtitle"
                 )
 
+                languages = []
                 if language_section and "Gesprochene Sprachen" in language_section.text:
                     # Ищем текст внутри родительского <div>
-                    languages = (
-                        language_section.find_parent()
-                        .text.replace("Gesprochene Sprachen", "")
-                        .strip()
-                    )
+                    parent_div = language_section.find_parent()
+                    if parent_div:
+                        # Извлекаем текст, удаляем заголовок и разделяем по "und" и пробелам
+                        raw_languages = parent_div.text.replace(
+                            "Gesprochene Sprachen", ""
+                        ).strip()
+                        languages = [
+                            lang.strip() for lang in raw_languages.split(" und ")
+                        ]
                 else:
                     logger.warning("Раздел 'Gesprochene Sprachen' не найден.")
-
                 dl_profile_history_raw = soup.find_all(
                     "div", {"class": "dl-profile-card-section dl-profile-history"}
                 )
@@ -588,42 +625,49 @@ def parsing_html():
                 )
                 if clinic_name_raw:
                     clinic_name = clinic_name_raw.text.strip()
+                # Ищем элемент с заголовком "Website"
+                website_section = soup.find("h3", string="Website")
+
+                # Проверяем, нашли ли элемент
+                if website_section:
+                    # Переходим к родительскому блоку и ищем ссылку
+                    link = website_section.find_next("a", href=True)
+                    if link:
+                        href = link["href"]
+
                 # Сохраняем данные
                 all_data = {
                     "title": title.text.strip() if title else None,
-                    "speciality": speciality.text.strip() if speciality else None,
-                    "dl_profile": dl_profile.text.strip() if dl_profile else None,
-                    "skills": skills if skills else None,
+                    "services": skills,
                     "image_profile": image_profile,
-                    # "address": address,
-                    # "latitude": latitude,
-                    # "longitude": longitude,
-                    "dl_transport": dl_transport,
-                    # "dl_profile_bio": dl_profile_bio,
+                    "website_section": href,
                     "dl_language": languages,
                 }
+                all_data["specialities"] = specialities
+                all_data["insurance"] = insurance_types
+                all_data["transport"] = dl_transport
                 all_data["description"] = description
                 all_data["history_data"] = history_data
-                # all_data["openingHours"] = openingHours
-                # Создание структуры polyclinics
                 polyclinic_data = {
                     "polyclinics": [
                         {
                             "phone_number": [phone_number],
                             "clinic_name": clinic_name,
                             "address": address,
-                            "services": skills,
                             "opening_hours": openingHours,
                             "gps": [{"lat": latitude, "lng": longitude}],
                             "offered_services": None,
                         }
                     ]
                 }
-                extracted_data.append(all_data)
+                # Добавляем данные polyclinics в all_data
                 all_data.update(polyclinic_data)
+
+                # Добавляем all_data в список
+                extracted_data["data"].append(all_data)
         except Exception as e:
             logger.error(f"Ошибка при обработке файла {html_file.name}: {e}")
-    logger.info(extracted_data)
+    # logger.info(extracted_data)
     # Сохраняем данные в файл JSON
     try:
         with output_file.open("w", encoding="utf-8") as f:

@@ -196,7 +196,8 @@ def get_page_json():
         "gProjectSavedSearchID": 0,
         "SelectAllIndusty": False,
     }
-    for page in range(1, 2418):
+    # for page in range(1218, 2418):
+    for page in range(2117, 2200):
         file_name = json_page_diretory / f"page_0{page}.json"
         if file_name.exists():
             continue
@@ -206,7 +207,7 @@ def get_page_json():
             cookies=cookies,
             headers=headers,
             json=json_data,
-            timeout=10,
+            timeout=60,
         )
         try:
             if response.status_code == 200:
@@ -219,10 +220,16 @@ def get_page_json():
             else:
                 break
         except requests.exceptions.ReadTimeout:
-            logger.error(f"Тайм-аут на странице {page}. Завершаем цикл.")
+            logger.warning(f"Тайм-аут на странице {page}. Пропускаем.")
+            break
+        except requests.exceptions.SSLError as e:
+            logger.warning(f"SSL ошибка на странице {page}: {e}. Пропускаем.")
+            break
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Ошибка запроса на странице {page}: {e}")
             break
         except Exception as e:
-            logger.error(f"Произошла ошибка на странице {page}: {e}")
+            logger.warning(f"Произошла неизвестная ошибка на странице {page}: {e}")
             break
 
 
