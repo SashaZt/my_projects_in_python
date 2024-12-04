@@ -224,12 +224,12 @@ def save_extracted_numbers_to_csv(unique_itm_values, output_csv_file):
 
 
 # Основная функция сбора последне категории в списке
-async def run_one(playwright, url_start):
+async def run_one(playwright):
     proxy_config = {
         "server": "http://5.79.73.131:13010",
     }
     # Запускаем браузер
-    browser = await playwright.chromium.launch(proxy=proxy_config, headless=False)
+    browser = await playwright.chromium.launch(headless=False)
     context = await browser.new_context(
         bypass_csp=True,
         java_script_enabled=True,
@@ -250,38 +250,40 @@ async def run_one(playwright, url_start):
         ),
     )
     unique_itm_values = set()
+    companys_url = read_cities_from_csv(all_urls_file)
     # URL для обработки
     # url_start = "https://satu.kz/Spetsialnye-tkani"
-    await page.goto(url_start)
-    await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-    await asyncio.sleep(5)  # Ждем загрузки
-    all_company = await extract_json_company(page)
-    # Добавляем каждый элемент списка all_company в уникальное множество
-    unique_itm_values.update(all_company)
-    all_urls = await extract_json_country(page)
-
-    for url_raw in all_urls:
-        url_value = url_raw["value"]
-        # url_name = url_raw["name"]
-        url_id = url_start.split("?", maxsplit=1)[0].split("/")[-1]
-        url = f"{url_start}{url_value}"
+    for url in companys_url:
         await page.goto(url)
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await asyncio.sleep(5)  # Ждем загрузки
         all_company = await extract_json_company(page)
         # Добавляем каждый элемент списка all_company в уникальное множество
         unique_itm_values.update(all_company)
-        await asyncio.sleep(1)  # Ждем загрузки
-    logger.info(len(unique_itm_values))
-    url_id = url_start.split("?", maxsplit=1)[0].split("/")[-1]
-    output_file = data_directory / f"{url_id}.csv"
-    save_extracted_numbers_to_csv(unique_itm_values, output_file)
+        all_urls = await extract_json_country(page)
+
+        for url_raw in all_urls:
+            url_value = url_raw["value"]
+            # url_name = url_raw["name"]
+            url_id = url.split("?", maxsplit=1)[0].split("/")[-1]
+            url = f"{url}{url_value}"
+            await page.goto(url)
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            all_company = await extract_json_company(page)
+            # Добавляем каждый элемент списка all_company в уникальное множество
+            unique_itm_values.update(all_company)
+            await asyncio.sleep(1)  # Ждем загрузки
+        logger.info(len(unique_itm_values))
+        url_id = url.split("?", maxsplit=1)[0].split("/")[-1]
+        output_file = data_directory / f"{url_id}.csv"
+        save_extracted_numbers_to_csv(unique_itm_values, output_file)
 
     await browser.close()
 
 
-async def main_one(url):
+async def main_one():
     async with async_playwright() as playwright:
-        await run_one(playwright, url)
+        await run_one(playwright)
 
 
 async def main():
@@ -662,8 +664,8 @@ async def extract_links_from_scroll_block(page):
 if __name__ == "__main__":
 
     # Запуск основной функции
-    asyncio.run(main())
-    # asyncio.run(main_one())
+    # asyncio.run(main())
+    asyncio.run(main_one())
     # parsing_page()
     # get_json()
     # parsing_json()

@@ -294,9 +294,14 @@ def get_sitemap_all():
         payload = {
             "api_key": api_key,
             "url": url,
+            "keep_headers": "true",
             # "ultra_premium": "true",
         }
         retries = 0
+        headers = {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        }
         file_name = f"{url.split('/')[-2]}_{url.split('/')[-1]}"
         sitemap_output_file = xml_files_directory / file_name
         if sitemap_output_file.exists():
@@ -305,7 +310,10 @@ def get_sitemap_all():
             try:
 
                 r = requests.get(
-                    "https://api.scraperapi.com/", params=payload, timeout=60
+                    "https://api.scraperapi.com/",
+                    params=payload,
+                    headers=headers,
+                    timeout=60,
                 )
                 if r.status_code == 200:
                     with open(sitemap_output_file, "wb") as file:
@@ -441,10 +449,19 @@ def submit_jobs():
                 # logger.warning(
                 #     f"Файл {html_company} уже существует, пропускаем.")
                 continue
-
+            headers = {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+            }
             response = requests.post(
                 url="https://async.scraperapi.com/jobs",
-                json={"apiKey": api_key, "url": url},
+                json={
+                    "apiKey": api_key,
+                    "url": url,
+                    "keep_headers": "true",
+                    "device_type": "desktop",
+                    "headers": headers,
+                },
                 timeout=30,
             )
             if response.status_code == 200:
@@ -497,7 +514,42 @@ def parsing_html():
                 # logger.info(ld_json)
                 # Извлекаем данные
                 title = soup.find("h1", {"id": "profile-name-with-title"})
+                if not title:
+                    all_data = {"notPresent": True}
+                    data_doctor = soup.find("div", {"id": "js-directory-doctor-page"})
+                    if data_doctor:
+                        # Извлекаем JSON из атрибута "data-props"
+                        raw_json_data = data_doctor.get("data-props")
 
+                        try:
+                            # Парсим JSON из строки
+                            parsed_data = json.loads(raw_json_data)
+
+                            # Извлекаем необходимые данные
+                            all_data["title"] = parsed_data.get("fullName")
+                            all_data["speciality"] = parsed_data.get("speciality")
+
+                            doctor_place = parsed_data.get("doctorPlace", {})
+                            # all_data["address"] = doctor_place.get("address")
+                            # all_data["zipcode"] = doctor_place.get("zipcode")
+                            # all_data["city"] = doctor_place.get("city")
+                            all_data["landline_number"] = doctor_place.get(
+                                "landline_number"
+                            )
+
+                            all_data["address"] = (
+                                f"{doctor_place.get('address')}, {doctor_place.get('zipcode')}{doctor_place.get('city')}"
+                            )
+                            extracted_data["data"].append(all_data)
+                            continue
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Ошибка декодирования JSON: {e}")
+                            all_data["error"] = "Ошибка декодирования JSON"
+                    else:
+                        logger.warning(
+                            "Элемент с id 'js-directory-doctor-page' не найден."
+                        )
+                        all_data["error"] = "Элемент не найден"
                 speciality = soup.find("div", {"class": "dl-profile-header-speciality"})
 
                 specialities = None
@@ -584,7 +636,9 @@ def parsing_html():
                     }
                     # logger.info(description)
                 else:
-                    logger.warning("Данные профиля отсутствуют.")
+                    description = None
+                    # logger.error(html_file)
+                    # logger.warning("Данные профиля отсутствуют.")
 
                 language_section = soup.select_one(
                     ".dl-profile-row-section h3.dl-profile-card-subtitle"
@@ -603,7 +657,8 @@ def parsing_html():
                             lang.strip() for lang in raw_languages.split(" und ")
                         ]
                 else:
-                    logger.warning("Раздел 'Gesprochene Sprachen' не найден.")
+                    languages = None
+                    # logger.warning("Раздел 'Gesprochene Sprachen' не найден.")
                 dl_profile_history_raw = soup.find_all(
                     "div", {"class": "dl-profile-card-section dl-profile-history"}
                 )
