@@ -161,7 +161,7 @@ def get_json_companydetails():
     )
     companyid = params["CompanyID"]
     json_data = response.json()
-    with open(f"{companyid}_projectInvolvement.json", "w", encoding="utf-8") as f:
+    with open(f"{companyid}_CompanyDetails.json", "w", encoding="utf-8") as f:
         json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
 
 
@@ -349,12 +349,12 @@ def parsing_json_page():
 
 
 if __name__ == "__main__":
-    while True:
-        get_json_details()
-        time.sleep(10)
+    # while True:
+    get_json_details()
+    # time.sleep(10)
     # get_json_details()
-    # get_json_projectInvolvement()
-    # get_json_companydetails()
+    get_json_projectInvolvement()
+    get_json_companydetails()
 
     # parsing_json_details()
     # parsing_json_project()

@@ -14,7 +14,7 @@ log_file_path = os.path.join(logging_path, "log_message.log")
 # Настраиваем логгер с ротацией при достижении размера 1 Мб
 logger.add(
     log_file_path,
-    format="{time:YYYY-MM-DD HH:mm:ss} - {level} - {name}:{line} - {message}",
+    format="{time:YYYY-MM-DD HH:mm:ss} - {level} - {line} - {message}",
     level="DEBUG",
     encoding="utf-8",
     rotation="1 MB",  # Ротация при достижении 1 Мб
