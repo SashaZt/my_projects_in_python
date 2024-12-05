@@ -1,6 +1,10 @@
+import json
+import os
 import random
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from urllib.parse import urljoin
 
 import pandas as pd
 import requests
@@ -12,8 +16,10 @@ current_directory = Path.cwd()
 data_directory = current_directory / "data"
 xml_directory = current_directory / "xml_file"
 html_directory = current_directory / "html"
+documents_directory = current_directory / "documents"
 configuration_directory = current_directory / "configuration"
 
+documents_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 html_directory.mkdir(exist_ok=True, parents=True)
 xml_directory.mkdir(exist_ok=True, parents=True)
@@ -22,6 +28,25 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 start_sitemap = xml_directory / "sitemap.xml"
 all_urls_page = data_directory / "all_urls.csv"
 all_url_sitemap = data_directory / "sitemap.csv"
+all_url_sitemap = data_directory / "sitemap.csv"
+
+headers = {
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "DNT": "1",
+    "Pragma": "no-cache",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+}
 
 
 def load_proxies():
@@ -174,15 +199,85 @@ def get_html():
     logger.info(response.status_code)
 
 
+# Функция для удаления запрещенных символов из строки
+def sanitize_path_name(name):
+    # Заменяем запрещенные символы на подчеркивание
+    return re.sub(r'[<>:"/\\|?*]', "_", name)
+
+
+# Создание полной структуры папок
+def create_directory_structure(breadcrumb, base_dir):
+    # Обрабатываем каждый элемент breadcrumb, убирая спецсимволы
+    sanitized_breadcrumb = [sanitize_path_name(part) for part in breadcrumb]
+
+    # Полный путь к корневой папке
+    path = base_dir.joinpath(
+        *sanitized_breadcrumb[:-1]
+    )  # Все элементы, кроме последнего
+    path.mkdir(parents=True, exist_ok=True)  # Создаем папки, если их нет
+
+    # Имя файла
+    file_name = (
+        sanitize_path_name(sanitized_breadcrumb[-1]) + ".txt"
+    )  # Последний элемент в качестве имени файла
+    file_path_txt = path / file_name
+
+    return file_path_txt
+
+
+def save_images(images, file_path_txt):
+    """
+    Скачивает и сохраняет изображения из списка, используя базовый путь файла.
+
+    :param images: Список URL изображений.
+    :param file_path_txt: Путь к файлу .txt, который будет преобразован в базовое имя файла .jpeg.
+    """
+    # Преобразуем путь файла .txt в базовое имя для изображений
+    base_dir = file_path_txt.parent  # Директория, где будут сохраняться изображения
+    file_name_base = file_path_txt.stem  # Имя файла без расширения
+
+    for index, image_url in enumerate(images, start=1):
+        try:
+            # Формируем имя файла с новым расширением
+            file_name = f"{file_name_base}_{index:02}.jpeg"
+            file_path = base_dir / file_name
+            # Проверяем, существует ли файл
+            if file_path.exists():
+                logger.info(f"Файл уже существует, пропускаем: {file_path}")
+                continue
+            # Скачиваем изображение
+            response = requests.get(image_url, headers=headers, timeout=30, stream=True)
+            response.raise_for_status()  # Проверяем статус запроса
+
+            # Сохраняем изображение в файл
+            with open(file_path, "wb") as f:
+                for chunk in response.iter_content(1024):
+                    f.write(chunk)
+
+            logger.info(f"Изображение сохранено: {file_path}")
+
+        except requests.RequestException as e:
+            logger.error(f"Ошибка при скачивании изображения {image_url}: {e}")
+
+
 def scrap_html():
+    all_data = []
     for html_file in html_directory.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             content = file.read()
+
             soup = BeautifulSoup(content, "lxml")
             product_description = None
             description = None
             sales = None
             images = None
+            # Находим все элементы li
+            breadcrumb_items = soup.select("ul.breadcrumb > li")
+            # Пропускаем первые два и извлекаем текст из остальных
+            result_breadcrumb = [
+                item.find("span", {"itemprop": "name"}).text.strip()
+                for item in breadcrumb_items[2:]  # Пропускаем первые два
+            ]
             product_description_raw = soup.find(
                 "section", {"class": "product-description"}
             ).find("h1")
@@ -191,21 +286,76 @@ def scrap_html():
             description_raw = soup.find("section", {"id": "description_section"})
             if description_raw:
                 description = " ".join(description_raw.stripped_strings)
+
+            # Создаем структуру папок и получаем путь к файлу
+            file_path_txt = create_directory_structure(
+                result_breadcrumb, documents_directory
+            )
+
+            # Проверяем, существует ли файл
+            if not file_path_txt.exists():
+                # Если файл не существует, создаем структуру и возвращаем путь
+                file_path_txt.parent.mkdir(parents=True, exist_ok=True)
+
             dtpopup_gallery_raw = soup.find_all("li", {"class": "dtpopup-gallery"})
             images = []
             for galery in dtpopup_gallery_raw:
                 href = galery.find("a").get("href")
                 images.append(href)
+            save_images(images, file_path_txt)
+
             sales = None
             sales_raw = soup.find("div", {"class": "verkauft"})
             if sales_raw:
                 sales = sales_raw.find("span").text.strip()
-            logger.info(sales)
+            # Преобразуем WindowsPath или PosixPath в строку для сохранения
+            data = {"sales": sales, "file_path_txt": file_path_txt}
+            if isinstance(data.get("file_path_txt"), Path):
+                data["file_path_txt"] = str(data["file_path_txt"])
+
+            all_data.append(data)
+    with open("output_file.json", "w", encoding="utf-8") as f:
+        json.dump(all_data, f, ensure_ascii=False, indent=4)
+
+
+def create_tree_from_directory():
+    """
+    Создает дерево из структуры папок и файлов .txt в указанной директории,
+    добавляет значения sales из JSON файла и записывает результат в Excel.
+
+    :param documents_directory: Директория с документами.
+    :param json_file: Путь к JSON файлу с данными sales.
+    :param excel_file: Путь к выходному Excel файлу.
+    """
+
+    # Считываем JSON файл
+    with open("output_file.json", "r", encoding="utf-8") as f:
+        json_data = json.load(f)
+
+    # Создаем словарь для быстрого доступа к sales
+    sales_mapping = {
+        Path(entry["file_path_txt"]).as_posix(): entry["sales"] or "0"
+        for entry in json_data
+    }
+
+    # Собираем данные из папки
+    all_data = []
+    for file_path in documents_directory.rglob("*.txt"):
+        relative_path = file_path.relative_to(documents_directory).as_posix()
+        # Берем значение sales из mapping или "0"
+        sales = sales_mapping.get(f"/{relative_path}", "0")
+        all_data.append({"File": relative_path, "Sales": sales})
+
+    # Создаем DataFrame и записываем в Excel
+    df = pd.DataFrame(all_data)
+    df.to_excel("document_structure.xlsx", index=False, sheet_name="Structure")
+    print(f"Данные записаны в {"document_structure.xlsx"}")
 
 
 if __name__ == "__main__":
     # download_xml()
     # df_urls = process_all_xml_files_to_dataframe(xml_directory)
     # save_dataframe_to_csv(df_urls, all_urls_page)
-    get_html()
+    # get_html()
     # scrap_html()
+    # create_tree_from_directory()
