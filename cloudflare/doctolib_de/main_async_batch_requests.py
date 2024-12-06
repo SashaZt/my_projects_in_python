@@ -396,7 +396,7 @@ async def scrape_and_save_batch(urls, max_concurrent_tasks=500):
             if not job_response:
                 logger.error("Ошибка при отправке batch-запроса.")
                 return
-            save_jobs_to_file(job_response)
+            await save_jobs_to_file(job_response)
 
         # Проверяем и сохраняем задания
         remaining_jobs = await check_all_job_statuses(

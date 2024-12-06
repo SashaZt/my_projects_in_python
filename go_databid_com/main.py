@@ -256,11 +256,15 @@ def get_page_json():
 
 def sanitize_value(value):
     """
-    Очистить строку от недопустимых символов для Excel.
+    Очистить строку от недопустимых символов для Excel и HTML тегов.
     """
     if isinstance(value, str):
-        # Удаляем все управляющие символы и недопустимые символы
-        return re.sub(r"[\x00-\x1F\x7F]", "", value)
+        # Удаляем все управляющие символы
+        value = re.sub(r"[\x00-\x1F\x7F]", "", value)
+        # Удаляем все HTML теги
+        value = re.sub(r"<[^>]*>", "", value)
+        # Удаляем избыточные пробелы
+        value = re.sub(r"\s+", " ", value).strip()
     return value
 
 
@@ -269,7 +273,11 @@ def parsing_json_details():
     for json_file in json_tenders_diretory.glob("*.json"):
         with json_file.open(encoding="utf-8") as file:
             data = json.load(file)
+        # Извлекаем имя файла без расширения
+        file_stem = json_file.stem  # '100000_Details'
 
+        # Разделяем имя файла по символу "_"
+        file_number = file_stem.split("_")[0]  # '100000'
         json_data = data["details"][0]
         projectseqno = json_data.get("projectSeqNo", None)
         projectdateno = json_data.get("projectDateNo", None)
@@ -291,7 +299,26 @@ def parsing_json_details():
 
         stage = f"{stagename} - {contractingmethodname}"
         trade = json_data.get("tradeName", None)
+        additionalInfo = json_data.get("additionalInfo", None)
+        detailOfServices = json_data.get("detailOfServices", None)
+        docProviderCustomerName = json_data.get("docProviderCustomerName", None)
+        try:
+            json_data_dow = data.get("dow", [])
+            if json_data_dow:  # Проверяем, что "dow" существует и не пуст
+                json_data_dow = json_data_dow[
+                    0
+                ]  # Получаем первый элемент, если он есть
+                dowLevelOneName = json_data_dow.get("dowLevelOneName", None)
+                dows = json_data_dow.get("dows", None)
+            else:
+                dowLevelOneName = None
+                dows = None
+        except (IndexError, AttributeError, KeyError):
+            # Обработка ошибки, если структура JSON неожиданная
+            dowLevelOneName = None
+            dows = None
         all_data_detalis = {
+            "tender_id": file_number,
             "databid_id": sanitize_value(databid_id),
             "industry": sanitize_value(industry),
             "project_bid_no": sanitize_value(project_bid_no),
@@ -300,6 +327,11 @@ def parsing_json_details():
             "sector": sanitize_value(sector),
             "stagename": sanitize_value(stage),
             "trade": sanitize_value(trade),
+            "additionalInfo": sanitize_value(additionalInfo),
+            "detailOfServices": sanitize_value(detailOfServices),
+            "docProviderCustomerName": sanitize_value(docProviderCustomerName),
+            "dowLevelOneName": sanitize_value(dowLevelOneName),
+            "dows": sanitize_value(dows),
         }
         result.append(all_data_detalis)
 
@@ -417,6 +449,6 @@ if __name__ == "__main__":
     # get_json_projectInvolvement()
     # get_json_companydetails()
 
-    # parsing_json_details()
-    parsing_json_project()
+    parsing_json_details()
+    # parsing_json_project()
     # parsing_json_page()
