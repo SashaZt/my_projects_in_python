@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import aiofiles
+import demjson3
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -133,7 +134,9 @@ async def extract_json_country(page):
         # Находим первый тег <script type="application/javascript">
         script = await page.query_selector('//script[@type="application/javascript"]')
         if not script:
-            print("Не найдено ни одного тега <script type='application/javascript'>.")
+            logger.error(
+                "Не найдено ни одного тега <script type='application/javascript'>."
+            )
             return
 
         # Извлекаем содержимое тега
@@ -151,18 +154,81 @@ async def extract_json_country(page):
                 json_str = match.group(1)
                 parsed_json = json.loads(json_str)
                 dict_country = parsin_country_json(parsed_json)
+
+                # logger.info(dict_country)
+                # Сохраняем JSON в файл
+                # with open("output_json_path.json", "w", encoding="utf-8") as json_file:
+                #     json.dump(dict_country, json_file, indent=4, ensure_ascii=False)
                 return dict_country
-                # logger.info(dict_json)
-                # # Сохраняем JSON в файл
-                # with open(output_json_path, "w", encoding="utf-8") as json_file:
-                #     json.dump(parsed_json, json_file, indent=4, ensure_ascii=False)
 
             else:
-                print("JSON структура не найдена в содержимом скрипта.")
+                logger.error("JSON структура не найдена в содержимом скрипта.")
         else:
-            print("Содержимое первого тега <script> пусто.")
+            logger.error("Содержимое первого тега <script> пусто.")
     except Exception as e:
-        print(f"Ошибка: {e}")
+        logger.error(f"Ошибка: {e}")
+
+
+# async def extract_json_company(page):
+#     """
+#     Находит первый <script type="application/javascript"> на странице,
+#     извлекает JSON из его содержимого и сохраняет в файл JSON.
+
+#     :param page: Объект страницы Playwright.
+#     :param output_json_path: Путь для сохранения извлеченного JSON.
+#     """
+#     try:
+#         # Находим первый тег <script type="application/javascript">
+#         script = await page.query_selector('//script[@type="application/javascript"]')
+#         if not script:
+#             print("Не найдено ни одного тега <script type='application/javascript'>.")
+#             return
+
+#         # Извлекаем содержимое тега
+#         script_content = await script.inner_html()
+
+#         if script_content.strip():
+#             # # Сохраняем содержимое скрипта в файл для анализа
+#             # output_script_path = Path("extracted_script_content.js")
+#             # with output_script_path.open("w", encoding="utf-8") as f:
+#             #     f.write(script_content)
+#             # Регулярное выражение для поиска JSON-структуры
+#             # json_pattern = re.compile(
+#             #     r"window\.ApolloCacheState\s*=\s*({.*?});", re.DOTALL
+#             # )
+# json_pattern = re.compile(
+#     r"window\.ApolloCacheState\s*=\s*(\{.*\});", re.DOTALL
+# )
+
+#             match = json_pattern.search(script_content)
+#             logger.info(match)
+#             if match:
+#                 # Извлекаем JSON
+#                 json_str = match.group(1)
+#                 parsed_json = json.loads(json_str)
+#                 dict_company = parsin_company_json(parsed_json)
+#                 logger.info(dict_company)
+#                 return dict_company
+
+
+#             else:
+#                 print("JSON структура не найдена в содержимом скрипта.")
+#         else:
+#             print("Содержимое первого тега <script> пусто.")
+#     except Exception as e:
+#         print(f"Ошибка: {e}")
+
+
+def clean_json_string(json_str):
+    """
+    Очищает строку JSON, убирая сложные ключи и исправляя формат.
+
+    :param json_str: Исходная строка JSON.
+    :return: Очищенная строка JSON.
+    """
+    cleaned_json_str = re.sub(r'"([^":]+):\{.*?\}"', r'"\1"', json_str)
+    cleaned_json_str = cleaned_json_str.replace('"', '"').replace("\\'", "'")
+    return cleaned_json_str
 
 
 async def extract_json_company(page):
@@ -171,13 +237,14 @@ async def extract_json_company(page):
     извлекает JSON из его содержимого и сохраняет в файл JSON.
 
     :param page: Объект страницы Playwright.
-    :param output_json_path: Путь для сохранения извлеченного JSON.
     """
     try:
         # Находим первый тег <script type="application/javascript">
         script = await page.query_selector('//script[@type="application/javascript"]')
         if not script:
-            print("Не найдено ни одного тега <script type='application/javascript'>.")
+            logger.error(
+                "Не найдено ни одного тега <script type='application/javascript'>."
+            )
             return
 
         # Извлекаем содержимое тега
@@ -186,23 +253,35 @@ async def extract_json_company(page):
         if script_content.strip():
             # Регулярное выражение для поиска JSON-структуры
             json_pattern = re.compile(
-                r"window\.ApolloCacheState\s*=\s*({.*?});", re.DOTALL
+                r"window\.ApolloCacheState\s*=\s*(\{.*?\});", re.DOTALL
             )
+
             match = json_pattern.search(script_content)
 
             if match:
                 # Извлекаем JSON
                 json_str = match.group(1)
-                parsed_json = json.loads(json_str)
-                dict_company = parsin_company_json(parsed_json)
-                return dict_company
+                logger.info(f"Начало JSON-строки: {json_str[:500]}...")
+                # Очистка строки JSON
+                cleaned_json_str = clean_json_string(json_str)
 
+                # Парсим JSON строку с использованием demjson3 для большей гибкости
+                try:
+                    json_data = demjson3.decode(cleaned_json_str)
+                    dict_company = parsin_company_json(json_data)
+                    # Записываем в json файл
+                    with open("output_json_file.json", "w", encoding="utf-8") as f:
+                        json.dump(json_data, f, ensure_ascii=False, indent=4)
+                    return dict_company
+                except demjson3.JSONDecodeError as e:
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    return
             else:
-                print("JSON структура не найдена в содержимом скрипта.")
+                logger.error("JSON структура не найдена в содержимом скрипта.")
         else:
-            print("Содержимое первого тега <script> пусто.")
+            logger.error("Содержимое первого тега <script> пусто.")
     except Exception as e:
-        print(f"Ошибка: {e}")
+        logger.error(f"Ошибка: {e}")
 
 
 def save_extracted_numbers_to_csv(unique_itm_values, output_csv_file):
@@ -225,9 +304,7 @@ def save_extracted_numbers_to_csv(unique_itm_values, output_csv_file):
 
 # Основная функция сбора последне категории в списке
 async def run_one(playwright):
-    proxy_config = {
-        "server": "http://5.79.73.131:13010",
-    }
+
     # Запускаем браузер
     browser = await playwright.chromium.launch(headless=False)
     context = await browser.new_context(
@@ -475,22 +552,77 @@ def parsin_country_json(data):
         return f"Unexpected error: {str(e)}"
 
 
-def parsin_company_json(data):
-    # Получаем список словарей, страна и ссылка на нее
-    try:
+# def parsin_company_json(data):
+#     # Получаем список словарей, страна и ссылка на нее
+#     try:
 
-        # Locate the target key dynamically in "ROOT_QUERY"
-        key_prefix = 'categoryListing({"alias":"Spetsialnye-tkani","limit":48,'
-        target_key = next(
-            (key for key in data["ROOT_QUERY"] if key.startswith(key_prefix)), None
-        )
+#         # Locate the target key dynamically in "ROOT_QUERY"
+#         key_prefix = 'categoryListing({"alias":"Spetsialnye-tkani","limit":48,'
+#         target_key = next(
+#             (key for key in data["ROOT_QUERY"] if key.startswith(key_prefix)), None
+#         )
+
+#         if not target_key:
+#             return "Target key not found in ROOT_QUERY."
+
+#         # Navigate to the "page" -> "quickFilters" -> "title"
+#         companyIds_raw = data["ROOT_QUERY"][target_key]["page"].get("companyIds", [])
+#         # Пример использования
+#         return companyIds_raw
+
+
+#     except KeyError as e:
+#         return f"KeyError: {str(e)}"
+#     except Exception as e:
+#         return f"Unexpected error: {str(e)}"
+# def parsin_company_json(data):
+#     try:
+#         # Вывод всех ключей, чтобы понять, что именно находится в ROOT_QUERY
+#         all_keys = list(data.get("ROOT_QUERY", {}).keys())
+
+#         # Обновленный ключевой префикс для более гибкого поиска
+#         key_prefix = 'categoryListing({"alias":"Spetsialnye-tkani","limit":48,'
+
+#         # # Печать всех ключей, чтобы понять, почему не находится нужный ключ
+#         # logger.info(f"All available keys: {all_keys}")
+
+#         # Использование регулярного выражения для более гибкого поиска ключа
+#         pattern = re.compile(r"categoryListing\(\{.*?\}\)")
+
+#         # Поиск ключа, который подходит под заданный шаблон
+#         target_key = next((key for key in all_keys if pattern.match(key)), None)
+
+#         if not target_key:
+#             # logger.error("Target key not found in ROOT_QUERY.")
+#             return "Target key not found in ROOT_QUERY."
+
+#         # Navigate to the "page" -> "quickFilters" -> "title"
+#         companyIds_raw = data["ROOT_QUERY"][target_key]["page"].get("companyIds", [])
+
+#         return companyIds_raw
+
+
+#     except KeyError as e:
+#         return f"KeyError: {str(e)}"
+#     except Exception as e:
+#         return f"Unexpected error: {str(e)}"
+def parsin_company_json(data):
+    try:
+        # Получаем все ключи в ROOT_QUERY
+        all_keys = list(data.get("ROOT_QUERY", {}).keys())
+
+        # Использование регулярного выражения для более гибкого поиска ключа
+        pattern = re.compile(r"categoryListing\(\{.*?\}\)")
+
+        # Поиск ключа, который подходит под заданный шаблон
+        target_key = next((key for key in all_keys if pattern.match(key)), None)
 
         if not target_key:
             return "Target key not found in ROOT_QUERY."
 
         # Navigate to the "page" -> "quickFilters" -> "title"
         companyIds_raw = data["ROOT_QUERY"][target_key]["page"].get("companyIds", [])
-        # Пример использования
+
         return companyIds_raw
 
     except KeyError as e:

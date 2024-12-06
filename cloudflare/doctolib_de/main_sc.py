@@ -120,9 +120,9 @@ def submit_jobs():
 
             # Проверка существования HTML-файла
             if html_output_file.exists():
-                logger.info(
-                    f"Файл {html_output_file} уже существует, пропускаем URL: {url}"
-                )
+                # logger.info(
+                #     f"Файл {html_output_file} уже существует, пропускаем URL: {url}"
+                # )
                 continue
 
             # Добавляем URL в пакет, если файл не существует
@@ -185,7 +185,16 @@ async def fetch_results_async():
                 with open(json_file, "r", encoding="utf-8") as file:
                     response_data = json.load(file)
                 status_url = response_data.get("statusUrl")  # URL для проверки статуса
-                response = requests.get(url=status_url, timeout=30)
+                try:
+                    response = requests.get(url=status_url, timeout=30)
+                except requests.exceptions.ReadTimeout:
+                    break
+                except requests.exceptions.SSLError as e:
+                    break
+                except requests.exceptions.RequestException as e:
+                    break
+                except Exception as e:
+                    break
                 if response.status_code == 200:
                     job_status = response.json().get("status")
                     if job_status == "finished":  # Если задача завершена
@@ -224,6 +233,7 @@ async def fetch_results_async():
                     )
             except PermissionError as e:
                 logger.error(f"Не удалось открыть файл {json_file}: {e}")
+
         if all_finished:
             break
         await asyncio.sleep(10)  # Ждём 10 секунд перед повторной проверкой
@@ -243,4 +253,6 @@ async def main_url():
 
 
 if __name__ == "__main__":
-    asyncio.run(main_url())
+    while True:
+        asyncio.run(main_url())
+        time.sleep(10)
