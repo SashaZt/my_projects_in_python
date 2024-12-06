@@ -39,16 +39,16 @@ all_urls_page = data_directory / "all_urls.csv"
 JOB_FILE = json_directory / "active_jobs.json"  # Файл для хранения задания
 
 
-def save_jobs_to_file(job_response):
-    """
-    Сохраняет данные задания в JSON-файл.
-    """
-    try:
-        with open(JOB_FILE, "w", encoding="utf-8") as file:
-            json.dump(job_response, file, indent=4, ensure_ascii=False)
-        logger.info(f"Задание сохранено в файл {JOB_FILE}.")
-    except Exception as e:
-        logger.error(f"Ошибка при сохранении задания в файл: {e}")
+# def save_jobs_to_file(job_response):
+#     """
+#     Сохраняет данные задания в JSON-файл.
+#     """
+#     try:
+#         with open(JOB_FILE, "w", encoding="utf-8") as file:
+#             json.dump(job_response, file, indent=4, ensure_ascii=False)
+#         logger.info(f"Задание сохранено в файл {JOB_FILE}.")
+#     except Exception as e:
+#         logger.error(f"Ошибка при сохранении задания в файл: {e}")
 
 
 def load_jobs_from_file():
@@ -66,9 +66,93 @@ def load_jobs_from_file():
         return None
 
 
-async def check_all_job_statuses(session, job_response, max_concurrent_tasks=100):
+# async def check_all_job_statuses(session, job_response, max_concurrent_tasks=100):
+#     """
+#     Проверяет статусы всех заданий из job_response по блокам.
+
+#     Args:
+#         session (aiohttp.ClientSession): Сессия для выполнения HTTP-запросов.
+#         job_response (list): Список заданий из JOB_FILE.
+#         max_concurrent_tasks (int): Максимальное количество одновременных задач.
+
+#     Returns:
+#         list: Список незавершенных заданий.
+#     """
+#     semaphore = asyncio.Semaphore(max_concurrent_tasks)
+
+#     async def check_status(job):
+#         """
+#         Проверяет статус конкретного задания и сохраняет завершенные задания.
+
+#         Args:
+#             job (dict): Задание для проверки.
+
+#         Returns:
+#             dict or None: None, если задание завершено и данные сохранены.
+#                           Возвращает job, если задание не завершено.
+#         """
+#         async with semaphore:
+#             try:
+#                 logger.info(f"Начало проверки статуса задания: {job['id']}")
+#                 async with session.get(job["statusUrl"]) as response:
+#                     response.raise_for_status()
+#                     job_status = await response.json()
+
+#                     # Лог текущего статуса
+#                     current_status = job_status.get("status", "unknown")
+#                     logger.info(f"Статус задания {job['id']}: {current_status}")
+
+#                     if current_status == "finished":
+#                         logger.info(
+#                             f"Задание {job['id']} завершено. Сохраняем результат..."
+#                         )
+
+#                         # Сохраняем результат
+#                         await save_result_to_file(job_status)
+#                         logger.info(f"Результат задания {job['id']} успешно сохранен.")
+#                         return None  # Задание завершено
+
+#                     # Если статус не "finished", возвращаем задание для дальнейшей проверки
+#                     return job
+
+#             except Exception as e:
+#                 logger.error(f"Ошибка проверки статуса задания {job['id']}: {e}")
+#                 return job  # Возвращаем задание для повторной проверки
+
+#     remaining_jobs = job_response.copy()
+#     completed_jobs_count = 0
+
+#     # Итеративная обработка по блокам
+#     while remaining_jobs:
+#         current_batch = remaining_jobs[:max_concurrent_tasks]
+#         remaining_jobs = remaining_jobs[max_concurrent_tasks:]
+
+#         logger.info(
+#             f"Проверка блока из {len(current_batch)} заданий. Осталось {len(remaining_jobs)}."
+#         )
+#         tasks = [check_status(job) for job in current_batch]
+#         results = await asyncio.gather(*tasks)
+
+#         # Обновляем список оставшихся заданий
+#         remaining_jobs += [job for job in results if job]
+#         completed_jobs_count += len(current_batch) - len(results)
+
+#         logger.info(
+#             f"Завершено заданий: {completed_jobs_count}. Осталось: {len(remaining_jobs)}."
+#         )
+
+#     logger.info(
+#         f"Всего завершенных заданий: {len(job_response) - len(remaining_jobs)} из {len(job_response)}"
+#     )
+#     return remaining_jobs
+
+
+# file_lock = asyncio.Lock()
+
+
+async def check_all_job_statuses(session, job_response, max_concurrent_tasks=500):
     """
-    Проверяет статусы всех заданий из job_response по блокам.
+    Проверяет статусы всех заданий из job_response и обновляет JOB_FILE после завершения заданий.
 
     Args:
         session (aiohttp.ClientSession): Сессия для выполнения HTTP-запросов.
@@ -79,6 +163,7 @@ async def check_all_job_statuses(session, job_response, max_concurrent_tasks=100
         list: Список незавершенных заданий.
     """
     semaphore = asyncio.Semaphore(max_concurrent_tasks)
+    remaining_jobs = job_response.copy()  # Копируем, чтобы изменять список
 
     async def check_status(job):
         """
@@ -93,23 +178,24 @@ async def check_all_job_statuses(session, job_response, max_concurrent_tasks=100
         """
         async with semaphore:
             try:
-                logger.info(f"Начало проверки статуса задания: {job['id']}")
+                # logger.info(f"Начало проверки статуса задания: {job['id']}")
                 async with session.get(job["statusUrl"]) as response:
                     response.raise_for_status()
                     job_status = await response.json()
 
                     # Лог текущего статуса
                     current_status = job_status.get("status", "unknown")
-                    logger.info(f"Статус задания {job['id']}: {current_status}")
+                    # logger.info(f"Статус задания {job['id']}: {current_status}")
 
                     if current_status == "finished":
-                        logger.info(
-                            f"Задание {job['id']} завершено. Сохраняем результат..."
-                        )
+                        # logger.info(
+                        #     f"Задание {job['id']} завершено. Сохраняем результат..."
+                        # )
 
                         # Сохраняем результат
                         await save_result_to_file(job_status)
-                        logger.info(f"Результат задания {job['id']} успешно сохранен.")
+
+                        # logger.info(f"Результат задания {job['id']} успешно сохранен.")
                         return None  # Задание завершено
 
                     # Если статус не "finished", возвращаем задание для дальнейшей проверки
@@ -119,7 +205,6 @@ async def check_all_job_statuses(session, job_response, max_concurrent_tasks=100
                 logger.error(f"Ошибка проверки статуса задания {job['id']}: {e}")
                 return job  # Возвращаем задание для повторной проверки
 
-    remaining_jobs = job_response.copy()
     completed_jobs_count = 0
 
     # Итеративная обработка по блокам
@@ -133,9 +218,15 @@ async def check_all_job_statuses(session, job_response, max_concurrent_tasks=100
         tasks = [check_status(job) for job in current_batch]
         results = await asyncio.gather(*tasks)
 
-        # Обновляем список оставшихся заданий
+        # Завершенные задания исключаются из remaining_jobs
         remaining_jobs += [job for job in results if job]
         completed_jobs_count += len(current_batch) - len(results)
+
+        # Обновляем JOB_FILE
+        save_jobs_to_file(remaining_jobs)
+        # logger.info(
+        #     f"Файл {JOB_FILE} обновлен. Осталось {len(remaining_jobs)} заданий."
+        # )
 
         logger.info(
             f"Завершено заданий: {completed_jobs_count}. Осталось: {len(remaining_jobs)}."
@@ -145,6 +236,31 @@ async def check_all_job_statuses(session, job_response, max_concurrent_tasks=100
         f"Всего завершенных заданий: {len(job_response) - len(remaining_jobs)} из {len(job_response)}"
     )
     return remaining_jobs
+
+
+# async def save_jobs_to_file_with_lock(job_response):
+#     """
+#     Сохраняет данные задания в JSON-файл с использованием asyncio.Lock.
+#     """
+#     async with file_lock:
+#         try:
+#             with open(JOB_FILE, "w", encoding="utf-8") as file:
+#                 json.dump(job_response, file, indent=4, ensure_ascii=False)
+#             logger.info(f"Задание сохранено в файл {JOB_FILE}.")
+#         except Exception as e:
+#             logger.error(f"Ошибка при сохранении задания в файл: {e}")
+
+
+async def save_jobs_to_file(job_response):
+    """
+    Сохраняет данные задания в JSON-файл асинхронно.
+    """
+    try:
+        async with aiofiles.open(JOB_FILE, "w", encoding="utf-8") as file:
+            await file.write(json.dumps(job_response, indent=4, ensure_ascii=False))
+        logger.info(f"Задание сохранено в файл {JOB_FILE}.")
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении задания в файл: {e}")
 
 
 # Рабочий полностью
@@ -264,7 +380,14 @@ async def fetch_data(session, status_url):
         return None
 
 
-async def scrape_and_save_batch(urls, max_concurrent_tasks=100):
+async def scrape_and_save_batch(urls, max_concurrent_tasks=500):
+    """
+    Создает задания или использует существующие из JOB_FILE и обрабатывает их.
+
+    Args:
+        urls (list): Список URL для обработки.
+        max_concurrent_tasks (int, optional): Максимальное количество одновременных задач. По умолчанию 100.
+    """
     async with aiohttp.ClientSession() as session:
         job_response = load_jobs_from_file()
         if not job_response:
@@ -280,16 +403,39 @@ async def scrape_and_save_batch(urls, max_concurrent_tasks=100):
             session, job_response, max_concurrent_tasks
         )
 
-        # Обновляем JOB_FILE
-        if remaining_jobs:
-            save_jobs_to_file(remaining_jobs)
-            logger.info(
-                f"Файл {JOB_FILE} обновлен. Осталось {len(remaining_jobs)} заданий."
-            )
-        else:
+        # Удаляем JOB_FILE, если все задания завершены
+        if not remaining_jobs:
             if os.path.exists(JOB_FILE):
                 os.remove(JOB_FILE)
             logger.info(f"Все задания завершены. Файл {JOB_FILE} удален.")
+
+
+# async def scrape_and_save_batch(urls, max_concurrent_tasks=100):
+#     async with aiohttp.ClientSession() as session:
+#         job_response = load_jobs_from_file()
+#         if not job_response:
+#             logger.info("Файл JOB_FILE не найден. Создаем новое batch задание.")
+#             job_response = await submit_batch_job(session, urls)
+#             if not job_response:
+#                 logger.error("Ошибка при отправке batch-запроса.")
+#                 return
+#             save_jobs_to_file(job_response)
+
+#         # Проверяем и сохраняем задания
+#         remaining_jobs = await check_all_job_statuses(
+#             session, job_response, max_concurrent_tasks
+#         )
+
+#         # Обновляем JOB_FILE
+#         if remaining_jobs:
+#             save_jobs_to_file(remaining_jobs)
+#             logger.info(
+#                 f"Файл {JOB_FILE} обновлен. Осталось {len(remaining_jobs)} заданий."
+#             )
+#         else:
+#             if os.path.exists(JOB_FILE):
+#                 os.remove(JOB_FILE)
+#             logger.info(f"Все задания завершены. Файл {JOB_FILE} удален.")
 
 
 # РАБОЧИЙ полностью
@@ -379,6 +525,49 @@ def filter_urls_to_scrape(urls, output_dir):
     return [url for url in urls if not generate_file_name(url, output_dir).exists()]
 
 
+def clean_completed_jobs(job_file, output_dir):
+    """
+    Удаляет из JOB_FILE задания, чьи файлы уже существуют локально.
+
+    Args:
+        job_file (str): Путь к файлу активных заданий.
+        output_dir (str): Директория, где хранятся файлы HTML.
+
+    Returns:
+        None
+    """
+    if not os.path.exists(job_file):
+        logger.info(f"Файл {job_file} не найден. Очистка не требуется.")
+        return
+
+    try:
+        # Загружаем задания из JOB_FILE
+        with open(job_file, "r", encoding="utf-8") as file:
+            jobs = json.load(file)
+
+        # Оставляем только те задания, чьи файлы ещё не существуют
+        remaining_jobs = [
+            job
+            for job in jobs
+            if not generate_file_name(job["url"], output_dir).exists()
+        ]
+
+        # Если ничего не изменилось, не обновляем файл
+        if len(remaining_jobs) == len(jobs):
+            logger.info("Очистка не требовалась. Все задания актуальны.")
+            return
+
+        # Сохраняем обновлённый JOB_FILE
+        with open(job_file, "w", encoding="utf-8") as file:
+            json.dump(remaining_jobs, file, indent=4, ensure_ascii=False)
+
+        logger.info(
+            f"Очистка завершена. Удалено {len(jobs) - len(remaining_jobs)} заданий."
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при очистке JOB_FILE: {e}")
+
+
 def read_csv(file_path):
     """
     Читает URL из CSV-файла.
@@ -396,6 +585,8 @@ def read_csv(file_path):
 
 
 if __name__ == "__main__":
+    # Очистка JOB_FILE перед обработкой
+    clean_completed_jobs(JOB_FILE, html_directory)
     urls_to_scrape = read_csv(all_urls_page)
     filtered_urls = filter_urls_to_scrape(urls_to_scrape, html_directory)
 

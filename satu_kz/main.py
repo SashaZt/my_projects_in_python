@@ -261,7 +261,7 @@ async def extract_json_company(page):
             if match:
                 # Извлекаем JSON
                 json_str = match.group(1)
-                logger.info(f"Начало JSON-строки: {json_str[:500]}...")
+                # logger.info(f"Начало JSON-строки: {json_str[:500]}...")
                 # Очистка строки JSON
                 cleaned_json_str = clean_json_string(json_str)
 
@@ -334,9 +334,13 @@ async def run_one(playwright):
         await page.goto(url)
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         await asyncio.sleep(5)  # Ждем загрузки
+        # Извлекаем список компаний
         all_company = await extract_json_company(page)
+        logger.info(all_company)
+        exit()
         # Добавляем каждый элемент списка all_company в уникальное множество
         unique_itm_values.update(all_company)
+        # Извлекаем список стран
         all_urls = await extract_json_country(page)
 
         for url_raw in all_urls:
@@ -346,6 +350,7 @@ async def run_one(playwright):
             url = f"{url}{url_value}"
             await page.goto(url)
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            # Извлекаем список компаний
             all_company = await extract_json_company(page)
             # Добавляем каждый элемент списка all_company в уникальное множество
             unique_itm_values.update(all_company)
@@ -526,15 +531,43 @@ def extract_values_with_title(quick_filters, target_title):
         return []
 
 
+def parsin_company_json(data):
+    try:
+        # Получаем все ключи в ROOT_QUERY
+        all_keys = list(data.get("ROOT_QUERY", {}).keys())
+
+        # Использование регулярного выражения для более гибкого поиска ключа
+        pattern = re.compile(r"categoryListing\(\{.*?\}\)")
+
+        # Поиск ключа, который подходит под заданный шаблон
+        target_key = next((key for key in all_keys if pattern.match(key)), None)
+
+        if not target_key:
+            return "Target key not found in ROOT_QUERY."
+
+        # Navigate to the "page" -> "quickFilters" -> "title"
+        companyIds_raw = data["ROOT_QUERY"][target_key]["page"].get("companyIds", [])
+
+        return companyIds_raw
+
+    except KeyError as e:
+        return f"KeyError: {str(e)}"
+    except Exception as e:
+        return f"Unexpected error: {str(e)}"
+
+
 def parsin_country_json(data):
     # Получаем список словарей, страна и ссылка на нее
     try:
 
-        # Locate the target key dynamically in "ROOT_QUERY"
-        key_prefix = 'categoryListing({"alias":"Spetsialnye-tkani","limit":48,'
-        target_key = next(
-            (key for key in data["ROOT_QUERY"] if key.startswith(key_prefix)), None
-        )
+        # Получаем все ключи в ROOT_QUERY
+        all_keys = list(data.get("ROOT_QUERY", {}).keys())
+
+        # Использование регулярного выражения для более гибкого поиска ключа
+        pattern = re.compile(r"categoryListing\(\{.*?\}\)")
+
+        # Поиск ключа, который подходит под заданный шаблон
+        target_key = next((key for key in all_keys if pattern.match(key)), None)
 
         if not target_key:
             return "Target key not found in ROOT_QUERY."
@@ -606,29 +639,6 @@ def parsin_country_json(data):
 #         return f"KeyError: {str(e)}"
 #     except Exception as e:
 #         return f"Unexpected error: {str(e)}"
-def parsin_company_json(data):
-    try:
-        # Получаем все ключи в ROOT_QUERY
-        all_keys = list(data.get("ROOT_QUERY", {}).keys())
-
-        # Использование регулярного выражения для более гибкого поиска ключа
-        pattern = re.compile(r"categoryListing\(\{.*?\}\)")
-
-        # Поиск ключа, который подходит под заданный шаблон
-        target_key = next((key for key in all_keys if pattern.match(key)), None)
-
-        if not target_key:
-            return "Target key not found in ROOT_QUERY."
-
-        # Navigate to the "page" -> "quickFilters" -> "title"
-        companyIds_raw = data["ROOT_QUERY"][target_key]["page"].get("companyIds", [])
-
-        return companyIds_raw
-
-    except KeyError as e:
-        return f"KeyError: {str(e)}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
 
 
 # Основная функция
