@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -10,12 +11,14 @@ from configuration.logger_setup import logger
 # Путь к папкам
 current_directory = Path.cwd()
 json_tenders_diretory = current_directory / "json_tenders"
+json_project = current_directory / "json_project"
 json_page_diretory = current_directory / "json_page"
 data_diretory = current_directory / "data"
 configuration_directory = current_directory / "configuration"
 
 json_page_diretory.mkdir(exist_ok=True, parents=True)
 json_tenders_diretory.mkdir(exist_ok=True, parents=True)
+json_project.mkdir(exist_ok=True, parents=True)
 data_diretory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
 file_proxy = configuration_directory / "roman.txt"
@@ -251,82 +254,140 @@ def get_page_json():
             break
 
 
-def parsing_json_details():
-    with open("280403_Details.json", encoding="utf-8") as file:
-        # Прочитать содержимое JSON файла
-        data = json.load(file)
-    json_data = data["details"][0]
-    projectseqno = json_data.get("projectSeqNo", None)
-    projectdateno = json_data.get("projectDateNo", None)
-    databid_id = f"{projectseqno}{projectdateno}"
-    industry = json_data.get("industryName", None)
-    project_bid_no = json_data.get("projectBidNo", None)
-    project_class = json_data.get("projectClassName", None)
-    projectstreet = json_data.get("projectStreet", None)
-    projectcity = json_data.get("projectCity", None)
-    statecode = json_data.get("stateCode", None)
-    countyname = json_data.get("countyName", None)
-    countryname = json_data.get("countryName", None)
-    project_location = (
-        f"{projectstreet},{projectcity}{statecode},{countyname},{countryname}"
-    )
-    sector = json_data.get("projectGroupName", None)
-    stagename = json_data.get("stageName", None)
-    contractingmethodname = json_data.get("contractingMethodName", None)
+def sanitize_value(value):
+    """
+    Очистить строку от недопустимых символов для Excel.
+    """
+    if isinstance(value, str):
+        # Удаляем все управляющие символы и недопустимые символы
+        return re.sub(r"[\x00-\x1F\x7F]", "", value)
+    return value
 
-    stage = f"{stagename} - {contractingmethodname}"
-    trade = json_data.get("tradeName", None)
-    all_data_detalis = {
-        "databid_id": databid_id,
-        "industry": industry,
-        "project_bid_no": project_bid_no,
-        "project_class": project_class,
-        "project_location": project_location,
-        "sector": sector,
-        "stagename": stage,
-        "trade": trade,
-    }
-    logger.info(all_data_detalis)
+
+def parsing_json_details():
+    result = []
+    for json_file in json_tenders_diretory.glob("*.json"):
+        with json_file.open(encoding="utf-8") as file:
+            data = json.load(file)
+
+        json_data = data["details"][0]
+        projectseqno = json_data.get("projectSeqNo", None)
+        projectdateno = json_data.get("projectDateNo", None)
+        databid_id = f"{projectseqno}{projectdateno}"
+        industry = json_data.get("industryName", None)
+        project_bid_no = json_data.get("projectBidNo", None)
+        project_class = json_data.get("projectClassName", None)
+        projectstreet = json_data.get("projectStreet", None)
+        projectcity = json_data.get("projectCity", None)
+        statecode = json_data.get("stateCode", None)
+        countyname = json_data.get("countyName", None)
+        countryname = json_data.get("countryName", None)
+        project_location = (
+            f"{projectstreet},{projectcity}{statecode},{countyname},{countryname}"
+        )
+        sector = json_data.get("projectGroupName", None)
+        stagename = json_data.get("stageName", None)
+        contractingmethodname = json_data.get("contractingMethodName", None)
+
+        stage = f"{stagename} - {contractingmethodname}"
+        trade = json_data.get("tradeName", None)
+        all_data_detalis = {
+            "databid_id": sanitize_value(databid_id),
+            "industry": sanitize_value(industry),
+            "project_bid_no": sanitize_value(project_bid_no),
+            "project_class": sanitize_value(project_class),
+            "project_location": sanitize_value(project_location),
+            "sector": sanitize_value(sector),
+            "stagename": sanitize_value(stage),
+            "trade": sanitize_value(trade),
+        }
+        result.append(all_data_detalis)
+
+    output_xlsx_file = current_directory / "tenders.xlsx"
+    df = pd.DataFrame(result)
+
+    # Сохраняем DataFrame в Excel файл
+    df.to_excel(output_xlsx_file, index=False)
 
 
 def parsing_json_project():
-    with open("280403_projectInvolvement.json", encoding="utf-8") as file:
+    result = []
+    # for json_file in json_tenders_diretory.glob("*.json"):
+    #     with json_file.open(encoding="utf-8") as file:
+    #         data = json.load(file)
+    with open("280718_ProjectID.json", encoding="utf-8") as file:
         # Прочитать содержимое JSON файла
         data = json.load(file)
     projectinvolvement = data["projectInvolvement"][0]
 
-    projectinvolvement_role = projectinvolvement.get("role", None)
-    projectinvolvement_location = projectinvolvement.get("location", None)
-    projectinvolvement_phone = projectinvolvement.get("phone", None)
-    projectinvolvement_customername = projectinvolvement.get("customerName", None)
+    involvement_role = projectinvolvement.get("role", None)
+    involvement_location = projectinvolvement.get("location", None)
+    involvement_phone = projectinvolvement.get("phone", None)
+    involvement_customername = projectinvolvement.get("customerName", None)
     bidders = data["bidder"]
+    results = data["results"]
+    awards = data["awards"]
     all_data_project = {
         "projectInvolvement": [
             {
-                "projectinvolvement_role": projectinvolvement_role,
-                "projectinvolvement_location": projectinvolvement_location,
-                "projectinvolvement_phone": projectinvolvement_phone,
-                "projectinvolvement_customername": projectinvolvement_customername,
+                "involvement_role": involvement_role,
+                "involvement_location": involvement_location,
+                "involvement_phone": involvement_phone,
+                "involvement_customername": involvement_customername,
             }
         ]
     }
     # Проверяем наличие ключа "bidder"
     # Извлекаем нужные поля
     extracted_data = {
+        "projectInvolvement": [
+            {
+                "involvement_role": involvement_role,
+                "involvement_location": involvement_location,
+                "involvement_phone": involvement_phone,
+                "involvement_customername": involvement_customername,
+            }
+        ],
         "bidder": [
             {
-                "role": bidder.get("role"),
-                "location": bidder.get("location"),
-                "phone": bidder.get("phone"),
-                "fax": bidder.get("fax"),
-                "locationName": bidder.get("locationName"),
-                "customerName": bidder.get("customerName"),
+                "bidder_role": bidder.get("role"),
+                "bidder_location": bidder.get("location"),
+                "bidder_phone": bidder.get("phone"),
+                "bidder_fax": bidder.get("fax"),
+                "bidder_locationNamer": bidder.get("locationName"),
+                "bidder_customerName": bidder.get("customerName"),
             }
             for bidder in bidders
-        ]
+        ],
+        "results": [
+            {
+                "result_companyID": result.get("companyID"),
+                "result_role": result.get("role"),
+                "result_amount": result.get("amount"),
+                "result_location": result.get("location"),
+                "result_phone": result.get("phone"),
+                "result_fax": result.get("fax"),
+                "result_locationName_result": result.get("locationName"),
+                "result_customerName_result": result.get("customerName"),
+            }
+            for result in results
+        ],
+        "awards": [
+            {
+                "award_companyID": award.get("companyID"),
+                "award_role": award.get("role"),
+                "award_amount": award.get("amount"),
+                "award_location": award.get("location"),
+                "award_phone": award.get("phone"),
+                "award_fax": award.get("fax"),
+                "award_locationName_result": award.get("locationName"),
+                "result_customerName_result": award.get("customerName"),
+            }
+            for award in awards
+        ],
     }
 
-    logger.info(all_data_project)
+    logger.info(extracted_data)
 
 
 def parsing_json_page():
@@ -356,6 +417,6 @@ if __name__ == "__main__":
     # get_json_projectInvolvement()
     # get_json_companydetails()
 
-    parsing_json_details()
-    # parsing_json_project()
+    # parsing_json_details()
+    parsing_json_project()
     # parsing_json_page()
