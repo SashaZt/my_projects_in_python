@@ -350,12 +350,12 @@ def parsing_json_page():
 
 if __name__ == "__main__":
     # while True:
-    get_json_details()
+    # get_json_details()
     # time.sleep(10)
     # get_json_details()
-    get_json_projectInvolvement()
-    get_json_companydetails()
+    # get_json_projectInvolvement()
+    # get_json_companydetails()
 
-    # parsing_json_details()
+    parsing_json_details()
     # parsing_json_project()
     # parsing_json_page()

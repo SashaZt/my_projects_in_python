@@ -1,8 +1,10 @@
+# Рабочий код для сайта scraperapi асинхронное скачивание файлов через сервис
 import asyncio
 import json
 import os
 from pathlib import Path
 
+import aiofiles
 import aiohttp
 import pandas as pd
 from configuration.logger_setup import logger
@@ -129,10 +131,41 @@ async def check_job_status(session, status_url):
                 job_status = await response.json()
                 if job_status["status"] == "finished":
                     return job_status
-                await asyncio.sleep(2)  # Ждем перед повторной проверкой
+                await asyncio.sleep(1)  # Ждем перед повторной проверкой
         except Exception as e:
             logger.error(f"Error checking job status: {e}")
             return None
+
+
+async def save_result_to_file(job_result):
+    """
+    Сохраняет результат задания в HTML-файл.
+
+    Args:
+        job_result (dict): Данные задания, включающие URL и содержимое HTML.
+
+    Note:
+        Если `body` в `job_result` отсутствует или не является строкой, файл не сохраняется.
+    """
+    url = job_result["url"]
+    body = job_result.get("response", {}).get("body", "")
+
+    # Проверяем, является ли body строкой
+    if not isinstance(body, str) or not body.strip():
+        logger.warning(
+            f"Пропускаем сохранение для URL {url}, так как body не является строкой или пуст."
+        )
+        return
+
+    filename = generate_file_name(url, html_directory)
+
+    try:
+        # Асинхронная запись файла
+        async with aiofiles.open(filename, "w", encoding="utf-8") as file:
+            await file.write(body)
+        logger.info(f"Сохранено: {filename} (Размер: {len(body)} байт)")
+    except Exception as e:
+        logger.error(f"Ошибка сохранения файла {filename}: {e}")
 
 
 # РАБОЧИЙ КОД
@@ -151,37 +184,37 @@ async def check_job_status(session, status_url):
 #         except Exception as e:
 #             logger.error(f"Ошибка сохранения файла {filename}: {e}")
 
+# ТОЖЕ РАБОЧИЙ КОД
+# async def save_result_to_file(job_result):
+#     """
+#     Сохраняет результат задания в HTML-файл.
 
-async def save_result_to_file(job_result):
-    """
-    Сохраняет результат задания в HTML-файл.
+#     Args:
+#         job_result (dict): Данные задания, включающие URL и содержимое HTML.
 
-    Args:
-        job_result (dict): Данные задания, включающие URL и содержимое HTML.
+#     Raises:
+#         Exception: Логирует ошибку, если файл не удалось сохранить.
 
-    Raises:
-        Exception: Логирует ошибку, если файл не удалось сохранить.
+#     Note:
+#         Если `body` в `job_result` отсутствует или не является строкой, файл не сохраняется.
+#     """
+#     url = job_result["url"]
+#     body = job_result.get("response", {}).get("body", "")
 
-    Note:
-        Если `body` в `job_result` отсутствует или не является строкой, файл не сохраняется.
-    """
-    url = job_result["url"]
-    body = job_result.get("response", {}).get("body", "")
+#     # Проверяем, является ли body строкой
+#     if not isinstance(body, str):
+#         logger.warning(
+#             f"Пропускаем сохранение для URL {url}, так как body не является строкой."
+#         )
+#         return
 
-    # Проверяем, является ли body строкой
-    if not isinstance(body, str):
-        logger.warning(
-            f"Пропускаем сохранение для URL {url}, так как body не является строкой."
-        )
-        return
-
-    filename = generate_file_name(url, html_directory)
-    try:
-        with open(filename, "w", encoding="utf-8") as file:
-            file.write(body)
-        logger.info(f"Сохранено: {filename}")
-    except Exception as e:
-        logger.error(f"Ошибка сохранения файла {filename}: {e}")
+#     filename = generate_file_name(url, html_directory)
+#     try:
+#         with open(filename, "w", encoding="utf-8") as file:
+#             file.write(body)
+#         logger.info(f"Сохранено: {filename}")
+#     except Exception as e:
+#         logger.error(f"Ошибка сохранения файла {filename}: {e}")
 
 
 # РАБОЧИЙ КОД
@@ -215,7 +248,7 @@ async def save_result_to_file(job_result):
 #         logger.info("Обработка batch-запроса завершена.")
 
 
-async def scrape_and_save_batch(urls, max_concurrent_tasks=100):
+async def scrape_and_save_batch(urls, max_concurrent_tasks=200):
     """
     Основная функция для выполнения batch scraping и сохранения результатов.
 
@@ -252,14 +285,30 @@ async def scrape_and_save_batch(urls, max_concurrent_tasks=100):
         semaphore = asyncio.Semaphore(max_concurrent_tasks)
 
         async def process_job(job):
+            """
+            Обрабатывает одно задание: проверяет статус и сохраняет результат.
+
+            Args:
+                job (dict): Задание, включающее ID и statusUrl.
+            """
             async with semaphore:
-                result = await check_job_status(session, job["statusUrl"])
-                if result and result["status"] == "finished":
-                    await save_result_to_file(result)
-                else:
-                    logger.warning(
-                        f"Задание {job['id']} завершено с некорректным статусом."
-                    )
+                logger.info(
+                    f"Начало обработки задания: {job['id']} (URL: {job['statusUrl']})"
+                )
+                try:
+                    result = await check_job_status(session, job["statusUrl"])
+                    if result and result["status"] == "finished":
+                        logger.info(
+                            f"Задание {job['id']} завершено. Сохраняем результат..."
+                        )
+                        await save_result_to_file(result)
+                        logger.info(f"Результат задания {job['id']} успешно сохранен.")
+                    else:
+                        logger.warning(
+                            f"Задание {job['id']} завершено с некорректным статусом: {result.get('status', 'unknown')}"
+                        )
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке задания {job['id']}: {e}")
 
         tasks = [process_job(job) for job in job_response]
         await asyncio.gather(*tasks)
