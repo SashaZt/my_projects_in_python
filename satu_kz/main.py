@@ -16,15 +16,19 @@ from playwright.async_api import async_playwright
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
 json_directory = current_directory / "json"
+company_id = current_directory / "company_id"
 configuration_directory = current_directory / "configuration"
 
 # Создание директорий, если их нет
+company_id.mkdir(parents=True, exist_ok=True)
 json_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
 
 # Пути к файлам
 output_csv_file = data_directory / "output.csv"
+
+all_ids = data_directory / "all_ids.csv"
 all_urls_file = data_directory / "all_urls.csv"
 product_catalog_csv = data_directory / "product_catalog.csv"
 xlsx_result = data_directory / "result.xlsx"
@@ -121,7 +125,7 @@ async def extract_next_page_number(page):
         return None
 
 
-async def extract_json_country(page):
+async def extract_json_quickFilters(page):
     # Собираем Страны
     """
     Находит первый <script type="application/javascript"> на странице,
@@ -153,11 +157,13 @@ async def extract_json_country(page):
                 # Извлекаем JSON
                 json_str = match.group(1)
                 parsed_json = json.loads(json_str)
-                dict_country = parsin_country_json(parsed_json)
+                dict_country = parsin_quickFilters(parsed_json)
 
                 # logger.info(dict_country)
                 # Сохраняем JSON в файл
-                # with open("output_json_path.json", "w", encoding="utf-8") as json_file:
+                # with open(
+                #     "extract_json_country.json", "w", encoding="utf-8"
+                # ) as json_file:
                 #     json.dump(dict_country, json_file, indent=4, ensure_ascii=False)
                 return dict_country
 
@@ -270,7 +276,7 @@ async def extract_json_company(page):
                     json_data = demjson3.decode(cleaned_json_str)
                     dict_company = parsin_company_json(json_data)
                     # Записываем в json файл
-                    with open("output_json_file.json", "w", encoding="utf-8") as f:
+                    with open("extract_json_company.json", "w", encoding="utf-8") as f:
                         json.dump(json_data, f, ensure_ascii=False, indent=4)
                     return dict_company
                 except demjson3.JSONDecodeError as e:
@@ -302,6 +308,42 @@ def save_extracted_numbers_to_csv(unique_itm_values, output_csv_file):
         logger.error(f"Ошибка при сохранении в CSV: {e}")
 
 
+async def check_sellers_count(page):
+    """
+    Проверяет текст кнопки "Продавцы" и возвращает количество продавцов.
+
+    :param page: Объект страницы Playwright.
+    :return: Число продавцов (int) или None, если кнопка не найдена или значение не удалось извлечь.
+    """
+    try:
+        # Находим кнопку
+        button = await page.query_selector(
+            '//div[@data-qatitle="Продавцы"]//button[@data-qaid="more_button"]'
+        )
+
+        if not button:
+            # Если кнопка не найдена
+            return None
+
+        # Извлекаем текст
+        button_text = await button.inner_text()
+
+        # Извлекаем только число из текста
+        sellers_count_str = "".join(filter(str.isdigit, button_text))
+
+        # Если число извлечено, преобразуем в int
+        if sellers_count_str.isdigit():
+            sellers_count = int(sellers_count_str)
+            return sellers_count  # Возвращаем число
+
+        # Если число не извлечено
+        return None
+
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
+        return None
+
+
 # Основная функция сбора последне категории в списке
 async def run_one(playwright):
 
@@ -326,41 +368,134 @@ async def run_one(playwright):
             else route.continue_()
         ),
     )
-    unique_itm_values = set()
+
     companys_url = read_cities_from_csv(all_urls_file)
     # URL для обработки
     # url_start = "https://satu.kz/Spetsialnye-tkani"
     for url in companys_url:
-        await page.goto(url)
-        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await asyncio.sleep(5)  # Ждем загрузки
-        # Извлекаем список компаний
-        all_company = await extract_json_company(page)
-        logger.info(all_company)
-        exit()
-        # Добавляем каждый элемент списка all_company в уникальное множество
-        unique_itm_values.update(all_company)
-        # Извлекаем список стран
-        all_urls = await extract_json_country(page)
+        unique_itm_values = set()
 
-        for url_raw in all_urls:
-            url_value = url_raw["value"]
-            # url_name = url_raw["name"]
-            url_id = url.split("?", maxsplit=1)[0].split("/")[-1]
-            url = f"{url}{url_value}"
+        url_id = url.split("?", maxsplit=1)[0].split("/")[-1]
+        output_file = company_id / f"{url_id}.csv"
+        if output_file.exists():
+            continue
+        try:
             await page.goto(url)
-            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        except TimeoutError:
+            break
+
+        except:
+            break
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await asyncio.sleep(1)  # Ждем загрузки
+        len_company = await check_sellers_count(page)
+        all_company = await extract_json_company(page)
+        unique_itm_values.update(all_company)
+
+        if len_company is None or len_company < 93:
+            logger.info(f"Количество {len_company} продавцов в {url_id}")
             # Извлекаем список компаний
             all_company = await extract_json_company(page)
+            logger.info(f"Всего найденно компаний {len(all_company)} в {url_id}")
             # Добавляем каждый элемент списка all_company в уникальное множество
             unique_itm_values.update(all_company)
-            await asyncio.sleep(1)  # Ждем загрузки
-        logger.info(len(unique_itm_values))
-        url_id = url.split("?", maxsplit=1)[0].split("/")[-1]
-        output_file = data_directory / f"{url_id}.csv"
+        elif len_company == 93:
+            logger.info(f"Количество {len_company} продавцов в {url_id}")
+            # Извлекаем список стран
+            all_urls = await extract_json_quickFilters(page)
+            # Сохраняем базовый URL
+            base_url = url.split("?", maxsplit=1)[0]  # Очищаем URL от старых параметров
+            for url_raw in all_urls:
+                url_value = url_raw["value"]
+                county = url_raw["name"]
+                # logger.info(county)
+                # Формируем новый URL с параметром
+                new_url = f"{base_url}{url_value}"
+                # url_name = url_raw["name"]
+                await page.goto(new_url)
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await asyncio.sleep(1)  # Ждем загрузки
+                len_company_new = await check_sellers_count(page)
+                if len_company_new is None or len_company_new < 93:
+                    all_company_new = await extract_json_company(page)
+                    logger.info(
+                        f"Всего найденно компаний {len(all_company_new)} в {url_id}"
+                    )
+                    # Добавляем каждый элемент списка all_company в уникальное множество
+                    unique_itm_values.update(all_company_new)
+        else:
+
+            logger.error(new_url)
+            exit()
         save_extracted_numbers_to_csv(unique_itm_values, output_file)
 
     await browser.close()
+    # if len_company == 93:
+    #     # Извлекаем список стран
+    #     all_urls = await extract_json_country(page)
+    #     # Сохраняем базовый URL
+    #     base_url = url.split("?", maxsplit=1)[0]  # Очищаем URL от старых параметров
+    #     for url_raw in all_urls:
+    #         url_value = url_raw["value"]
+    #         county = url_raw["name"]
+    #         # logger.info(county)
+    #         # Формируем новый URL с параметром
+    #         new_url = f"{base_url}{url_value}"
+    #         # url_name = url_raw["name"]
+    #         await page.goto(new_url)
+    #         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    #         await asyncio.sleep(1)  # Ждем загрузки
+    #         len_company_new = await check_sellers_count(page)
+    #         if len_company_new is None or len_company_new < 93:
+    #             all_company_new = await extract_json_company(page)
+    #             logger.info(
+    #                 f"Всего найденно компаний {len(all_company_new)} в {url_id}"
+    #             )
+    #             # Добавляем каждый элемент списка all_company в уникальное множество
+    #             unique_itm_values.update(all_company_new)
+    #         else:
+
+    #             logger.error(new_url)
+    # else:
+    #     # Извлекаем список компаний
+    #     all_company = await extract_json_company(page)
+    #     logger.info(f"Всего найденно компаний {len(all_company)} в {url_id}")
+    #     # Добавляем каждый элемент списка all_company в уникальное множество
+    #     unique_itm_values.update(all_company)
+
+    # if len_company is None or len_company < 93:
+
+    #     # Извлекаем список компаний
+    #     all_company = await extract_json_company(page)
+    #     logger.info(f"Всего найденно компаний {len(all_company)} в {url_id}")
+    #     # Добавляем каждый элемент списка all_company в уникальное множество
+    #     unique_itm_values.update(all_company)
+    # else:
+    # # Извлекаем список стран
+    # all_urls = await extract_json_country(page)
+    # # Сохраняем базовый URL
+    # base_url = url.split("?", maxsplit=1)[0]  # Очищаем URL от старых параметров
+    # for url_raw in all_urls:
+    #     url_value = url_raw["value"]
+    #     county = url_raw["name"]
+    #     # logger.info(county)
+    #     # Формируем новый URL с параметром
+    #     new_url = f"{base_url}{url_value}"
+    #     # url_name = url_raw["name"]
+    #     await page.goto(new_url)
+    #     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+    #     await asyncio.sleep(1)  # Ждем загрузки
+    #     len_company_new = await check_sellers_count(page)
+    #     if len_company_new is None or len_company_new < 93:
+    #         all_company_new = await extract_json_company(page)
+    #         logger.info(
+    #             f"Всего найденно компаний {len(all_company_new)} в {url_id}"
+    #         )
+    #         # Добавляем каждый элемент списка all_company в уникальное множество
+    #         unique_itm_values.update(all_company_new)
+    #     else:
+
+    #         logger.error(new_url)
 
 
 async def main_one():
@@ -503,6 +638,88 @@ def get_json():
         time.sleep(4)
 
 
+# def extract_values_with_title(quick_filters, target_title):
+#     """
+#     Находит фильтр по 'title' и извлекает список значений с названиями и форматированным значением.
+
+
+#     :param quick_filters: Список фильтров.
+#     :param target_title: Название ('title') фильтра, который нужно найти.
+#     :return: Список словарей с полями 'name' и 'value'.
+#     """
+#     try:
+#         # Найти фильтр с указанным 'title'
+#         for filter_item in quick_filters:
+#             if filter_item.get("title") == target_title:
+#                 filter_name = filter_item.get("name")
+#                 if filter_name:
+#                     # Формируем список словарей с названием и значением
+#                     return [
+#                         {
+#                             "name": value["title"],
+#                             "value": f"?{filter_name}={value['value']}",
+#                         }
+#                         for value in filter_item.get("values", [])
+#                     ]
+#         return []
+#     except Exception as e:
+#         print(f"Ошибка при извлечении значений: {e}")
+#         return []
+def parsin_quickFilters(data):
+    """
+    Извлекает значения фильтров по заголовкам или находит фильтр с минимальным количеством значений.
+
+    :param data: JSON данные.
+    :return: Список словарей с полями 'name' и 'value'.
+    """
+    try:
+        # Получаем все ключи в ROOT_QUERY
+        all_keys = list(data.get("ROOT_QUERY", {}).keys())
+
+        # Использование регулярного выражения для более гибкого поиска ключа
+        pattern = re.compile(r"categoryListing\(\{.*?\}\)")
+
+        # Поиск ключа, который подходит под заданный шаблон
+        target_key = next((key for key in all_keys if pattern.match(key)), None)
+
+        if not target_key:
+            return "Target key not found in ROOT_QUERY."
+
+        # Навигация к "page" -> "quickFilters"
+        quick_filters = data["ROOT_QUERY"][target_key]["page"].get("quickFilters", [])
+
+        # Список возможных значений фильтров
+        target_titles = ["Страна производитель", "Производитель"]
+
+        # Ищем фильтры по списку возможных заголовков
+        for target_title in target_titles:
+            result = extract_values_with_title(quick_filters, target_title)
+            if result:
+                return result
+
+        # Если фильтры по заголовкам не найдены, ищем фильтр с минимальным количеством значений
+        if quick_filters:
+            min_filter = min(quick_filters, key=lambda f: len(f.get("values", [])))
+            filter_name = min_filter.get("name")
+            if filter_name:
+                return [
+                    {
+                        "name": value["title"],
+                        "value": f"?{filter_name}={value['value']}",
+                    }
+                    for value in min_filter.get("values", [])
+                ]
+
+        return []
+
+    except KeyError as e:
+        print(f"KeyError: {str(e)}")
+        return []
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return []
+
+
 def extract_values_with_title(quick_filters, target_title):
     """
     Находит фильтр по 'title' и извлекает список значений с названиями и форматированным значением.
@@ -547,7 +764,7 @@ def parsin_company_json(data):
 
         # Navigate to the "page" -> "quickFilters" -> "title"
         companyIds_raw = data["ROOT_QUERY"][target_key]["page"].get("companyIds", [])
-
+        # logger.info(companyIds_raw)
         return companyIds_raw
 
     except KeyError as e:
@@ -556,33 +773,40 @@ def parsin_company_json(data):
         return f"Unexpected error: {str(e)}"
 
 
-def parsin_country_json(data):
-    # Получаем список словарей, страна и ссылка на нее
-    try:
+# def parsin_country_json(data):
+#     # Получаем список словарей, страна и ссылка на нее
+#     try:
 
-        # Получаем все ключи в ROOT_QUERY
-        all_keys = list(data.get("ROOT_QUERY", {}).keys())
+#         # Получаем все ключи в ROOT_QUERY
+#         all_keys = list(data.get("ROOT_QUERY", {}).keys())
 
-        # Использование регулярного выражения для более гибкого поиска ключа
-        pattern = re.compile(r"categoryListing\(\{.*?\}\)")
+#         # Использование регулярного выражения для более гибкого поиска ключа
+#         pattern = re.compile(r"categoryListing\(\{.*?\}\)")
 
-        # Поиск ключа, который подходит под заданный шаблон
-        target_key = next((key for key in all_keys if pattern.match(key)), None)
+#         # Поиск ключа, который подходит под заданный шаблон
+#         target_key = next((key for key in all_keys if pattern.match(key)), None)
 
-        if not target_key:
-            return "Target key not found in ROOT_QUERY."
+#         if not target_key:
+#             return "Target key not found in ROOT_QUERY."
 
-        # Navigate to the "page" -> "quickFilters" -> "title"
-        quick_filters = data["ROOT_QUERY"][target_key]["page"].get("quickFilters", {})
-        # Пример использования
-        target_title = "Страна производитель"  # Замените на нужное название фильтра
-        result = extract_values_with_title(quick_filters, target_title)
-        return result
+#         # Navigate to the "page" -> "quickFilters" -> "title"
+#         quick_filters = data["ROOT_QUERY"][target_key]["page"].get("quickFilters", {})
 
-    except KeyError as e:
-        return f"KeyError: {str(e)}"
-    except Exception as e:
-        return f"Unexpected error: {str(e)}"
+#         # Список возможных значений фильтров
+#         target_titles = ["Страна производитель", "Производитель"]
+#         # Ищем фильтры по списку возможных названий
+#         for target_title in target_titles:
+#             result = extract_values_with_title(quick_filters, target_title)
+#             if result:
+#                 return result
+#         # Если не найдено, ищем фильтр с минимальным количеством значений
+#         if quick_filters:
+#             min_filter = min(quick_filters, key=lambda f: len(f.get("values", [])))
+
+#     except KeyError as e:
+#         return f"KeyError: {str(e)}"
+#     except Exception as e:
+#         return f"Unexpected error: {str(e)}"
 
 
 # def parsin_company_json(data):
@@ -803,11 +1027,45 @@ async def extract_links_from_scroll_block(page):
         return []
 
 
+def collect_unique_ids():
+    """
+    Собирает все уникальные `id` из CSV файлов в указанной папке и сохраняет в один файл.
+
+    :param input_folder: Путь к папке с CSV файлами.
+    :param output_file: Путь к выходному файлу для сохранения уникальных ID.
+    """
+    try:
+
+        # Множество для хранения уникальных ID
+        unique_ids = set()
+
+        # Проходим по всем CSV файлам в папке
+        for csv_file in company_id.glob("*.csv"):
+            # Читаем данные из текущего файла
+            df = pd.read_csv(csv_file)
+            if "id" in df.columns:
+                # Добавляем все ID из столбца `id` в множество
+                unique_ids.update(df["id"].astype(str).tolist())
+            else:
+                print(f"Пропущен файл: {csv_file} (нет столбца 'id')")
+
+        # Сохраняем уникальные ID в выходной файл
+        unique_ids_df = pd.DataFrame({"id": list(unique_ids)})
+        unique_ids_df.to_csv(all_ids, index=False, encoding="utf-8")
+        print(f"Собрано {len(unique_ids)} уникальных ID. Сохранено в {all_ids}")
+
+    except Exception as e:
+        print(f"Ошибка при обработке: {e}")
+
+
 if __name__ == "__main__":
 
     # Запуск основной функции
     # asyncio.run(main())
-    asyncio.run(main_one())
+    while True:
+
+        asyncio.run(main_one())
     # parsing_page()
     # get_json()
     # parsing_json()
+    # collect_unique_ids()

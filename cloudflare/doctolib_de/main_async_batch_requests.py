@@ -223,7 +223,7 @@ async def check_all_job_statuses(session, job_response, max_concurrent_tasks=500
         completed_jobs_count += len(current_batch) - len(results)
 
         # Обновляем JOB_FILE
-        save_jobs_to_file(remaining_jobs)
+        await save_jobs_to_file(remaining_jobs)
         # logger.info(
         #     f"Файл {JOB_FILE} обновлен. Осталось {len(remaining_jobs)} заданий."
         # )
@@ -584,6 +584,19 @@ def read_csv(file_path):
         return []
 
 
+# РАбочий
+# if __name__ == "__main__":
+#     # Очистка JOB_FILE перед обработкой
+#     clean_completed_jobs(JOB_FILE, html_directory)
+#     urls_to_scrape = read_csv(all_urls_page)
+#     filtered_urls = filter_urls_to_scrape(urls_to_scrape, html_directory)
+
+#     if not filtered_urls and not os.path.exists(JOB_FILE):
+#         logger.info("Нет URL для обработки и активных заданий.")
+#     else:
+#         asyncio.run(scrape_and_save_batch(filtered_urls))
+
+
 if __name__ == "__main__":
     # Очистка JOB_FILE перед обработкой
     clean_completed_jobs(JOB_FILE, html_directory)
@@ -593,4 +606,13 @@ if __name__ == "__main__":
     if not filtered_urls and not os.path.exists(JOB_FILE):
         logger.info("Нет URL для обработки и активных заданий.")
     else:
-        asyncio.run(scrape_and_save_batch(filtered_urls))
+        # Разбиваем filtered_urls на блоки по 50,000
+        chunk_size = 40000
+        chunks = [
+            filtered_urls[i : i + chunk_size]
+            for i in range(0, len(filtered_urls), chunk_size)
+        ]
+
+        for i, chunk in enumerate(chunks, start=1):
+            logger.info(f"Обработка блока {i}/{len(chunks)} с {len(chunk)} URL.")
+            asyncio.run(scrape_and_save_batch(chunk))
