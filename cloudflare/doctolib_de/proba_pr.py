@@ -1,9 +1,10 @@
-import nodriver as uc
-from nodriver.cdp import fetch
 import asyncio
 import os
-from configuration.logger_setup import logger
 from pathlib import Path
+
+import nodriver as uc
+from configuration.logger_setup import logger
+from nodriver.cdp import fetch
 
 # Путь к папкам
 current_directory = Path.cwd()

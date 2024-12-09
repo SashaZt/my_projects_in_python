@@ -19,10 +19,3 @@ logger.add(
     retention=1,  # Хранить только последний файл
     compression=None,  # Не сжимать старые файлы
 )
-
-# Логирование в консоль
-logger.add(
-    sys.stdout,
-    format="{time:DD-MM-YYYY HH:mm:ss} - {level} - {name}:{line} - {message}",
-    level="DEBUG",
-)

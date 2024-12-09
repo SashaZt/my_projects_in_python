@@ -310,7 +310,7 @@ class Downloader:
             if all_finished:
                 break
             # Подождите 10 секунд перед повторной проверкой
-            await asyncio.sleep(1)
+            await asyncio.sleep(10)
 
     # Функция для отправки задач на ScraperAPI
     def submit_jobs(self):
@@ -341,6 +341,7 @@ class Downloader:
                             with open(json_file, "w", encoding="utf-8") as file:
                                 json.dump(response_data, file, indent=4)
                             logger.info(f"Задача отправлена для URL {url}")
+                            success = True
                         else:
                             logger.error(
                                 f"Ошибка при отправке задачи для URL {url}: {response.status_code}"

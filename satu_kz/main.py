@@ -17,10 +17,12 @@ current_directory = Path.cwd()
 data_directory = current_directory / "data"
 json_directory = current_directory / "json"
 company_id = current_directory / "company_id"
+company_id_old = current_directory / "company_id_old"
 configuration_directory = current_directory / "configuration"
 
 # Создание директорий, если их нет
 company_id.mkdir(parents=True, exist_ok=True)
+company_id_old.mkdir(parents=True, exist_ok=True)
 json_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
@@ -28,7 +30,7 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 # Пути к файлам
 output_csv_file = data_directory / "output.csv"
 
-all_ids = data_directory / "all_ids.csv"
+all_ids = data_directory / "all_ids_new.csv"
 all_urls_file = data_directory / "all_urls.csv"
 product_catalog_csv = data_directory / "product_catalog.csv"
 xlsx_result = data_directory / "result.xlsx"
@@ -635,7 +637,7 @@ def get_json():
         json_data = response.json()
         with open(output_json_file, "w", encoding="utf-8") as f:
             json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
-        time.sleep(4)
+        # time.sleep(1)
 
 
 # def extract_values_with_title(quick_filters, target_title):
@@ -1027,32 +1029,63 @@ async def extract_links_from_scroll_block(page):
         return []
 
 
-def collect_unique_ids():
-    """
-    Собирает все уникальные `id` из CSV файлов в указанной папке и сохраняет в один файл.
+# def collect_unique_ids():
+#     """
+#     Собирает все уникальные `id` из CSV файлов в указанной папке и сохраняет в один файл.
 
-    :param input_folder: Путь к папке с CSV файлами.
+#     :param input_folder: Путь к папке с CSV файлами.
+#     :param output_file: Путь к выходному файлу для сохранения уникальных ID.
+#     """
+#     try:
+
+#         # Множество для хранения уникальных ID
+#         unique_ids = set()
+
+#         # Проходим по всем CSV файлам в папке
+#         for csv_file in company_id.glob("*.csv"):
+#             # Читаем данные из текущего файла
+#             df = pd.read_csv(csv_file)
+#             if "id" in df.columns:
+#                 # Добавляем все ID из столбца `id` в множество
+#                 unique_ids.update(df["id"].astype(str).tolist())
+#             else:
+#                 print(f"Пропущен файл: {csv_file} (нет столбца 'id')")
+
+#         # Сохраняем уникальные ID в выходной файл
+#         unique_ids_df = pd.DataFrame({"id": list(unique_ids)})
+#         unique_ids_df.to_csv(all_ids, index=False, encoding="utf-8")
+#         print(f"Собрано {len(unique_ids)} уникальных ID. Сохранено в {all_ids}")
+
+#     except Exception as e:
+#         print(f"Ошибка при обработке: {e}")
+
+
+def collect_unique_ids(input_folders, output_file):
+    """
+    Собирает все уникальные `id` из CSV файлов в указанных папках и сохраняет в один файл.
+
+    :param input_folders: Список путей к папкам с CSV файлами.
     :param output_file: Путь к выходному файлу для сохранения уникальных ID.
     """
     try:
-
         # Множество для хранения уникальных ID
         unique_ids = set()
 
-        # Проходим по всем CSV файлам в папке
-        for csv_file in company_id.glob("*.csv"):
-            # Читаем данные из текущего файла
-            df = pd.read_csv(csv_file)
-            if "id" in df.columns:
-                # Добавляем все ID из столбца `id` в множество
-                unique_ids.update(df["id"].astype(str).tolist())
-            else:
-                print(f"Пропущен файл: {csv_file} (нет столбца 'id')")
+        # Проходим по всем указанным папкам
+        for folder in input_folders:
+            for csv_file in folder.glob("*.csv"):
+                # Читаем данные из текущего файла
+                df = pd.read_csv(csv_file)
+                if "id" in df.columns:
+                    # Добавляем все ID из столбца `id` в множество
+                    unique_ids.update(df["id"].astype(str).tolist())
+                else:
+                    print(f"Пропущен файл: {csv_file} (нет столбца 'id')")
 
         # Сохраняем уникальные ID в выходной файл
         unique_ids_df = pd.DataFrame({"id": list(unique_ids)})
         unique_ids_df.to_csv(all_ids, index=False, encoding="utf-8")
-        print(f"Собрано {len(unique_ids)} уникальных ID. Сохранено в {all_ids}")
+        print(f"Собрано {len(unique_ids)} уникальных ID. Сохранено в {output_file}")
 
     except Exception as e:
         print(f"Ошибка при обработке: {e}")
@@ -1062,10 +1095,11 @@ if __name__ == "__main__":
 
     # Запуск основной функции
     # asyncio.run(main())
-    while True:
+    # while True:
 
-        asyncio.run(main_one())
+    #     asyncio.run(main_one())
     # parsing_page()
-    # get_json()
+    get_json()
     # parsing_json()
     # collect_unique_ids()
+    # collect_unique_ids([company_id, company_id_old], all_ids)

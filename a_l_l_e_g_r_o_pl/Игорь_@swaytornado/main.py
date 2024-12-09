@@ -55,6 +55,7 @@ def main_loop():
     configuration_directory = current_directory / "configuration"
 
     html_files_directory.mkdir(exist_ok=True, parents=True)
+    json_page_directory.mkdir(exist_ok=True, parents=True)
     json_products.mkdir(parents=True, exist_ok=True)
     json_scrapy.mkdir(parents=True, exist_ok=True)
     data_directory.mkdir(parents=True, exist_ok=True)
@@ -115,6 +116,8 @@ def main_loop():
         elif choice == "4":
             shutil.rmtree(json_products)
             shutil.rmtree(html_files_directory)
+            shutil.rmtree(json_page_directory)
+            shutil.rmtree(json_scrapy)
         elif choice == "0":
             break
         else:
