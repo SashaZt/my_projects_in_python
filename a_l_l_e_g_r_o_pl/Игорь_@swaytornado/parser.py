@@ -951,7 +951,7 @@ class Parser:
 
             # Внутри контейнера ищем div с текстом "osób kupiło"
             target_div = app_container.find(
-                "div", string=lambda text: text and "osób kupiło" in text
+                "div", string=lambda text: text and "osob" in text
             )
             # Если элемент найден, возвращаем его текст
             if target_div:
