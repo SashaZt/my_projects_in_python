@@ -4,12 +4,19 @@ from configuration.logger_setup import logger
 
 
 class Writer:
+    def __init__(self, output_json, tg_bot):
+        """
+        Конструктор класса Writer.
 
-    def __init__(self, output_json):
+        Args:
+            output_json (str): Путь к JSON-файлу, куда будут сохраняться результаты.
+            tg_bot (TgBot): Объект Telegram-бота для отправки сообщений (по умолчанию None).
+        """
         self.output_json = output_json
+        self.tg_bot = tg_bot  # Telegram-бот для отправки сообщений (опционально)
 
-    def save_results_to_json(self, all_results):
-        """Сохраняет результаты в JSON файл.
+    def save_results_to_json(self, all_results, tg_bot):
+        """Сохраняет результаты в JSON файл и отправляет сообщение в Telegram.
 
         Args:
             all_results (dict): Словарь с результатами, которые необходимо сохранить.
@@ -21,6 +28,14 @@ class Writer:
         try:
             with open(self.output_json, "w", encoding="utf-8") as json_file:
                 json.dump(all_results, json_file, ensure_ascii=False, indent=4)
+            # Отправляем сообщение в Telegram, если бот задан
+            if self.tg_bot:
+                self.tg_bot.send_message(
+                    f"Данные успешно сохранены в файл {self.output_json}"
+                )
         except Exception as e:
-            logger.error(f"Ошибка при сохранении данных в файл {self.json_result}: {e}")
+            logger.error(f"Ошибка при сохранении данных в файл {self.output_json}: {e}")
+            # Отправляем сообщение об ошибке в Telegram
+            if self.tg_bot:
+                self.tg_bot.send_message(f"Ошибка при сохранении данных: {e}")
             raise
