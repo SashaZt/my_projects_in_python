@@ -33,17 +33,23 @@ def link_formation():
 
 
 def main_loop():
-
     env_path = os.path.join(os.getcwd(), "configuration", ".env")
-    load_dotenv(env_path)
-    api_key = os.getenv("API_KEY")
-    max_workers = int(os.getenv("MAX_WORKERS", "20"))
-    url_start = link_formation()
+    if os.path.isfile(env_path):  # Проверяем, существует ли файл
+        load_dotenv(env_path)
+        api_key = os.getenv("API_KEY")
+        max_workers = int(os.getenv("MAX_WORKERS", "20"))
+        url_start = (
+            link_formation()
+        )  # Предполагается, что link_formation() возвращает URL
+        logger.info("Файл .env загружен успешно.")
+    else:
+        logger.error(f"Файл {env_path} не найден!")
 
     # Указываем пути к файлам и папкам
     current_directory = Path.cwd()
     html_files_directory = current_directory / "html_files"
     json_products = current_directory / "json_products"
+    json_page_directory = current_directory / "json_page"
     json_scrapy = current_directory / "json_scrapy"
     data_directory = current_directory / "data"
     configuration_directory = current_directory / "configuration"
@@ -69,6 +75,7 @@ def main_loop():
         max_workers,
         json_result,
         xlsx_result,
+        json_page_directory,
     )
     writer = Writer(csv_output_file, json_result, xlsx_result)
     parser = Parser(
@@ -76,6 +83,7 @@ def main_loop():
         csv_output_file,
         max_workers,
         json_products,
+        json_page_directory,
     )
 
     # Основной цикл программы

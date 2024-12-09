@@ -26,6 +26,7 @@ class Downloader:
         max_workers,
         json_result,
         xlsx_result,
+        json_page_directory,
     ):
         self.api_key = api_key
         self.html_files_directory = html_files_directory
@@ -36,12 +37,14 @@ class Downloader:
         self.max_workers = max_workers
         self.json_result = json_result
         self.xlsx_result = xlsx_result
+        self.json_page_directory = json_page_directory
 
         self.parser = Parser(
             html_files_directory,
             csv_output_file,
             max_workers,
             json_products,
+            json_page_directory,
         )  # Создаем экземпляр Parser
         self.writer = Writer(csv_output_file, json_result, xlsx_result)
 
@@ -87,7 +90,7 @@ class Downloader:
             "url": self.url_start,
             "ultra_premium": "true",
         }
-        logger.info(payload)
+        # logger.info(payload)
         all_data = set()
         retries = 0
         # Добавляем обработку None с повторной попыткой
@@ -262,36 +265,52 @@ class Downloader:
                         continue
 
                     status_url = response_data.get("statusUrl")
-                    response = requests.get(url=status_url, timeout=30)
-                    if response.status_code == 200:
-                        job_status = response.json().get("status")
-                        if job_status == "finished":
-                            body = response.json().get("response").get("body")
-                            with open(html_company, "w", encoding="utf-8") as file:
-                                file.write(body)
-                            logger.info(
-                                f"Результаты для {status_url} сохранены в файл {html_company}"
-                            )
-                            # Удаление JSON файла после успешного сохранения результата
-                            try:
-                                json_file.unlink()
-                            except PermissionError as e:
-                                logger.error(
-                                    f"Не удалось удалить файл {json_file}: {e}"
+                    try:
+                        response = requests.get(url=status_url, timeout=30)
+                        if response.status_code == 200:
+                            job_status = response.json().get("status")
+                            if job_status == "finished":
+                                body = response.json().get("response").get("body")
+                                with open(html_company, "w", encoding="utf-8") as file:
+                                    file.write(body)
+                                logger.info(
+                                    f"Результаты для {status_url} сохранены в файл {html_company}"
+                                )
+                                # Удаление JSON файла после успешного сохранения результата
+                                try:
+                                    json_file.unlink()
+                                except PermissionError as e:
+                                    logger.error(
+                                        f"Не удалось удалить файл {json_file}: {e}"
+                                    )
+                            else:
+                                all_finished = False
+                                logger.info(
+                                    f"Статус задачи для {status_url}: {job_status}"
                                 )
                         else:
-                            all_finished = False
-                            logger.info(f"Статус задачи для {status_url}: {job_status}")
-                    else:
-                        logger.error(
-                            f"Ошибка при получении статуса задачи: {response.status_code}"
-                        )
+                            all_finished = False  # Еще есть незавершенные задачи
+                            logger.error(
+                                f"Ошибка при получении статуса задачи: {response.status_code}"
+                            )
+                    except requests.exceptions.ReadTimeout:
+                        logger.error("Тайм-аут при обработке, задача будет повторена")
+                        all_finished = False
+
+                    except requests.exceptions.SSLError as e:
+                        logger.error(f"SSL ошибка: {e}, задача будет повторена")
+                        all_finished = False
+
+                    except requests.exceptions.RequestException as e:
+                        logger.error(f"Ошибка запроса: {e}, задача будет повторена")
+                        all_finished = False
                 except PermissionError as e:
                     logger.error(f"Не удалось открыть файл {json_file}: {e}")
+                    all_finished = False  # Еще есть незавершенные задачи
             if all_finished:
                 break
             # Подождите 10 секунд перед повторной проверкой
-            await asyncio.sleep(10)
+            await asyncio.sleep(1)
 
     # Функция для отправки задач на ScraperAPI
     def submit_jobs(self):
@@ -306,26 +325,34 @@ class Downloader:
                 # Если файл HTML уже существует, удаляем JSON файл и пропускаем
                 if html_company.exists():
                     continue
-
-                response = requests.post(
-                    url="https://async.scraperapi.com/jobs",
-                    json={"apiKey": self.api_key, "url": url},
-                    timeout=30,
-                )
-                if response.status_code == 200:
-                    response_data = response.json()
-                    job_id = response_data.get("id")
-                    json_file = self.json_scrapy / f"{job_id}.json"
-                    with open(json_file, "w", encoding="utf-8") as file:
-                        json.dump(response_data, file, indent=4)
-                    logger.info(f"Задача отправлена для URL {url}")
-                    # logger.info(
-                    #     f"Задача отправлена для URL {url}, статус доступен по адресу: {response_data.get('statusUrl')}"
-                    # )
-                else:
-                    logger.error(
-                        f"Ошибка при отправке задачи для URL {url}: {response.status_code}"
-                    )
+                success = False
+                # Бесконечный цикл до успешного выполнения
+                while not success:
+                    try:
+                        response = requests.post(
+                            url="https://async.scraperapi.com/jobs",
+                            json={"apiKey": self.api_key, "url": url},
+                            timeout=30,
+                        )
+                        if response.status_code == 200:
+                            response_data = response.json()
+                            job_id = response_data.get("id")
+                            json_file = self.json_scrapy / f"{job_id}.json"
+                            with open(json_file, "w", encoding="utf-8") as file:
+                                json.dump(response_data, file, indent=4)
+                            logger.info(f"Задача отправлена для URL {url}")
+                        else:
+                            logger.error(
+                                f"Ошибка при отправке задачи для URL {url}: {response.status_code}"
+                            )
+                    except requests.exceptions.ReadTimeout:
+                        logger.error("Тайм-аут при обработке")
+                    except requests.exceptions.SSLError as e:
+                        logger.error("SSL ошибка")
+                    except requests.exceptions.RequestException as e:
+                        logger.error(f"Ошибка запроса для ")
+                    except Exception as e:
+                        logger.error(f"Неизвестная ошибка ")
 
     # Функция для чтения городов из CSV файла
 

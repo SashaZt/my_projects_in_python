@@ -20,11 +20,13 @@ class Parser:
         csv_output_file,
         max_workers,
         json_products,
+        json_page_directory,
     ):
         self.html_files_directory = html_files_directory
         self.csv_output_file = csv_output_file
         self.max_workers = max_workers
         self.json_products = json_products
+        self.json_page_directory = json_page_directory
 
     def parsing_page_max_page(self, src):
         """Парсит HTML-страницу и возвращает максимальный номер страницы из блока пагинации.
