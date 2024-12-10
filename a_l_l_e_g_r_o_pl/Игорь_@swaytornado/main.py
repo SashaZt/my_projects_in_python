@@ -19,14 +19,15 @@ def link_formation():
     stan = str(os.getenv("STAN", "nowe"))
     price_from = int(os.getenv("PRICE_FROM", "150"))
     price_to = int(os.getenv("PRICE_TO", "1500"))
-    page = int(os.getenv("PAGE", "1"))
+
+    # page = int(os.getenv("PAGE", "1"))
     # Параметры запроса
     query_params = {
         "order": order,
         "stan": stan,
         "price_from": price_from,
         "price_to": price_to,
-        "page": page,
+        # "page": page,
     }
     full_url = f"{url_start}?{urlencode(query_params)}"
     return full_url
@@ -36,6 +37,7 @@ def main_loop():
     env_path = os.path.join(os.getcwd(), "configuration", ".env")
     if os.path.isfile(env_path):  # Проверяем, существует ли файл
         load_dotenv(env_path)
+        min_count = int(os.getenv("MIN_COUNT", "50"))
         api_key = os.getenv("API_KEY")
         max_workers = int(os.getenv("MAX_WORKERS", "20"))
         url_start = (
@@ -67,6 +69,7 @@ def main_loop():
 
     # Создаем объекты классов
     downloader = Downloader(
+        min_count,
         api_key,
         html_files_directory,
         csv_output_file,
@@ -80,6 +83,7 @@ def main_loop():
     )
     writer = Writer(csv_output_file, json_result, xlsx_result)
     parser = Parser(
+        min_count,
         html_files_directory,
         csv_output_file,
         max_workers,

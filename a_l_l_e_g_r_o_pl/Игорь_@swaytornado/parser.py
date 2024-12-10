@@ -16,12 +16,14 @@ class Parser:
 
     def __init__(
         self,
+        min_count,
         html_files_directory,
         csv_output_file,
         max_workers,
         json_products,
         json_page_directory,
     ):
+        self.min_count = min_count
         self.html_files_directory = html_files_directory
         self.csv_output_file = csv_output_file
         self.max_workers = max_workers
@@ -132,7 +134,11 @@ class Parser:
                 # Регулярное выражение для извлечения числа перед 'osoby', 'osób', или 'osoba'
                 match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
                 count = int(match.group(1)) if match else 0
-                if count >= 50 and url and "https://allegro.pl/events" not in url:
+                if (
+                    count >= self.min_count
+                    and url
+                    and "https://allegro.pl/events" not in url
+                ):
                     urls.add(url)
 
         except KeyError as e:

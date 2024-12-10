@@ -17,6 +17,7 @@ class Downloader:
 
     def __init__(
         self,
+        min_count,
         api_key,
         html_files_directory,
         csv_output_file,
@@ -28,6 +29,8 @@ class Downloader:
         xlsx_result,
         json_page_directory,
     ):
+
+        self.min_count = min_count
         self.api_key = api_key
         self.html_files_directory = html_files_directory
         self.csv_output_file = csv_output_file
@@ -40,6 +43,7 @@ class Downloader:
         self.json_page_directory = json_page_directory
 
         self.parser = Parser(
+            min_count,
             html_files_directory,
             csv_output_file,
             max_workers,

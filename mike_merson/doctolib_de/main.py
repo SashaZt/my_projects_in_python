@@ -498,6 +498,7 @@ def parsing_html():
     for html_file in html_directory.glob("*.html"):
         try:
             with html_file.open(encoding="utf-8") as file:
+                logger.info(html_file)
                 description = None
                 clinic_name = None
                 address = None
@@ -547,7 +548,7 @@ def parsing_html():
                             all_data["error"] = "Ошибка декодирования JSON"
                     else:
                         logger.warning(
-                            "Элемент с id 'js-directory-doctor-page' не найден."
+                            f"Элемент с id 'js-directory-doctor-page' не найден {html_file}"
                         )
                         all_data["error"] = "Элемент не найден"
                 speciality = soup.find("div", {"class": "dl-profile-header-speciality"})
