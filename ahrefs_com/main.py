@@ -481,6 +481,8 @@ def parsing_json_BacklinksStats(item):
         - Функция ожидает, что JSON файл представляет собой список, где на индексе 1 находится словарь с необходимыми метриками.
         - Если лимит использования достигнут, функция записывает предупреждение и возвращает None.
     """
+    if not item.exists():
+        return None
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
 
@@ -521,6 +523,8 @@ def parsing_json_BacklinksStats(item):
 
 
 def parsing_json_GetDomainRating(item):
+    if not item.exists():
+        return None
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     try:
@@ -554,6 +558,8 @@ def parsing_json_GetDomainRating(item):
 
 
 def parsing_json_GetMetrics(item):
+    if not item.exists():
+        return None
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     try:
@@ -593,6 +599,8 @@ def parsing_json_GetMetrics(item):
 
 
 def parsing_json_GetUrlRating(item):
+    if not item.exists():
+        return None
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     try:
@@ -626,6 +634,8 @@ def parsing_json_GetUrlRating(item):
 
 
 def parsing_json_GetMetricsByCountry(item):
+    if not item.exists():
+        return None
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     try:
@@ -713,6 +723,8 @@ def parsing_json_GetMetricsByCountry(item):
 
 
 def parsing_json_GetMetricsHistory(item):
+    if not item.exists():
+        return None
     with open(item, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     try:
@@ -744,8 +756,22 @@ def parsing_json_GetMetricsHistory(item):
         ):
             if "FairUseLimitReached" in json_data[1][1]:
                 logger.warning("FairUseLimitReached")
-                logger.warning(item)
-                return []
+                # Извлечение пути папки из пути файла
+                folder_to_delete = Path(item).parent  # Получаем родительскую папку
+
+                # Удаляем всю папку с её содержимым
+                if folder_to_delete.exists() and folder_to_delete.is_dir():
+                    try:
+                        shutil.rmtree(
+                            folder_to_delete
+                        )  # Удаляет всю папку и её содержимое
+                        logger.info(f"Папка {folder_to_delete} успешно удалена.")
+                    except Exception as e:
+                        logger.error(
+                            f"Ошибка при удалении папки {folder_to_delete}: {e}"
+                        )
+                else:
+                    logger.warning(f"Папка {folder_to_delete} не существует.")
         else:
 
             raise TypeError(

@@ -335,7 +335,11 @@ class Downloader:
                     try:
                         response = requests.post(
                             url="https://async.scraperapi.com/jobs",
-                            json={"apiKey": self.api_key, "url": url},
+                            json={
+                                "apiKey": self.api_key,
+                                "apiParams": {"premium": True},
+                                "url": url,
+                            },
                             timeout=30,
                         )
                         if response.status_code == 200:
