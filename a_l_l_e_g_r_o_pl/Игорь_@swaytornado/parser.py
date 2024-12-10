@@ -312,6 +312,16 @@ class Parser:
 
         return weight, length, width, height
 
+    # def parse_foto_01(self, soup):
+    #     """
+    #     Извлекает ссылку на изображение из тега <link> с атрибутом as="image".
+
+    #     :param soup: Объект BeautifulSoup для HTML-страницы
+    #     :return: Строка с URL изображения или None, если элемент не найден
+    #     """
+    #     ean_tag = soup.find("link", {"as": "image"})  # Поиск тега с указанным атрибутом
+    #     # return ean_tag["href"] if ean_tag and "href" in ean_tag.attrs else None
+
     def parse_foto_01(self, soup):
         """
         Извлекает ссылку на изображение из тега <link> с атрибутом as="image".
@@ -319,8 +329,27 @@ class Parser:
         :param soup: Объект BeautifulSoup для HTML-страницы
         :return: Строка с URL изображения или None, если элемент не найден
         """
-        ean_tag = soup.find("link", {"as": "image"})  # Поиск тега с указанным атрибутом
-        return ean_tag["href"] if ean_tag and "href" in ean_tag.attrs else None
+        link_tag = soup.find(
+            "link", {"as": "image"}
+        )  # Поиск тега <link> с атрибутом as="image"
+        if not link_tag:
+            return None
+
+        # Попытка извлечь URL из href
+        if "href" in link_tag.attrs:
+            return link_tag["href"]
+
+        # Если href отсутствует, попытка извлечь из imagesrcset
+        if "imagesrcset" in link_tag.attrs:
+            imagesrcset = link_tag["imagesrcset"].split(",")[
+                0
+            ]  # Берем первое изображение
+            image_url = imagesrcset.split(" ")[0]  # Извлекаем URL до пробела
+            return image_url.replace(
+                "s512", "original"
+            )  # Заменяем s512 на original, если нужно
+
+        return None
 
     def get_current_date(self):
         """
@@ -1139,6 +1168,7 @@ class Parser:
         weight, length, width, height = self.extract_dimensions(soup)
         foto_01 = self.parse_foto_01(soup)
         fotos = self.parse_photos(soup)
+        logger.info(fotos)
         max_photos = 9  # Максимальное количество полей Фото_X в company_data
         company_data = {
             "Категория": self.pares_category(soup),
