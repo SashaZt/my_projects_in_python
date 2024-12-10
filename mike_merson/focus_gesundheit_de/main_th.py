@@ -93,10 +93,14 @@ def get_html(url):
     file_name = html_directory / f"{last_part}.html"
     if file_name.exists():
         return
-
+    proxy = {
+        "http": "http://5.79.73.131:13010",
+        "https": "http://5.79.73.131:13010",
+    }
     try:
         response = requests.get(
             url=url,
+            proxies=proxy,
             cookies=cookies,
             headers=headers,
             timeout=30,

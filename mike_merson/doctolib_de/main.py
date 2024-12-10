@@ -514,11 +514,17 @@ def parsing_html():
                 ld_json = json.loads(script_tags.string.strip())
                 # logger.info(ld_json)
                 # Извлекаем данные
-                title = soup.find("h1", {"id": "profile-name-with-title"})
-                if not title:
+                name = soup.find("span", {"itemprop": "name"})
+                if not name:
                     all_data = {"notPresent": True}
+
                     data_doctor = soup.find("div", {"id": "js-directory-doctor-page"})
                     if data_doctor:
+                        script_tags_doctor = soup.find(
+                            "script", {"type": "application/ld+json"}
+                        )
+                        script_json = json.loads(script_tags_doctor.string.strip())
+
                         # Извлекаем JSON из атрибута "data-props"
                         raw_json_data = data_doctor.get("data-props")
 
@@ -527,7 +533,7 @@ def parsing_html():
                             parsed_data = json.loads(raw_json_data)
 
                             # Извлекаем необходимые данные
-                            all_data["title"] = parsed_data.get("fullName")
+                            all_data["name"] = parsed_data.get("fullName")
                             all_data["speciality"] = parsed_data.get("speciality")
 
                             doctor_place = parsed_data.get("doctorPlace", {})
@@ -539,7 +545,7 @@ def parsing_html():
                             )
 
                             all_data["address"] = (
-                                f"{doctor_place.get('address')}, {doctor_place.get('zipcode')}{doctor_place.get('city')}"
+                                f"{doctor_place.get('address')}, {doctor_place.get('zipcode')}, {doctor_place.get('city')}"
                             )
                             extracted_data["data"].append(all_data)
                             continue
@@ -679,8 +685,19 @@ def parsing_html():
                 clinic_name_raw = soup.find(
                     "div", {"class": "dl-profile-practice-name"}
                 )
+                # if clinic_name_raw:
+                #     clinic_name = clinic_name_raw.text.strip()
+
+                # Извлекаем текст и создаём массив
                 if clinic_name_raw:
-                    clinic_name = clinic_name_raw.text.strip()
+                    # Заменяем <br> на перенос строки, затем разбиваем на элементы
+                    clinic_name_text = clinic_name_raw.get_text(separator="\n").strip()
+                    clinic_name = [
+                        line.strip()
+                        for line in clinic_name_text.split("\n")
+                        if line.strip()
+                    ]
+
                 # Ищем элемент с заголовком "Website"
                 website_section = soup.find("h3", string="Website")
 
@@ -693,7 +710,7 @@ def parsing_html():
 
                 # Сохраняем данные
                 all_data = {
-                    "title": title.text.strip() if title else None,
+                    "name": name.text.strip() if name else None,
                     "services": skills,
                     "image_profile": image_profile,
                     "website_section": href,

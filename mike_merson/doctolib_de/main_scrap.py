@@ -2,6 +2,7 @@
 import asyncio
 import json
 import logging
+import re
 from pathlib import Path
 
 import aiofiles
@@ -14,7 +15,7 @@ html_directory = current_directory / "html"
 html_directory.mkdir(exist_ok=True, parents=True)
 
 output_file = Path("extracted_profile_data.json")
-CONCURRENT_TASKS = 100  # Количество одновременных задач
+CONCURRENT_TASKS = 10  # Количество одновременных задач
 
 
 async def process_html_file(html_file, extracted_data):
@@ -37,29 +38,40 @@ async def process_html_file(html_file, extracted_data):
             script_tags = soup.find("script", {"type": "application/ld+json"})
             ld_json = json.loads(script_tags.string.strip())
             # Извлекаем данные
-            title = soup.find("h1", {"id": "profile-name-with-title"})
-            if not title:
+            name = soup.find("span", {"itemprop": "name"})
+            if not name:
                 all_data = {"notPresent": True}
                 data_doctor = soup.find("div", {"id": "js-directory-doctor-page"})
                 if data_doctor:
+                    script_tags_doctor = soup.find(
+                        "script", {"type": "application/ld+json"}
+                    )
+                    script_json = json.loads(script_tags_doctor.string.strip())
                     # Извлекаем JSON из атрибута "data-props"
-                    raw_json_data = data_doctor.get("data-props")
+                    # raw_json_data = data_doctor.get("data-props")
 
                     try:
                         # Парсим JSON из строки
-                        parsed_data = json.loads(raw_json_data)
+                        # parsed_data = json.loads(raw_json_data)
+                        speciality = script_json.get("medicalSpecialty")
+                        speciality_array = [
+                            item.strip()
+                            for item in re.split(r"/|-|und", speciality)
+                            if item.strip()
+                        ]
 
                         # Извлекаем необходимые данные
-                        all_data["title"] = parsed_data.get("fullName")
-                        all_data["speciality"] = parsed_data.get("speciality")
+                        all_data["phone_number"] = script_json.get("telephone")
+                        all_data["name"] = script_json.get("name")
+                        all_data["speciality"] = speciality_array
 
-                        doctor_place = parsed_data.get("doctorPlace", {})
-                        all_data["landline_number"] = doctor_place.get(
-                            "landline_number"
-                        )
+                        doctor_place = script_json.get("address", {})
+                        streetAddress = doctor_place.get("streetAddress", None)
+                        postalCode = doctor_place.get("postalCode", None)
+                        addressLocality = doctor_place.get("addressLocality", None)
 
                         all_data["address"] = (
-                            f"{doctor_place.get('address')}, {doctor_place.get('zipcode')}{doctor_place.get('city')}"
+                            f"{streetAddress}, {postalCode}, {addressLocality}"
                         )
                         # extracted_data["data"].append(all_data)
                         return all_data
@@ -67,10 +79,10 @@ async def process_html_file(html_file, extracted_data):
                         logger.error(f"Ошибка декодирования JSON: {e}")
                         all_data["error"] = "Ошибка декодирования JSON"
                 else:
-                    logger.warning(
-                        f"Элемент с id 'js-directory-doctor-page' не найден {html_file}"
-                    )
-                    all_data["error"] = "Элемент не найден"
+                    # logger.warning(
+                    #     f"Элемент с id 'js-directory-doctor-page' не найден {html_file}"
+                    # )
+                    return None
             speciality = soup.find("div", {"class": "dl-profile-header-speciality"})
 
             specialities = None
@@ -109,7 +121,17 @@ async def process_html_file(html_file, extracted_data):
                     if skill_raw:
                         skills.append(skill_raw.text.strip())
             image_profile = ld_json.get("image", None)
-            image_profile = f"https:{image_profile}"
+
+            # Проверяем, существует ли значение image
+            if image_profile:
+                image_profile = f"https:{image_profile}"
+                # Проверяем, не является ли ссылка аватаром по умолчанию
+                if (
+                    image_profile
+                    == "https://assets.doctolib.fr/images/default_doctor_avatar.png"
+                ):
+                    logger.info(html_file)
+                    return None
 
             dl_profile_practice_transport = soup.select_one(
                 "#main-content > div.dl-profile-bg.dl-profile > div.dl-profile-wrapper.dl-profile-responsive-wrapper.dl-profile-wrapper-gap > div.dl-profile-body-wrapper.mt-8 > div:nth-child(8) > div > div.dl-profile-card-content > div:nth-child(3)"
@@ -173,7 +195,12 @@ async def process_html_file(html_file, extracted_data):
                     raw_languages = parent_div.text.replace(
                         "Gesprochene Sprachen", ""
                     ).strip()
-                    languages = [lang.strip() for lang in raw_languages.split(" und ")]
+                    languages = [
+                        lang.strip()
+                        for lang in re.split(r" und |, ", raw_languages)
+                        if lang.strip()
+                    ]
+
             else:
                 languages = None
                 # logger.warning("Раздел 'Gesprochene Sprachen' не найден.")
@@ -206,7 +233,7 @@ async def process_html_file(html_file, extracted_data):
 
             # Сохраняем данные
             all_data = {
-                "title": title.text.strip() if title else None,
+                "name": name.text.strip() if name else None,
                 "services": skills,
                 "image_profile": image_profile,
                 "website_section": href,
@@ -234,7 +261,7 @@ async def process_html_file(html_file, extracted_data):
         # Добавляем извлечённые данные в список
         extracted_data.append(all_data)
     except Exception as e:
-        logger.error(f"Ошибка обработки файла {html_file}: {e}")
+        return None
 
 
 async def save_data_to_json(data, file_path):

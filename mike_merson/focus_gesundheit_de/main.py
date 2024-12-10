@@ -115,6 +115,14 @@ def parsing_html():
                 phone = None
                 address = None
                 clinic_name = None
+                service_departament = None
+                incuranse = None
+                emain = None
+                web = None
+                languages = None
+                transport_list = None
+                doc_logo = None
+                additional_info = None
 
                 content = file.read()
                 soup = BeautifulSoup(content, "lxml")
@@ -143,7 +151,100 @@ def parsing_html():
                     if clinics:
                         clinic_name = clinics.text.strip()
 
-                logger.info(clinics)
+                service_departaments = soup.select_one(
+                    "#detail_main > div.col-md-9.col-md-pull-3.detail-content > div > section.profile__content__overview > div:nth-child(2) > div > div.profile__content__content.profile__content__content--highlight.col-sm-8 > ul"
+                )
+                # Извлекаем текст из всех <li> элементов внутри <ul>
+                if service_departaments:
+                    service_departament = [
+                        li.get_text(strip=True)
+                        for li in service_departaments.find_all("li")
+                    ]
+                incuranse_raw = soup.select_one(
+                    "#detail_main > div.col-md-9.col-md-pull-3.detail-content > div > section.profile__content__overview > div:nth-child(5) > div > div.profile__content__content.col-sm-8 > div.editable--hidden-on-edit"
+                )
+                if incuranse_raw:
+                    incuranse_text = incuranse_raw.text.strip()  # "Kasse | Privat"
+                    incuranse = [item.strip() for item in incuranse_text.split("|")]
+                email_raw = soup.find("span", {"data-placeholder": "E-Mail"})
+                if email_raw:
+                    emain = email_raw.text.strip()
+                web_raw = soup.find("span", {"id": "homepage1"})
+                if web_raw:
+                    web = web_raw.text.strip()
+
+                languages_raw = soup.find(
+                    "ul", {"data-placeholder": "Sprachen auswählen"}
+                )
+                if languages_raw:
+                    languages = [
+                        li.get_text(strip=True) for li in languages_raw.find_all("li")
+                    ]
+
+                hours_list = soup.find(
+                    "ul", {"class": "profile__sidebar__open-hours-list"}
+                )
+
+                # Создаём словарь для хранения расписания
+                schedule = {}
+
+                if hours_list:
+                    # Проходим по всем элементам <li> в списке
+                    for item in hours_list.find_all("li"):
+                        # Извлекаем день недели
+                        day_tag = item.find(
+                            "div", {"class": "profile__sidebar__open-hours__day"}
+                        ).find("span")
+                        day = day_tag.text.strip() if day_tag else None
+
+                        # Извлекаем часы работы
+                        hours_div = item.find(
+                            "div", {"class": "profile__sidebar__open-hours__hour"}
+                        )
+                        if hours_div:
+                            # Извлекаем текст часов работы
+                            hours_text = hours_div.find(
+                                "span", class_=False
+                            )  # Берём основной блок
+                            if hours_text:
+                                hours = hours_text.get_text(strip=True)
+                            else:
+                                hours = (
+                                    "geschlossen"  # Если элемента нет, значит закрыто
+                                )
+
+                            # Добавляем в словарь
+                            if day:
+                                schedule[day] = hours
+                transport_raw = soup.find("span", {"id": "infoTraffic"})
+                if transport_raw:
+                    # Извлекаем текст из атрибута или содержимого
+                    raw_data = transport_raw.text.strip()
+
+                    # Разделяем данные на строки
+                    transport_list = (
+                        raw_data.split("\n")
+                        if "\n" in raw_data
+                        else raw_data.split("  ")
+                    )
+
+                    # Убираем лишние пробелы
+                    transport_list = [
+                        line.strip() for line in transport_list if line.strip()
+                    ]
+                doc_logo_raw = soup.find("img", {"id": "doc-logo"})
+                if doc_logo_raw:
+                    doc_logo = doc_logo_raw.get("src")
+
+                additional_info_raw = soup.find(
+                    "ul", {"data-placeholder": "Patientenservices auswählen"}
+                )
+                if additional_info_raw:
+                    additional_info = [
+                        li.get_text(strip=True)
+                        for li in additional_info_raw.find_all("li")
+                    ]
+                logger.info(additional_info)
                 exit()
                 # Извлекаем данные
                 name = soup.find("h1", {"id": "profile-name-with-title"})

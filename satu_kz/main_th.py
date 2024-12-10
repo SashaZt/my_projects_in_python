@@ -75,37 +75,47 @@ def get_json(company):
     output_json_file = json_directory / f"{company}.json"
     if output_json_file.exists():
         return
-
+    proxy = {
+        "http": "http://5.79.73.131:13010",
+        "https": "http://5.79.73.131:13010",
+    }
     try:
         response = requests.post(
             "https://satu.kz/graphql",
             cookies=cookies,
+            proxies=proxy,
             headers=headers,
             json=json_data,
-            timeout=30,
+            timeout=60,
         )
         if response.status_code == 200:
             json_data = response.json()
             with open(output_json_file, "w", encoding="utf-8") as f:
                 json.dump(json_data, f, ensure_ascii=False, indent=4)
+            logger.info(output_json_file)
 
         else:
-            logger.warning(f"Ошибка ответа: {response.status_code} для  {company}")
+            pass
+            # logger.warning(f"Ошибка ответа: {response.status_code} для  {company}")
     except requests.exceptions.ReadTimeout:
-        logger.error(f"Тайм-аут при обработке  {company}")
+        pass
+        # logger.error(f"Тайм-аут при обработке  {company}")
     except requests.exceptions.SSLError as e:
-        logger.error(f"SSL ошибка для  {company}")
+        pass
+        # logger.error(f"SSL ошибка для  {company}")
     except requests.exceptions.RequestException as e:
-        logger.error(f"Ошибка запроса для  {company}")
+        pass
+        # logger.error(f"Ошибка запроса для  {company}")
     except Exception as e:
-        logger.error(f"Неизвестная ошибка для  {company}")
+        pass
+        # logger.error(f"Неизвестная ошибка для  {company}")
 
 
 # Основной запуск с очередями и ThreadPoolExecutor
 if __name__ == "__main__":
-    all_id = list(range(1, 10001))
+    all_id = list(range(1, 1000001))
 
-    max_workers = 50  # Количество одновременно работающих потоков
+    max_workers = 10  # Количество одновременно работающих потоков
     # Загрузка прокси
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_id = {executor.submit(get_json, url): url for url in all_id}
