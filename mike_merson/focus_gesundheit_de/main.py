@@ -110,6 +110,11 @@ def parsing_html():
     for html_file in html_directory.glob("*.html"):
         try:
             with html_file.open(encoding="utf-8") as file:
+                name = None
+                image = None
+                phone = None
+                address = None
+                clinic_name = None
 
                 content = file.read()
                 soup = BeautifulSoup(content, "lxml")
@@ -119,6 +124,7 @@ def parsing_html():
 
                     name = doctor_json.get("name", None)
                     image = doctor_json.get("image", None)
+                    phone = doctor_json.get("telephone", None)
                     address_raw = doctor_json.get("address", {})
                     if address_raw:
                         streetAddress = address_raw.get("streetAddress", None)
@@ -126,7 +132,18 @@ def parsing_html():
                         postalCode = address_raw.get("postalCode", None)
                         addressRegion = address_raw.get("addressRegion", None)
                         addressCountry = address_raw.get("addressCountry", None)
-                    logger.info(address_raw)
+                        address = f"{streetAddress} {postalCode} {addressLocality} {addressCountry}"
+
+                clinics_raw = soup.find(
+                    "div",
+                    {"class": "profile__sidebar-item profile__sidebar-item--highlight"},
+                )
+                if clinics_raw:
+                    clinics = clinics_raw.find("p")
+                    if clinics:
+                        clinic_name = clinics.text.strip()
+
+                logger.info(clinics)
                 exit()
                 # Извлекаем данные
                 name = soup.find("h1", {"id": "profile-name-with-title"})

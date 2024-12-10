@@ -49,18 +49,25 @@ def main_loop():
 
     # Указываем пути к файлам и папкам
     current_directory = Path.cwd()
-    html_files_directory = current_directory / "html_files"
-    json_products = current_directory / "json_products"
-    json_page_directory = current_directory / "json_page"
-    json_scrapy = current_directory / "json_scrapy"
-    data_directory = current_directory / "data"
     configuration_directory = current_directory / "configuration"
+    data_directory = current_directory / "data"
+    temp_directory = current_directory / "temp"
 
+    # Не удаляем
+    json_products = data_directory / "json_products"
+
+    # Удаляем
+    html_files_directory = temp_directory / "html_files"
+    json_page_directory = temp_directory / "json_page"
+    json_scrapy = temp_directory / "json_scrapy"
+
+    data_directory.mkdir(parents=True, exist_ok=True)
+    temp_directory.mkdir(parents=True, exist_ok=True)
     html_files_directory.mkdir(exist_ok=True, parents=True)
     json_page_directory.mkdir(exist_ok=True, parents=True)
     json_products.mkdir(parents=True, exist_ok=True)
     json_scrapy.mkdir(parents=True, exist_ok=True)
-    data_directory.mkdir(parents=True, exist_ok=True)
+
     configuration_directory.mkdir(parents=True, exist_ok=True)
 
     csv_output_file = data_directory / "output.csv"
@@ -118,10 +125,7 @@ def main_loop():
             all_results = parser.parsing_json()
 
         elif choice == "4":
-            shutil.rmtree(json_products)
-            shutil.rmtree(html_files_directory)
-            shutil.rmtree(json_page_directory)
-            shutil.rmtree(json_scrapy)
+            shutil.rmtree(temp_directory)
         elif choice == "0":
             break
         else:

@@ -618,12 +618,17 @@ class Parser:
 
         # Извлекаем последние три элемента
         last_three = data[-3:]
-
+        parent_directory = last_three[0]["url"].split("/")[-1]
+        directory = last_three[1]["url"].split("/")[-1]
+        file_raw = last_three[2]["url"].split("/")[-1]
+        uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+        match = re.search(uuid_pattern, file_raw)
+        file = self.pares_productid(soup)
         # Формируем итоговый словарь
         names = {
-            "parent_directory": last_three[0]["url"].split("/")[-1],
-            "directory": last_three[1]["url"].split("/")[-1],
-            "file": last_three[2]["url"].split("/")[-1],
+            "parent_directory": parent_directory,
+            "directory": directory,
+            "file": file,
         }
 
         return names
