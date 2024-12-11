@@ -2,6 +2,7 @@ import asyncio
 import json
 import time
 from parser import Parser
+from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
 import requests
@@ -246,6 +247,13 @@ class Downloader:
 
         # return all_data
 
+    def remove_query_parameters(self, url):
+        # Разбираем URL
+        parsed_url = urlparse(url)
+        # Убираем параметры запроса (query)
+        clean_url = urlunparse(parsed_url._replace(query=""))
+        return clean_url
+
     async def fetch_results_async(self):
         while True:
             all_finished = True
@@ -324,6 +332,7 @@ class Downloader:
         for i in range(0, len(urls), batch_size):
             url_batch = urls[i : i + batch_size]  # Берем следующую порцию до 50 000
             for url in url_batch:
+                cleaned_url = self.remove_query_parameters(url)
                 name_file = url.split("/")[-1].replace("-", "_")
                 html_company = self.html_files_directory / f"{name_file}.html"
                 # Если файл HTML уже существует, удаляем JSON файл и пропускаем
@@ -331,6 +340,7 @@ class Downloader:
                     continue
                 success = False
                 # Бесконечный цикл до успешного выполнения
+                logger.info(cleaned_url)
                 while not success:
                     try:
                         response = requests.post(
@@ -338,7 +348,7 @@ class Downloader:
                             json={
                                 "apiKey": self.api_key,
                                 "apiParams": {"premium": True},
-                                "url": url,
+                                "url": cleaned_url,
                             },
                             timeout=30,
                         )
@@ -348,11 +358,11 @@ class Downloader:
                             json_file = self.json_scrapy / f"{job_id}.json"
                             with open(json_file, "w", encoding="utf-8") as file:
                                 json.dump(response_data, file, indent=4)
-                            logger.info(f"Задача отправлена для URL {url}")
+                            # logger.info(f"Задача отправлена для URL {cleaned_url}")
                             success = True
                         else:
                             logger.error(
-                                f"Ошибка при отправке задачи для URL {url}: {response.status_code}"
+                                f"Ошибка при отправке задачи для URL {cleaned_url}: {response.status_code}"
                             )
                     except requests.exceptions.ReadTimeout:
                         logger.error("Тайм-аут при обработке")

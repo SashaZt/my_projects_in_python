@@ -290,6 +290,10 @@ def create_objects(min_count, api_key, max_workers, url_start, directories):
 def main_loop():
     # Основной цикл программы
     while True:
+        downloader = None
+        parser = None
+        writer = None
+
         print(
             "\nВыберите действие:\n"
             "1. Скачивание страниц пагинации\n"
@@ -314,9 +318,21 @@ def main_loop():
             downloader.get_all_page_html()
 
         elif choice == "2":
+            # Перезагружаем данные из .env и создаем директории
+            min_count, api_key, max_workers, url_start = get_env()
+            directories = make_directory(url_start)
+            downloader, writer, parser = create_objects(
+                min_count, api_key, max_workers, url_start, directories
+            )
             asyncio.run(downloader.main_url())
 
         elif choice == "3":
+            # Перезагружаем данные из .env и создаем директории
+            min_count, api_key, max_workers, url_start = get_env()
+            directories = make_directory(url_start)
+            downloader, writer, parser = create_objects(
+                min_count, api_key, max_workers, url_start, directories
+            )
             all_results = parser.parsing_html()
             writer.save_results_to_json(all_results)
             writer.save_json_to_excel()

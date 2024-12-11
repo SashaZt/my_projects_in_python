@@ -100,7 +100,7 @@ def get_html(url):
     try:
         response = requests.get(
             url=url,
-            proxies=proxy,
+            # proxies=proxy,
             cookies=cookies,
             headers=headers,
             timeout=30,
@@ -122,20 +122,40 @@ def get_html(url):
         logger.error(f"Неизвестная ошибка для  {url}")
 
 
-# Основной запуск с очередями и ThreadPoolExecutor
+# # Основной запуск с очередями и ThreadPoolExecutor
+# if __name__ == "__main__":
+#     all_urls = read_cities_from_csv(output_csv)
+#     max_workers = 50  # Количество одновременно работающих потоков
+#     # Загрузка прокси
+#     proxies = load_proxies()
+#     with ThreadPoolExecutor(max_workers=max_workers) as executor:
+#         future_to_id = {executor.submit(get_html, url): url for url in all_urls}
+
+#         for future in as_completed(future_to_id):
+#             url = future_to_id[future]
+#             try:
+#                 future.result()  # Проверяем исключения в выполнении задач
+#             except Exception as e:
+#                 logger.error(f"Ошибка при обработке ID {url}: {e}")
+
+#     logger.info("Все задачи завершены.")
 if __name__ == "__main__":
-    all_urls = read_cities_from_csv(output_csv)
     max_workers = 50  # Количество одновременно работающих потоков
-    # Загрузка прокси
-    proxies = load_proxies()
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_id = {executor.submit(get_html, url): url for url in all_urls}
+    proxies = load_proxies()  # Загрузка прокси
 
-        for future in as_completed(future_to_id):
-            url = future_to_id[future]
-            try:
-                future.result()  # Проверяем исключения в выполнении задач
-            except Exception as e:
-                logger.error(f"Ошибка при обработке ID {url}: {e}")
+    while True:
+        all_urls = read_cities_from_csv(output_csv)  # Заново считываем URL-ы
+        if not all_urls:
+            logger.info("Список URL пуст. Ожидание новых данных...")
+            time.sleep(1)  # Ждем перед новой проверкой
+            continue
 
-    logger.info("Все задачи завершены.")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_url = {executor.submit(get_html, url): url for url in all_urls}
+
+            for future in as_completed(future_to_url):
+                url = future_to_url[future]
+                try:
+                    future.result()  # Проверяем исключения в выполнении задач
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке URL {url}: {e}")
