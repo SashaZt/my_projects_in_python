@@ -176,6 +176,18 @@ def main_loop():
         choice = input("Введите номер действия: ")
 
         if choice == "1":
+            (
+                directory_name,
+                formatted_date,
+                csv_directory,
+                data_directory,
+                xlsx_directory,
+                html_files_directory,
+                json_products,
+                json_scrapy,
+                json_page_directory,
+                temp_directory,
+            ) = make_directory(url_start)
             downloader.get_all_page_html()
         # elif choice == "2":
         #     parser.get_url_html_csv()
@@ -189,6 +201,8 @@ def main_loop():
             all_results = parser.parsing_json()
             # min_count, api_key, max_workers, url_start = get_env()
             # make_directory()
+
+        elif choice == "4":
             (
                 directory_name,
                 formatted_date,
@@ -201,8 +215,6 @@ def main_loop():
                 json_page_directory,
                 temp_directory,
             ) = make_directory(url_start)
-
-        elif choice == "4":
             # Запуск метода для получения всех страниц HTML
             logger.info("Запуск хождения по пагинации")
             downloader.get_all_page_html()
@@ -223,18 +235,7 @@ def main_loop():
             # Парсинг данных из JSON
             logger.info("Сохранение результатов в JSON")
             all_results = parser.parsing_json()
-            (
-                directory_name,
-                formatted_date,
-                csv_directory,
-                data_directory,
-                xlsx_directory,
-                html_files_directory,
-                json_products,
-                json_scrapy,
-                json_page_directory,
-                temp_directory,
-            ) = make_directory(url_start)
+
         elif choice == "5":
             shutil.rmtree(temp_directory)
 
