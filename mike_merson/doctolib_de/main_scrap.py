@@ -15,7 +15,7 @@ html_directory = current_directory / "html"
 html_directory.mkdir(exist_ok=True, parents=True)
 
 output_file = Path("extracted_profile_data.json")
-CONCURRENT_TASKS = 10  # Количество одновременных задач
+CONCURRENT_TASKS = 50  # Количество одновременных задач
 
 
 async def process_html_file(html_file, extracted_data):
@@ -130,7 +130,7 @@ async def process_html_file(html_file, extracted_data):
                     image_profile
                     == "https://assets.doctolib.fr/images/default_doctor_avatar.png"
                 ):
-                    logger.info(html_file)
+                    # logger.info(html_file)
                     return None
 
             dl_profile_practice_transport = soup.select_one(

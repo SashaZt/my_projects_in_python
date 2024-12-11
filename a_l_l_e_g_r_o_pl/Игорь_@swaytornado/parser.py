@@ -443,7 +443,8 @@ class Parser:
                     number = int(match.group(0))  # Преобразуем найденное число в int
                 return number
             else:
-                return {"error": "Данные `otherProductOffers` отсутствуют"}
+                number = None
+                return number
         except Exception as e:
             return {"error": f"Ошибка при извлечении данных: {e}"}
 
@@ -1168,7 +1169,7 @@ class Parser:
         weight, length, width, height = self.extract_dimensions(soup)
         foto_01 = self.parse_foto_01(soup)
         fotos = self.parse_photos(soup)
-        logger.info(fotos)
+        # logger.info(fotos)
         max_photos = 9  # Максимальное количество полей Фото_X в company_data
         company_data = {
             "Категория": self.pares_category(soup),

@@ -458,22 +458,15 @@ async def run(playwright):
     proxy_url = "http://scraperapi:5edddbdddb89aed6e9d529c4ff127e8f@proxy-server.scraperapi.com:8001"
     proxy = {"server": proxy_url}
 
-    # Запускаем браузер с использованием прокси и отключаем проверку сертификата
-    browser = await playwright.chromium.launch(
-        headless=False,
-        # proxy={
-        #     "server": "http://proxy-server.scraperapi.com:8001",
-        #     "username": "scraperapi",
-        #     "password": "5edddbdddb89aed6e9d529c4ff127e8f",
-        # },
-    )
+    # Запускаем браузер
+    browser = await playwright.chromium.launch(headless=False)
     context = await browser.new_context(
-        bypass_csp=True,  # Обходим CSP для загрузки JS
+        bypass_csp=True,
         java_script_enabled=True,
         permissions=["geolocation"],
         device_scale_factor=1.0,
         has_touch=True,
-        ignore_https_errors=True,  # Отключаем проверку сертификата на уровне контекста
+        ignore_https_errors=True,
     )
     page = await context.new_page()
 
@@ -488,16 +481,30 @@ async def run(playwright):
     )
 
     # Переходим на URL
-    url = "https://satu.kz/Tehnika-i-elektronika"  # Замените на нужный вам URL
+    url = "https://forwardbelgium.be/find-a-forwarder"
     await page.goto(url)
 
-    # Ожидаем 5 секунд
-    await asyncio.sleep(20)
+    # Ожидаем начальную загрузку
+    await asyncio.sleep(5)
 
-    # Сохраняем содержимое страницы в HTML-файл
-    html_content = await page.content()
-    with open("page_content.html", "w", encoding="utf-8") as file:
-        file.write(html_content)
+    # Нажимаем на кнопку "Next" и ждем загрузки
+    for i in range(1, 11):
+        # Сохраняем содержимое страницы в HTML-файл
+        html_content = await page.content()
+        with open(f"page_content{i}.html", "w", encoding="utf-8") as file:
+            file.write(html_content)
+
+        # Проверяем наличие кнопки "Next"
+        next_button = page.locator("//span[@class='sr-only' and text()='Next']")
+        if await next_button.is_visible():
+            # Нажимаем на родительский элемент кнопки "Next"
+            await next_button.locator("..").click()
+
+            # Ждем завершения загрузки страницы
+            await page.wait_for_load_state("networkidle")
+        else:
+            print("Next button not found.")
+            break
 
     # Закрываем браузер
     await browser.close()

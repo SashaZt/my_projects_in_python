@@ -1,9 +1,10 @@
 import asyncio
 import os
 import shutil
+from datetime import datetime
 from parser import Parser
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
@@ -40,12 +41,23 @@ def main_loop():
         min_count = int(os.getenv("MIN_COUNT", "50"))
         api_key = os.getenv("API_KEY")
         max_workers = int(os.getenv("MAX_WORKERS", "20"))
-        url_start = (
-            link_formation()
-        )  # Предполагается, что link_formation() возвращает URL
+        url_start = link_formation()
         logger.info("Файл .env загружен успешно.")
     else:
         logger.error(f"Файл {env_path} не найден!")
+    # Извлекаем путь из URL
+    path = urlparse(url_start).path
+
+    # Получаем последний сегмент пути
+    last_segment = path.split("/")[-1]
+
+    # Заменяем дефисы на подчеркивания
+    directory_name = last_segment.replace("-", "_")
+    # Получаем текущую дату
+    current_date = datetime.now()
+
+    # Форматируем дату в нужный формат
+    formatted_date = current_date.strftime("%Y_%m_%d")
 
     # Указываем пути к файлам и папкам
     current_directory = Path.cwd()
@@ -55,13 +67,21 @@ def main_loop():
 
     # Не удаляем
     json_products = data_directory / "json_products"
+    xlsx_files = data_directory / "xlsx"
+    csv_files = data_directory / "csv"
+    html_files = data_directory / "html_files"
+    html_files_directory = html_files / f"{formatted_date}_{directory_name}"
+    xlsx_directory = xlsx_files / f"{formatted_date}_{directory_name}"
+    csv_directory = csv_files / f"{formatted_date}_{directory_name}"
 
     # Удаляем
-    html_files_directory = temp_directory / "html_files"
+
     json_page_directory = temp_directory / "json_page"
     json_scrapy = temp_directory / "json_scrapy"
 
     data_directory.mkdir(parents=True, exist_ok=True)
+    csv_directory.mkdir(parents=True, exist_ok=True)
+    xlsx_directory.mkdir(parents=True, exist_ok=True)
     temp_directory.mkdir(parents=True, exist_ok=True)
     html_files_directory.mkdir(exist_ok=True, parents=True)
     json_page_directory.mkdir(exist_ok=True, parents=True)
@@ -70,9 +90,9 @@ def main_loop():
 
     configuration_directory.mkdir(parents=True, exist_ok=True)
 
-    csv_output_file = data_directory / "output.csv"
+    csv_output_file = csv_directory / f"{formatted_date}_{directory_name}.csv"
     json_result = data_directory / "result.json"
-    xlsx_result = data_directory / "result.xlsx"
+    xlsx_result = xlsx_directory / f"{formatted_date}_{directory_name}.xlsx"
 
     # Создаем объекты классов
     downloader = Downloader(
@@ -103,10 +123,9 @@ def main_loop():
         print(
             "\nВыберите действие:\n"
             "1. Скачивание страниц пагинации\n"
-            # "2. Парсинг страниц пагинации\n"
             "2. Асинхронное скачивание товаров\n"
             "3. Сохранение результатов\n"
-            "4. Очистить временные папки\n"
+            # "4. Очистить временные папки\n"
             "0. Выход"
         )
         choice = input("Введите номер действия: ")
@@ -124,8 +143,8 @@ def main_loop():
 
             all_results = parser.parsing_json()
 
-        elif choice == "4":
-            shutil.rmtree(temp_directory)
+        # elif choice == "4":
+        #     shutil.rmtree(temp_directory)
         elif choice == "0":
             break
         else:
