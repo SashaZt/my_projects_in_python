@@ -2,7 +2,7 @@ import json
 import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import demjson3
@@ -264,19 +264,65 @@ class Parser:
         progress_bar.close()
         return all_results
 
+    # Рабочий вариант
+    # def list_html(self):
+    #     """Возвращает список HTML-файлов в заданной директории.
+
+    #     Returns:
+    #         list: Список файлов (Path) в директории html_files_directory.
+    #     """
+
+    #     # Получаем список всех файлов в html_files_directory
+    #     file_list = [
+    #         file for file in self.html_files_directory.iterdir() if file.is_file()
+    #     ]
+
+    #     logger.info(f"Всего файлов для обработки: {len(file_list)}")
+    #     return file_list
+
     def list_html(self):
-        """Возвращает список HTML-файлов в заданной директории.
+        """Возвращает список HTML-файлов в директории. Если папка пуста, ищет в папке предыдущего дня.
 
         Returns:
-            list: Список файлов (Path) в директории html_files_directory.
+            list: Список файлов (Path) из директории с HTML.
         """
+        # Получаем текущую дату из имени папки
+        current_date_str = self.html_files_directory.name.split("_")[
+            :3
+        ]  # ['2024', '12', '12']
+        current_date = datetime.strptime("_".join(current_date_str), "%Y_%m_%d")
 
-        # Получаем список всех файлов в html_files_directory
+        # Проверяем файлы в текущей директории
         file_list = [
             file for file in self.html_files_directory.iterdir() if file.is_file()
         ]
 
-        logger.info(f"Всего файлов для обработки: {len(file_list)}")
+        # Если папка пуста, ищем в папке предыдущего дня
+        while not file_list:
+            # logger.warning(
+            #     f"Папка {self.html_files_directory} пуста. Проверяем папку предыдущего дня..."
+            # )
+            current_date -= timedelta(days=1)  # Вычитаем один день
+
+            # Формируем новую директорию с обновлённой датой
+            new_directory_name = f"{current_date.strftime('%Y_%m_%d')}_{'_'.join(self.html_files_directory.name.split('_')[3:])}"
+            self.html_files_directory = (
+                self.html_files_directory.parent / new_directory_name
+            )
+
+            # Проверяем существование новой папки
+            if not self.html_files_directory.exists():
+                logger.warning(f"Папка {self.html_files_directory} не найдена.")
+                break
+
+            # Проверяем файлы в новой папке
+            file_list = [
+                file for file in self.html_files_directory.iterdir() if file.is_file()
+            ]
+
+        logger.info(
+            f"Всего файлов для обработки в папке {self.html_files_directory}: {len(file_list)}"
+        )
         return file_list
 
     def extract_dimensions(self, soup):
