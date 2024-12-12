@@ -115,6 +115,36 @@ def validate_address(address):
     return normalized_address
 
 
+def convert_opening_hours(opening_hours_list):
+    """
+    Преобразует список openingHours в формат opening_hours.
+    """
+    days_mapping = {
+        "Mo": 0,
+        "Tu": 1,
+        "We": 2,
+        "Th": 3,
+        "Fr": 4,
+        "Sa": 5,
+        "Su": 6,
+    }
+
+    result = []
+
+    for entry in opening_hours_list:
+        # Разделяем запись на день и часы
+        day_part, hours_part = entry.split(" ", 1)
+        day = days_mapping[day_part]
+
+        # Разделяем часы на диапазоны
+        ranges = [time_range.split("-") for time_range in hours_part.split(", ")]
+
+        # Формируем объект для текущего дня
+        result.append({"day": day, "ranges": ranges})
+
+    return result
+
+
 async def process_html_file(html_file, extracted_data):
     """
     Асинхронно обрабатывает один HTML-файл и добавляет данные в общий список.
@@ -319,6 +349,9 @@ async def process_html_file(html_file, extracted_data):
                 section_text = history.get_text(strip=True, separator="\n")
                 history_data.append({"title": section_title, "content": section_text})
             openingHours = ld_json.get("openingHours", [])
+            # logger.info(openingHours)
+            openingHours = convert_opening_hours(openingHours)
+            # logger.info(openingHours)
             phone_number = ld_json.get("telephone", None)
             clinic_name_raw = soup.find("div", {"class": "dl-profile-practice-name"})
             if clinic_name_raw:
@@ -337,9 +370,9 @@ async def process_html_file(html_file, extracted_data):
             all_data = {
                 "name": name.text.strip() if name else None,
                 "services": skills,
-                "image_profile": image_profile,
-                "website_section": href,
-                "dl_language": languages,
+                "image_doctor": image_profile,
+                "website_doctor": href,
+                "languages": languages,
                 "url_doctor": url_doctor,
             }
             all_data["specialities"] = specialities

@@ -513,7 +513,7 @@ class Parser:
 
         return None
 
-    def pares_productid(self, soup):
+    def pares_productid(self, soup, file_html):
         """
         Извлекает идентификатор продукта (productId) из JSON <script>.
 
@@ -533,6 +533,7 @@ class Parser:
             logger.warning(
                 "JSON data не является словарём или не содержит productId. Возвращён None."
             )
+            logger.info(file_html)
             return None
 
         except Exception as e:
@@ -1220,9 +1221,9 @@ class Parser:
         company_data = {
             "Категория": self.pares_category(soup),
             "ShopID": self.pares_sellerid(soup),
-            "Наш ID": f"{self.pares_productid(soup)}-{self.pares_iditem(soup)}",
+            "Наш ID": f"{self.pares_productid(soup, file_html)}-{self.pares_iditem(soup)}",
             "ID_MP": self.pares_iditem(soup),
-            "SO_ID": self.pares_productid(soup),
+            "SO_ID": self.pares_productid(soup, file_html),
             "SO_CNT": self.parse_other_product_offers(soup),
             "EAN": self.parse_ean_product(soup),
             "Марка": self.parse_brand_product(soup),

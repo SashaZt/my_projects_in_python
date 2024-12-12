@@ -782,7 +782,7 @@ def parsing_page(html_file):
         "profile": profile,
         "url_doctor": url_doctor,
         "img": img,
-        "doctor_specializations": doctor_specializations,
+        "speciality": doctor_specializations,
         "rating": rating,
         "reviews": reviews,
         "name": name,
@@ -790,7 +790,7 @@ def parsing_page(html_file):
         #  "clinic_name": clinic_name,
         # "address": address,
         "description": description,
-        "accepted_insurances": accepted_insurances,
+        "insurance": accepted_insurances,
         "services": services,
         # "opening_hours": opening_hours,
     }

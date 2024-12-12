@@ -21,7 +21,7 @@ def send_message(token: str, chat_id: str, message: str):
 
 if __name__ == "__main__":
     # Замените на ваш токен бота и ID чата
-    TELEGRAM_TOKEN = "7418670643:AAFJLj0-HB7nQ-j7LdF3YIhldRO0rHGMUcU"
+    TELEGRAM_TOKEN = "7768531321:AAFhdLoaxE3nKJQlGPFnXteJLx1DzvibDiI"
     TELEGRAM_CHAT_IDS = ["1463894663", "684228540", "269683057", "797674565"]
 
     # Сообщение, которое нужно отправить
