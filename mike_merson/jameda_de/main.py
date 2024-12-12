@@ -1,15 +1,17 @@
-import requests
-import re
-from configuration.logger_setup import logger
-import random
-from bs4 import BeautifulSoup
-import pandas as pd
-from pathlib import Path
-from tqdm import tqdm
 import json
-from tenacity import retry, stop_after_attempt, wait_fixed, retry_if_exception_type
-from get_response import Get_Response
+import random
+import re
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+import pandas as pd
+import pgeocode
+import requests
+from bs4 import BeautifulSoup
+from configuration.logger_setup import logger
+from get_response import Get_Response
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
+from tqdm import tqdm
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -443,6 +445,101 @@ def get_html_doctor():
 #     save_data_to_json(all_data)
 
 
+# def normalize_address(address):
+#     """
+#     Приводит адрес к шаблону:
+#     [Улица] [Номер дома][ДОП], [Почтовый индекс] [Город]
+#     Удаляет районы и нормализует пробелы.
+#     """
+#     # Убираем лишние пробелы
+#     address = address.strip()
+
+#     # Шаблоны для различных частей адреса
+#     street_pattern = re.compile(r"(.+?)\s+(\d+(-\d+)?[a-zA-Z]?)")  # Улица и номер дома
+#     postal_city_pattern = re.compile(r"(\d{5})?\s*(.+)")  # Почтовый индекс и город
+
+#     street = ""
+#     house_number = ""
+#     postal_code = ""
+#     city = ""
+
+#     # Разбиваем адрес на части
+#     parts = [part.strip() for part in address.split(",")]
+
+#     # Ищем улицу и номер дома
+#     street_match = street_pattern.match(parts[0])
+#     if street_match:
+#         street = street_match.group(1).strip()
+#         house_number = street_match.group(2).strip()
+
+#     # Обрабатываем оставшиеся части адреса
+#     for part in parts[1:]:
+#         if re.match(r"\d{5}", part):  # Почтовый индекс
+#             postal_code = part
+#         elif postal_code == "":  # Если почтовый индекс еще не найден
+#             city = part
+
+#     # Формируем адрес с нормализованными пробелами
+#     normalized = f"{street} {house_number}, {postal_code} {city}".strip()
+#     normalized = re.sub(r"\s+", " ", normalized)  # Удаляем лишние пробелы
+#     normalized = re.sub(
+#         r",\s+", ", ", normalized
+#     )  # Убедимся, что после запятой ровно один пробел
+
+#     return normalized
+
+
+def validate_address(address):
+    """
+    Проверяет корректность адреса: улицы, почтового индекса и города.
+    """
+    # logger.info(f"Проверяем адрес: {address}")
+
+    # Разбиваем адрес на части
+    parts = [part.strip() for part in address.split(",")]
+    if len(parts) < 2:
+        return address  # Возвращаем оригинальный адрес, если не хватает частей
+
+    # Ищем улицу и номер дома
+    street = parts[0]
+
+    # Ищем почтовый индекс и город (последние две части)
+    postal_code = None
+    city = None
+
+    for part in parts[1:]:
+        if re.match(r"^\d{5}$", part):  # Проверяем, является ли часть почтовым индексом
+            postal_code = part
+        else:
+            city = part if not postal_code else f"{city} {part}"
+
+    # Если нет почтового индекса или города, возвращаем адрес без изменений
+    if not postal_code or not city:
+        # logger.warning("Почтовый индекс или город отсутствует.")
+        return address
+
+    # Проверяем почтовый индекс и город через pgeocode
+    nomi = pgeocode.Nominatim("de")  # Для Германии
+    location = nomi.query_postal_code(postal_code)
+
+    if location is None or not isinstance(location.place_name, str):
+        logger.warning(f"Почтовый индекс {postal_code} не найден в базе данных.")
+        return address  # Возвращаем оригинальный адрес, если индекс некорректен
+
+    if city.lower() not in location.place_name.lower():
+        logger.warning(
+            f"Город {city} не соответствует почтовому индексу {postal_code}."
+        )
+        return address  # Возвращаем оригинальный адрес при несоответствии города
+
+    # Если все проверки пройдены, возвращаем нормализованный адрес
+    normalized_address = (
+        f"{street}, {postal_code}, {city.split()[-1]}"  # Убираем район, если есть
+    )
+    logger.info(f"Адрес корректный: {normalized_address}")
+    return normalized_address
+
+
 def parsing_page(html_file):
     # Прочитать содержимое файла
     with html_file.open(encoding="utf-8") as file:
@@ -451,7 +548,17 @@ def parsing_page(html_file):
 
     # Создать объект BeautifulSoup
     soup = BeautifulSoup(content, "lxml")
-    phone_number, profile, img, doctor_specializations, rating, reviews, name = (
+    (
+        phone_number,
+        profile,
+        img,
+        doctor_specializations,
+        rating,
+        reviews,
+        name,
+        url_doctor,
+    ) = (
+        None,
         None,
         None,
         None,
@@ -554,6 +661,10 @@ def parsing_page(html_file):
 
     all_clinic = soup.find("div", attrs={"data-id": "address-tabs-content"})
     polyclinics = []
+    url_doctor_raw = soup.find("span", attrs={"itemprop": "url"})
+    if url_doctor_raw:
+        url_doctor = url_doctor_raw.get("content")
+
     if all_clinic:
         clinics = all_clinic.find_all("div", attrs={"data-id": "doctor-address-item"})
 
@@ -600,6 +711,7 @@ def parsing_page(html_file):
                     "span", attrs={"itemprop": "streetAddress"}
                 )
                 address = address_raw.get_text(strip=True) if address_raw else None
+                address = validate_address(address)
 
             opening_hours_element = cl.find(
                 "div", attrs={"data-id": re.compile(r"^opening-hours-.*")}
@@ -668,6 +780,7 @@ def parsing_page(html_file):
     # )
     return {
         "profile": profile,
+        "url_doctor": url_doctor,
         "img": img,
         "doctor_specializations": doctor_specializations,
         "rating": rating,
@@ -775,23 +888,23 @@ def main(parallelism):
 
 
 if __name__ == "__main__":
-    get_page_city()
-    get_url_in_pages()
-    max_workers = 20
-    response_handler = Get_Response(
-        max_workers,
-        # base_url,
-        cookies,
-        headers,
-        html_files_directory,
-        csv_file_successful,
-        output_csv_file,
-        file_proxy,
-        # url_sitemap,
-    )
+    # get_page_city()
+    # get_url_in_pages()
+    # max_workers = 20
+    # response_handler = Get_Response(
+    #     max_workers,
+    #     # base_url,
+    #     cookies,
+    #     headers,
+    #     html_files_directory,
+    #     csv_file_successful,
+    #     output_csv_file,
+    #     file_proxy,
+    #     # url_sitemap,
+    # )
 
-    # Запуск метода скачивания html файлов
-    response_handler.process_infox_file()
+    # # Запуск метода скачивания html файлов
+    # response_handler.process_infox_file()
 
     parallelism = 50  # Укажите количество потоков
     main(parallelism)

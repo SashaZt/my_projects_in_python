@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 
 import aiofiles
+import pgeocode
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 
@@ -14,8 +15,104 @@ current_directory = Path.cwd()
 html_directory = current_directory / "html"
 html_directory.mkdir(exist_ok=True, parents=True)
 
+
 output_file = Path("extracted_profile_data.json")
 CONCURRENT_TASKS = 50  # Количество одновременных задач
+
+
+# def normalize_address(address):
+#     """
+#     Приводит адрес к шаблону:
+#     [Улица] [Номер дома][ДОП], [Почтовый индекс] [Город]
+#     Удаляет районы и нормализует пробелы.
+#     """
+#     # Убираем лишние пробелы
+#     address = address.strip()
+
+#     # Шаблоны для различных частей адреса
+#     street_pattern = re.compile(r"(.+?)\s+(\d+(-\d+)?[a-zA-Z]?)")  # Улица и номер дома
+#     postal_city_pattern = re.compile(r"(\d{5})?\s*(.+)")  # Почтовый индекс и город
+
+#     street = ""
+#     house_number = ""
+#     postal_code = ""
+#     city = ""
+
+#     # Разбиваем адрес на части
+#     parts = [part.strip() for part in address.split(",")]
+
+#     # Ищем улицу и номер дома
+#     street_match = street_pattern.match(parts[0])
+#     if street_match:
+#         street = street_match.group(1).strip()
+#         house_number = street_match.group(2).strip()
+
+#     # Обрабатываем оставшиеся части адреса
+#     for part in parts[1:]:
+#         if re.match(r"\d{5}", part):  # Почтовый индекс
+#             postal_code = part
+#         elif postal_code == "":  # Если почтовый индекс еще не найден
+#             city = part
+
+#     # Формируем адрес с нормализованными пробелами
+#     normalized = f"{street} {house_number}, {postal_code} {city}".strip()
+#     normalized = re.sub(r"\s+", " ", normalized)  # Удаляем лишние пробелы
+#     normalized = re.sub(
+#         r",\s+", ", ", normalized
+#     )  # Убедимся, что после запятой ровно один пробел
+
+#     return normalized
+
+
+def validate_address(address):
+    """
+    Проверяет корректность адреса: улицы, почтового индекса и города.
+    """
+    # logger.info(f"Проверяем адрес: {address}")
+
+    # Разбиваем адрес на части
+    parts = [part.strip() for part in address.split(",")]
+    if len(parts) < 2:
+        return address  # Возвращаем оригинальный адрес, если не хватает частей
+
+    # Ищем улицу и номер дома
+    street = parts[0]
+
+    # Ищем почтовый индекс и город (последние две части)
+    postal_code = None
+    city = None
+
+    for part in parts[1:]:
+        if re.match(r"^\d{5}$", part):  # Проверяем, является ли часть почтовым индексом
+            postal_code = part
+        else:
+            city = part if not postal_code else f"{city} {part}"
+
+    # Если нет почтового индекса или города, возвращаем адрес без изменений
+    if not postal_code or not city:
+        # logger.warning("Почтовый индекс или город отсутствует.")
+        return address
+
+    # Проверяем почтовый индекс и город через pgeocode
+    nomi = pgeocode.Nominatim("de")  # Для Германии
+    location = nomi.query_postal_code(postal_code)
+
+    if location is None or not isinstance(location.place_name, str):
+        logger.warning(f"Почтовый индекс {postal_code} не найден в базе данных.")
+        return address  # Возвращаем оригинальный адрес, если индекс некорректен
+
+    if city.lower() not in location.place_name.lower():
+        # logger.warning(
+        #     f"Город {city} не соответствует почтовому индексу {postal_code}."
+        # )
+        return address  # Возвращаем оригинальный адрес при несоответствии города
+
+    # Если все проверки пройдены, возвращаем нормализованный адрес
+    normalized_address = (
+        f"{street}, {postal_code}, {city.split()[-1]}"  # Убираем район, если есть
+    )
+    logger.info(f"Адрес корректный: {normalized_address}")
+    return normalized_address
 
 
 async def process_html_file(html_file, extracted_data):
@@ -49,11 +146,13 @@ async def process_html_file(html_file, extracted_data):
                     script_json = json.loads(script_tags_doctor.string.strip())
                     # Извлекаем JSON из атрибута "data-props"
                     # raw_json_data = data_doctor.get("data-props")
-
+                    url_doctor = script_json["url"]
+                    url_doctor = f"https://www.doctolib.de{url_doctor}"
                     try:
                         # Парсим JSON из строки
                         # parsed_data = json.loads(raw_json_data)
-                        speciality = script_json.get("medicalSpecialty")
+                        speciality = script_json.get("medicalSpecialty", None)
+
                         speciality_array = [
                             item.strip()
                             for item in re.split(r"/|-|und", speciality)
@@ -61,18 +160,18 @@ async def process_html_file(html_file, extracted_data):
                         ]
 
                         # Извлекаем необходимые данные
-                        all_data["phone_number"] = script_json.get("telephone")
-                        all_data["name"] = script_json.get("name")
+                        all_data["phone_number"] = script_json.get("telephone", None)
+                        all_data["name"] = script_json.get("name", None)
                         all_data["speciality"] = speciality_array
+                        all_data["url_doctor"] = url_doctor
 
                         doctor_place = script_json.get("address", {})
                         streetAddress = doctor_place.get("streetAddress", None)
                         postalCode = doctor_place.get("postalCode", None)
                         addressLocality = doctor_place.get("addressLocality", None)
-
-                        all_data["address"] = (
-                            f"{streetAddress}, {postalCode}, {addressLocality}"
-                        )
+                        address = f"{streetAddress}, {postalCode}, {addressLocality}"
+                        address = validate_address(address)
+                        all_data["address"] = address
                         # extracted_data["data"].append(all_data)
                         return all_data
                     except json.JSONDecodeError as e:
@@ -121,6 +220,8 @@ async def process_html_file(html_file, extracted_data):
                     if skill_raw:
                         skills.append(skill_raw.text.strip())
             image_profile = ld_json.get("image", None)
+            url_doctor = ld_json.get("url", None)
+            url_doctor = f"https://www.doctolib.de{url_doctor}"
 
             # Проверяем, существует ли значение image
             if image_profile:
@@ -150,6 +251,7 @@ async def process_html_file(html_file, extracted_data):
                     # Парсим data-props как JSON
                     practice_data = json.loads(data_props)
                     address = practice_data.get("fullAddress")
+                    address = validate_address(address)
                     latitude = practice_data.get("lat")
                     longitude = practice_data.get("lng")
             dl_profile_title_raw = soup.find(
@@ -238,6 +340,7 @@ async def process_html_file(html_file, extracted_data):
                 "image_profile": image_profile,
                 "website_section": href,
                 "dl_language": languages,
+                "url_doctor": url_doctor,
             }
             all_data["specialities"] = specialities
             all_data["insurance"] = insurance_types
