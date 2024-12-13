@@ -192,7 +192,7 @@ async def process_html_file(html_file, extracted_data):
                         # Извлекаем необходимые данные
                         all_data["phone_number"] = script_json.get("telephone", None)
                         all_data["name"] = script_json.get("name", None)
-                        all_data["speciality"] = speciality_array
+                        all_data["doctor_specializations"] = speciality_array
                         all_data["url_doctor"] = url_doctor
 
                         doctor_place = script_json.get("address", {})
@@ -305,7 +305,7 @@ async def process_html_file(html_file, extracted_data):
             # Формируем результат
             if dl_profile_title and dl_profile_bio:
                 description = {
-                    "title": "Profil",
+                    "title": "Über mich",
                     "Herzlich willkommen": dl_profile_bio,
                 }
                 # logger.info(description)
@@ -370,13 +370,13 @@ async def process_html_file(html_file, extracted_data):
             all_data = {
                 "name": name.text.strip() if name else None,
                 "services": skills,
-                "image_doctor": image_profile,
+                "img": image_profile,
                 "website_doctor": href,
                 "languages": languages,
                 "url_doctor": url_doctor,
             }
-            all_data["specialities"] = specialities
-            all_data["insurance"] = insurance_types
+            all_data["doctor_specializations"] = specialities
+            all_data["accepted_insurances"] = insurance_types
             all_data["transport"] = dl_transport
             all_data["description"] = description
             all_data["history_data"] = history_data

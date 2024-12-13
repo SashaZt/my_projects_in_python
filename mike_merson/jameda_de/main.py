@@ -760,56 +760,19 @@ def parsing_page(html_file):
             }
             polyclinics.append(polyclinic)
 
-    # logger.info(
-    #     {
-    #         "phone_number": phone_number,
-    #         "profile": profile,
-    #         "img": img,
-    #         "doctor_specializations": doctor_specializations,
-    #         "rating": rating,
-    #         "reviews": reviews,
-    #         "name": name,
-    #         "polyclinics": polyclinics,
-    #         #  "clinic_name": clinic_name,
-    #         # "address": address,
-    #         "description": description,
-    #         "accepted_insurances": accepted_insurances,
-    #         "services": services,
-    #         # "opening_hours": opening_hours,
-    #     }
-    # )
     return {
         "profile": profile,
         "url_doctor": url_doctor,
         "img": img,
-        "speciality": doctor_specializations,
+        "doctor_specializations": doctor_specializations,
         "rating": rating,
         "reviews": reviews,
         "name": name,
         "polyclinics": polyclinics,
-        #  "clinic_name": clinic_name,
-        # "address": address,
         "description": description,
-        "insurance": accepted_insurances,
+        "accepted_insurances": accepted_insurances,
         "services": services,
-        # "opening_hours": opening_hours,
     }
-
-    # return {
-    #     "phone_number": phone_number,
-    #     "profile": profile,
-    #     "img": img,
-    #     "doctor_specializations": doctor_specializations,
-    #     "rating": rating,
-    #     "reviews": reviews,
-    #     "name": name,
-    #     "clinic_name": clinic_name,
-    #     "address": address,
-    #     "description": description,
-    #     "accepted_insurances": accepted_insurances,
-    #     "services": services,
-    #     "opening_hours": opening_hours,
-    # }
 
 
 def save_data_to_json(datas):

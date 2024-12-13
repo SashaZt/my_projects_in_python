@@ -719,14 +719,14 @@ class Parser:
         :return: Словарь с именами "parent_directory", "directory" и "file"
         """
         data = self.extract_breadcrumbs(soup)
+        logger.info(data)
         if len(data) < 3:
             raise ValueError("Входной список должен содержать минимум 3 элемента.")
 
         # Извлекаем последние три элемента
-        last_three = data[-3:]
-        parent_directory = last_three[0]["url"].split("/")[-1]
-        directory = last_three[1]["url"].split("/")[-1]
-        file_raw = last_three[2]["url"].split("/")[-1]
+        parent_directory = data[1]["url"].split("/")[-1]
+        directory = data[2]["url"].split("/")[-1]
+        file_raw = data[-1]["url"].split("/")[-1]
         uuid_pattern = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
         match = re.search(uuid_pattern, file_raw)
         file = self.pares_productid(soup)
@@ -736,6 +736,7 @@ class Parser:
             "directory": directory,
             "file": file,
         }
+        logger.info(names)
 
         return names
 
@@ -1596,7 +1597,10 @@ class Parser:
             self.json_products
             / f'{data_folder}-{all_names_folders_and_file["parent_directory"]}'
         )
-        directory = parent_directory / f'{all_names_folders_and_file["directory"]}'
+        directory = (
+            parent_directory
+            / f'{data_folder}-{all_names_folders_and_file["directory"]}'
+        )
 
         parent_directory.mkdir(parents=True, exist_ok=True)
         directory.mkdir(parents=True, exist_ok=True)
