@@ -282,8 +282,8 @@ async def process_html_file(html_file, extracted_data):
                     practice_data = json.loads(data_props)
                     address = practice_data.get("fullAddress")
                     address = validate_address(address)
-                    latitude = practice_data.get("lat")
-                    longitude = practice_data.get("lng")
+                    latitude = str(practice_data.get("lat"))
+                    longitude = str(practice_data.get("lng"))
             dl_profile_title_raw = soup.find(
                 "h2",
                 {

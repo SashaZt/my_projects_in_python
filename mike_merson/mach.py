@@ -1,5 +1,4 @@
 import json
-import re
 
 # Пути к файлам
 main_file_path = "jameda_de_test.json"
@@ -30,15 +29,13 @@ def merge_json_data(main_file, secondary_file):
         if secondary_name in main_names:
             # Если врач уже есть в основном файле
             main_entry = main_names[secondary_name]
-            if "service_urls" not in main_entry:
-                main_entry["service_urls"] = []
+            # Добавляем URL в service_urls
+            main_entry.setdefault("service_urls", [])
             if "url_doctor" in main_entry:
-                # Переносим URL из основного файла в service_urls
                 if main_entry["url_doctor"] not in main_entry["service_urls"]:
                     main_entry["service_urls"].append(main_entry["url_doctor"])
-                del main_entry["url_doctor"]  # Удаляем url_doctor
+                del main_entry["url_doctor"]
 
-            # Добавляем URL из второстепенного файла в service_urls
             if secondary_url not in main_entry["service_urls"]:
                 main_entry["service_urls"].append(secondary_url)
 
@@ -49,7 +46,10 @@ def merge_json_data(main_file, secondary_file):
             ]  # Удаляем url_doctor из doctolib_data
         else:
             # Если врача нет в основном файле, добавляем его как новую запись
-            new_entry = {"doctolib_data": secondary_entry}
+            new_entry = {
+                "doctolib_data": secondary_entry,
+                "service_urls": [secondary_url],
+            }
             del new_entry["doctolib_data"][
                 "url_doctor"
             ]  # Удаляем url_doctor из doctolib_data
