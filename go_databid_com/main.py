@@ -362,7 +362,8 @@ def parsing_json_project():
 
         # Разделяем имя файла по символу "_"
         file_number = file_stem.split("_")[0]  # '100000'
-        # with open("280718_ProjectID.json", encoding="utf-8") as file:
+        output_xlsx_file = xlsx_project / f"{file_number}.xlsx"
+        # with open("10001_ProjectID.json", encoding="utf-8") as file:
         #     # Прочитать содержимое JSON файла
         #     data = json.load(file)
         try:
@@ -370,11 +371,13 @@ def parsing_json_project():
         except:
             logger.info(json_file)
 
-        involvement_companyID = projectinvolvement.get("companyID", None)
-        involvement_role = projectinvolvement.get("role", None)
-        involvement_location = projectinvolvement.get("location", None)
-        involvement_phone = projectinvolvement.get("phone", None)
-        involvement_customername = projectinvolvement.get("customerName", None)
+        prIn_companyID = projectinvolvement.get("companyID", None)
+        prIn_role = projectinvolvement.get("role", None)
+        prIn_projectContactID = projectinvolvement.get("projectContactID", None)
+        prIn_location = projectinvolvement.get("location", None)
+        prIn_phone = projectinvolvement.get("phone", None)
+        prIn_fax = projectinvolvement.get("fax", None)
+        prIn_customername = projectinvolvement.get("customerName", None)
         bidders = data["bidder"]
         results = data["results"]
         awards = data["awards"]
@@ -383,186 +386,210 @@ def parsing_json_project():
         extracted_data = {
             "projectInvolvement": [
                 {
-                    "involvement_companyID": involvement_companyID,
-                    "involvement_role": involvement_role,
-                    "involvement_location": involvement_location,
-                    "involvement_phone": involvement_phone,
-                    "involvement_customername": involvement_customername,
+                    "prIn_companyID": prIn_companyID,
+                    "prIn_role": prIn_role,
+                    "prIn_projectContactID": prIn_projectContactID,
+                    "prIn_location": prIn_location,
+                    "prIn_phone": prIn_phone,
+                    "prIn_fax": prIn_fax,
+                    "prIn_customername": prIn_customername,
                 }
             ],
             "bidder": [
                 {
-                    "bidder_role": bidder.get("role"),
-                    "bidder_location": bidder.get("location"),
-                    "bidder_phone": bidder.get("phone"),
-                    "bidder_fax": bidder.get("fax"),
-                    "bidder_locationNamer": bidder.get("locationName"),
-                    "bidder_customerName": bidder.get("customerName"),
+                    "bidder_companyID": bidder.get("companyID", None),
+                    "bidder_role": bidder.get("role", None),
+                    "bidder_projectContactID": bidder.get("projectContactID", None),
+                    "bidder_location": bidder.get("location", None),
+                    "bidder_phone": bidder.get("phone", None),
+                    "bidder_fax": bidder.get("fax", None),
+                    "bidder_locationNamer": bidder.get("locationName", None),
+                    "bidder_customerName": bidder.get("customerName", None),
                 }
                 for bidder in bidders
             ],
             "results": [
                 {
-                    "result_companyID": result.get("companyID"),
-                    "result_role": result.get("role"),
-                    "result_amount": result.get("amount"),
-                    "result_location": result.get("location"),
-                    "result_phone": result.get("phone"),
-                    "result_fax": result.get("fax"),
-                    "result_locationName_result": result.get("locationName"),
-                    "result_customerName_result": result.get("customerName"),
+                    "result_companyID": result.get("companyID", None),
+                    "result_role": result.get("role", None),
+                    "result_projectContactID": result.get("projectContactID", None),
+                    "result_amount": result.get("amount", None),
+                    "result_location": result.get("location", None),
+                    "result_phone": result.get("phone", None),
+                    "result_fax": result.get("fax", None),
+                    "result_locationName_result": result.get("locationName", None),
+                    "result_customerName_result": result.get("customerName", None),
                 }
                 for result in results
             ],
             "awards": [
                 {
-                    "award_companyID": award.get("companyID"),
-                    "award_role": award.get("role"),
-                    "award_amount": award.get("amount"),
-                    "award_location": award.get("location"),
-                    "award_phone": award.get("phone"),
-                    "award_fax": award.get("fax"),
-                    "award_locationName_result": award.get("locationName"),
-                    "result_customerName_result": award.get("customerName"),
+                    "award_companyID": award.get("companyID", None),
+                    "award_role": award.get("role", None),
+                    "award_amount": award.get("amount", None),
+                    "award_location": award.get("location", None),
+                    "award_phone": award.get("phone", None),
+                    "award_fax": award.get("fax", None),
+                    "award_locationName_result": award.get("locationName", None),
+                    "result_customerName_result": award.get("customerName", None),
                 }
                 for award in awards
             ],
         }
         result.append(extracted_data)
-        # Преобразование в табли формат
-        # Преобразование в табличный формат
-        rows = []
+        # Повторяем данные
+        project_involvement = extracted_data["projectInvolvement"][
+            0
+        ]  # Берем первый объект из projectInvolvement
 
-        for entry in result:
-            project_involvement = entry.get("projectInvolvement", [{}])[0]
-            bidder = entry.get("bidder", [])
-            results = entry.get("results", [])
-            awards = entry.get("awards", [])
+        # Генерация строк для каждой секции
+        bidder_rows = [project_involvement | bidder for bidder in data["bidder"]]
+        results_rows = [project_involvement | result for result in data["results"]]
+        awards_rows = [project_involvement | award for award in data["awards"]]
 
-            max_len = max(len(bidder), len(results))
+        # Объединяем все строки
+        all_rows = bidder_rows + results_rows + awards_rows
 
-            for i in range(max_len):
-                row = {}
-                # Добавляем данные projectInvolvement
-                row.update(
-                    {
-                        "involvement_companyID": project_involvement.get(
-                            "involvement_companyID", ""
-                        ),
-                        "involvement_role": project_involvement.get(
-                            "involvement_role", ""
-                        ),
-                        "involvement_location": project_involvement.get(
-                            "involvement_location", ""
-                        ),
-                        "involvement_phone": project_involvement.get(
-                            "involvement_phone", ""
-                        ),
-                        "involvement_customername": project_involvement.get(
-                            "involvement_customername", ""
-                        ),
-                    }
-                )
-
-                # Добавляем данные bidder
-                if i < len(bidder):
-                    row.update(
-                        {
-                            "bidder_role": bidder[i].get("bidder_role", ""),
-                            "bidder_location": bidder[i].get("bidder_location", ""),
-                            "bidder_phone": bidder[i].get("bidder_phone", ""),
-                            "bidder_fax": bidder[i].get("bidder_fax", ""),
-                            "bidder_locationNamer": bidder[i].get(
-                                "bidder_locationNamer", ""
-                            ),
-                            "bidder_customerName": bidder[i].get(
-                                "bidder_customerName", ""
-                            ),
-                        }
-                    )
-                else:
-                    row.update(
-                        {
-                            "bidder_role": "",
-                            "bidder_location": "",
-                            "bidder_phone": "",
-                            "bidder_fax": "",
-                            "bidder_locationNamer": "",
-                            "bidder_customerName": "",
-                        }
-                    )
-
-                # Добавляем данные results
-                if i < len(results):
-                    row.update(
-                        {
-                            "result_companyID": results[i].get("result_companyID", ""),
-                            "result_role": results[i].get("result_role", ""),
-                            "result_amount": results[i].get("result_amount", ""),
-                            "result_location": results[i].get("result_location", ""),
-                            "result_phone": results[i].get("result_phone", ""),
-                            "result_fax": results[i].get("result_fax", ""),
-                            "result_locationName_result": results[i].get(
-                                "result_locationName_result", ""
-                            ),
-                            "result_customerName_result": results[i].get(
-                                "result_customerName_result", ""
-                            ),
-                        }
-                    )
-                else:
-                    row.update(
-                        {
-                            "result_companyID": "",
-                            "result_role": "",
-                            "result_amount": "",
-                            "result_location": "",
-                            "result_phone": "",
-                            "result_fax": "",
-                            "result_locationName_result": "",
-                            "result_customerName_result": "",
-                        }
-                    )
-
-                # Добавляем данные awards
-                if i < len(awards):
-                    row.update(
-                        {
-                            "award_companyID": awards[i].get("award_companyID", ""),
-                            "award_role": awards[i].get("award_role", ""),
-                            "award_amount": awards[i].get("award_amount", ""),
-                            "award_location": awards[i].get("award_location", ""),
-                            "award_phone": awards[i].get("award_phone", ""),
-                            "award_fax": awards[i].get("award_fax", ""),
-                            "award_locationName_result": awards[i].get(
-                                "award_locationName_result", ""
-                            ),
-                            "result_customerName_result": awards[i].get(
-                                "result_customerName_result", ""
-                            ),
-                        }
-                    )
-                else:
-                    row.update(
-                        {
-                            "award_companyID": "",
-                            "award_role": "",
-                            "award_amount": "",
-                            "award_location": "",
-                            "award_phone": "",
-                            "award_fax": "",
-                            "award_locationName_result": "",
-                            "result_customerName_result": "",
-                        }
-                    )
-
-                rows.append(row)
-        output_xlsx_file = xlsx_project / f"{file_number}.xlsx"
         # Создаем DataFrame
-        df = pd.DataFrame(rows)
+        df = pd.DataFrame(all_rows)
 
-        # Сохраняем в Excel
         df.to_excel(output_xlsx_file, index=False)
+
+
+# # Преобразование в табличный формат
+# rows = []
+
+# for entry in result:
+#     project_involvement = entry.get("projectInvolvement", [{}])[0]
+#     bidder = entry.get("bidder", [])
+#     results = entry.get("results", [])
+#     awards = entry.get("awards", [])
+
+#     max_len = max(len(bidder), len(results))
+
+#     for i in range(max_len):
+#         row = {}
+#         # Добавляем данные projectInvolvement
+#         row.update(
+#             {
+#                 "involvement_companyID": project_involvement.get(
+#                     "involvement_companyID", ""
+#                 ),
+#                 "involvement_role": project_involvement.get(
+#                     "involvement_role", ""
+#                 ),
+#                 "involvement_location": project_involvement.get(
+#                     "involvement_location", ""
+#                 ),
+#                 "involvement_phone": project_involvement.get(
+#                     "involvement_phone", ""
+#                 ),
+#                 "involvement_customername": project_involvement.get(
+#                     "involvement_customername", ""
+#                 ),
+#             }
+#         )
+
+#         # Добавляем данные bidder
+#         if i < len(bidder):
+#             row.update(
+#                 {
+#                     "bidder_role": bidder[i].get("bidder_role", ""),
+#                     "bidder_location": bidder[i].get("bidder_location", ""),
+#                     "bidder_phone": bidder[i].get("bidder_phone", ""),
+#                     "bidder_fax": bidder[i].get("bidder_fax", ""),
+#                     "bidder_locationNamer": bidder[i].get(
+#                         "bidder_locationNamer", ""
+#                     ),
+#                     "bidder_customerName": bidder[i].get(
+#                         "bidder_customerName", ""
+#                     ),
+#                 }
+#             )
+#         else:
+#             row.update(
+#                 {
+#                     "bidder_role": "",
+#                     "bidder_location": "",
+#                     "bidder_phone": "",
+#                     "bidder_fax": "",
+#                     "bidder_locationNamer": "",
+#                     "bidder_customerName": "",
+#                 }
+#             )
+
+#         # Добавляем данные results
+#         if i < len(results):
+#             row.update(
+#                 {
+#                     "result_companyID": results[i].get("result_companyID", ""),
+#                     "result_role": results[i].get("result_role", ""),
+#                     "result_amount": results[i].get("result_amount", ""),
+#                     "result_location": results[i].get("result_location", ""),
+#                     "result_phone": results[i].get("result_phone", ""),
+#                     "result_fax": results[i].get("result_fax", ""),
+#                     "result_locationName_result": results[i].get(
+#                         "result_locationName_result", ""
+#                     ),
+#                     "result_customerName_result": results[i].get(
+#                         "result_customerName_result", ""
+#                     ),
+#                 }
+#             )
+#         else:
+#             row.update(
+#                 {
+#                     "result_companyID": "",
+#                     "result_role": "",
+#                     "result_amount": "",
+#                     "result_location": "",
+#                     "result_phone": "",
+#                     "result_fax": "",
+#                     "result_locationName_result": "",
+#                     "result_customerName_result": "",
+#                 }
+#             )
+
+#         # Добавляем данные awards
+#         if i < len(awards):
+#             row.update(
+#                 {
+#                     "award_companyID": awards[i].get("award_companyID", ""),
+#                     "award_role": awards[i].get("award_role", ""),
+#                     "award_amount": awards[i].get("award_amount", ""),
+#                     "award_location": awards[i].get("award_location", ""),
+#                     "award_phone": awards[i].get("award_phone", ""),
+#                     "award_fax": awards[i].get("award_fax", ""),
+#                     "award_locationName_result": awards[i].get(
+#                         "award_locationName_result", ""
+#                     ),
+#                     "result_customerName_result": awards[i].get(
+#                         "result_customerName_result", ""
+#                     ),
+#                 }
+#             )
+#         else:
+#             row.update(
+#                 {
+#                     "award_companyID": "",
+#                     "award_role": "",
+#                     "award_amount": "",
+#                     "award_location": "",
+#                     "award_phone": "",
+#                     "award_fax": "",
+#                     "award_locationName_result": "",
+#                     "result_customerName_result": "",
+#                 }
+#             )
+
+# #         rows.append(row)
+# output_xlsx_file = xlsx_project / f"{file_number}.xlsx"
+# # Создаем DataFrame
+# df = pd.DataFrame(rows)
+
+# # Сохраняем в Excel
+# df.to_excel(output_xlsx_file, index=False)
+# exit()
 
 
 def parsing_json_page():
@@ -590,7 +617,7 @@ def merge_xlsx():
     all_data = []
 
     # Проход по всем файлам Excel в директории
-    for file in xlsx_CompanyDetails.glob("*.xlsx"):
+    for file in xlsx_project.glob("*.xlsx"):
         try:
             # Чтение данных из файла Excel
             df = pd.read_excel(file)
@@ -617,7 +644,7 @@ def merge_xlsx():
         part_data = merged_data.iloc[start_row:end_row]
 
         # Генерируем имя файла
-        output_file = xlsx_result / f"merged_CompanyDetails{i + 1}.xlsx"
+        output_file = xlsx_result / f"merged_xlsx_project{i + 1}.xlsx"
 
         # Сохраняем часть данных
         part_data.to_excel(output_file, index=False)

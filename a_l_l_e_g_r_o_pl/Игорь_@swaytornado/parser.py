@@ -513,7 +513,7 @@ class Parser:
 
         return None
 
-    def pares_productid(self, soup, file_html):
+    def pares_productid(self, soup):
         """
         Извлекает идентификатор продукта (productId) из JSON <script>.
 
@@ -521,19 +521,24 @@ class Parser:
         :return: Идентификатор продукта (productId) или None, если данные не найдены
         """
         # Извлекаем JSON из <script> с sourceType:product
-        json_data = self.extract_product_json(soup)
+        json_data = self.extract_breadcrumbs_json(soup)
 
         try:
             # Проверяем, что json_data — это словарь
             if isinstance(json_data, dict):
-                product_id = json_data.get("productId")
-                if product_id is not None:
-                    return product_id
+                # Получаем список breadcrumbs
+                breadcrumbs = json_data.get("breadcrumbs", [])
 
-            logger.warning(
-                "JSON data не является словарём или не содержит productId. Возвращён None."
-            )
-            logger.info(file_html)
+                # Проверяем, что список не пуст, и извлекаем последний элемент
+                if breadcrumbs:
+                    last_breadcrumb = breadcrumbs[-1]  # Последний элемент
+                    last_id = last_breadcrumb.get("id", "ID not found")  # Извлекаем id
+                    if last_id is not None:
+                        return last_id
+
+            # logger.warning(
+            #     "JSON data не является словарём или не содержит productId. Возвращён None."
+            # )
             return None
 
         except Exception as e:
@@ -549,9 +554,21 @@ class Parser:
         """
         # Извлекаем JSON из <script> с sourceType:product
         json_data = self.extract_product_json(soup)
-        # Извлекаем ratingDistribution
-        rating_distribution = json_data.get("ratingDistribution")
-        return rating_distribution
+        try:
+            if isinstance(json_data, dict):
+                # Извлекаем ratingDistribution
+                rating_distribution = json_data.get("ratingDistribution", None)
+
+                return rating_distribution
+
+            # logger.warning(
+            #     "JSON data не является словарём или не содержит productId. Возвращён None."
+            # )
+            return None
+
+        except Exception as e:
+            logger.error(f"Произошла ошибка при извлечении reviews_rating: {e}")
+            return None
 
     def pares_reviews(self, soup):
         """
@@ -562,22 +579,34 @@ class Parser:
         """
         # Извлекаем JSON из <script> с sourceType:product
         json_data = self.extract_product_json(soup)
+        try:
+            if isinstance(json_data, dict):
+                reviews = []
+                for review in json_data.get("reviews", []):
 
-        reviews = []
-        for review in json_data.get("reviews", []):
+                    # Извлекаем "id", "name" и "url"
+                    review_text = review.get("content")
+                    review_score = review.get("rating")
+                    review_date = review.get("datePublished")
 
-            # Извлекаем "id", "name" и "url"
-            review_text = review.get("content")
-            review_score = review.get("rating")
-            review_date = review.get("datePublished")
+                    # Добавляем элемент в список, если все три поля существуют
+                    if review_text and review_score and review_date:
+                        reviews.append(
+                            {
+                                "text": review_text,
+                                "score": review_score,
+                                "date": review_date,
+                            }
+                        )
 
-            # Добавляем элемент в список, если все три поля существуют
-            if review_text and review_score and review_date:
-                reviews.append(
-                    {"text": review_text, "score": review_score, "date": review_date}
-                )
-
-        return reviews
+                return reviews
+            # logger.warning(
+            #     "JSON data не является словарём или не содержит pares_reviews. Возвращён None."
+            # )
+            return None
+        except Exception as e:
+            logger.error(f"Произошла ошибка при извлечении pares_reviews: {e}")
+            return None
 
     def parse_photos(self, soup):
 
@@ -1002,7 +1031,7 @@ class Parser:
         price_tag = soup.find("meta", itemprop="price")
         return price_tag["content"] if price_tag else None
 
-    def parse_sales_all_product(self, soup):
+    def parse_sales_all_product(self, soup, file_html):
         """Извлекает количество продаж из JSON-данных на странице."""
         script_tags = soup.find_all("script", type="application/json")
         sales_product = None
@@ -1021,6 +1050,7 @@ class Parser:
                             sales_product = int(match.group(1))
                             break
             except (json.JSONDecodeError, TypeError):
+                logger.info(file_html)
                 continue
 
         return sales_product
@@ -1032,30 +1062,56 @@ class Parser:
         :param soup: Объект BeautifulSoup для HTML-страницы
         :return: Строка с текстом покупки или None, если элемент не найден
         """
+        json_data = self.extract_price_json(soup)
         try:
-            # Ищем контейнер data-role="app-container"
-            app_container = soup.find("div", {"data-box-name": "summaryOneColumn"})
-            if not app_container:
-                logger.warning("Контейнер с data-role='app-container' не найден.")
-                return None
+            # Проверяем, что json_data — это словарь
+            if isinstance(json_data, dict):
+                # Получаем список breadcrumbs
+                popularity = json_data.get("popularity", {})
 
-            # Внутри контейнера ищем div с текстом "osób kupiło"
-            target_div = app_container.find(
-                "div", string=lambda text: text and "osob" in text
+                # Проверяем, что список не пуст, и извлекаем последний элемент
+                if popularity:
+                    label = popularity.get("label", None)
+                    pattern = r"\d+"
+                    numbers = re.findall(pattern, label)
+                    sales = numbers[0]
+                    return sales
+
+            logger.warning(
+                "JSON data не является словарём или не содержит productId. Возвращён None."
             )
-            # Если элемент найден, возвращаем его текст
-            if target_div:
-                all_sellers = target_div.get_text(strip=True)
-                match = re.search(r"\d+", all_sellers)
-                number = None
-                if match:
-                    number = int(match.group(0))  # Преобразуем найденное число в int
-                return number
-            else:
-                return None
-        except Exception as e:
-            logger.error(f"Ошибка при извлечении информации о покупке: {e}")
             return None
+
+        except Exception as e:
+            # logger.info(file_html)
+            # logger.error(f"Произошла ошибка при извлечении productId: {e}")
+            return None
+        # try:
+        #     # Ищем контейнер data-role="app-container"
+        #     app_container = soup.find("div", {"data-box-name": "summaryOneColumn"})
+        #     logger.info(app_container)
+        #     if not app_container:
+        #         logger.warning("Контейнер с data-role='app-container' не найден.")
+        #         return None
+
+        #     # Внутри контейнера ищем div с текстом "osób kupiło"
+        #     target_div = app_container.find(
+        #         "div", string=lambda text: text and "osob" in text
+        #     )
+        #     # Если элемент найден, возвращаем его текст
+        #     if target_div:
+        #         all_sellers = target_div.get_text(strip=True)
+        #         match = re.search(r"\d+", all_sellers)
+        #         number = None
+        #         if match:
+        #             number = int(match.group(0))  # Преобразуем найденное число в int
+
+        #         return number
+        #     else:
+        #         return None
+        # except Exception as e:
+        #     logger.error(f"Ошибка при извлечении информации о покупке: {e}")
+        #     return None
 
     def parse_average_rating(self, soup):
         """Извлекает средний рейтинг из JSON-данных на странице."""
@@ -1221,9 +1277,9 @@ class Parser:
         company_data = {
             "Категория": self.pares_category(soup),
             "ShopID": self.pares_sellerid(soup),
-            "Наш ID": f"{self.pares_productid(soup, file_html)}-{self.pares_iditem(soup)}",
+            "Наш ID": f"{self.pares_productid(soup)}-{self.pares_iditem(soup)}",
             "ID_MP": self.pares_iditem(soup),
-            "SO_ID": self.pares_productid(soup, file_html),
+            "SO_ID": self.pares_productid(soup),
             "SO_CNT": self.parse_other_product_offers(soup),
             "EAN": self.parse_ean_product(soup),
             "Марка": self.parse_brand_product(soup),
@@ -1234,7 +1290,7 @@ class Parser:
             "Цена, ZLT": self.parse_price_product(soup),
             "Цена, $": "",
             "Sales": self.parse_sales_product(soup),
-            "Sales_all": self.parse_sales_all_product(soup),
+            "Sales_all": self.parse_sales_all_product(soup, file_html),
             "All_Sellers": self.parse_other_product_offers(soup),
             "Вес": weight,
             "Длина": length,
