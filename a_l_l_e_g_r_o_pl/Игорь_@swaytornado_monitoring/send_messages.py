@@ -21,15 +21,7 @@ class TgBot:
         Args:
             message (str): Текст сообщения, которое нужно отправить.
         """
-        # for chat_id in self.telegram_chat_ids:
-        #     url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
-        #     payload = {"chat_id": chat_id, "text": message}
-        #     try:
-        #         response = requests.post(url, timeout=30, json=payload)
-        #         response.raise_for_status()  # Проверка на успешный HTTP-статус
-        #         logger.info(f"Сообщение успешно отправлено в чат {chat_id}!")
-        #     except requests.exceptions.RequestException as e:
-        #         logger.error(f"Ошибка отправки сообщения в чат {chat_id}: {e}")
+
         for chat_id in self.telegram_chat_ids:
             url = f"https://api.telegram.org/bot{self.telegram_token}/sendMessage"
             payload = {"chat_id": chat_id, "text": message}

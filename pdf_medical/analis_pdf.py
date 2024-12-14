@@ -1,15 +1,15 @@
-import wordninja
-from configuration.logger_setup import logger
-import pdfplumber
-from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
-import pytesseract
-import pandas as pd
-import re
 import json
 import os
+import re
 import shutil
 from collections import defaultdict
 
+import pandas as pd
+import pdfplumber
+import pytesseract
+import wordninja
+from configuration.logger_setup import logger
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
@@ -1139,8 +1139,8 @@ def process_image():
 if __name__ == "__main__":
     pdf_path = "02.pdf"
     # write_json(pdf_path)
-    save_high_resolution_screenshot(pdf_path)
-    # anali_pdf_02(pdf_path, test_page_no=0)
+    # save_high_resolution_screenshot(pdf_path)
+    anali_pdf_02(pdf_path, test_page_no=0)
     # process_single_crop_area()
     # process_image()
     # extract_text_from_image()

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 
 import requests
 from configuration.logger_setup import logger
@@ -11,10 +12,10 @@ RETRY_DELAY = 30  # Задержка между попытками в секун
 
 class Downloader:
 
-    def __init__(self, api_key, html_files_directory, incoming_json, json_scrapy):
+    def __init__(self, api_key, html_files_directory, urls, json_scrapy):
         self.api_key = api_key
         self.html_files_directory = html_files_directory
-        self.incoming_json = incoming_json
+        self.urls = urls
         self.json_scrapy = json_scrapy
 
     async def fetch_results_async(self):
@@ -92,18 +93,37 @@ class Downloader:
             # Пауза перед повторной проверкой
             await asyncio.sleep(1)
 
+    def extract_id(self, id_url):
+        """
+        Извлекает числовой идентификатор из URL или возвращает строку, если она уже состоит только из цифр.
+        """
+        # Если строка состоит только из цифр, возвращаем её
+        if id_url.isdigit():
+            return id_url
+
+        # Шаблон для извлечения чисел из URL
+        match = re.search(r"(\d+)$", id_url)
+        if match:
+            return match.group(1)  # Возвращаем найденное число
+
+        # Если числа не найдено, возвращаем None или сообщение об ошибке
+        return None
+
     # Функция для отправки задач на ScraperAPI
     def submit_jobs(self):
-        ids = self.read_values_from_json(self.incoming_json)
         batch_size = 40000  # Размер каждой порции URL
         # Разделяем список urls на подсписки по batch_size
-        for i in range(0, len(ids), batch_size):
-            id_batch = ids[i : i + batch_size]  # Берем следующую порцию до 50 000
+        # self.urls - список url или id
+        for i in range(0, len(self.urls), batch_size):
+            id_batch = self.urls[i : i + batch_size]  # Берем следующую порцию до 50 000
             for id_url in id_batch:
-                html_company = self.html_files_directory / f"{id_url}.html"
+                # Проверяем что пришло url или id
+                url_id = self.extract_id(id_url)
+                logger.info(url_id)
+                html_company = self.html_files_directory / f"{url_id}.html"
                 if html_company.exists():
                     continue
-                url = f"https://allegro.pl/oferta/{id_url}"
+                url = f"https://allegro.pl/oferta/{url_id}"
                 success = False
                 # Бесконечный цикл до успешного выполнения
                 while not success:

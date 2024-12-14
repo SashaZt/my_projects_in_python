@@ -496,6 +496,9 @@ def validate_address(address):
     # logger.info(f"Проверяем адрес: {address}")
 
     # Разбиваем адрес на части
+    if not address:
+
+        return address
     parts = [part.strip() for part in address.split(",")]
     if len(parts) < 2:
         return address  # Возвращаем оригинальный адрес, если не хватает частей
