@@ -101,7 +101,7 @@ class Downloader:
         # Добавляем обработку None с повторной попыткой
         url_r = None
         retry_json_attempts = 0  # Счётчик попыток обработки JSON
-        max_json_retries = 30  # Максимальное количество попыток
+        max_json_retries = 3000000  # Максимальное количество попыток
 
         # Загрузка первой страницы и определение max_page
         while True:
@@ -130,7 +130,7 @@ class Downloader:
                             retries += 1
                             if retries >= MAX_RETRIES:
                                 logger.error(
-                                    f"Пропущена страница {page} после {MAX_RETRIES} попыток."
+                                    f"Пропущена страница {page_number} после {MAX_RETRIES} попыток."
                                 )
                                 break
                             continue  # Переходим к следующей итерации основного цикла
@@ -177,7 +177,7 @@ class Downloader:
                         # Добавляем обработку None с повторной попыткой
                         url_r = None
                         retry_json_attempts = 0  # Счётчик попыток обработки JSON
-                        max_json_retries = 30  # Максимальное количество попыток
+                        max_json_retries = 3000000  # Максимальное количество попыток
                         while url_r is None and retry_json_attempts < max_json_retries:
                             url_r = self.parser.parsin_page_json(src, page)
                             if url_r is None:

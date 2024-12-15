@@ -7,14 +7,107 @@ from configuration.logger_setup import logger
 
 # Директории
 current_directory = Path.cwd()
+pdf_directory = current_directory / "pdf"
 temp_directory = current_directory / "temp"
+pdf_directory.mkdir(parents=True, exist_ok=True)
 temp_directory.mkdir(parents=True, exist_ok=True)
 
-img_file = temp_directory / "debug_table.png"
-output_file = temp_directory / "extracted_data.xlsx"
+output_file = current_directory / "extracted_data.xlsx"
+
+# Настройки линий для line_configs_01
+line_configs_01 = [
+    {
+        "vertical": [18, 62, 190],
+        "horizontal": [55, 71],
+    },
+    {
+        "vertical": [18, 62, 280],
+        "horizontal": [72, 100],
+    },
+    {
+        "vertical": [18, 62, 190],
+        "horizontal": [100, 112],
+    },
+    {
+        "vertical": [18, 62, 190],
+        "horizontal": [112, 125],
+    },
+    {
+        "vertical": [18, 62, 200],
+        "horizontal": [124, 139],
+    },
+    {
+        "vertical": [18, 62, 190],
+        "horizontal": [140, 153],
+    },
+    {
+        "vertical": [18, 62, 160, 210, 285],
+        "horizontal": [190, 205],
+    },
+    {
+        "vertical": [18, 62, 160, 210, 285],
+        "horizontal": [205, 220],
+    },
+    {
+        "vertical": [18, 62, 160],
+        "horizontal": [221, 235],
+    },
+    {
+        "vertical": [18, 62, 160, 210, 285],
+        "horizontal": [245, 260],
+    },
+    {
+        "vertical": [18, 62, 160, 210, 285],
+        "horizontal": [260, 275],
+    },
+    {
+        "vertical": [285, 350, 405, 460, 510],
+        "horizontal": [60, 75],
+    },
+    {
+        "vertical": [285, 350, 405, 460, 510],
+        "horizontal": [75, 88],
+    },
+    {
+        "vertical": [285, 350, 405],
+        "horizontal": [87, 100],
+    },
+    {
+        "vertical": [285, 350, 405],
+        "horizontal": [100, 110],
+    },
+    {
+        "vertical": [285, 350, 405],
+        "horizontal": [111, 125],
+    },
+    {
+        "vertical": [285, 350, 405],
+        "horizontal": [125, 137],
+    },
+    {
+        "vertical": [90, 185, 205, 290, 325, 405, 450, 520, 580, 670, 720],
+        "horizontal": [334, 350],
+    },
+    {
+        "vertical": [90, 185, 205, 290, 325, 405, 450, 520, 580, 670, 720],
+        "horizontal": [350, 365],
+    },
+    {
+        "vertical": [90, 185, 205, 290, 325, 405, 450, 520, 580, 670, 720],
+        "horizontal": [365, 381],
+    },
+    {
+        "vertical": [90, 185, 205, 290, 325, 402, 450, 520, 580, 670, 720],
+        "horizontal": [385, 400],
+    },
+    {
+        "vertical": [90, 185, 205, 290, 325, 405, 450, 520, 580, 670, 720],
+        "horizontal": [401, 416],
+    },
+]
 
 # Настройки линий
-line_configs = [
+line_configs_02 = [
     # Линии для первого блока (RESIDENTIAL PROPERTY RECORD CARD)
     {
         "vertical": [18, 62, 190],
@@ -137,6 +230,35 @@ line_configs = [
 ]
 
 
+def select_line_configs(page):
+    """
+    Проверяет наличие 'RESIDENTIAL PROPERTY RECORD CARD' на странице и выбирает конфигурацию линий.
+    Если 'RESIDENTIAL PROPERTY RECORD CARD' найден, возвращает line_configs_02.
+    Если нет, возвращает line_configs_01.
+    """
+    # Настройки для быстрой проверки наличия текста
+    text_settings = {
+        "vertical_strategy": "explicit",
+        "explicit_vertical_lines": [260, 265, 520],  # Предварительные линии
+        "horizontal_strategy": "explicit",
+        "explicit_horizontal_lines": [40, 63],
+    }
+
+    # Проверяем наличие выражения 'RESIDENTIAL PROPERTY RECORD CARD'
+    tables = page.extract_tables(text_settings)
+
+    for table in tables:
+        for row in table:
+            if "RESIDENTIAL PROPERTY RECORD CARD" in row:
+                logger.info(
+                    "Found 'RESIDENTIAL PROPERTY RECORD CARD'. Using line_configs_02."
+                )
+                return line_configs_02
+
+    logger.info("No 'RESIDENTIAL PROPERTY RECORD CARD' found. Using line_configs_01.")
+    return line_configs_01
+
+
 def extract_table_with_lines(page, vertical_lines, horizontal_lines, config_index):
     """Функция для извлечения таблицы с заданными линиями"""
     table_settings = {
@@ -165,8 +287,36 @@ def extract_table_with_lines(page, vertical_lines, horizontal_lines, config_inde
     return tables
 
 
-def rows_to_dict(rows):
-    """Функция для преобразования списка строк в словарь"""
+def get_page_count(pdf_file):
+    """
+    Определяет количество страниц в PDF-документе.
+
+    Args:
+        pdf_file (str): Путь к PDF-файлу.
+
+    Returns:
+        int: Количество страниц в документе.
+    """
+    try:
+        with pdfplumber.open(pdf_file) as pdf:
+            page_count = len(pdf.pages)
+        return page_count
+    except Exception as e:
+        print(f"Error reading PDF: {e}")
+        return 0  # Возвращаем 0 в случае ошибки
+
+
+def rows_to_dict(rows, page_count):
+    """
+    Функция для преобразования списка строк в словарь с добавлением количества страниц документа.
+
+    Args:
+        rows (list): Список строк таблицы.
+        page_count (int): Количество страниц в PDF-документе.
+
+    Returns:
+        dict: Словарь с обработанными данными.
+    """
     result_dict = {}
     fallback_keys = [
         "Owner Address",  # Для третьего блока
@@ -201,19 +351,45 @@ def rows_to_dict(rows):
             value = " ".join(map(str, row[1:])).strip()
             result_dict[key] = value
 
+    # Проверка на наличие Owner
+    if "Owner" in result_dict:
+        owner_value = result_dict["Owner"]
+        if "&" in owner_value:  # Если символ '&' найден
+            parts = owner_value.split("&", 1)
+            result_dict["Owner"] = parts[0].strip()  # До символа '&'
+            result_dict["Owner Name 2"] = parts[1].strip()  # После символа '&'
+
+    # Добавление Owner Name 2, если его не существует
+    if "Owner Name 2" not in result_dict:
+        result_dict["Owner Name 2"] = ""  # Пустое значение по умолчанию
+
+    # Добавление NumBldg с количеством страниц
+    result_dict["NumBldg"] = str(page_count)  # Записываем количество страниц как строку
+    # Упорядочивание ключей: переместить "Owner Name 2" после "Owner"
+    if "Owner Name 2" in result_dict:
+        reordered_dict = {}
+        for key, value in result_dict.items():
+            reordered_dict[key] = value
+            if key == "Owner" and "Owner Name 2" in result_dict:
+                reordered_dict["Owner Name 2"] = result_dict["Owner Name 2"]
+        result_dict = reordered_dict
+
     return result_dict
 
 
 def anali_pdf():
-    pdf_file = "0002-007-248.pdf"
+    pdf_file = "0002-007-255.pdf"
     all_data = []  # Список для сохранения всех строк таблиц
+
+    # Получаем количество страниц в документе
+    page_count = get_page_count(pdf_file)
 
     try:
         with pdfplumber.open(pdf_file) as pdf:
             page = pdf.pages[0]  # Предполагаем, что обрабатываем только одну страницу
 
             # Пробуем каждую конфигурацию линий
-            for config_index, config in enumerate(line_configs):
+            for config_index, config in enumerate(line_configs_02):
                 tables = extract_table_with_lines(
                     page, config["vertical"], config["horizontal"], config_index
                 )
@@ -228,7 +404,7 @@ def anali_pdf():
 
     # Преобразование строк в словарь
     if all_data:
-        data_dict = rows_to_dict(all_data)
+        data_dict = rows_to_dict(all_data, page_count)
 
         # Вывод словаря для проверки
         for key, value in data_dict.items():

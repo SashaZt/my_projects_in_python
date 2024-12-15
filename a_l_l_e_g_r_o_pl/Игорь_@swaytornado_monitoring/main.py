@@ -13,41 +13,57 @@ from downloader import Downloader
 from send_messages import TgBot
 from writer import Writer
 
-env_path = os.path.join(os.getcwd(), "configuration", ".env")
-load_dotenv(env_path)
-api_key = os.getenv("API_KEY")
-INCOMING_FILE = os.getenv("INCOMING_FILE")
-max_workers = int(os.getenv("MAX_WORKERS", "20"))
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-TELEGRAM_CHAT_IDS = []
-
-i = 0
-while True:
-    chat_id = os.getenv(f"CHAT_ID_{i}")
-    if chat_id is None:
-        break  # Прекращаем, если переменных больше нет
-    TELEGRAM_CHAT_IDS.append(chat_id)
-    i += 1
-
-# Указываем пути к файлам и папкам
-current_directory = Path.cwd()
-html_files_directory = current_directory / "html_files"
-data_directory = current_directory / "data"
-configuration_directory = current_directory / "configuration"
-json_scrapy = current_directory / "json_scrapy"
-
-html_files_directory.mkdir(exist_ok=True, parents=True)
-data_directory.mkdir(parents=True, exist_ok=True)
-configuration_directory.mkdir(parents=True, exist_ok=True)
-json_scrapy.mkdir(parents=True, exist_ok=True)
-
 # Получаем текущую дату
 current_date = datetime.now()
 
 # Форматируем дату в нужный формат
 formatted_date = current_date.strftime("%Y_%m_%d")
-output_json = data_directory / f"{formatted_date}_output.json"
-incoming_file = data_directory / INCOMING_FILE
+# Загружаем файл .env
+env_path = os.path.join(os.getcwd(), "configuration", ".env")
+load_dotenv(env_path)
+# API_KEY с сайта scraperapi.com
+api_key = os.getenv("API_KEY")
+# Количество потоков при парсинге
+max_workers = int(os.getenv("MAX_WORKERS", "20"))
+
+# Имя входящего файла
+INCOMING_FILE = os.getenv("INCOMING_FILE")
+
+# Токен ТГ бота
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+# Имя входящей папки
+SOURCE_FOLDER = os.getenv("SOURCE_FOLDER")
+
+# Имя исходящей папки
+DESTINATION_FOLDER = os.getenv("DESTINATION_FOLDER")
+
+# Телеграмм чаты
+chat_ids = os.getenv("CHAT_IDS")
+TELEGRAM_CHAT_IDS = chat_ids.split(",") if chat_ids else []
+
+# Указываем пути к файлам и папкам
+current_directory = Path.cwd()
+configuration_directory = current_directory / "configuration"
+source_folder = current_directory / SOURCE_FOLDER
+destination_folder = current_directory / DESTINATION_FOLDER
+temp_directory = current_directory / "temp"
+html_files_directory = destination_folder / f"{formatted_date}_html"
+json_scrapy = temp_directory / "json_scrapy"
+
+source_folder.mkdir(exist_ok=True, parents=True)
+destination_folder.mkdir(exist_ok=True, parents=True)
+temp_directory.mkdir(exist_ok=True, parents=True)
+html_files_directory.mkdir(exist_ok=True, parents=True)
+configuration_directory.mkdir(parents=True, exist_ok=True)
+json_scrapy.mkdir(parents=True, exist_ok=True)
+
+
+output_json = destination_folder / f"{formatted_date}_output.json"
+incoming_file = source_folder / INCOMING_FILE
+if not incoming_file.exists():
+    logger.warning(f"Нету файла {INCOMING_FILE} в папке {source_folder}")
+
 tg_bot = TgBot(TELEGRAM_TOKEN, TELEGRAM_CHAT_IDS)
 
 
@@ -120,7 +136,7 @@ def main_loop():
         writer.save_results_to_json(all_results, tg_bot)
 
         # Уведомляем о завершении сохранения результатов
-        # tg_bot.send_message("Результаты успешно сохранены.")
+        tg_bot.send_message("Результаты успешно сохранены.")
 
     except Exception as e:
         # Обработка ошибок
@@ -138,7 +154,9 @@ def main_loop():
     tg_bot.send_message(f"Длительность {int(minutes)}мин {int(seconds)}сек")
     number_of_results = len(all_results)
 
-    tg_bot.send_message(f"Обработано {number_of_results}")
+    tg_bot.send_message(
+        f"Обработано {number_of_results}\nНе обработано {int(count_url) - int(number_of_results)}"
+    )
 
     # # Основной цикл программы
     # while True:

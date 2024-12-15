@@ -719,7 +719,7 @@ class Parser:
         :return: Словарь с именами "parent_directory", "directory" и "file"
         """
         data = self.extract_breadcrumbs(soup)
-        logger.info(data)
+        # logger.info(data)
         if len(data) < 3:
             raise ValueError("Входной список должен содержать минимум 3 элемента.")
 
@@ -736,7 +736,7 @@ class Parser:
             "directory": directory,
             "file": file,
         }
-        logger.info(names)
+        # logger.info(names)
 
         return names
 

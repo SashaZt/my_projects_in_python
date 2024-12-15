@@ -87,7 +87,7 @@ class Downloader:
                     all_finished = False
 
             if all_finished:
-                logger.info("Все задачи успешно завершены!")
+                # logger.info("Все задачи успешно завершены!")
                 break  # Все задачи завершены, выходим из цикла
 
             # Пауза перед повторной проверкой
@@ -119,7 +119,7 @@ class Downloader:
             for id_url in id_batch:
                 # Проверяем что пришло url или id
                 url_id = self.extract_id(id_url)
-                logger.info(url_id)
+                # logger.info(url_id)
                 html_company = self.html_files_directory / f"{url_id}.html"
                 if html_company.exists():
                     continue

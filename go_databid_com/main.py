@@ -72,29 +72,32 @@ def get_json_details():
         if file_name.exists():
             continue
         try:
+            # Выполняем запрос
+            response = requests.get(
+                "https://go.databid.com/newdashboard/api/api/ProjectDetails/GetProjectDetails",
+                params=params,
+                cookies=cookies,
+                headers=headers,
+                timeout=30,
+            )
+            # Проверяем статус ответа
             if response.status_code == 200:
-                response = requests.get(
-                    "https://go.databid.com/newdashboard/api/api/ProjectDetails/GetProjectDetails",
-                    params=params,
-                    cookies=cookies,
-                    headers=headers,
-                    timeout=30,
-                )
                 json_data = response.json()
                 with open(file_name, "w", encoding="utf-8") as f:
-                    json.dump(
-                        json_data, f, ensure_ascii=False, indent=4
-                    )  # Записываем в файл
+                    json.dump(json_data, f, ensure_ascii=False, indent=4)
+                logger.info(f"Проект {pr_id} успешно сохранен в {file_name}.")
             else:
-                break
+                logger.warning(
+                    f"Ошибка {response.status_code} при обработке проекта {pr_id}."
+                )
         except requests.exceptions.ReadTimeout:
-            break
+            logger.error(f"ReadTimeout для проекта {pr_id}.")
         except requests.exceptions.SSLError as e:
-            break
+            logger.error(f"SSLError для проекта {pr_id}: {e}")
         except requests.exceptions.RequestException as e:
-            break
+            logger.error(f"RequestException для проекта {pr_id}: {e}")
         except Exception as e:
-            break
+            logger.error(f"Неизвестная ошибка для проекта {pr_id}: {e}")
 
 
 def get_json_projectInvolvement():
@@ -206,8 +209,8 @@ def get_page_json():
         "DueDateTo": None,
         "EnteredDateFrom": None,
         "EnteredDateTo": None,
-        "IndustryTypeID": "",
-        "IndustrySubTypeID": "",
+        "IndustryTypeID": ",16",
+        "IndustrySubTypeID": ",91,87,92,86,89,219",
         "rptDow1List": "",
         "rptDow2List": "",
         "rptDow3List": "",
@@ -226,7 +229,7 @@ def get_page_json():
         "SelectAllIndusty": False,
     }
     # for page in range(1218, 2418):
-    for page in range(2117, 2200):
+    for page in range(1, 27):
         file_name = json_page_diretory / f"page_0{page}.json"
         if file_name.exists():
             continue
@@ -288,6 +291,7 @@ def parsing_json_details():
         file_number = file_stem.split("_")[0]  # '100000'
         json_data = data["details"][0]
         bidDueToCustomerID = json_data.get("bidDueToCustomerID", None)
+        bidDueToCustomerName = json_data.get("bidDueToCustomerName", None)
         projectseqno = json_data.get("projectSeqNo", None)
         projectdateno = json_data.get("projectDateNo", None)
         databid_id = f"{projectseqno}{projectdateno}"
@@ -328,6 +332,7 @@ def parsing_json_details():
             dows = None
         all_data_detalis = {
             "bidDueToCustomerID": bidDueToCustomerID,
+            "bidDueToCustomerName": bidDueToCustomerName,
             "tender_id": file_number,
             "databid_id": sanitize_value(databid_id),
             "industry": sanitize_value(industry),
@@ -344,7 +349,7 @@ def parsing_json_details():
             "dows": sanitize_value(dows),
         }
         result.append(all_data_detalis)
-
+    return result
     output_xlsx_file = current_directory / "tenders.xlsx"
     df = pd.DataFrame(result)
 
@@ -449,147 +454,12 @@ def parsing_json_project():
 
         # Объединяем все строки
         all_rows = bidder_rows + results_rows + awards_rows
-
+        return all_rows
+        logger.info(all_rows)
         # Создаем DataFrame
         df = pd.DataFrame(all_rows)
 
         df.to_excel(output_xlsx_file, index=False)
-
-
-# # Преобразование в табличный формат
-# rows = []
-
-# for entry in result:
-#     project_involvement = entry.get("projectInvolvement", [{}])[0]
-#     bidder = entry.get("bidder", [])
-#     results = entry.get("results", [])
-#     awards = entry.get("awards", [])
-
-#     max_len = max(len(bidder), len(results))
-
-#     for i in range(max_len):
-#         row = {}
-#         # Добавляем данные projectInvolvement
-#         row.update(
-#             {
-#                 "involvement_companyID": project_involvement.get(
-#                     "involvement_companyID", ""
-#                 ),
-#                 "involvement_role": project_involvement.get(
-#                     "involvement_role", ""
-#                 ),
-#                 "involvement_location": project_involvement.get(
-#                     "involvement_location", ""
-#                 ),
-#                 "involvement_phone": project_involvement.get(
-#                     "involvement_phone", ""
-#                 ),
-#                 "involvement_customername": project_involvement.get(
-#                     "involvement_customername", ""
-#                 ),
-#             }
-#         )
-
-#         # Добавляем данные bidder
-#         if i < len(bidder):
-#             row.update(
-#                 {
-#                     "bidder_role": bidder[i].get("bidder_role", ""),
-#                     "bidder_location": bidder[i].get("bidder_location", ""),
-#                     "bidder_phone": bidder[i].get("bidder_phone", ""),
-#                     "bidder_fax": bidder[i].get("bidder_fax", ""),
-#                     "bidder_locationNamer": bidder[i].get(
-#                         "bidder_locationNamer", ""
-#                     ),
-#                     "bidder_customerName": bidder[i].get(
-#                         "bidder_customerName", ""
-#                     ),
-#                 }
-#             )
-#         else:
-#             row.update(
-#                 {
-#                     "bidder_role": "",
-#                     "bidder_location": "",
-#                     "bidder_phone": "",
-#                     "bidder_fax": "",
-#                     "bidder_locationNamer": "",
-#                     "bidder_customerName": "",
-#                 }
-#             )
-
-#         # Добавляем данные results
-#         if i < len(results):
-#             row.update(
-#                 {
-#                     "result_companyID": results[i].get("result_companyID", ""),
-#                     "result_role": results[i].get("result_role", ""),
-#                     "result_amount": results[i].get("result_amount", ""),
-#                     "result_location": results[i].get("result_location", ""),
-#                     "result_phone": results[i].get("result_phone", ""),
-#                     "result_fax": results[i].get("result_fax", ""),
-#                     "result_locationName_result": results[i].get(
-#                         "result_locationName_result", ""
-#                     ),
-#                     "result_customerName_result": results[i].get(
-#                         "result_customerName_result", ""
-#                     ),
-#                 }
-#             )
-#         else:
-#             row.update(
-#                 {
-#                     "result_companyID": "",
-#                     "result_role": "",
-#                     "result_amount": "",
-#                     "result_location": "",
-#                     "result_phone": "",
-#                     "result_fax": "",
-#                     "result_locationName_result": "",
-#                     "result_customerName_result": "",
-#                 }
-#             )
-
-#         # Добавляем данные awards
-#         if i < len(awards):
-#             row.update(
-#                 {
-#                     "award_companyID": awards[i].get("award_companyID", ""),
-#                     "award_role": awards[i].get("award_role", ""),
-#                     "award_amount": awards[i].get("award_amount", ""),
-#                     "award_location": awards[i].get("award_location", ""),
-#                     "award_phone": awards[i].get("award_phone", ""),
-#                     "award_fax": awards[i].get("award_fax", ""),
-#                     "award_locationName_result": awards[i].get(
-#                         "award_locationName_result", ""
-#                     ),
-#                     "result_customerName_result": awards[i].get(
-#                         "result_customerName_result", ""
-#                     ),
-#                 }
-#             )
-#         else:
-#             row.update(
-#                 {
-#                     "award_companyID": "",
-#                     "award_role": "",
-#                     "award_amount": "",
-#                     "award_location": "",
-#                     "award_phone": "",
-#                     "award_fax": "",
-#                     "award_locationName_result": "",
-#                     "result_customerName_result": "",
-#                 }
-#             )
-
-# #         rows.append(row)
-# output_xlsx_file = xlsx_project / f"{file_number}.xlsx"
-# # Создаем DataFrame
-# df = pd.DataFrame(rows)
-
-# # Сохраняем в Excel
-# df.to_excel(output_xlsx_file, index=False)
-# exit()
 
 
 def parsing_json_page():
@@ -773,16 +643,111 @@ def pr_company():
         logger.info(f"Файл сохранён: {output_xlsx_file}")
 
 
+def matches_1_2():
+    project_details = parsing_json_details()
+    companies_details = parsing_json_project()
+    # Сопоставление данных
+    # Сопоставление данных
+
+    matches = []
+    for project in project_details:
+        for company in companies_details:
+            if project["bidDueToCustomerID"] == company["prIn_companyID"]:
+                match = {
+                    "tender_id": project["tender_id"],
+                    "bidDueToCustomerName": project["bidDueToCustomerName"],
+                    "company_name": company["customerName"],
+                    "company_role": company[
+                        "role"
+                    ],  # Используем реальную роль компании
+                    "project_location": project["project_location"],
+                    "company_location": company["prIn_location"],
+                }
+                matches.append(match)
+
+    # Создание DataFrame
+    df = pd.DataFrame(matches)
+
+    # Сохранение в Excel
+    output_path = "matches_corrected.xlsx"
+    df.to_excel(output_path, index=False)
+
+
+def matc():
+    # Загрузка данных из файлов
+    with open("281660_Details.json", "r") as f:
+        details_data = json.load(f)
+
+    with open("281660_ProjectID.json", "r") as f:
+        project_data = json.load(f)
+
+    # Извлечение всех данных из "details"
+    details = details_data["details"][0]
+    tender_info = {"Project ID": details["projectID"]}
+    # Добавляем все возможные поля из "details"
+    for key, value in details.items():
+        tender_info[key] = value
+
+    # Обработка "dow"
+    dow_entries = []
+    for entry in details_data.get("dow", []):
+        dow_entry = {"Project ID": details["projectID"], "Section": "dow"}
+        # Добавляем все поля из записи dow
+        for key, value in entry.items():
+            dow_entry[key] = value
+        dow_entries.append(dow_entry)
+
+    # Функция для обработки секций из ProjectID
+    def process_section(data, section_name):
+        results = []
+        for entry in data.get(section_name, []):
+            result = {"Section": section_name, "Project ID": details["projectID"]}
+            # Добавляем все возможные поля из текущей записи
+            for key, value in entry.items():
+                result[key] = value
+            results.append(result)
+        return results
+
+    # Обработка всех секций из ProjectID
+    sections = ["projectInvolvement", "bidder", "results", "awards"]
+    all_entries = []
+
+    for section in sections:
+        all_entries.extend(process_section(project_data, section))
+
+    # Добавляем данные из dow
+    all_entries.extend(dow_entries)
+
+    # Создание DataFrame для всех секций
+    entries_df = pd.DataFrame(all_entries)
+
+    # Добавление всей информации из "details" к каждой записи
+    tender_info_df = pd.DataFrame([tender_info] * len(entries_df))
+    final_df = pd.concat([tender_info_df, entries_df], axis=1)
+
+    # Сохранение в Excel
+    output_path = "full_combined_tender_data_with_dow.xlsx"
+    final_df.to_excel(output_path, index=False)
+
+    print(f"Файл успешно сохранен: {output_path}")
+    return output_path
+
+
 if __name__ == "__main__":
-    # while True:
+    # get_page_json()
+    # parsing_json_page()
     # get_json_details()
-    # time.sleep(10)
+    # while True:
+    #     get_json_details()
+    #     time.sleep(5)
     # get_json_details()
     # get_json_projectInvolvement()
     # get_json_companydetails()
 
     # parsing_json_details()
     # parsing_json_project()
-    merge_xlsx()
+    # matches_1_2()
+    matc()
+    # merge_xlsx()
     # parsing_json_page()
     # pr_company()

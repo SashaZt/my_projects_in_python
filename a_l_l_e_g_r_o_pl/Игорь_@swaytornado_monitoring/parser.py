@@ -131,7 +131,7 @@ class Parser:
             file for file in self.html_files_directory.iterdir() if file.is_file()
         ]
 
-        logger.info(f"Всего файлов для обработки: {len(file_list)}")
+        # logger.info(f"Всего файлов для обработки: {len(file_list)}")
         return file_list
 
     def pares_iditem(self, soup):

@@ -1,8 +1,8 @@
 import json
 
 # Пути к файлам
-main_file_path = "jameda_de_test.json"
-secondary_file_path = "doctolib_de_test.json"
+main_file_path = "jameda_de.json"
+secondary_file_path = "doctolib_de.json"
 merged_file = "merged_file.json"
 
 
