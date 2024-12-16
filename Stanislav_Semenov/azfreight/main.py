@@ -188,9 +188,9 @@ def scraping():
             # if phone_raw_03:
             #     phone_03 = (
             #         phone_raw_03.text.strip()
-            #         .replace(" ", "")
-            #         .replace("(", "")
-            #         .replace(")", "")
+                    # .replace(" ", "")
+                    # .replace("(", "")
+                    # .replace(")", "")
             #     )
             #     phone_03 = format_phone_fax(phone)
 
