@@ -672,6 +672,12 @@ def parsing_page(html_file):
         clinics = all_clinic.find_all("div", attrs={"data-id": "doctor-address-item"})
 
         for cl in clinics:
+            website_doctor = None
+            website_doctor_raw = cl.find(
+                "a", attrs={"data-patient-app-event-name": "dp-doctor-website"}
+            )
+            if website_doctor_raw:
+                website_doctor = website_doctor_raw.get("href")
             lat = None
             lng = None
             offered_services = None
@@ -754,6 +760,7 @@ def parsing_page(html_file):
                             opening_hours.append({"day": day, "ranges": ranges})
             polyclinic = {
                 "phone_number": phone_numbers,
+                "website_doctor": website_doctor,
                 "clinic_name": clinic_name,
                 "address": address,
                 "services": services,

@@ -287,9 +287,9 @@ def rows_to_dict(rows, page_count):
     """Преобразует строки таблиц в словарь с учётом количества страниц."""
     result_dict = {}
     fallback_keys = [
-        "Owner Name 2",
-        "Owner Address",
-        "Owner City, State, Zip",
+        "Owner_02",
+        "Owner_03",
+        "Owner_04",
     ]
     fallback_index = 0
     # Добавление Owner Name 2
@@ -398,9 +398,9 @@ def anali_pdf():
                         # Если индекс конфигурации равен 2, 3 или 4, обрабатываем специально
                         if config_index in [2, 3, 4]:
                             fallback_keys = [
-                                "Owner Name 2",
-                                "Owner Address",
-                                "Owner City, State, Zip",
+                                "Owner_02",
+                                "Owner_03",
+                                "Owner_04",
                             ]
                             # Проверяем, чтобы config_index соответствовал нужному ключу
                             fallback_index = config_index - 2  # Смещение для 2, 3, 4

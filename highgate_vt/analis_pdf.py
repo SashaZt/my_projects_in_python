@@ -29,8 +29,8 @@ def anali_pdf():
     # Имя файла PDF
     pdf_file = "0002-010-016.pdf"
 
-    vertical = [260, 265, 520]
-    horizontal = [40, 63]
+    vertical = [18, 62, 190]
+    horizontal = [126, 135]
     table_settings = {
         "vertical_strategy": "explicit",
         "explicit_vertical_lines": vertical,

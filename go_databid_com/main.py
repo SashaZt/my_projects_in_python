@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -481,44 +482,86 @@ def parsing_json_page():
     df.to_csv(output_csv_file, index=False, encoding="utf-8")
 
 
+# def merge_xlsx():
+
+#     # Список для хранения данных из всех файлов
+#     all_data = []
+
+#     # Проход по всем файлам Excel в директории
+#     for file in xlsx_result.glob("*.xlsx"):
+#         try:
+#             # Чтение данных из файла Excel
+#             df = pd.read_excel(file)
+#             all_data.append(df)
+#             logger.info(f"Файл {file.name} успешно добавлен.")
+#         except Exception as e:
+#             logger.error(f"Ошибка при обработке файла {file.name}: {e}")
+
+#     # Объединение всех данных в один DataFrame
+#     merged_data = pd.concat(all_data, ignore_index=True)
+
+#     # Определяем количество частей
+#     num_parts = 10
+#     part_size = len(merged_data) // num_parts
+
+#     logger.info(
+#         f"Общее количество строк: {len(merged_data)}, делим на {num_parts} частей по {part_size} строк."
+#     )
+
+#     # Разделение и сохранение данных
+#     for i in range(num_parts):
+#         start_row = i * part_size
+#         end_row = (i + 1) * part_size if i < num_parts - 1 else len(merged_data)
+#         part_data = merged_data.iloc[start_row:end_row]
+
+#         # Генерируем имя файла
+#         output_file = xlsx_project / f"merged_xlsx_project{i + 1}.xlsx"
+
+
+#         # Сохраняем часть данных
+#         part_data.to_excel(output_file, index=False)
+#         logger.info(f"Часть {i + 1} данных сохранена в: {output_file}")
 def merge_xlsx():
 
-    # Список для хранения данных из всех файлов
-    all_data = []
+    # Список всех файлов Excel
+    all_files = list(xlsx_result.glob("*.xlsx"))
+    total_files = len(all_files)
 
-    # Проход по всем файлам Excel в директории
-    for file in xlsx_project.glob("*.xlsx"):
-        try:
-            # Чтение данных из файла Excel
-            df = pd.read_excel(file)
-            all_data.append(df)
-            logger.info(f"Файл {file.name} успешно добавлен.")
-        except Exception as e:
-            logger.error(f"Ошибка при обработке файла {file.name}: {e}")
-
-    # Объединение всех данных в один DataFrame
-    merged_data = pd.concat(all_data, ignore_index=True)
-
-    # Определяем количество частей
+    # Делим список файлов на 10 частей
     num_parts = 10
-    part_size = len(merged_data) // num_parts
-
+    files_per_part = total_files // num_parts
     logger.info(
-        f"Общее количество строк: {len(merged_data)}, делим на {num_parts} частей по {part_size} строк."
+        f"Всего файлов: {total_files}. Обрабатываем в {num_parts} частях, по {files_per_part} файлов в каждой."
     )
 
-    # Разделение и сохранение данных
     for i in range(num_parts):
-        start_row = i * part_size
-        end_row = (i + 1) * part_size if i < num_parts - 1 else len(merged_data)
-        part_data = merged_data.iloc[start_row:end_row]
+        # Определяем диапазон файлов для текущей части
+        start_file = i * files_per_part
+        end_file = (i + 1) * files_per_part if i < num_parts - 1 else total_files
+        part_files = all_files[start_file:end_file]
 
-        # Генерируем имя файла
-        output_file = xlsx_result / f"merged_xlsx_project{i + 1}.xlsx"
+        # Список для хранения данных текущей части
+        part_data = []
 
-        # Сохраняем часть данных
-        part_data.to_excel(output_file, index=False)
-        logger.info(f"Часть {i + 1} данных сохранена в: {output_file}")
+        for file in part_files:
+            try:
+                # Чтение данных из файла Excel
+                df = pd.read_excel(file)
+                part_data.append(df)
+                logger.info(f"Файл {file.name} успешно обработан.")
+            except Exception as e:
+                logger.error(f"Ошибка при обработке файла {file.name}: {e}")
+
+        # Объединяем данные текущей части
+        if part_data:
+            merged_part = pd.concat(part_data, ignore_index=True)
+
+            # Сохраняем объединенные данные текущей части
+            output_file = xlsx_project / f"merged_xlsx_part_{i + 1}.xlsx"
+            merged_part.to_excel(output_file, index=False)
+            logger.info(f"Часть {i + 1} сохранена в: {output_file}")
+        else:
+            logger.warning(f"Часть {i + 1} не содержит данных.")
 
 
 # def parsing_json_companydetails():
@@ -673,64 +716,209 @@ def matches_1_2():
     df.to_excel(output_path, index=False)
 
 
+# def matc():
+#     # Загрузка данных из файлов
+#     with open("281660_Details.json", "r") as f:
+#         details_data = json.load(f)
+
+# with open("281660_ProjectID.json", "r") as f:
+#     project_data = json.load(f)
+
+#     # Извлечение всех данных из "details"
+#     details = details_data["details"][0]
+#     tender_info = {"Project ID": details["projectID"]}
+#     # Добавляем все возможные поля из "details"
+#     for key, value in details.items():
+#         tender_info[key] = value
+
+#     # Обработка "dow"
+#     dow_entries = []
+#     for entry in details_data.get("dow", []):
+#         dow_entry = {"Project ID": details["projectID"], "Section": "dow"}
+#         # Добавляем все поля из записи dow
+#         for key, value in entry.items():
+#             dow_entry[key] = value
+#         dow_entries.append(dow_entry)
+
+#     # Функция для обработки секций из ProjectID
+#     def process_section(data, section_name):
+#         results = []
+#         for entry in data.get(section_name, []):
+#             result = {"Section": section_name, "Project ID": details["projectID"]}
+#             # Добавляем все возможные поля из текущей записи
+#             for key, value in entry.items():
+#                 result[key] = value
+#             results.append(result)
+#         return results
+
+#     # Обработка всех секций из ProjectID
+#     sections = ["projectInvolvement", "bidder", "results", "awards"]
+#     all_entries = []
+
+#     for section in sections:
+#         all_entries.extend(process_section(project_data, section))
+
+#     # Добавляем данные из dow
+#     all_entries.extend(dow_entries)
+
+#     # Создание DataFrame для всех секций
+#     entries_df = pd.DataFrame(all_entries)
+
+#     # Добавление всей информации из "details" к каждой записи
+#     tender_info_df = pd.DataFrame([tender_info] * len(entries_df))
+#     final_df = pd.concat([tender_info_df, entries_df], axis=1)
+
+#     # Сохранение в Excel
+#     output_path = "full_combined_tender_data_with_dow.xlsx"
+#     final_df.to_excel(output_path, index=False)
+
+
+#     print(f"Файл успешно сохранен: {output_path}")
+# #     return output_path
+# def matc():
+#     # Загрузка данных из файлов
+#     with open("281660_Details.json", "r") as f:
+#         details_data = json.load(f)
+
+#     with open("281660_ProjectID.json", "r") as f:
+#         project_data = json.load(f)
+
+#     # Извлечение всех данных из "details"
+#     details = details_data["details"][0]
+#     tender_info = {"Project ID": details["projectID"]}
+#     # Добавляем все возможные поля из "details"
+#     for key, value in details.items():
+#         tender_info[key] = value
+
+#     # Обработка "dow"
+#     dow_combined = {
+#         "dowLevelOneID": ";".join(
+#             str(entry["dowLevelOneID"]) for entry in details_data.get("dow", [])
+#         ),
+#         "dowLevelOneName": ";".join(
+#             entry["dowLevelOneName"] for entry in details_data.get("dow", [])
+#         ),
+#         "dows": ";".join(entry["dows"] for entry in details_data.get("dow", [])),
+#     }
+
+#     # Функция для обработки секций из ProjectID
+#     def process_section(data, section_name):
+#         results = []
+#         for entry in data.get(section_name, []):
+#             result = {"Section": section_name, "Project ID": details["projectID"]}
+#             # Добавляем все возможные поля из текущей записи
+#             for key, value in entry.items():
+#                 result[key] = value
+#             results.append(result)
+#         return results
+
+#     # Обработка всех секций из ProjectID
+#     sections = ["projectInvolvement", "bidder", "results", "awards"]
+#     all_entries = []
+
+#     for section in sections:
+#         all_entries.extend(process_section(project_data, section))
+
+#     # Создание DataFrame для всех секций
+#     entries_df = pd.DataFrame(all_entries)
+
+#     # Добавление всей информации из "details" и "dow" к каждой записи
+#     tender_info_df = pd.DataFrame([tender_info] * len(entries_df))
+#     dow_df = pd.DataFrame([dow_combined] * len(entries_df))
+#     final_df = pd.concat([tender_info_df, dow_df, entries_df], axis=1)
+
+#     # Сохранение в Excel
+#     output_path = "full_combined_tender_data_with_dow.xlsx"
+#     final_df.to_excel(output_path, index=False)
+
+#     print(f"Файл успешно сохранен: {output_path}")
+#     return output_path
+
+
 def matc():
-    # Загрузка данных из файлов
-    with open("281660_Details.json", "r") as f:
-        details_data = json.load(f)
+    # Перебираем файлы в директории "json_tenders_directory"
+    for tender_file in os.listdir(json_tenders_diretory):
+        if tender_file.endswith(".json"):
+            # Извлечение идентификатора тендера из имени файла
+            tender_id = tender_file.split("_")[0]  # Берем часть до первого "_"
+            # logger.info(tender_id)
+            # Путь к файлу тендера
+            output_file = xlsx_result / f"{tender_id}_full_.xlsx"
+            if output_file.exists():
+                continue
+            tender_file_path = os.path.join(json_tenders_diretory, tender_file)
 
-    with open("281660_ProjectID.json", "r") as f:
-        project_data = json.load(f)
+            # Путь к соответствующему файлу в "json_project"
+            project_file_name = f"{tender_id}_ProjectID.json"
+            project_file_path = os.path.join(json_project, project_file_name)
+            # logger.info(project_file_name)
+            # Проверяем, существует ли соответствующий файл
+            if not os.path.exists(project_file_path):
+                logger.error(
+                    f"Файл для тендера {tender_id} отсутствует в {json_tenders_diretory}"
+                )
+                continue
+            # Загрузка данных из файлов
+            with open(tender_file_path, "r", encoding="utf-8") as f:
+                details_data = json.load(f)
+            with open(project_file_path, "r", encoding="utf-8") as f:
+                project_data = json.load(f)
 
-    # Извлечение всех данных из "details"
-    details = details_data["details"][0]
-    tender_info = {"Project ID": details["projectID"]}
-    # Добавляем все возможные поля из "details"
-    for key, value in details.items():
-        tender_info[key] = value
+            # Извлечение всех данных из "details"
+            details = details_data["details"][0]
+            tender_info = {"Project ID": details["projectID"]}
+            # Добавляем все возможные поля из "details"
+            for key, value in details.items():
+                tender_info[key] = value
 
-    # Обработка "dow"
-    dow_entries = []
-    for entry in details_data.get("dow", []):
-        dow_entry = {"Project ID": details["projectID"], "Section": "dow"}
-        # Добавляем все поля из записи dow
-        for key, value in entry.items():
-            dow_entry[key] = value
-        dow_entries.append(dow_entry)
+            # Обработка "dow"
+            dow_combined = {
+                "dowLevelOneID": ";".join(
+                    str(entry["dowLevelOneID"]) for entry in details_data.get("dow", [])
+                ),
+                "dowLevelOneName": ";".join(
+                    entry["dowLevelOneName"] for entry in details_data.get("dow", [])
+                ),
+                "dows": ";".join(
+                    entry["dows"] for entry in details_data.get("dow", [])
+                ),
+            }
 
-    # Функция для обработки секций из ProjectID
-    def process_section(data, section_name):
-        results = []
-        for entry in data.get(section_name, []):
-            result = {"Section": section_name, "Project ID": details["projectID"]}
-            # Добавляем все возможные поля из текущей записи
-            for key, value in entry.items():
-                result[key] = value
-            results.append(result)
-        return results
+            # Функция для обработки секций из ProjectID
+            def process_section(data, section_name):
+                results = []
+                for entry in data.get(section_name, []):
+                    result = {
+                        "Section": section_name,
+                        "Project ID": details["projectID"],
+                    }
+                    # Добавляем все возможные поля из текущей записи
+                    for key, value in entry.items():
+                        result[key] = value
+                    results.append(result)
+                return results
 
-    # Обработка всех секций из ProjectID
-    sections = ["projectInvolvement", "bidder", "results", "awards"]
-    all_entries = []
+            # Обработка всех секций из ProjectID
+            sections = ["projectInvolvement", "bidder", "results", "awards"]
+            all_entries = []
 
-    for section in sections:
-        all_entries.extend(process_section(project_data, section))
+            for section in sections:
+                all_entries.extend(process_section(project_data, section))
 
-    # Добавляем данные из dow
-    all_entries.extend(dow_entries)
+            # Создание DataFrame для всех секций
+            entries_df = pd.DataFrame(all_entries)
 
-    # Создание DataFrame для всех секций
-    entries_df = pd.DataFrame(all_entries)
+            # Добавление всей информации из "details" и "dow" к каждой записи
+            tender_info_df = pd.DataFrame([tender_info] * len(entries_df))
+            dow_df = pd.DataFrame([dow_combined] * len(entries_df))
+            final_df = pd.concat([tender_info_df, dow_df, entries_df], axis=1)
 
-    # Добавление всей информации из "details" к каждой записи
-    tender_info_df = pd.DataFrame([tender_info] * len(entries_df))
-    final_df = pd.concat([tender_info_df, entries_df], axis=1)
+            # Сохранение в Excel
+            output_file = xlsx_result / f"{tender_id}_full_.xlsx"
+            final_df.to_excel(output_file, index=False)
 
-    # Сохранение в Excel
-    output_path = "full_combined_tender_data_with_dow.xlsx"
-    final_df.to_excel(output_path, index=False)
-
-    print(f"Файл успешно сохранен: {output_path}")
-    return output_path
+            logger.info(f"Файл успешно сохранен: {output_file}")
+            # return output_file
 
 
 if __name__ == "__main__":
@@ -747,7 +935,7 @@ if __name__ == "__main__":
     # parsing_json_details()
     # parsing_json_project()
     # matches_1_2()
-    matc()
-    # merge_xlsx()
+    # matc()
+    merge_xlsx()
     # parsing_json_page()
     # pr_company()

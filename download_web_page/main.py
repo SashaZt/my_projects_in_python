@@ -790,7 +790,7 @@ if __name__ == "__main__":
     # download_pdf()
     # parsing_page()
     # Вызов функции с файлом unique_itm_urls.csv
-    # parsing_product()
+    parsing_product()
     # get_responses_from_urls("unique_itm_urls.csv")
     # parsing()
     # Запуск функции для обхода директории
