@@ -168,7 +168,7 @@ def parsing_html():
                 clinic_name = None
                 doctor_specialization = None
                 incuranse = None
-                emain = None
+                email = None
                 web = None
                 languages = None
                 transport_list = None
@@ -244,10 +244,16 @@ def parsing_html():
                 )
                 if incuranse_raw:
                     incuranse_text = incuranse_raw.text.strip()  # "Kasse | Privat"
-                    incuranse = [item.strip() for item in incuranse_text.split("|")]
+                    # Обрабатываем и заменяем слова
+                    incuranse = [
+                        item.strip()
+                        .replace("Kasse", "Gesetzlich")
+                        .replace("Insurance", "Versicherung")
+                        for item in incuranse_text.split("|")
+                    ]
                 email_raw = soup.find("span", {"data-placeholder": "E-Mail"})
                 if email_raw:
-                    emain = email_raw.text.strip()
+                    email = email_raw.text.strip()
                 web_raw = soup.find("span", {"id": "homepage1"})
                 if web_raw:
                     web = web_raw.text.strip()
@@ -343,15 +349,12 @@ def parsing_html():
                 polyclinic = {
                     "phone_number": phone_number,
                     "website_doctor": web,
-                    "emain": emain,
+                    "email": email,
                     "clinic_name": clinic_name,
                     "address": address,
                     "opening_hours": opening_hours,
                     "doc_logo": doc_logo,
                     "transport_list": transport_list,
-                    "accepted_insurances": incuranse,
-                    "languages": languages,
-                    "additional_info": additional_info,
                 }
                 polyclinics.append(polyclinic)
                 all_data = {
@@ -360,6 +363,9 @@ def parsing_html():
                     "url_doctor": url_doctor,
                     "doctor_specializations": doctor_specialization,
                     "description": full_description,
+                    "accepted_insurances": incuranse,
+                    "languages": languages,
+                    "services": additional_info,
                     "polyclinics": polyclinics,
                 }
                 # Добавляем данные в список
