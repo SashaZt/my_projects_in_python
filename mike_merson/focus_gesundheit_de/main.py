@@ -177,6 +177,7 @@ def parsing_html():
                 full_description = None
                 url_doctor = None
                 polyclinics = []
+                phone_number = []
                 content = file.read()
                 soup = BeautifulSoup(content, "lxml")
                 script_json = soup.find("script", {"type": "application/ld+json"})
@@ -198,6 +199,7 @@ def parsing_html():
                         addressRegion = address_raw.get("addressRegion", None)
                         addressCountry = address_raw.get("addressCountry", None)
                         address = f"{streetAddress} {postalCode} {addressLocality}"
+                phone_number.append(phone)
                 firstname_raw = soup.find(
                     "span",
                     {"id": "firstname"},
@@ -226,6 +228,8 @@ def parsing_html():
                 if fax_raw:
                     fax = fax_raw.text.strip().replace(" ", "").replace("/", "")
                     fax = format_phone_fax(fax)
+                if fax is not None:
+                    phone_number.append(fax)
                 doctor_specializations = soup.select_one(
                     "#detail_main > div.col-md-9.col-md-pull-3.detail-content > div > section.profile__content__overview > div:nth-child(2) > div > div.profile__content__content.profile__content__content--highlight.col-sm-8 > ul"
                 )
@@ -336,24 +340,27 @@ def parsing_html():
                     "title": "Über mich",
                     "Herzlich willkommen": full_description,
                 }
-
+                polyclinic = {
+                    "phone_number": phone_number,
+                    "website_doctor": web,
+                    "emain": emain,
+                    "clinic_name": clinic_name,
+                    "address": address,
+                    "opening_hours": opening_hours,
+                    "doc_logo": doc_logo,
+                    "transport_list": transport_list,
+                    "accepted_insurances": incuranse,
+                    "languages": languages,
+                    "additional_info": additional_info,
+                }
+                polyclinics.append(polyclinic)
                 all_data = {
                     "name": name,
                     "img": image,
-                    "phone": f"{phone},{fax}",
-                    "emain": emain,
-                    "website_doctor": web,
                     "url_doctor": url_doctor,
-                    "address": address,
-                    "clinic_name": clinic_name,
                     "doctor_specializations": doctor_specialization,
-                    "accepted_insurances": incuranse,
-                    "languages": languages,
-                    "transport_list": transport_list,
-                    "doc_logo": doc_logo,
-                    "additional_info": additional_info,
-                    "opening_hours": opening_hours,
                     "description": full_description,
+                    "polyclinics": polyclinics,
                 }
                 # Добавляем данные в список
                 extracted_data["data"].append(all_data)
