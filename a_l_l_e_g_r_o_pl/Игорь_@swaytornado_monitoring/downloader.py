@@ -12,11 +12,14 @@ RETRY_DELAY = 30  # Задержка между попытками в секун
 
 class Downloader:
 
-    def __init__(self, api_key, html_files_directory, urls, json_scrapy):
+    def __init__(
+        self, api_key, html_files_directory, urls, json_scrapy, use_ultra_premium
+    ):
         self.api_key = api_key
         self.html_files_directory = html_files_directory
         self.urls = urls
         self.json_scrapy = json_scrapy
+        self.use_ultra_premium = use_ultra_premium
 
     async def fetch_results_async(self):
         while True:
@@ -128,9 +131,19 @@ class Downloader:
                 # Бесконечный цикл до успешного выполнения
                 while not success:
                     try:
+                        res_json = {
+                            "apiKey": self.api_key,
+                            "apiParams": {},
+                            "url": url,
+                        }
+                        # Выбор параметра в зависимости от self.use_ultra_premium
+                        if self.use_ultra_premium:
+                            res_json["apiParams"]["ultra_premium"] = "true"
+                        else:
+                            res_json["apiParams"]["premium"] = True
                         response = requests.post(
                             url="https://async.scraperapi.com/jobs",
-                            json={"apiKey": self.api_key, "url": url},
+                            json=res_json,
                             timeout=60,
                         )
                         if response.status_code == 200:

@@ -25,6 +25,8 @@ load_dotenv(env_path)
 api_key = os.getenv("API_KEY")
 # Количество потоков при парсинге
 max_workers = int(os.getenv("MAX_WORKERS", "20"))
+# Получение значения для параметра "premium"
+use_ultra_premium = os.getenv("USE_ULTRA_PREMIUM", "false").lower() == "true"
 
 # Имя входящего файла
 INCOMING_FILE = os.getenv("INCOMING_FILE")
@@ -112,7 +114,9 @@ def count_urls(file_path):
 def main_loop():
     urls = process_file(incoming_file)
     # Создаем объекты классов
-    downloader = Downloader(api_key, html_files_directory, urls, json_scrapy)
+    downloader = Downloader(
+        api_key, html_files_directory, urls, json_scrapy, use_ultra_premium
+    )
     writer = Writer(output_json, tg_bot)
     parser = Parser(
         html_files_directory,

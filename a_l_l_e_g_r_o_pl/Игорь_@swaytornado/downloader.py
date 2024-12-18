@@ -463,7 +463,7 @@ class Downloader:
                     continue
                 success = False
                 # Бесконечный цикл до успешного выполнения
-                logger.info(cleaned_url)
+                # logger.info(cleaned_url)
                 while not success:
                     try:
                         res_json = {

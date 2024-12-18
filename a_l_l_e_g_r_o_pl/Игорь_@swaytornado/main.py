@@ -12,6 +12,7 @@ from downloader import Downloader
 from writer import Writer
 
 
+# Формирование ссылки на основе данных из файла .env
 def link_formation():
     env_path = os.path.join(os.getcwd(), "configuration", ".env")
     load_dotenv(env_path)
@@ -34,6 +35,7 @@ def link_formation():
     return full_url
 
 
+# Загрузка файла .env из папки
 def get_env():
     env_path = os.path.join(os.getcwd(), "configuration", ".env")
 
@@ -51,6 +53,7 @@ def get_env():
         api_key = os.getenv("API_KEY")
         max_workers = int(os.getenv("MAX_WORKERS", "20"))
         url_start = link_formation()
+        
         # Получение значения для параметра "premium"
         use_ultra_premium = os.getenv("USE_ULTRA_PREMIUM", "false").lower() == "true"
 
