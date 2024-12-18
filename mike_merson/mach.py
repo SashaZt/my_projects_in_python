@@ -65,7 +65,9 @@
 # # Запуск функции
 # merge_json_data(main_file_path, secondary_file_path)
 
+# РАБОЧИЙ КОД ПОЛНОСТЬЮ
 import json
+import os
 
 # Пути к файлам
 main_file_path = "original_merged_file.json"
@@ -140,5 +142,67 @@ def merge_json_data(main_file, secondary_file):
     print(f"Данные успешно объединены и сохранены в {merged_file}")
 
 
-# Запуск функции
-merge_json_data(main_file_path, secondary_file_path)
+# Пути к файлам
+merged_file = "merged_file.json"
+output_folder = "output_parts"  # Папка для частей файла
+chunk_size_mb = 200  # Размер каждой части в МБ
+
+
+def split_json_file(input_file, output_dir, chunk_size_mb):
+    # Конвертируем размер в байты
+    chunk_size_bytes = chunk_size_mb * 1024 * 1024
+
+    # Читаем весь JSON файл
+    with open(input_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # Создаем папку для частей, если она не существует
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Инициализация переменных
+    current_chunk = []
+    current_size = 0
+    part_index = 1
+
+    # Разделяем данные
+    for entry in data:
+        # Сериализуем текущую запись в строку и считаем её размер
+        entry_bytes = json.dumps(entry, ensure_ascii=False).encode("utf-8")
+        entry_size = len(entry_bytes)
+
+        # Если текущий размер превышает лимит, сохраняем текущую часть
+        if current_size + entry_size > chunk_size_bytes:
+            output_file = os.path.join(output_dir, f"part_{part_index}.json")
+            with open(output_file, "w", encoding="utf-8") as part_file:
+                json.dump(current_chunk, part_file, ensure_ascii=False, indent=4)
+
+            print(
+                f"Сохранена часть {part_index} размером ~{current_size / (1024 * 1024):.2f} МБ"
+            )
+            # Начинаем новую часть
+            current_chunk = []
+            current_size = 0
+            part_index += 1
+
+        # Добавляем запись в текущую часть
+        current_chunk.append(entry)
+        current_size += entry_size
+
+    # Сохраняем оставшиеся данные
+    if current_chunk:
+        output_file = os.path.join(output_dir, f"part_{part_index}.json")
+        with open(output_file, "w", encoding="utf-8") as part_file:
+            json.dump(current_chunk, part_file, ensure_ascii=False, indent=4)
+
+        print(
+            f"Сохранена часть {part_index} размером ~{current_size / (1024 * 1024):.2f} МБ"
+        )
+
+    print(f"Файл успешно разбит на {part_index} частей.")
+
+
+if __name__ == "__main__":
+    # объединение файлов
+    merge_json_data(main_file_path, secondary_file_path)
+    # Разбиваем файл
+    split_json_file(merged_file, output_folder, chunk_size_mb)
