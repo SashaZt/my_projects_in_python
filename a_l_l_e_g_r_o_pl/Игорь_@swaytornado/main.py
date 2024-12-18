@@ -51,9 +51,11 @@ def get_env():
         api_key = os.getenv("API_KEY")
         max_workers = int(os.getenv("MAX_WORKERS", "20"))
         url_start = link_formation()
+        # Получение значения для параметра "premium"
+        use_ultra_premium = os.getenv("USE_ULTRA_PREMIUM", "false").lower() == "true"
 
         logger.info("Файл .env загружен успешно.")
-        return min_count, api_key, max_workers, url_start
+        return min_count, api_key, max_workers, url_start, use_ultra_premium
     else:
         logger.error(f"Файл {env_path} не найден!")
         return None
@@ -243,7 +245,9 @@ def make_directory(url_start):
 #             break
 #         else:
 #             logger.info("Неверный выбор. Пожалуйста, попробуйте снова.")
-def create_objects(min_count, api_key, max_workers, url_start, directories):
+def create_objects(
+    min_count, api_key, max_workers, url_start, directories, use_ultra_premium
+):
     (
         directory_name,
         formatted_date,
@@ -273,8 +277,9 @@ def create_objects(min_count, api_key, max_workers, url_start, directories):
         json_result,
         xlsx_result,
         json_page_directory,
+        use_ultra_premium,
     )
-    writer = Writer(csv_output_file, json_result, xlsx_result)
+    writer = Writer(csv_output_file, json_result, xlsx_result, use_ultra_premium)
     parser = Parser(
         min_count,
         html_files_directory,
@@ -282,6 +287,7 @@ def create_objects(min_count, api_key, max_workers, url_start, directories):
         max_workers,
         json_products,
         json_page_directory,
+        use_ultra_premium,
     )
 
     return downloader, writer, parser
@@ -307,10 +313,15 @@ def main_loop():
 
         if choice == "1" or choice == "4":
             # Перезагружаем данные из .env и создаем директории
-            min_count, api_key, max_workers, url_start = get_env()
+            min_count, api_key, max_workers, url_start, use_ultra_premium = get_env()
             directories = make_directory(url_start)
             downloader, writer, parser = create_objects(
-                min_count, api_key, max_workers, url_start, directories
+                min_count,
+                api_key,
+                max_workers,
+                url_start,
+                directories,
+                use_ultra_premium,
             )
 
         if choice == "1":
@@ -319,19 +330,29 @@ def main_loop():
 
         elif choice == "2":
             # Перезагружаем данные из .env и создаем директории
-            min_count, api_key, max_workers, url_start = get_env()
+            min_count, api_key, max_workers, url_start, use_ultra_premium = get_env()
             directories = make_directory(url_start)
             downloader, writer, parser = create_objects(
-                min_count, api_key, max_workers, url_start, directories
+                min_count,
+                api_key,
+                max_workers,
+                url_start,
+                directories,
+                use_ultra_premium,
             )
             asyncio.run(downloader.main_url())
 
         elif choice == "3":
             # Перезагружаем данные из .env и создаем директории
-            min_count, api_key, max_workers, url_start = get_env()
+            min_count, api_key, max_workers, url_start, use_ultra_premium = get_env()
             directories = make_directory(url_start)
             downloader, writer, parser = create_objects(
-                min_count, api_key, max_workers, url_start, directories
+                min_count,
+                api_key,
+                max_workers,
+                url_start,
+                directories,
+                use_ultra_premium,
             )
             all_results = parser.parsing_html()
             writer.save_results_to_json(all_results)

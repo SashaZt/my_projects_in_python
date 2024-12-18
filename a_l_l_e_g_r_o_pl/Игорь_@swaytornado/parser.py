@@ -22,6 +22,7 @@ class Parser:
         max_workers,
         json_products,
         json_page_directory,
+        use_ultra_premium,
     ):
         self.min_count = min_count
         self.html_files_directory = html_files_directory
@@ -29,6 +30,7 @@ class Parser:
         self.max_workers = max_workers
         self.json_products = json_products
         self.json_page_directory = json_page_directory
+        self.use_ultra_premium = use_ultra_premium
 
     def parsing_page_max_page(self, src):
         """Парсит HTML-страницу и возвращает максимальный номер страницы из блока пагинации.
@@ -40,22 +42,32 @@ class Parser:
             int: Максимальный номер страницы, найденный в блоке пагинации, или 1, если пагинация отсутствует.
         """
         soup = BeautifulSoup(src, "lxml")
-        pagination_div = soup.find("ul", {"aria-label": "paginacja"})
         max_page = 1  # Значение по умолчанию, если пагинации нет
-        if pagination_div:
-            span_element = pagination_div.find("span")
-            if span_element:
+
+        try:
+            # Находим блок пагинации
+            pagination_div = soup.find("ul", {"aria-label": "paginacja"})
+            if not pagination_div:
+                logger.warning("Блок пагинации не найден.")
+                return max_page
+
+            # Ищем тег <input> с атрибутом "data-role=page-number-input"
+            input_tag = pagination_div.find("input", {"data-role": "page-number-input"})
+            if input_tag and "data-maxpage" in input_tag.attrs:
+                max_page_text = input_tag["data-maxpage"]
+
+                # Преобразуем текстовое значение в int
                 try:
-                    max_page_text = span_element.get_text(strip=True)
                     max_page = int(max_page_text)
                 except ValueError:
-                    logger.error("Не удалось преобразовать max_page_text в число")
+                    logger.error(f"Не удалось преобразовать 'data-maxpage' в число: {max_page_text}")
             else:
-                logger.error("Элемент span не найден в пагинации")
-        else:
-            logger.error("Элемент пагинации не найден")
+                logger.warning("Тег <input> с атрибутом 'data-maxpage' не найден.")
+        except Exception as e:
+            logger.error(f"Ошибка при парсинге максимального номера страницы: {e}")
 
         return max_page
+
 
     def parsin_page_json(self, src, page_number):
         """
