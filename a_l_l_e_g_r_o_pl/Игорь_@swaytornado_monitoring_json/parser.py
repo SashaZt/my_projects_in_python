@@ -2,6 +2,7 @@ import json
 import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 
 import demjson3
 from bs4 import BeautifulSoup
@@ -11,13 +12,10 @@ from tqdm import tqdm
 
 class Parser:
 
-    def __init__(
-        self,
-        html_files_directory,
-        max_workers,
-    ):
+    def __init__(self, html_files_directory, max_workers, json_products):
         self.html_files_directory = html_files_directory
         self.max_workers = max_workers
+        self.json_products = json_products
 
     def extract_datalayer_json(self, soup):
         """
@@ -304,6 +302,105 @@ class Parser:
         # Закрываем прогресс-бар
         progress_bar.close()
         return all_results
+
+    def extract_images_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"price":{"formattedPric'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            if script.string and script.string.strip().startswith('{"actionsSlot'):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
+
+    def extract_images(self, soup):
+        json_data = self.extract_images_json(soup)
+
+        images_list = []
+
+        # Проходим по каждому элементу в "breadcrumbs"
+        for image in json_data.get("images", []):
+            # Извлекаем "id", "name" и "url"
+            original_image = image.get("original")
+            thumbnail_image = image.get("thumbnail")
+            embeded_image = image.get("embeded")
+            alt_image = image.get("alt")
+
+            # Добавляем элемент в список, если все три поля существуют
+            if original_image and thumbnail_image and embeded_image and alt_image:
+                images_list.append(
+                    {
+                        "original": original_image,
+                        "thumbnail": thumbnail_image,
+                        "embeded": embeded_image,
+                        "alt": alt_image,
+                    }
+                )
+
+        return images_list
+
+    def extract_parametr_json(self, soup):
+        """
+        Извлекает JSON из всех <script type="application/json"> с началом '{"price":{"formattedPric'.
+        Для productid
+        :param soup: Объект BeautifulSoup для HTML-страницы
+        :return: Список JSON-объектов или пустой список, если данные не найдены
+        """
+
+        script_tags = soup.find_all("script", {"type": "application/json"})
+
+        for script in script_tags:
+            if script.string and script.string.strip().startswith(
+                '{"dynamicBottomMargin":true'
+            ):
+                try:
+                    raw_content = script.string
+                    # Исправляем 'True', 'False', 'None' в корректные JSON-значения
+                    corrected_content = re.sub(r"\bTrue\b", "true", raw_content)
+                    corrected_content = re.sub(r"\bFalse\b", "false", corrected_content)
+                    corrected_content = re.sub(r"\bNone\b", "null", corrected_content)
+                    # Парсим JSON
+                    json_data = demjson3.decode(corrected_content, strict=False)
+                    return json_data
+                except json.JSONDecodeError as e:
+                    # Логируем ошибку декодирования JSON
+                    logger.error(f"Ошибка декодирования JSON: {e}")
+                    continue
+
+    def extract_params(self, soup):
+        json_data = self.extract_parametr_json(soup)
+
+        # Словарь для хранения всех параметров singleValueParams
+        params_dict = {}
+
+        # Проходим по всем группам в "groups"
+        for group in json_data.get("groups", []):
+            # Проходим по всем параметрам в "singleValueParams"
+            for param in group.get("singleValueParams", []):
+                # Получаем название параметра и его значение
+                name = param.get("name")
+                value = param.get("value", {}).get("name")
+
+                # Добавляем в словарь, если и ключ, и значение существуют
+                if name and value:
+                    params_dict[name] = value
+        return params_dict
 
     def extract_price_json(self, soup):
         """
