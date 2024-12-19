@@ -23,6 +23,7 @@ class Parser:
         json_products,
         json_page_directory,
         use_ultra_premium,
+        tg_bot,
     ):
         self.min_count = min_count
         self.html_files_directory = html_files_directory
@@ -31,6 +32,7 @@ class Parser:
         self.json_products = json_products
         self.json_page_directory = json_page_directory
         self.use_ultra_premium = use_ultra_premium
+        self.tg_bot = tg_bot
 
     def parsing_page_max_page(self, src):
         """Парсит HTML-страницу и возвращает максимальный номер страницы из блока пагинации.
@@ -67,7 +69,6 @@ class Parser:
             logger.error(f"Ошибка при парсинге максимального номера страницы: {e}")
 
         return max_page
-
 
     def parsin_page_json(self, src, page_number):
         """

@@ -8,11 +8,14 @@ from configuration.logger_setup import logger
 
 class Writer:
 
-    def __init__(self, csv_output_file, json_result, xlsx_result, use_ultra_premium):
+    def __init__(
+        self, csv_output_file, json_result, xlsx_result, use_ultra_premium, tg_bot
+    ):
         self.csv_output_file = csv_output_file
         self.json_result = json_result
         self.xlsx_result = xlsx_result
         self.use_ultra_premium = use_ultra_premium
+        self.tg_bot = tg_bot
 
     def save_to_csv(self, href_set):
         """Сохраняет множество ссылок в CSV-файл.
@@ -28,6 +31,8 @@ class Writer:
         df.to_csv(self.csv_output_file, index=False, encoding="utf-8")
 
         logger.info(f"Данные успешно сохранены в {self.csv_output_file}")
+
+        self.tg_bot.send_message(f"Данные успешно сохранены в {self.csv_output_file}")
 
     def save_results_to_json(self, all_results):
         """Сохраняет результаты в JSON файл.
@@ -46,6 +51,9 @@ class Writer:
             # logger.info(f"Данные успешно сохранены в файл {self.json_result}")
         except Exception as e:
             logger.error(f"Ошибка при сохранении данных в файл {self.json_result}: {e}")
+            self.tg_bot.send_message(
+                f"Ошибка при сохранении данных в файл {self.json_result}: {e}"
+            )
             raise
 
     def save_json_to_excel(self):
@@ -61,13 +69,21 @@ class Writer:
                 data = json.load(json_file)
             df = pd.DataFrame(data)
             df.to_excel(self.xlsx_result, index=False)
+
             logger.info(f"Данные успешно сохранены в Excel файл {self.xlsx_result}")
+
+            self.tg_bot.send_message(
+                f"Данные успешно сохранены в Excel файл {self.xlsx_result}"
+            )
             # Удаление файла
             if os.path.exists(self.xlsx_result):
                 os.remove(self.json_result)
 
         except Exception as e:
             logger.error(
+                f"Ошибка при сохранении данных в Excel файл {self.xlsx_result}: {e}"
+            )
+            self.tg_bot.send_message(
                 f"Ошибка при сохранении данных в Excel файл {self.xlsx_result}: {e}"
             )
             raise

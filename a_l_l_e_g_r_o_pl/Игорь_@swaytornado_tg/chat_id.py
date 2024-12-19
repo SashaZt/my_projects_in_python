@@ -1,7 +1,7 @@
 import requests
 
 # Ваш токен бота
-TELEGRAM_TOKEN = "1977008636:AAF6VWrTwOvSGfTPw_xGrRSFBqBvffe-X1I"
+TELEGRAM_TOKEN = "7768531321:AAFhdLoaxE3nKJQlGPFnXteJLx1DzvibDiI"
 
 
 def get_chat_id():

@@ -1,7 +1,7 @@
 import asyncio
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from parser import Parser
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
@@ -9,6 +9,7 @@ from urllib.parse import urlencode, urlparse
 from configuration.logger_setup import logger
 from dotenv import dotenv_values, load_dotenv
 from downloader import Downloader
+from send_messages import TgBot
 from writer import Writer
 
 
@@ -53,17 +54,34 @@ def get_env():
         api_key = os.getenv("API_KEY")
         max_workers = int(os.getenv("MAX_WORKERS", "20"))
         url_start = link_formation()
-        
+
         # Получение значения для параметра "premium"
         use_ultra_premium = os.getenv("USE_ULTRA_PREMIUM", "false").lower() == "true"
 
+        # Токен ТГ бота
+        TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+
+        # Телеграмм чаты
+        chat_ids = os.getenv("CHAT_IDS")
+        TELEGRAM_CHAT_IDS = chat_ids.split(",") if chat_ids else []
+
+        tg_bot = TgBot(TELEGRAM_TOKEN, TELEGRAM_CHAT_IDS)
+
         logger.info("Файл .env загружен успешно.")
-        return min_count, api_key, max_workers, url_start, use_ultra_premium
+        return (
+            min_count,
+            api_key,
+            max_workers,
+            url_start,
+            use_ultra_premium,
+            tg_bot,
+        )
     else:
         logger.error(f"Файл {env_path} не найден!")
         return None
 
 
+# Создание директорий
 def make_directory(url_start):
 
     # Извлекаем путь из URL
@@ -124,132 +142,9 @@ def make_directory(url_start):
     )
 
 
-# def main_loop():
-#     # Основной цикл программы
-#     while True:
-#         min_count, api_key, max_workers, url_start = get_env()  # Перезагрузка данных
-#         (
-#             directory_name,
-#             formatted_date,
-#             csv_directory,
-#             data_directory,
-#             xlsx_directory,
-#             html_files_directory,
-#             json_products,
-#             json_scrapy,
-#             json_page_directory,
-#             temp_directory,
-#         ) = make_directory(url_start)
-
-#         csv_output_file = csv_directory / f"{formatted_date}_{directory_name}.csv"
-#         json_result = data_directory / "result.json"
-#         xlsx_result = xlsx_directory / f"{formatted_date}_{directory_name}.xlsx"
-
-#         # Создаем объекты классов
-#         downloader = Downloader(
-#             min_count,
-#             api_key,
-#             html_files_directory,
-#             csv_output_file,
-#             json_products,
-#             json_scrapy,
-#             url_start,
-#             max_workers,
-#             json_result,
-#             xlsx_result,
-#             json_page_directory,
-#         )
-#         writer = Writer(csv_output_file, json_result, xlsx_result)
-#         parser = Parser(
-#             min_count,
-#             html_files_directory,
-#             csv_output_file,
-#             max_workers,
-#             json_products,
-#             json_page_directory,
-#         )
-
-#         print(
-#             "\nВыберите действие:\n"
-#             "1. Скачивание страниц пагинации\n"
-#             "2. Асинхронное скачивание товаров\n"
-#             "3. Сохранение результатов\n"
-#             "4. Запустить все этапы сразу!!!\n"
-#             "0. Выход"
-#         )
-#         choice = input("Введите номер действия: ")
-
-#         if choice == "1":
-#             (
-#                 directory_name,
-#                 formatted_date,
-#                 csv_directory,
-#                 data_directory,
-#                 xlsx_directory,
-#                 html_files_directory,
-#                 json_products,
-#                 json_scrapy,
-#                 json_page_directory,
-#                 temp_directory,
-#             ) = make_directory(url_start)
-#             downloader.get_all_page_html()
-#         # elif choice == "2":
-#         #     parser.get_url_html_csv()
-#         elif choice == "2":
-#             asyncio.run(downloader.main_url())
-#         elif choice == "3":
-#             all_results = parser.parsing_html()
-#             writer.save_results_to_json(all_results)
-#             writer.save_json_to_excel()
-
-#             all_results = parser.parsing_json()
-#             # min_count, api_key, max_workers, url_start = get_env()
-#             # make_directory()
-
-#         elif choice == "4":
-#             (
-#                 directory_name,
-#                 formatted_date,
-#                 csv_directory,
-#                 data_directory,
-#                 xlsx_directory,
-#                 html_files_directory,
-#                 json_products,
-#                 json_scrapy,
-#                 json_page_directory,
-#                 temp_directory,
-#             ) = make_directory(url_start)
-#             # Запуск метода для получения всех страниц HTML
-#             logger.info("Запуск хождения по пагинации")
-#             downloader.get_all_page_html()
-
-#             # Запуск асинхронного метода для обработки URL
-#             logger.info("Запуск скачивания товара")
-#             asyncio.run(downloader.main_url())
-
-#             # Парсинг HTML и получение результатов
-#             logger.info("Запуск парсинга html страниц")
-#             all_results = parser.parsing_html()
-
-#             # Сохранение результатов в JSON и Excel
-#             logger.info("Сохранение результатов в Excel")
-#             writer.save_results_to_json(all_results)
-#             writer.save_json_to_excel()
-
-#             # Парсинг данных из JSON
-#             logger.info("Сохранение результатов в JSON")
-#             all_results = parser.parsing_json()
-
-#         elif choice == "5":
-#             shutil.rmtree(temp_directory)
-
-
-#         elif choice == "0":
-#             break
-#         else:
-#             logger.info("Неверный выбор. Пожалуйста, попробуйте снова.")
+# Создание объектов
 def create_objects(
-    min_count, api_key, max_workers, url_start, directories, use_ultra_premium
+    min_count, api_key, max_workers, url_start, directories, use_ultra_premium, tg_bot
 ):
     (
         directory_name,
@@ -281,8 +176,11 @@ def create_objects(
         xlsx_result,
         json_page_directory,
         use_ultra_premium,
+        tg_bot,
     )
-    writer = Writer(csv_output_file, json_result, xlsx_result, use_ultra_premium)
+    writer = Writer(
+        csv_output_file, json_result, xlsx_result, use_ultra_premium, tg_bot
+    )
     parser = Parser(
         min_count,
         html_files_directory,
@@ -291,6 +189,7 @@ def create_objects(
         json_products,
         json_page_directory,
         use_ultra_premium,
+        tg_bot,
     )
 
     return downloader, writer, parser
@@ -316,7 +215,9 @@ def main_loop():
 
         if choice == "1" or choice == "4":
             # Перезагружаем данные из .env и создаем директории
-            min_count, api_key, max_workers, url_start, use_ultra_premium = get_env()
+            min_count, api_key, max_workers, url_start, use_ultra_premium, tg_bot = (
+                get_env()
+            )
             directories = make_directory(url_start)
             downloader, writer, parser = create_objects(
                 min_count,
@@ -325,6 +226,7 @@ def main_loop():
                 url_start,
                 directories,
                 use_ultra_premium,
+                tg_bot,
             )
 
         if choice == "1":
@@ -333,7 +235,9 @@ def main_loop():
 
         elif choice == "2":
             # Перезагружаем данные из .env и создаем директории
-            min_count, api_key, max_workers, url_start, use_ultra_premium = get_env()
+            min_count, api_key, max_workers, url_start, use_ultra_premium, tg_bot = (
+                get_env()
+            )
             directories = make_directory(url_start)
             downloader, writer, parser = create_objects(
                 min_count,
@@ -342,12 +246,15 @@ def main_loop():
                 url_start,
                 directories,
                 use_ultra_premium,
+                tg_bot,
             )
             asyncio.run(downloader.main_url())
 
         elif choice == "3":
             # Перезагружаем данные из .env и создаем директории
-            min_count, api_key, max_workers, url_start, use_ultra_premium = get_env()
+            min_count, api_key, max_workers, url_start, use_ultra_premium, tg_bot = (
+                get_env()
+            )
             directories = make_directory(url_start)
             downloader, writer, parser = create_objects(
                 min_count,
@@ -356,6 +263,7 @@ def main_loop():
                 url_start,
                 directories,
                 use_ultra_premium,
+                tg_bot,
             )
             all_results = parser.parsing_html()
             writer.save_results_to_json(all_results)
@@ -364,6 +272,12 @@ def main_loop():
             all_results = parser.parsing_json()
 
         elif choice == "4":
+            # Фиксируем время начала
+            start_time_now = datetime.now()
+            start_time = start_time_now.strftime("%Y-%m-%d %H:%M:%S")
+            # Уведомляем о старте программы
+            tg_bot.send_message(f"Запуск парсера {start_time}")
+
             # Запуск всех этапов
             logger.info("Запуск хождения по пагинации")
             downloader.get_all_page_html()
@@ -372,10 +286,22 @@ def main_loop():
             logger.info("Запуск парсинга html страниц")
             all_results = parser.parsing_html()
             logger.info("Сохранение результатов в JSON")
+
             writer.save_results_to_json(all_results)
+            tg_bot.send_message("Сохранили Json")
+
             logger.info("Сохранение результатов в Excel")
             writer.save_json_to_excel()
+            tg_bot.send_message("Сохранили excel")
             all_results = parser.parsing_json()
+            # Рассчитываем длительность
+            end_time_now = datetime.now()
+            end_time = end_time_now.strftime("%Y-%m-%d %H:%M:%S")
+            duration = end_time_now - start_time_now
+            minutes, seconds = divmod(duration.total_seconds(), 60)
+            tg_bot.send_message(
+                f"Конец выполнения программы {end_time}\nДлительность {int(minutes)}мин {int(seconds)}сек"
+            )
 
         elif choice == "5":
             shutil.rmtree(directories[-1])  # temp_directory

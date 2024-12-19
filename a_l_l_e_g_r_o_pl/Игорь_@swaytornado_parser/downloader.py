@@ -30,6 +30,7 @@ class Downloader:
         xlsx_result,
         json_page_directory,
         use_ultra_premium,
+        tg_bot,
     ):
 
         self.min_count = min_count
@@ -44,6 +45,7 @@ class Downloader:
         self.xlsx_result = xlsx_result
         self.json_page_directory = json_page_directory
         self.use_ultra_premium = use_ultra_premium
+        self.tg_bot = tg_bot
 
         self.parser = Parser(
             min_count,
@@ -53,9 +55,10 @@ class Downloader:
             json_products,
             json_page_directory,
             use_ultra_premium,
+            tg_bot,
         )  # Создаем экземпляр Parser
         self.writer = Writer(
-            csv_output_file, json_result, xlsx_result, use_ultra_premium
+            csv_output_file, json_result, xlsx_result, use_ultra_premium, tg_bot
         )
 
     def make_request_with_retries(self, url, params, max_retries=10, delay=30):
@@ -90,6 +93,9 @@ class Downloader:
             time.sleep(delay)
 
         logger.error(f"Не удалось выполнить запрос после {max_retries} попыток: {url}")
+        self.tg_bot.send_message(
+            f"Не удалось выполнить запрос после {max_retries} попыток: {url}"
+        )
         return None
 
     def get_all_page_html(self):
@@ -115,6 +121,8 @@ class Downloader:
         src = response.text
         # logger.info(src)
         max_page = self.parser.parsing_page_max_page(src)
+
+        self.tg_bot.send_message(f"Всего страниц {max_page}")
         logger.info(f"Всего страниц {max_page}")
 
         # Обработка первой страницы
@@ -173,6 +181,8 @@ class Downloader:
                     break
 
         logger.info(f"Всего ссылок {len(all_data)}")
+        self.tg_bot.send_message(f"Всего ссылок {len(all_data)}")
+
         self.writer.save_to_csv(all_data)
 
     # Рабочий код
@@ -493,6 +503,9 @@ class Downloader:
                             success = True
                         else:
                             logger.error(
+                                f"Ошибка при отправке задачи для URL {cleaned_url}: {response.status_code}"
+                            )
+                            self.tg_bot.send_message(
                                 f"Ошибка при отправке задачи для URL {cleaned_url}: {response.status_code}"
                             )
                     except requests.exceptions.ReadTimeout:
