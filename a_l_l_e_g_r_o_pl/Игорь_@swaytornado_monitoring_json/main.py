@@ -113,33 +113,61 @@ def count_urls(file_path):
     return len(urls)
 
 
+def count_files_in_directory(directory):
+    """
+    Считает количество файлов в указанной директории.
+
+    Args:
+        directory (Path): Путь к директории.
+
+    Returns:
+        int: Количество файлов в директории.
+    """
+    if not directory.exists() or not directory.is_dir():
+        return 0  # Если директория не существует или это не папка
+
+    # Считаем только файлы
+    file_count = sum(1 for file in directory.iterdir() if file.is_file())
+    return file_count
+
+
 def main_loop():
     urls = process_file(incoming_file)
     # Создаем объекты классов
     downloader = Downloader(
         api_key, html_files_directory, urls, json_scrapy, use_ultra_premium
     )
-    writer = Writer(output_json, tg_bot)
+    # writer = Writer(output_json, tg_bot)
     parser = Parser(html_files_directory, max_workers, json_products)
     # Фиксируем время начала
     start_time_now = datetime.now()
     start_time = start_time_now.strftime("%Y-%m-%d %H:%M:%S")
-
-    # Уведомляем о старте программы
-    tg_bot.send_message(f"Старт выполнения программы {start_time}")
     count_url = count_urls(incoming_file)
+    # Уведомляем о старте программы
+    tg_bot.send_message(
+        f"Старт программы мониторинг Json\n{start_time}\nКоличество товаров на проверку {count_url}"
+    )
 
-    tg_bot.send_message(f"Количество товаров на проверку {count_url}")
+    # tg_bot.send_message(f"Количество товаров на проверку {count_url}")
 
     try:
         # Основной код программы
         asyncio.run(downloader.main_url())
-        all_results = parser.parsing_json()
+        parser.parsing_json()
 
         # writer.save_results_to_json(all_results, tg_bot)
+        # Рассчитываем длительность
+        end_time_now = datetime.now()
+        end_time = end_time_now.strftime("%Y-%m-%d %H:%M:%S")
+        duration = end_time_now - start_time_now
+        minutes, seconds = divmod(duration.total_seconds(), 60)
+        # Фиксируем время окончания
 
+        file_count = count_files_in_directory(html_files_directory)
         # Уведомляем о завершении сохранения результатов
-        tg_bot.send_message("Результаты успешно сохранены.")
+        tg_bot.send_message(
+            f"Результаты успешно сохранены.\nОбработано {file_count}\nНе обработано {int(count_url) - int(file_count)}\nКонец выполнения программы {end_time}\nДлительность {int(minutes)}мин {int(seconds)}сек"
+        )
 
     except Exception as e:
         logger.error(e)
@@ -147,20 +175,16 @@ def main_loop():
         tg_bot.send_message(f"Произошла ошибка: {e}")
         raise  # Пробрасываем исключение выше, если это критично
 
-    # Фиксируем время окончания
-    end_time_now = datetime.now()
-    end_time = end_time_now.strftime("%Y-%m-%d %H:%M:%S")
-    tg_bot.send_message(f"Конец выполнения программы {end_time}")
+    # tg_bot.send_message(f"Конец выполнения программы {end_time}")
 
-    # Рассчитываем длительность
-    duration = end_time_now - start_time_now
-    minutes, seconds = divmod(duration.total_seconds(), 60)
-    tg_bot.send_message(f"Длительность {int(minutes)}мин {int(seconds)}сек")
-    number_of_results = len(all_results)
+    # tg_bot.send_message(f"Длительность {int(minutes)}мин {int(seconds)}сек")
+    # file_count = count_files_in_directory(html_files_directory)
 
-    tg_bot.send_message(
-        f"Обработано {number_of_results}\nНе обработано {int(count_url) - int(number_of_results)}"
-    )
+    # # number_of_results = len(all_results)
+
+    # tg_bot.send_message(
+    #     f"Обработано {file_count}\nНе обработано {int(count_url) - int(file_count)}"
+    # )
 
 
 if __name__ == "__main__":
