@@ -62,6 +62,8 @@ json_scrapy.mkdir(parents=True, exist_ok=True)
 
 
 output_json = destination_folder / f"{formatted_date}_output.json"
+xlsx_result = destination_folder / f"{formatted_date}_output.xlsx"
+
 incoming_file = source_folder / INCOMING_FILE
 if not incoming_file.exists():
     logger.warning(f"Нету файла {INCOMING_FILE} в папке {source_folder}")
@@ -117,7 +119,7 @@ def main_loop():
     downloader = Downloader(
         api_key, html_files_directory, urls, json_scrapy, use_ultra_premium
     )
-    writer = Writer(output_json, tg_bot)
+    writer = Writer(output_json, tg_bot, xlsx_result)
     parser = Parser(
         html_files_directory,
         max_workers,
@@ -137,7 +139,8 @@ def main_loop():
         asyncio.run(downloader.main_url())
         all_results = parser.parsing_html()
 
-        writer.save_results_to_json(all_results, tg_bot)
+        writer.save_results_to_json(all_results)
+        writer.save_json_to_excel()
 
         # Уведомляем о завершении сохранения результатов
         tg_bot.send_message("Результаты успешно сохранены.")
@@ -161,30 +164,6 @@ def main_loop():
     tg_bot.send_message(
         f"Обработано {number_of_results}\nНе обработано {int(count_url) - int(number_of_results)}"
     )
-
-    # # Основной цикл программы
-    # while True:
-    #     print(
-    #         "\nВыберите действие:\n"
-    #         "1. Асинхронное скачивание товаров\n"
-    #         # "2. Парсинг страниц пагинации\n"
-    #         "2. Сохранение результатов\n"
-    #         "3. Очистить временные папки\n"
-    #         "0. Выход"
-    #     )
-    #     choice = input("Введите номер действия: ")
-
-    #     if choice == "1":
-
-    #     elif choice == "2":
-    #         all_results = parser.parsing_html()
-    #         writer.save_results_to_json(all_results, tg_bot)
-    #     elif choice == "3":
-    #         shutil.rmtree(html_files_directory)
-    #     elif choice == "0":
-    #         break
-    #     else:
-    #         logger.info("Неверный выбор. Пожалуйста, попробуйте снова.")
 
 
 if __name__ == "__main__":
