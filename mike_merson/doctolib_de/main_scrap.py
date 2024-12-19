@@ -17,7 +17,7 @@ html_directory.mkdir(exist_ok=True, parents=True)
 
 
 output_file = Path("extracted_profile_data.json")
-CONCURRENT_TASKS = 50  # Количество одновременных задач
+CONCURRENT_TASKS = 100  # Количество одновременных задач
 
 
 # def normalize_address(address):
@@ -227,17 +227,26 @@ async def process_html_file(html_file, extracted_data):
             else:
                 specialities = None
 
-            dl_profile = soup.find("div", {"class": "dl-profile-text"})
-            insurance_types = None
-            if dl_profile:
-                raw_text = dl_profile.text.strip()
-                # Разделяем строку по ключевым словам "und", "sowie"
-                insurance_types = [
-                    item.strip()
-                    for item in raw_text.replace(" sowie ", ", ")
-                    .replace(" und ", ", ")
-                    .split(",")
-                ]
+            insurance_types = []
+
+            # Проверяем наличие заголовка 'Abrechnungsarten' с нормализацией текста
+            title_element = soup.find(
+                "h2", string=lambda text: text and "Abrechnungsarten" in text.strip()
+            )
+            if title_element:
+                # Если заголовок найден, ищем текст ниже
+                dl_profile = title_element.find_next(
+                    "div", {"class": "dl-profile-text"}
+                )
+                if dl_profile:
+                    raw_text = dl_profile.text.strip()
+                    # Разделяем строку по ключевым словам "und", "sowie"
+                    insurance_types = [
+                        item.strip()
+                        for item in raw_text.replace(" sowie ", ", ")
+                        .replace(" und ", ", ")
+                        .split(",")
+                    ]
             dl_profile_skills = soup.find("div", {"class": "dl-profile-skills"})
 
             # Обрабатываем навыки
