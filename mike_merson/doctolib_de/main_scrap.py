@@ -200,7 +200,7 @@ async def process_html_file(html_file, extracted_data):
                         postalCode = doctor_place.get("postalCode", None)
                         addressLocality = doctor_place.get("addressLocality", None)
                         address = f"{streetAddress}, {postalCode}, {addressLocality}"
-                        address = validate_address(address)
+                        # address = validate_address(address)
                         all_data["address"] = address
                         # extracted_data["data"].append(all_data)
                         return all_data
@@ -290,7 +290,7 @@ async def process_html_file(html_file, extracted_data):
                     # Парсим data-props как JSON
                     practice_data = json.loads(data_props)
                     address = practice_data.get("fullAddress")
-                    address = validate_address(address)
+                    # address = validate_address(address)
                     latitude = str(practice_data.get("lat"))
                     longitude = str(practice_data.get("lng"))
             dl_profile_title_raw = soup.find(
@@ -361,7 +361,9 @@ async def process_html_file(html_file, extracted_data):
             # logger.info(openingHours)
             openingHours = convert_opening_hours(openingHours)
             # logger.info(openingHours)
-            phone_number = ld_json.get("telephone", None)
+            phone_number = [ld_json.get("telephone", None)]
+            if phone_number[0] is None:
+                phone_number = []
             clinic_name_raw = soup.find("div", {"class": "dl-profile-practice-name"})
             if clinic_name_raw:
                 clinic_name = clinic_name_raw.text.strip()
@@ -380,7 +382,6 @@ async def process_html_file(html_file, extracted_data):
                 "name": name.text.strip() if name else None,
                 "services": skills,
                 "img": image_profile,
-                "website_doctor": href,
                 "languages": languages,
                 "url_doctor": url_doctor,
             }
@@ -392,7 +393,8 @@ async def process_html_file(html_file, extracted_data):
             polyclinic_data = {
                 "polyclinics": [
                     {
-                        "phone_number": [phone_number],
+                        "phone_number": phone_number,
+                        "website_doctor": href,
                         "clinic_name": clinic_name,
                         "address": address,
                         "opening_hours": openingHours,

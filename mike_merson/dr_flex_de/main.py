@@ -223,6 +223,10 @@ def extract_doctors_data(soup):
         # Извлекаем имя врача
         name_tag = card.find("p", class_="name")
         name = name_tag.text.strip() if name_tag else ""
+        img = None
+        img_tag = card.find("img")
+        if img_tag:
+            img = img_tag.get("src")
 
         # Извлекаем специальность врача (job)
         job_tag = card.find("p", class_="job")
@@ -238,6 +242,7 @@ def extract_doctors_data(soup):
         # Добавляем данные врача в список
         doctor_info = {
             "name": name,
+            "img": img,
             "job": job,
             "doctor_specialization": specializations,
         }
@@ -299,6 +304,113 @@ def find_url_by_clinic_name(clinic_name, input_csv_file):
     return ""  # Если URL не найден, возвращаем пустую строку
 
 
+# def parsing_html():
+#     """
+#     Обрабатывает HTML-файлы в указанной директории, извлекает данные из тегов, сохраняет в файл JSON.
+#     """
+#     output_file = Path("extracted_profile_data.json")
+#     extracted_data = {
+#         "project": "focus-gesundheit.de",
+#         "data": [],  # Список для хранения словарей
+#     }
+
+#     # Проверяем, существует ли директория
+#     if not html_directory.is_dir():
+#         logger.error(f"Директория {html_directory} не существует.")
+#         return
+
+#     for html_file in html_directory.glob("*.html"):
+#         try:
+#             with html_file.open(encoding="utf-8") as file:
+#                 name = None
+#                 image = None
+#                 phone = None
+#                 fax = None
+#                 address = None
+#                 clinic_name = None
+#                 doctor_specialization = None
+#                 incuranse = None
+#                 email = None
+#                 web = None
+#                 languages = None
+#                 transport_list = None
+#                 doc_logo = None
+#                 additional_info = None
+#                 full_description = None
+#                 url_doctor = None
+#                 opening_hours = None
+#                 doctor_profession = None
+#                 polyclinics = []
+#                 content = file.read()
+#                 soup = BeautifulSoup(content, "lxml")
+#                 script_json = soup.find("script", {"type": "application/ld+json"})
+#                 # if script_json:
+#                 clinic_overview = soup.find(
+#                     "div",
+#                     {"class": "overview"},
+#                 )
+#                 if clinic_overview:
+#                     clinics_raw = clinic_overview.find(
+#                         "div",
+#                         {"class": "card-header"},
+#                     )
+#                     if clinics_raw:
+#                         clinics = clinics_raw.find("h1")
+#                         if clinics:
+#                             clinic_name = clinics.text.strip()
+#                     doctor_professions = clinic_overview.find("h2").find("span")
+#                     # Извлекаем текст из всех <li> элементов внутри <ul>
+#                     if doctor_professions:
+#                         doctor_profession = doctor_professions.text.strip()
+#                     opening_hours = parse_opening_hours(clinic_overview)
+
+#                     address, web = extract_address_and_website(soup)
+#                 doctor_specialization = extract_special_features(soup)
+#                 services = extract_service_titles(soup)
+#                 about_text = extract_about_text(soup)
+#                 full_description = {
+#                     "title": "Über mich",
+#                     "Herzlich willkommen": about_text,
+#                 }
+#                 doctors_list = extract_doctors_data(soup)
+#                 url_doctor = find_url_by_clinic_name(clinic_name, output_csv)
+
+#                 polyclinic = {
+#                     # "phone_number": phone_number,
+#                     "website_doctor": web,
+#                     # "email": email,
+#                     "clinic_name": clinic_name,
+#                     "address": address,
+#                     "opening_hours": opening_hours,
+#                     "doctors_list": doctors_list,
+#                     # "transport_list": transport_list,
+#                 }
+#                 polyclinics.append(polyclinic)
+#                 incuranse = []
+#                 all_data = {
+#                     "name": name,
+#                     "doctor_profession": doctor_profession,
+#                     "url_doctor": url_doctor,
+#                     "doctor_specializations": doctor_specialization,
+#                     "description": full_description,
+#                     "accepted_insurances": incuranse,
+#                     # "languages": languages,
+#                     "services": services,
+#                     "polyclinics": polyclinics,
+#                 }
+#                 # Добавляем данные в список
+#                 extracted_data["data"].append(all_data)
+
+
+#         except Exception as e:
+#             logger.error(f"Ошибка при обработке файла {html_file.name}: {e}")
+#     # logger.info(extracted_data)
+#     try:
+#         with output_file.open("w", encoding="utf-8") as f:
+#             json.dump(extracted_data, f, ensure_ascii=False, indent=4)
+#         logger.info(f"Все данные сохранены в {output_file}")
+#     except Exception as e:
+#         logger.error(f"Ошибка при сохранении данных в файл {output_file}: {e}")
 def parsing_html():
     """
     Обрабатывает HTML-файлы в указанной директории, извлекает данные из тегов, сохраняет в файл JSON.
@@ -306,7 +418,7 @@ def parsing_html():
     output_file = Path("extracted_profile_data.json")
     extracted_data = {
         "project": "focus-gesundheit.de",
-        "data": [],  # Список для хранения словарей
+        "data": [],  # Список для хранения данных врачей
     }
 
     # Проверяем, существует ли директория
@@ -318,7 +430,6 @@ def parsing_html():
         try:
             with html_file.open(encoding="utf-8") as file:
                 name = None
-                image = None
                 phone = None
                 fax = None
                 address = None
@@ -334,39 +445,28 @@ def parsing_html():
                 full_description = None
                 url_doctor = None
                 opening_hours = None
+                doctor_profession = None
                 polyclinics = []
                 content = file.read()
                 soup = BeautifulSoup(content, "lxml")
-                script_json = soup.find("script", {"type": "application/ld+json"})
-                # if script_json:
-                clinic_overview = soup.find(
-                    "div",
-                    {"class": "overview"},
-                )
+
+                # Извлечение данных клиники
+                clinic_overview = soup.find("div", {"class": "overview"})
                 if clinic_overview:
-                    clinics_raw = clinic_overview.find(
-                        "div",
-                        {"class": "card-header"},
-                    )
+                    clinics_raw = clinic_overview.find("div", {"class": "card-header"})
                     if clinics_raw:
                         clinics = clinics_raw.find("h1")
                         if clinics:
                             clinic_name = clinics.text.strip()
-                    doctor_specializations = clinic_overview.find("h2").find("span")
-                    # Извлекаем текст из всех <li> элементов внутри <ul>
-                    if doctor_specializations:
-                        doctor_specialization = [doctor_specializations.text.strip()]
+                    doctor_professions = clinic_overview.find("h2").find("span")
+                    if doctor_professions:
+                        doctor_profession = doctor_professions.text.strip()
                     opening_hours = parse_opening_hours(clinic_overview)
-                    # address_raw = clinic_overview.find("a", {"class": "address"})
-                    # logger.info(address_raw.find("a"))
-                    # if address_raw:
-                    #     address = address_raw.text.strip()
-                    # web_raw = soup.select_one(
-                    #     "#main > div > div:nth-child(4) > div > section.informations > div.overview > div:nth-child(4) > a:nth-child(4)"
-                    # )
-                    # if web_raw:
-                    #     web = web_raw.get("href")
                     address, web = extract_address_and_website(soup)
+
+                # Извлечение данных врачей
+                doctors_list = extract_doctors_data(soup)
+                url_doctor = find_url_by_clinic_name(clinic_name, output_csv)
                 doctor_specialization = extract_special_features(soup)
                 services = extract_service_titles(soup)
                 about_text = extract_about_text(soup)
@@ -374,183 +474,36 @@ def parsing_html():
                     "title": "Über mich",
                     "Herzlich willkommen": about_text,
                 }
-                doctors_list = extract_doctors_data(soup)
-                url_doctor = find_url_by_clinic_name(clinic_name, output_csv)
-
-                # if script_json:
-                #     doctor_json = json.loads(script_json.string.strip())
-
-                #     # name = doctor_json.get("name", None)
-                #     image = doctor_json.get("image", None)
-                #     phone = doctor_json.get("telephone", None)
-                #     if phone:
-                #         phone = phone.replace(" ", "").replace("/", "")
-                #         phone = format_phone_fax(phone)
-
-                #     address_raw = doctor_json.get("address", {})
-                #     if address_raw:
-                #         streetAddress = address_raw.get("streetAddress", None)
-                #         addressLocality = address_raw.get("addressLocality", None)
-                #         postalCode = address_raw.get("postalCode", None)
-                #         addressRegion = address_raw.get("addressRegion", None)
-                #         addressCountry = address_raw.get("addressCountry", None)
-                #         address = f"{streetAddress} {postalCode} {addressLocality}"
-                # phone_number.append(phone)
-                # firstname_raw = soup.find(
-                #     "span",
-                #     {"id": "firstname"},
-                # )
-                # lastname_raw = soup.find(
-                #     "span",
-                #     {"id": "lastname"},
-                # )
-                # if firstname_raw:
-                #     firstname = firstname_raw.text.strip()
-                # if lastname_raw:
-                #     lastname = lastname_raw.text.strip()
-                # name = f"{firstname} {lastname}"
-
-                # fax_raw = soup.find(
-                #     "span",
-                #     {"id": "fax"},
-                # )
-                # if fax_raw:
-                #     fax = fax_raw.text.strip().replace(" ", "").replace("/", "")
-                #     fax = format_phone_fax(fax)
-                # if fax is not None:
-                #     phone_number.append(fax)
-
-                # incuranse_raw = soup.select_one(
-                #     "#detail_main > div.col-md-9.col-md-pull-3.detail-content > div > section.profile__content__overview > div:nth-child(5) > div > div.profile__content__content.col-sm-8 > div.editable--hidden-on-edit"
-                # )
-                # if incuranse_raw:
-                #     incuranse_text = incuranse_raw.text.strip()  # "Kasse | Privat"
-                #     # Обрабатываем и заменяем слова
-                #     incuranse = [
-                #         item.strip()
-                #         .replace("Kasse", "Gesetzlich")
-                #         .replace("Insurance", "Versicherung")
-                #         for item in incuranse_text.split("|")
-                #     ]
-                # email_raw = soup.find("span", {"data-placeholder": "E-Mail"})
-                # if email_raw:
-                #     email = email_raw.text.strip()
-
-                # languages_raw = soup.find(
-                #     "ul", {"data-placeholder": "Sprachen auswählen"}
-                # )
-                # if languages_raw:
-                #     languages = [
-                #         li.get_text(strip=True) for li in languages_raw.find_all("li")
-                #     ]
-
-                # hours_list = soup.find(
-                #     "ul", {"class": "profile__sidebar__open-hours-list"}
-                # )
-
-                # # Создаём словарь для хранения расписания
-                # schedule = {}
-
-                # if hours_list:
-                #     # Проходим по всем элементам <li> в списке
-                #     for item in hours_list.find_all("li"):
-                #         # Извлекаем день недели
-                #         day_tag = item.find(
-                #             "div", {"class": "profile__sidebar__open-hours__day"}
-                #         ).find("span")
-                #         day = day_tag.text.strip() if day_tag else None
-
-                #         # Извлекаем часы работы
-                #         hours_div = item.find(
-                #             "div", {"class": "profile__sidebar__open-hours__hour"}
-                #         )
-                #         if hours_div:
-                #             # Извлекаем текст часов работы
-                #             hours_text = hours_div.find(
-                #                 "span", class_=False
-                #             )  # Берём основной блок
-                #             if hours_text:
-                #                 hours = hours_text.get_text(strip=True)
-                #             else:
-                #                 hours = (
-                #                     "geschlossen"  # Если элемента нет, значит закрыто
-                #                 )
-
-                #             # Добавляем в словарь
-                #             if day:
-                #                 schedule[day] = hours
-                # # Преобразуем расписание
-                # opening_hours = transform_schedule(schedule)
-                # url_doctor_raw = soup.find("link", attrs={"rel": "canonical"})
-                # if url_doctor_raw:
-                #     url_doctor = url_doctor_raw.get("href")
-                # transport_raw = soup.find("span", {"id": "infoTraffic"})
-                # if transport_raw:
-                #     # Извлекаем текст из атрибута или содержимого
-                #     raw_data = transport_raw.text.strip()
-
-                #     # Разделяем данные на строки
-                #     transport_list = (
-                #         raw_data.split("\n")
-                #         if "\n" in raw_data
-                #         else raw_data.split("  ")
-                #     )
-
-                #     # Убираем лишние пробелы
-                #     transport_list = [
-                #         line.strip() for line in transport_list if line.strip()
-                #     ]
-                # doc_logo_raw = soup.find("img", {"id": "doc-logo"})
-                # if doc_logo_raw:
-                #     doc_logo = doc_logo_raw.get("src")
-
-                # additional_info_raw = soup.find(
-                #     "ul", {"data-placeholder": "Patientenservices auswählen"}
-                # )
-                # if additional_info_raw:
-                #     additional_info = [
-                #         li.get_text(strip=True)
-                #         for li in additional_info_raw.find_all("li")
-                #     ]
-                # description_raw = soup.find("span", {"data-editable-type": "ckeditor"})
-                # if description_raw:
-                #     # Найти все теги <p>
-                #     paragraphs = description_raw.find_all("p")
-                #     # Извлечь текст из каждого <p>
-                #     description = [p.get_text(strip=True) for p in paragraphs]
-                #     # Объединить текст, если требуется одна строка
-                #     full_description = " ".join(description)
-                # full_description = {
-                #     "title": "Über mich",
-                #     "Herzlich willkommen": full_description,
-                # }
-                polyclinic = {
-                    # "phone_number": phone_number,
-                    "website_doctor": web,
-                    # "email": email,
-                    "clinic_name": clinic_name,
-                    "address": address,
-                    "opening_hours": opening_hours,
-                    "doctors_list": doctors_list,
-                    # "transport_list": transport_list,
-                }
-                polyclinics.append(polyclinic)
-                all_data = {
-                    "name": name,
-                    "url_doctor": url_doctor,
-                    "doctor_specializations": doctor_specialization,
-                    "description": full_description,
-                    # "accepted_insurances": incuranse,
-                    # "languages": languages,
-                    "services": services,
-                    "polyclinics": polyclinics,
-                }
-                # Добавляем данные в список
-                extracted_data["data"].append(all_data)
+                phone_number = []
+                gps = []
+                # Создание структуры данных врач-клиника
+                for doctor in doctors_list:
+                    doctor_entry = {
+                        "name": doctor.get("name"),
+                        "img": doctor.get("img"),
+                        "doctor_profession": doctor.get("job"),
+                        "url_doctor": url_doctor,
+                        "doctor_specializations": doctor.get(
+                            "doctor_specialization", []
+                        ),
+                        "description": full_description,
+                        "accepted_insurances": [],
+                        "services": services,
+                        "polyclinic": {
+                            "clinic_name": clinic_name,
+                            "address": address,
+                            "website_doctor": web,
+                            "opening_hours": opening_hours,
+                            "phone_number": phone_number,
+                            "gps": gps,
+                        },
+                    }
+                    extracted_data["data"].append(doctor_entry)
 
         except Exception as e:
             logger.error(f"Ошибка при обработке файла {html_file.name}: {e}")
-    # logger.info(extracted_data)
+
+    # Сохранение данных
     try:
         with output_file.open("w", encoding="utf-8") as f:
             json.dump(extracted_data, f, ensure_ascii=False, indent=4)
