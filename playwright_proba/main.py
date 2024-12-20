@@ -470,22 +470,22 @@ async def run(playwright):
     )
     page = await context.new_page()
 
-    # Отключаем загрузку изображений, шрифтов и других медиафайлов
-    await context.route(
-        "**/*",
-        lambda route, request: (
-            route.abort()
-            if request.resource_type in ["image", "media", "font", "stylesheet"]
-            else route.continue_()
-        ),
-    )
+    # # Отключаем загрузку изображений, шрифтов и других медиафайлов
+    # await context.route(
+    #     "**/*",
+    #     lambda route, request: (
+    #         route.abort()
+    #         if request.resource_type in ["image", "media", "font", "stylesheet"]
+    #         else route.continue_()
+    #     ),
+    # )
 
     # Переходим на URL
-    url = "https://forwardbelgium.be/find-a-forwarder"
+    url = "https://hit.sbt.siemens.com/RWD/app.aspx?RC=HQEU&lang=en&MODULE=Catalog&ACTION=ShowGroup&KEY=OPC_371831"
     await page.goto(url)
 
     # Ожидаем начальную загрузку
-    await asyncio.sleep(5)
+    await asyncio.sleep(500)
 
     # Нажимаем на кнопку "Next" и ждем загрузки
     for i in range(1, 11):
