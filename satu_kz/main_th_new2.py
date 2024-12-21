@@ -81,7 +81,7 @@ def read_cities_from_csv(input_csv_file):
     return df["url"].tolist()
 
 
-# Функция для загрузки JSON
+# Функция для обработки JSON
 def fetch_json(company, proxy, cookies, headers, json_data, unique_companies, lock):
     output_json_file = json_directory / f"{company}.json"
     json_data["variables"]["company_id"] = company
@@ -96,18 +96,13 @@ def fetch_json(company, proxy, cookies, headers, json_data, unique_companies, lo
         )
         if response.status_code == 200:
             response_data = response.json()
-            if response.status_code == 200:
-                response_data = response.json()
-                if response_data.get("data", {}).get("company") is not None:
-                    # Добавляем компанию в список уникальных с использованием lock
-
-                    with open(output_json_file, "w", encoding="utf-8") as f:
-                        json.dump(response_data, f, ensure_ascii=False, indent=4)
-                    logger.info(f"JSON сохранен: {output_json_file}")
-                else:
-                    with lock:
-                        unique_companies.add(company)
-
+            if response_data.get("data", {}).get("company") is not None:
+                with open(output_json_file, "w", encoding="utf-8") as f:
+                    json.dump(response_data, f, ensure_ascii=False, indent=4)
+                logger.info(f"JSON сохранен: {output_json_file}")
+            else:
+                with lock:
+                    unique_companies.add(company)
         else:
             pass
             # logger.warning(f"Ошибка ответа {response.status_code} для {company}")
@@ -119,7 +114,7 @@ def fetch_json(company, proxy, cookies, headers, json_data, unique_companies, lo
         # logger.error(f"Ошибка запроса для {company}: {e}")
 
 
-# Функция для чтения файла уникальных компаний
+# Функция для загрузки уникальных ID из файла
 def read_unique_companies(file_path):
     if file_path.exists():
         with open(file_path, "r", encoding="utf-8") as f:
@@ -127,126 +122,54 @@ def read_unique_companies(file_path):
     return set()
 
 
-# # Основной запуск с очередями и ThreadPoolExecutor
-# if __name__ == "__main__":
-#     # while True:
-#     #     start_time_now = datetime.now()
-#     #     start_time = start_time_now.strftime("%Y-%m-%d %H:%M:%S")
-#     #     logger.info(f"Начало работы {start_time}")
-#     #     proxy, cookies, headers, json_data = p_c_h_j()
-#     #     # Настройки
-#     #     all_id = list(range(1, 100001))
-#     #     max_workers = 10  # Количество одновременно работающих потоков
+# Функция для получения ID из имён файлов JSON
+def get_ids_from_json_files(json_dir):
+    ids = set()
+    for file in json_dir.glob("*.json"):
+        try:
+            # Извлекаем ID из имени файла (без расширения)
+            ids.add(file.stem)
+        except Exception as e:
+            logger.warning(f"Ошибка обработки файла {file}: {e}")
+    return ids
 
-#     #     unique_companies_file = data_directory / "unique_companies.csv"
-
-#     #     # Загрузка уже существующих уникальных компаний
-#     #     processed_companies = read_unique_companies(unique_companies_file)
-#     #     all_id = [
-#     #         company_id for company_id in all_id if company_id not in processed_companies
-#     #     ]
-
-#     total_records = 100001  # Общее количество записей
-#     batch_size = 1000  # Размер одной партии
-#     max_workers = 10  # Количество одновременно работающих потоков
-
-#     unique_companies_file = data_directory / "unique_companies.csv"
-
-#     for batch_start in range(1, total_records, batch_size):
-#         batch_end = min(batch_start + batch_size, total_records)
-#         all_id = list(range(batch_start, batch_end))
-
-#         start_time_now = datetime.now()
-#         start_time = start_time_now.strftime("%Y-%m-%d %H:%M:%S")
-#         logger.info(
-#             f"Начало обработки партии: {batch_start}-{batch_end - 1} в {start_time}"
-#         )
-
-#         proxy, cookies, headers, json_data = p_c_h_j()
-
-#         # Загрузка уже существующих уникальных компаний
-#         processed_companies = read_unique_companies(unique_companies_file)
-#         all_id = [
-#             company_id for company_id in all_id if company_id not in processed_companies
-#         ]
-
-#         if not all_id:
-#             logger.info(
-#                 f"Партия {batch_start}-{batch_end - 1} уже обработана. Пропуск."
-#             )
-#             continue
-
-#         unique_companies = set()
-#         lock = threading.Lock()  # Для защиты доступа к unique_companies
-
-#         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-#             future_to_id = {
-#                 executor.submit(
-#                     fetch_json,
-#                     company_id,
-#                     proxy,
-#                     cookies,
-#                     headers,
-#                     json_data,
-#                     unique_companies,
-#                     lock,
-#                 ): company_id
-#                 for company_id in all_id
-#             }
-
-#             for future in as_completed(future_to_id):
-#                 company_id = future_to_id[future]
-#                 try:
-#                     future.result()
-#                 except Exception as e:
-#                     logger.error(f"Ошибка при обработке ID {company_id}: {e}")
-#         # Сохранение уникальных компаний в CSV
-#         unique_companies_file = data_directory / "unique_companies.csv"
-#         with open(unique_companies_file, "w", encoding="utf-8") as f:
-#             for company in unique_companies:
-#                 f.write(f"{company}\n")
-#         # Рассчитываем длительность
-#         end_time_now = datetime.now()
-#         end_time = end_time_now.strftime("%Y-%m-%d %H:%M:%S")
-#         duration = (end_time_now - start_time_now).total_seconds()
-#         logger.info(
-#             f"Партия {batch_start}-{batch_end - 1} завершена в {end_time}. Длительность: {duration:.2f} секунд."
-#         )
 
 # Основной запуск с очередями и ThreadPoolExecutor
 if __name__ == "__main__":
     total_records = 835001  # Общее количество записей
     batch_size = 1000  # Размер одной партии
-    max_workers = 50  # Количество одновременно работающих потоков
-
+    max_workers = 50  # Количество потоков
     unique_companies_file = data_directory / "unique_companies.csv"
+    # Загрузка существующих уникальных компаний
+    processed_companies = read_unique_companies(unique_companies_file)
+    logger.info(f"Загружено {len(processed_companies)} уникальных компаний из файла.")
+
+    # Загрузка ID из JSON файлов
+    json_ids = get_ids_from_json_files(json_directory)
+    logger.info(f"Найдено {len(json_ids)} ID в папке JSON.")
+
+    # Исключаем обработанные ID
+    all_processed = processed_companies.union(json_ids)
 
     for batch_start in range(1, total_records, batch_size):
         batch_end = min(batch_start + batch_size, total_records)
-        all_id = list(range(batch_start, batch_end))
+        batch_ids = set(map(str, range(batch_start, batch_end)))
 
-        start_time_now = datetime.now()
-        start_time = start_time_now.strftime("%Y-%m-%d %H:%M:%S")
-        logger.info(
-            f"Начало обработки партии: {batch_start}-{batch_end - 1} в {start_time}"
-        )
+        # Исключаем обработанные ID
+        ids_to_process = batch_ids - all_processed
 
-        proxy, cookies, headers, json_data = p_c_h_j()
-
-        # Загрузка уже существующих уникальных компаний
-        processed_companies = read_unique_companies(unique_companies_file)
-        all_id = [
-            company_id for company_id in all_id if company_id not in processed_companies
-        ]
-
-        if not all_id:
+        if not ids_to_process:
             logger.info(
                 f"Партия {batch_start}-{batch_end - 1} уже обработана. Пропуск."
             )
             continue
 
+        logger.info(f"Начало обработки партии: {batch_start}-{batch_end - 1}")
         unique_companies = set()
-        lock = threading.Lock()  # Для защиты доступа к unique_companies
+        lock = threading.Lock()
+
+        # Загружаем настройки прокси, cookies, headers, json
+        proxy, cookies, headers, json_data = p_c_h_j()
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_id = {
@@ -260,7 +183,7 @@ if __name__ == "__main__":
                     unique_companies,
                     lock,
                 ): company_id
-                for company_id in all_id
+                for company_id in ids_to_process
             }
 
             for future in as_completed(future_to_id):
@@ -270,20 +193,8 @@ if __name__ == "__main__":
                 except Exception as e:
                     logger.error(f"Ошибка при обработке ID {company_id}: {e}")
 
-        # Сохранение уникальных компаний в CSV (добавляем новые компании)
+        # Сохранение новых уникальных компаний
         with open(unique_companies_file, "a", encoding="utf-8") as f:
             for company in unique_companies:
-                if company not in processed_companies:  # Проверка на уникальность
+                if company not in processed_companies:
                     f.write(f"{company}\n")
-
-        logger.info(
-            f"Уникальные компании из партии {batch_start}-{batch_end - 1} сохранены в {unique_companies_file}"
-        )
-
-        # Рассчитываем длительность
-        end_time_now = datetime.now()
-        end_time = end_time_now.strftime("%Y-%m-%d %H:%M:%S")
-        duration = (end_time_now - start_time_now).total_seconds()
-        logger.info(
-            f"Партия {batch_start}-{batch_end - 1} завершена в {end_time}. Длительность: {duration:.2f} секунд."
-        )

@@ -437,7 +437,8 @@ def main_loop():
                     tg_bot.send_message(
                         f"Обработка {url_start} завершена за {int(minutes)} мин {int(seconds)} сек"
                     )
-
+            tg_bot.send_message("Все категории собраны")
+            logger.info("Все категории собраны")
         elif choice == "5":
             shutil.rmtree(directories[-1])  # Удаление временных файлов
 

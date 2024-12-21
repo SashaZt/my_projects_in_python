@@ -2,7 +2,6 @@ import csv
 
 from telethon.sync import TelegramClient
 from telethon.tl.functions.contacts import SearchRequest
-from telethon.tl.types import InputPeerEmpty
 
 # Укажите ваши данные Telegram API
 API_ID = "8771905"
@@ -26,17 +25,13 @@ with TelegramClient(SESSION_NAME, API_ID, API_HASH) as client:
         # Поиск групп по ключевым словам
         for keyword in KEYWORDS:
             print(f"Поиск групп по ключевому слову: {keyword}")
-            results = client(
-                SearchRequest(
-                    q=keyword,  # Поисковый запрос
-                    limit=50,  # Максимальное количество результатов
-                    filter=InputPeerEmpty(),
-                )
-            )
+            results = client(SearchRequest(q=keyword, limit=50))
 
             # Обработка найденных групп
             for chat in results.chats:
-                if chat.megagroup:  # Проверка, что это супергруппа
+                if (
+                    hasattr(chat, "megagroup") and chat.megagroup
+                ):  # Проверка, что это супергруппа
                     print(f"Группа: {chat.title}")
                     print(f"ID: {chat.id}")
                     print(
