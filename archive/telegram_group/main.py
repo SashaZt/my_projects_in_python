@@ -13,7 +13,7 @@ if not client.is_user_authorized():
     try:
         client.sign_in(phone, input('Enter the code: '))
     except SessionPasswordNeededError:
-        client.sign_in(password='SashaZt83')
+        client.sign_in(password='')
 
 
 # Получение информации о группе

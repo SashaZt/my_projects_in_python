@@ -17,7 +17,7 @@ async def main():
         try:
             await client.sign_in(phone, input('Enter the code: '))
         except SessionPasswordNeededError:
-            await client.sign_in(password='SashaZt83')
+            await client.sign_in(password='')
 
     entity = await client.get_entity(username)
 

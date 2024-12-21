@@ -37,7 +37,7 @@ def connect_and_sign_in(phone, api_id, api_hash):
         try:
             client.sign_in(phone, input('Enter the code: '))
         except SessionPasswordNeededError:
-            client.sign_in(password='SashaZt83')
+            client.sign_in(password='')
 
     return client
 
