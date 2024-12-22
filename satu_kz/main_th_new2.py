@@ -82,7 +82,9 @@ def read_cities_from_csv(input_csv_file):
 
 
 # Функция для обработки JSON
-def fetch_json(company, proxy, cookies, headers, json_data, unique_companies, lock):
+def fetch_json(
+    company, proxy, cookies, headers, json_data, unique_companies_file, lock
+):
     output_json_file = json_directory / f"{company}.json"
     json_data["variables"]["company_id"] = company
     try:
@@ -94,24 +96,43 @@ def fetch_json(company, proxy, cookies, headers, json_data, unique_companies, lo
             json=json_data,
             timeout=60,
         )
+
         if response.status_code == 200:
-            response_data = response.json()
+            try:
+                response_data = response.json()
+                # logger.info(response_data)
+            except ValueError:
+                logger.error(f"ID {company}: Не удалось декодировать JSON.")
+                return
+            # Проверяем, есть ли ошибки в ответе
+            if response_data.get("data") is None and response_data.get("errors"):
+                # logger.warning(f"ID {company}: Ошибка: {response_data['errors']}")
+                # Записываем ID в файл unique_companies_file
+                with lock:  # Обеспечиваем потокобезопасность
+                    with open(unique_companies_file, "a", encoding="utf-8") as f:
+                        f.write(f"{company}\n")
+                return  # Прекращаем обработку этого ID
+
             if response_data.get("data", {}).get("company") is not None:
+                # Сохраняем JSON файл
                 with open(output_json_file, "w", encoding="utf-8") as f:
                     json.dump(response_data, f, ensure_ascii=False, indent=4)
                 logger.info(f"JSON сохранен: {output_json_file}")
             else:
-                with lock:
-                    unique_companies.add(company)
+                logger.warning(f"ID {company}: Отсутствуют данные о компании.")
+                # Записываем ID в файл unique_companies_file
+                with lock:  # Обеспечиваем потокобезопасность
+                    with open(unique_companies_file, "a", encoding="utf-8") as f:
+                        f.write(f"{company}\n")
         else:
+            # logger.warning(f"ID {company}: Ответ сервера {response.status_code}.")
             pass
-            # logger.warning(f"Ошибка ответа {response.status_code} для {company}")
     except requests.exceptions.Timeout:
         pass
-        # logger.error(f"Тайм-аут при обработке {company}")
+        # logger.error(f"ID {company}: Тайм-аут при запросе.")
     except requests.exceptions.RequestException as e:
         pass
-        # logger.error(f"Ошибка запроса для {company}: {e}")
+        # logger.error(f"ID {company}: Ошибка запроса: {e}")
 
 
 # Функция для загрузки уникальных ID из файла
@@ -150,6 +171,7 @@ if __name__ == "__main__":
 
     # Исключаем обработанные ID
     all_processed = processed_companies.union(json_ids)
+    logger.info(f"Всего обработанных ID: {len(all_processed)}")
 
     for batch_start in range(1, total_records, batch_size):
         batch_end = min(batch_start + batch_size, total_records)
@@ -165,7 +187,6 @@ if __name__ == "__main__":
             continue
 
         logger.info(f"Начало обработки партии: {batch_start}-{batch_end - 1}")
-        unique_companies = set()
         lock = threading.Lock()
 
         # Загружаем настройки прокси, cookies, headers, json
@@ -180,7 +201,7 @@ if __name__ == "__main__":
                     cookies,
                     headers,
                     json_data,
-                    unique_companies,
+                    unique_companies_file,
                     lock,
                 ): company_id
                 for company_id in ids_to_process
@@ -192,9 +213,3 @@ if __name__ == "__main__":
                     future.result()
                 except Exception as e:
                     logger.error(f"Ошибка при обработке ID {company_id}: {e}")
-
-        # Сохранение новых уникальных компаний
-        with open(unique_companies_file, "a", encoding="utf-8") as f:
-            for company in unique_companies:
-                if company not in processed_companies:
-                    f.write(f"{company}\n")
