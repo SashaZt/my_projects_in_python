@@ -1,6 +1,7 @@
 import json
 import re
 
+import pandas as pd
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 
@@ -200,56 +201,70 @@ def clean_product(raw_value):
 
 def read_js():
     # Чтение содержимого файла
-    with open("dataLayer_script_content.js", "r", encoding="utf-8") as file:
+    # with open("dataLayer_script_content.js", "r", encoding="utf-8") as file:
+    #     content = file.read()
+    # Загрузка содержимого HTML файла
+    with open("Masina.html", "r", encoding="utf-8") as file:
         content = file.read()
 
-    # Регулярное выражение для поиска объектов вида EM.key = value;
-    pattern = re.compile(r"(EM\.[a-zA-Z0-9_]+)\s*=\s*(\{.*?\});", re.DOTALL)
+    # Создаем объект BeautifulSoup
+    soup = BeautifulSoup(content, "lxml")
+    # Поиск тега <script>, содержащего "var dataLayer=dataLayer||[];"
+    script_tag = soup.find(
+        "script", string=lambda text: text and "var dataLayer=dataLayer||[]" in text
+    )
 
-    # Словарь для хранения извлеченных данных
-    extracted_data = {}
-    excluded_keys = {
-        "EM.brand",
-        "EM.used_offer",
-        "EM.abTestsAuto",
-        "EM.flags",
-        "EM.GLOBAL_OPTIONS",
-        "EM.google_recaptcha_keys",
-        "EM.product",
-        "EM.general_product_safety_regulation",
-    }
+    # Проверяем, найден ли тег <script>
+    if script_tag:
+        # Регулярное выражение для поиска объектов вида EM.key = value;
+        pattern = re.compile(r"(EM\.[a-zA-Z0-9_]+)\s*=\s*(\{.*?\});", re.DOTALL)
 
-    # Проходим по всем совпадениям
-    for match in pattern.finditer(content):
-        key = match.group(1)  # Название ключа, например EM.page_type
-        raw_value = match.group(2)  # Содержимое объекта
+        # Словарь для хранения извлеченных данных
+        extracted_data = {}
+        excluded_keys = {
+            "EM.brand",
+            "EM.used_offer",
+            "EM.abTestsAuto",
+            "EM.flags",
+            "EM.GLOBAL_OPTIONS",
+            "EM.google_recaptcha_keys",
+            "EM.product",
+            "EM.general_product_safety_regulation",
+            "EM.cookie_group_policy",
+            "EM.siteModules",
+        }
 
-        # Исключаем обработку определенных ключей
-        if key in excluded_keys:
-            continue
+        # Проходим по всем совпадениям
+        for match in pattern.finditer(content):
+            key = match.group(1)  # Название ключа, например EM.page_type
+            raw_value = match.group(2)  # Содержимое объекта
 
-        try:
-            # Специальная обработка для EM.feedback
-            if key == "EM.feedback":
-                cleaned_value = clean_feedback(raw_value)
-            elif key == "EM.product":
-                cleaned_value = clean_product(raw_value)
-            else:
-                cleaned_value = clean_general(raw_value)
+            # Исключаем обработку определенных ключей
+            if key in excluded_keys:
+                continue
 
-            # Преобразуем строку в валидный JSON
-            value = json.loads(cleaned_value)
-            extracted_data[key] = value
-        except json.JSONDecodeError:
-            logger.error(f"Не удалось распарсить значение для ключа: {key}")
-            logger.error(f"Сырые данные: {raw_value}")
-            logger.error(f"Очищенные данные: {cleaned_value}")
+            try:
+                # Специальная обработка для EM.feedback
+                if key == "EM.feedback":
+                    cleaned_value = clean_feedback(raw_value)
+                elif key == "EM.product":
+                    cleaned_value = clean_product(raw_value)
+                else:
+                    cleaned_value = clean_general(raw_value)
 
-    # Сохраняем данные в файл JSON
-    with open("extracted_data.json", "w", encoding="utf-8") as output_file:
-        json.dump(extracted_data, output_file, indent=4, ensure_ascii=False)
+                # Преобразуем строку в валидный JSON
+                value = json.loads(cleaned_value)
+                extracted_data[key] = value
+            except json.JSONDecodeError:
+                logger.error(f"Не удалось распарсить значение для ключа: {key}")
+                logger.error(f"Сырые данные: {raw_value}")
+                logger.error(f"Очищенные данные: {cleaned_value}")
 
-    logger.info("Данные извлечены и сохранены в 'extracted_data.json'.")
+        # Сохраняем данные в файл JSON
+        with open("extracted_data.json", "w", encoding="utf-8") as output_file:
+            json.dump(extracted_data, output_file, indent=4, ensure_ascii=False)
+
+        logger.info("Данные извлечены и сохранены в 'extracted_data.json'.")
 
 
 #     logger.info("Данные извлечены и сохранены в 'extracted_data.json'.")
@@ -378,8 +393,233 @@ def extract_feedback_from_file(file_path, object_name="EM.feedback"):
         print(f"Произошла ошибка: {e}")
 
 
+def process_html():
+    html_file = "Masina.html"
+    # Чтение содержимого файла
+    with open(html_file, "r", encoding="utf-8") as file:
+        content = file.read()
+
+    # Создаем объект BeautifulSoup
+    soup = BeautifulSoup(content, "lxml")
+
+    # Парсим dataLayer.push({...})
+    output_data = {}
+    script_tags = soup.find_all("script", {"type": "text/javascript"})
+    for script in script_tags:
+        script_content = script.string
+        if script_content and "dataLayer.push" in script_content:
+            json_match = re.search(
+                r"dataLayer\.push\((\{.*?\})\);", script_content, re.DOTALL
+            )
+            if json_match:
+                json_data = json_match.group(1)
+                try:
+                    cleaned_data = re.sub(r"'", '"', json_data)
+                    cleaned_data = re.sub(r",\s*([\}\]])", r"\1", cleaned_data)
+                    cleaned_data = re.sub(
+                        r"(?<!\")([a-zA-Z_]+)(?=\s*:)", r'"\1"', cleaned_data
+                    )
+                    output_data = json.loads(cleaned_data)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Ошибка при парсинге JSON: {e}")
+                    logger.error(f"Содержимое вызова dataLayer.push: {cleaned_data}")
+
+    # Парсим объекты вида EM.key = value
+    script_tag = soup.find(
+        "script", string=lambda text: text and "var dataLayer=dataLayer||[]" in text
+    )
+    extracted_data = {}
+    excluded_keys = {
+        "EM.brand",
+        "EM.used_offer",
+        "EM.abTestsAuto",
+        "EM.flags",
+        "EM.GLOBAL_OPTIONS",
+        "EM.google_recaptcha_keys",
+        "EM.product",
+        "EM.general_product_safety_regulation",
+        "EM.cookie_group_policy",
+        "EM.siteModules",
+    }
+    if script_tag:
+        pattern = re.compile(r"(EM\.[a-zA-Z0-9_]+)\s*=\s*(\{.*?\});", re.DOTALL)
+        for match in pattern.finditer(content):
+            key = match.group(1)
+            raw_value = match.group(2)
+            if key in excluded_keys:
+                continue
+            try:
+                # Специальная обработка для EM.feedback
+                if key == "EM.feedback":
+                    cleaned_value = clean_feedback(raw_value)
+                elif key == "EM.product":
+                    cleaned_value = clean_product(raw_value)
+                else:
+                    cleaned_value = clean_general(raw_value)
+
+                # Преобразуем строку в валидный JSON
+                value = json.loads(cleaned_value)
+                extracted_data[key] = value
+            except json.JSONDecodeError:
+                pass
+                # logger.error(f"Не удалось распарсить значение для ключа: {key}")
+
+    # Объединяем данные
+    if "EM.feedback" in extracted_data:
+        rating = extracted_data["EM.feedback"].get("rating", None)
+        url = f'https://www.emag.ro{extracted_data.get("EM.url", {}).get("path", "")}'
+        if "ecommerce" in output_data and "detail" in output_data["ecommerce"]:
+            if "products" in output_data["ecommerce"]["detail"]:
+                output_data["ecommerce"]["detail"]["products"][0]["rating"] = rating
+                output_data["ecommerce"]["detail"]["products"][0]["url"] = url
+    # Ключи, которые нужно удалить
+    keys_to_remove = ["pageType_google", "pageType", "depId", "sdId", "event", "dish"]
+    specifications_dict = extract_specifications(soup)
+
+    # Удаление ключей
+    output_data = remove_keys(output_data, keys_to_remove)
+
+    # Удаление вложенных ключей
+    if "ecommerce" in output_data and "detail" in output_data["ecommerce"]:
+        if "actionField" in output_data["ecommerce"]["detail"]:
+            del output_data["ecommerce"]["detail"]["actionField"]
+
+    # Добавляем specifications_dict в output_data
+    output_data = add_specifications_to_json(output_data, specifications_dict)
+    # Сохраняем оба JSON файла
+    with open("output.json", "w", encoding="utf-8") as output_file:
+        json.dump(output_data, output_file, indent=4, ensure_ascii=False)
+
+    flattened_data = flatten_json(output_data)
+
+    # Конвертируем в DataFrame и сохраняем в Excel
+    df = pd.DataFrame([flattened_data])
+    df.to_excel("output_flattened.xlsx", index=False, engine="openpyxl")
+
+    with open("extracted_data.json", "w", encoding="utf-8") as extracted_file:
+        json.dump(extracted_data, extracted_file, indent=4, ensure_ascii=False)
+
+    logger.info(
+        "Данные успешно обработаны и сохранены в 'output.json' и 'extracted_data.json'."
+    )
+
+    # Преобразование JSON в плоскую структуру для Excel
+
+
+def flatten_json(json_data, parent_key="", sep="_"):
+    """Flatten nested JSON recursively."""
+    items = []
+    for k, v in json_data.items():
+        new_key = f"{parent_key}{sep}{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_json(v, new_key, sep=sep).items())
+        elif isinstance(v, list):
+            for i, item in enumerate(v):
+                if isinstance(item, dict):
+                    items.extend(flatten_json(item, f"{new_key}_{i}", sep=sep).items())
+                else:
+                    items.append((f"{new_key}_{i}", item))
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def add_specifications_to_json(data, specifications_dict):
+    """
+    Добавляет specifications_dict в 'ecommerce.detail.products' секции JSON.
+    :param data: JSON-структура
+    :param specifications_dict: Словарь спецификаций
+    """
+    if "ecommerce" in data and "detail" in data["ecommerce"]:
+        products = data["ecommerce"]["detail"].get("products", [])
+        if products and isinstance(
+            products, list
+        ):  # Проверяем, что products — это список
+            for product in products:
+                product["specifications"] = (
+                    specifications_dict  # Добавляем спецификации
+                )
+    return data
+
+
+def extract_specifications(soup):
+    """
+    Извлекает характеристики из блока с ID 'specifications-body'.
+
+    :param html_content: HTML контент как строка
+    :return: Словарь характеристик
+    """
+
+    specifications = {}
+
+    # Находим div с ID 'specifications-body'
+    specifications_body = soup.find("div", {"id": "specifications-body"})
+    if not specifications_body:
+        return specifications  # Возвращаем пустой словарь, если элемент не найден
+
+    # Находим все таблицы внутри блока
+    tables = specifications_body.find_all("table", class_="specifications-table")
+
+    # Проходим по каждой таблице
+    for table in tables:
+        rows = table.find_all("tr")
+        for row in rows:
+            # Извлекаем ключ (первый столбец) и значение (второй столбец)
+            key_cell = row.find("td", class_="col-xs-4 text-muted")
+            value_cell = row.find("td", class_="col-xs-8")
+            if key_cell and value_cell:
+                key = key_cell.get_text(strip=True)
+                value = value_cell.get_text(strip=True).replace(
+                    "\n", " "
+                )  # Убираем переносы строк
+                specifications[key] = value
+
+    return specifications
+
+
+def remove_keys(data, keys_to_remove):
+    """
+    Удаляет указанные ключи из JSON-структуры.
+
+    :param data: JSON-структура (словарь или вложенный словарь)
+    :param keys_to_remove: Список ключей для удаления
+    :return: Обновленный JSON-объект без указанных ключей
+    """
+    if isinstance(data, dict):
+        return {
+            k: remove_keys(v, keys_to_remove)
+            for k, v in data.items()
+            if k not in keys_to_remove
+        }
+    elif isinstance(data, list):
+        return [remove_keys(item, keys_to_remove) for item in data]
+    return data
+
+
+# def flatten_json(json_data, parent_key="", sep="_"):
+#     """Flatten nested JSON recursively."""
+#     items = []
+#     for k, v in json_data.items():
+#         new_key = f"{parent_key}{sep}{k}" if parent_key else k
+#         if isinstance(v, dict):
+#             items.extend(flatten_json(v, new_key, sep=sep).items())
+#         elif isinstance(v, list):
+#             for i, item in enumerate(v):
+#                 if isinstance(item, dict):
+#                     items.extend(flatten_json(item, f"{new_key}_{i}", sep=sep).items())
+#                 else:
+#                     items.append((f"{new_key}_{i}", item))
+#         else:
+#             items.append((new_key, v))
+#     return dict(items)
+
+
 if __name__ == "__main__":
-    read_js()
+    # Использование
+    process_html()
+    # write_json()
+    # write_js()
+    # read_js()
     # # Вызов функции
     # extract_feedback_from_file(
     #     "dataLayer_script_content.js", object_name="EM.productDiscountedPrice"

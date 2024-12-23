@@ -71,9 +71,9 @@ import os
 
 # Пути к файлам
 main_file_path = "original_merged_file.json"
-secondary_file_path = "focus_gesundheit_de.json"
+secondary_file_path = "dr_flex_de.json"
 merged_file = "merged_file.json"
-dictionary_name = "focus-gesundheit.de"
+dictionary_name = "dr-flex.de"
 
 
 def validate_secondary_entry(entry):
@@ -148,16 +148,33 @@ output_folder = "output_parts"  # Папка для частей файла
 chunk_size_mb = 200  # Размер каждой части в МБ
 
 
-def split_json_file(input_file, output_dir, chunk_size_mb):
-    # Конвертируем размер в байты
-    chunk_size_bytes = chunk_size_mb * 1024 * 1024
+def split_json_file(input_file, output_dir, chunk_size_mb=None, num_parts=None):
+    """
+    Разделяет JSON файл на части, либо по размеру в МБ, либо по количеству частей.
 
+    Args:
+        input_file (str): Путь к входному JSON файлу.
+        output_dir (str): Директория для сохранения частей.
+        chunk_size_mb (int, optional): Размер каждой части в мегабайтах.
+        num_parts (int, optional): Количество частей для разбиения.
+    """
     # Читаем весь JSON файл
     with open(input_file, "r", encoding="utf-8") as f:
         data = json.load(f)
 
     # Создаем папку для частей, если она не существует
     os.makedirs(output_dir, exist_ok=True)
+
+    # Если указано количество частей, рассчитываем размер каждой части
+    if num_parts:
+        total_size = sum(
+            len(json.dumps(entry, ensure_ascii=False).encode("utf-8")) for entry in data
+        )
+        chunk_size_bytes = total_size // num_parts
+    elif chunk_size_mb:
+        chunk_size_bytes = chunk_size_mb * 1024 * 1024
+    else:
+        raise ValueError("Необходимо указать либо chunk_size_mb, либо num_parts.")
 
     # Инициализация переменных
     current_chunk = []
@@ -171,7 +188,7 @@ def split_json_file(input_file, output_dir, chunk_size_mb):
         entry_size = len(entry_bytes)
 
         # Если текущий размер превышает лимит, сохраняем текущую часть
-        if current_size + entry_size > chunk_size_bytes:
+        if current_size + entry_size > chunk_size_bytes and part_index <= num_parts:
             output_file = os.path.join(output_dir, f"part_{part_index}.json")
             with open(output_file, "w", encoding="utf-8") as part_file:
                 json.dump(current_chunk, part_file, ensure_ascii=False, indent=4)
@@ -203,6 +220,7 @@ def split_json_file(input_file, output_dir, chunk_size_mb):
 
 if __name__ == "__main__":
     # объединение файлов
-    merge_json_data(main_file_path, secondary_file_path)
+    # merge_json_data(main_file_path, secondary_file_path)
     # Разбиваем файл
-    split_json_file(merged_file, output_folder, chunk_size_mb)
+    # split_json_file(merged_file, output_folder, chunk_size_mb)
+    split_json_file("merged_file.json", "output_parts", num_parts=25)

@@ -417,7 +417,7 @@ def parsing_html():
     """
     output_file = Path("extracted_profile_data.json")
     extracted_data = {
-        "project": "focus-gesundheit.de",
+        "project": "dr-flex.de",
         "data": [],  # Список для хранения данных врачей
     }
 
