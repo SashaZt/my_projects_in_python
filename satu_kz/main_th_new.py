@@ -154,14 +154,15 @@ def get_ids_from_json_files(json_dir):
 # Основной запуск с очередями и ThreadPoolExecutor
 if __name__ == "__main__":
     total_records = 835001  # Общее количество записей
-    # total_records = 10000  # Общее количество записей
+    total_records = 200001  # Общее количество записей
+    start_record = 100001
     batch_size = 10000  # Размер одной партии
     max_workers = 50  # Количество одновременно работающих потоков
 
     unique_companies_file = data_directory / "unique_companies.csv"
     count = 0
     while True:
-        for batch_start in range(1, total_records, batch_size):
+        for batch_start in range(start_record, total_records, batch_size):
             proxies = load_proxies()  # Загружаем список всех прокси
 
             batch_end = min(batch_start + batch_size, total_records)
@@ -191,10 +192,13 @@ if __name__ == "__main__":
                 if str(company_id) not in processed_companies
                 and str(company_id) not in json_ids
             ]
+
             logger.info(f"Проверка в этом пуле {len(all_id)}")
-            if not all_id:
+
+            # Проверка на количество элементов в all_id
+            if len(all_id) < 10:
                 logger.info(
-                    f"Партия {batch_start}-{batch_end - 1} уже обработана. Пропуск."
+                    f"Партия {batch_start}-{batch_end - 1} уже обработана или слишком мала (менее 10 элементов). Пропуск."
                 )
                 continue
 

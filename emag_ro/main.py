@@ -78,61 +78,6 @@ def write_js():
         print("Тег <script> с 'var dataLayer=dataLayer||[];' не найден.")
 
 
-# РАБОЧИЙ
-# def read_js():
-#     # Чтение содержимого файла
-#     with open("dataLayer_script_content.js", "r", encoding="utf-8") as file:
-#         content = file.read()
-
-#     # Регулярное выражение для поиска объектов вида EM.key = value;
-#     pattern = re.compile(r"(EM\.[a-zA-Z0-9_]+)\s*=\s*(\{.*?\});", re.DOTALL)
-
-#     # Словарь для хранения извлеченных данных
-#     extracted_data = {}
-#     excluded_keys = {
-#         "EM.abTestsAuto",
-#         "EM.flags",
-#         "EM.GLOBAL_OPTIONS",
-#         "EM.google_recaptcha_keys",
-#     }
-
-#     # Проходим по всем совпадениям
-#     for match in pattern.finditer(content):
-#         key = match.group(1)  # Название ключа, например EM.page_type
-#         raw_value = match.group(2)  # Содержимое объекта
-
-#         # Исключаем обработку определенных ключей
-#         if key in excluded_keys:
-
-#             # logger.info(f"Ключ {key} исключен из обработки.")
-#             continue
-
-#         try:
-#             # Очистка данных для JSON
-#             cleaned_value = re.sub(r"'", '"', raw_value)  # Одинарные кавычки -> двойные
-#             cleaned_value = re.sub(
-#                 r"//.*?\n", "", cleaned_value
-#             )  # Удаление комментариев
-#             cleaned_value = re.sub(
-#                 r"\b(function|new)\b.*?\{.*?\}", '"placeholder_function"', cleaned_value
-#             )  # Замена функций на заглушки
-#             cleaned_value = re.sub(
-#                 r"\bgetById\s*:\s*function\(.*?\}\,", "", cleaned_value, flags=re.DOTALL
-#             )  # Удаление методов getById
-
-#             # Преобразуем строку в валидный JSON
-#             value = json.loads(cleaned_value)
-#             extracted_data[key] = value
-#         except json.JSONDecodeError:
-#             logger.error(f"Не удалось распарсить значение для ключа: {key}")
-#             logger.error(f"Сырые данные: {raw_value}")
-#             logger.error(f"Очищенные данные: {cleaned_value}")
-
-#     # Сохраняем данные в файл JSON
-#     with open("extracted_data.json", "w", encoding="utf-8") as output_file:
-#         json.dump(extracted_data, output_file, indent=4, ensure_ascii=False)
-
-
 def clean_general(raw_value):
     """
     Общая функция для очистки данных большинства ключей.
@@ -265,76 +210,6 @@ def read_js():
             json.dump(extracted_data, output_file, indent=4, ensure_ascii=False)
 
         logger.info("Данные извлечены и сохранены в 'extracted_data.json'.")
-
-
-#     logger.info("Данные извлечены и сохранены в 'extracted_data.json'.")
-# def clean_json(raw_value):
-#     """
-#     Очистка данных, чтобы они стали валидным JSON.
-#     """
-#     try:
-#         # Удаление комментариев
-#         cleaned = re.sub(r"//.*?\n", "", raw_value)
-
-#         # Оборачивание ключей в кавычки
-#         cleaned = re.sub(r"(?<!\w)([a-zA-Z_][a-zA-Z0-9_]*)(?=\s*:)", r'"\1"', cleaned)
-
-#         # Замена функций на строку-заглушку
-#         cleaned = re.sub(
-#             r"\b(function|new)\b.*?\{.*?\}",
-#             '"placeholder_function"',
-#             cleaned,
-#             flags=re.DOTALL,
-#         )
-
-#         # Удаление методов и лишних запятых
-#         cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
-#         cleaned = re.sub(
-#             r"\b(getById|setById|onClick):.*?function\(.*?\}\,",
-#             "",
-#             cleaned,
-#             flags=re.DOTALL,
-#         )
-
-#         return cleaned
-#     except Exception as e:
-#         logger.error(f"Ошибка очистки JSON: {e}")
-#         return raw_value
-
-
-# def read_js():
-#     # Чтение содержимого файла
-#     with open("dataLayer_script_content.js", "r", encoding="utf-8") as file:
-#         content = file.read()
-
-#     # Регулярное выражение для поиска объектов вида EM.key = value;
-#     pattern = re.compile(r"(EM\.[a-zA-Z0-9_]+)\s*=\s*(\{.*?\});", re.DOTALL)
-
-#     # Словарь для хранения извлеченных данных
-#     extracted_data = {}
-
-#     # Проходим по всем совпадениям
-#     for match in pattern.finditer(content):
-#         key = match.group(1)  # Название ключа
-#         raw_value = match.group(2)  # Содержимое объекта
-
-#         try:
-#             cleaned_value = clean_json(raw_value)
-
-#             # Преобразование в JSON
-#             value = json.loads(cleaned_value)
-#             extracted_data[key] = value
-#         except json.JSONDecodeError as e:
-#             logger.error(f"Не удалось распарсить значение для ключа: {key}")
-#             logger.error(f"Сырые данные: {raw_value}")
-#             logger.error(f"Очищенные данные: {cleaned_value}")
-#             logger.error(f"Ошибка: {e}")
-
-#     # Сохранение данных в файл
-#     with open("extracted_data.json", "w", encoding="utf-8") as output_file:
-#         json.dump(extracted_data, output_file, indent=4, ensure_ascii=False)
-
-#     logger.info("Данные извлечены и сохранены в 'extracted_data.json'.")
 
 
 def clean_json(raw_value):
