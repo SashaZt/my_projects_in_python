@@ -455,8 +455,8 @@ from playwright.async_api import async_playwright
 
 async def run(playwright):
     # Указываем настройки прокси одной строкой
-    proxy_url = "http://scraperapi:5edddbdddb89aed6e9d529c4ff127e8f@proxy-server.scraperapi.com:8001"
-    proxy = {"server": proxy_url}
+    # proxy_url = "http://scraperapi:5edddbdddb89aed6e9d529c4ff127e8f@proxy-server.scraperapi.com:8001"
+    # proxy = {"server": proxy_url}
 
     # Запускаем браузер
     browser = await playwright.chromium.launch(headless=False)
@@ -470,22 +470,48 @@ async def run(playwright):
     )
     page = await context.new_page()
 
-    # # Отключаем загрузку изображений, шрифтов и других медиафайлов
-    # await context.route(
-    #     "**/*",
-    #     lambda route, request: (
-    #         route.abort()
-    #         if request.resource_type in ["image", "media", "font", "stylesheet"]
-    #         else route.continue_()
-    #     ),
-    # )
+    # Отключаем загрузку изображений, шрифтов и других медиафайлов
+    await context.route(
+        "**/*",
+        lambda route, request: (
+            route.abort()
+            if request.resource_type in ["image", "media", "font", "stylesheet"]
+            else route.continue_()
+        ),
+    )
 
     # Переходим на URL
-    url = "https://hit.sbt.siemens.com/RWD/app.aspx?RC=HQEU&lang=en&MODULE=Catalog&ACTION=ShowGroup&KEY=OPC_371831"
+    url = "https://bcbid.gov.bc.ca/page.aspx/en/ctr/contract_browse_public"
     await page.goto(url)
 
     # Ожидаем начальную загрузку
-    await asyncio.sleep(500)
+    await asyncio.sleep(1)
+    while True:
+        # Находим текущую страницу
+        current_page_element = await page.locator(
+            '//li[@aria-current="page"]'
+        ).element_handle()
+        if not current_page_element:
+            print("Не удалось найти текущую страницу.")
+            break
+        # Извлекаем номер текущей страницы
+        aria_label = await current_page_element.get_attribute("aria-label")
+        number_page = int(aria_label.split()[-1].strip())
+        html_content = await page.content()
+        with open(f"page_content{number_page}.html", "w", encoding="utf-8") as file:
+            file.write(html_content)
+        print(f"Текущая страница: {number_page}")
+        # Находим кнопку "Next page"
+        next_button = await page.locator(
+            '//button[@aria-label="Next page"]'
+        ).element_handle()
+        if not next_button:
+            print("Кнопка 'Next page' не найдена. Конец.")
+            break
+
+        # Кликаем по кнопке "Next page" и ждем загрузки
+        await next_button.click()
+        await asyncio.sleep(1)  # Пауза для загрузки страницы
 
     # Нажимаем на кнопку "Next" и ждем загрузки
     for i in range(1, 11):

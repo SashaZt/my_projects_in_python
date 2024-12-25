@@ -1,14 +1,11 @@
 import asyncio
 import json
 import re
-import time
 from pathlib import Path
 
 import aiofiles
 import demjson3
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
 from playwright.async_api import async_playwright
 
@@ -518,63 +515,70 @@ def read_cities_from_csv(input_csv_file):
 
 def parsing_json():
     """
-    Преобразует JSON-данные о компании в плоский словарь.
-
-    :param json_data: JSON-объект с информацией.
-    :return: Плоский словарь с извлечёнными данными.
+    Преобразует JSON-данные о компании в плоский словарь и сохраняет их в Excel.
     """
     all_data = []
     for json_file in json_directory.glob("*.json"):
+        print(f"Обрабатываем файл: {json_file.name}")
         with json_file.open(encoding="utf-8") as file:
             # Прочитать содержимое JSON файла
             data = json.load(file)
+
         try:
             company_data = data.get("data", {}).get("company", {})
+            # Извлекаем координаты
+            geo_coordinates = company_data.get("geoCoordinates", {})
+            latitude = geo_coordinates.get("latitude", None)
+            longitude = geo_coordinates.get("longtitude", None)
 
-            # Составляем плоский словарь
+            # Составляем плоский словарь для основной информации
             flat_data = {
-                "company_id": company_data.get("id"),
-                "name": company_data.get("name"),
-                "contact_person": company_data.get("contactPerson"),
-                "contact_email": company_data.get("contactEmail"),
-                "address": company_data.get("addressText"),
-                # "is_chat_visible": company_data.get("isChatVisible"),
-                # "main_logo_url": company_data.get("mainLogoUrl"),
-                "slug": company_data.get("slug"),
-                # "is_one_click_order_allowed": company_data.get(
-                #     "isOneClickOrderAllowed"
-                # ),
-                # "is_orderable_in_catalog": company_data.get("isOrderableInCatalog"),
-                # "is_package_cpa": company_data.get("isPackageCPA"),
-                # "address_map_description": company_data.get("addressMapDescription"),
-                "website_url": company_data.get("webSiteUrl"),
-                # "operation_type": company_data.get("operationType"),
-                # "in_top_segment": company_data.get("inTopSegment"),
-                "region_id": company_data.get("region", {}).get("id"),
-                # "geo_coordinates": company_data.get("geoCoordinates"),
+                "company_id": company_data.get("id", None),
+                "name": company_data.get("name", None),
+                "contact_person": company_data.get("contactPerson", None),
+                "contact_email": company_data.get("contactEmail", None),
+                "address": company_data.get("addressText", None),
+                "addressMapDescription": company_data.get(
+                    "addressMapDescription", None
+                ),
+                "slug": company_data.get("slug", None),
+                "website_url": company_data.get("webSiteUrl", None),
+                "region_id": company_data.get("region", {}).get("id", None),
                 "phones": "; ".join(
-                    phone.get("number") for phone in company_data.get("phones", [])
-                ),  # Соединяем номера телефонов через "; "
-                "site_id": company_data.get("site", {}).get("id"),
-                # "site_is_disabled": company_data.get("site", {}).get("isDisabled"),
-                "opinion_stats_id": company_data.get("opinionStats", {}).get("id"),
-                # "opinion_positive_percent": company_data.get("opinionStats", {}).get(
-                #     "opinionPositivePercent"
-                # ),
-                # "opinion_total": company_data.get("opinionStats", {}).get(
-                #     "opinionTotal"
-                # ),
+                    phone.get("number", "") for phone in company_data.get("phones", [])
+                ),
+                "latitude": latitude,
+                "longitude": longitude,
             }
-            all_data.append(flat_data)
+
+            # Извлекаем данные о филиалах (branches)
+            branches = company_data.get("branches", [])
+            for branch in branches:
+                branch_data = {
+                    "branch_name": branch.get("name", None),
+                    "branch_phones": "; ".join(branch.get("phones", [])),
+                    "branch_city": branch.get("address", {}).get("city", None),
+                    "branch_zipCode": branch.get("address", {}).get("zipCode", None),
+                    "branch_street": branch.get("address", {}).get("street", None),
+                }
+
+                # Объединяем основную информацию с информацией о филиале
+                combined_data = {**flat_data, **branch_data}
+                all_data.append(combined_data)
 
         except Exception as e:
-            print(f"Ошибка при парсинге данных: {e}")
-            return {}
-    # Создаем DataFrame из списка словарей
-    df = pd.DataFrame(all_data)
+            print(f"Ошибка при парсинге данных из файла {json_file.name}: {e}")
 
-    # Сохраняем DataFrame в Excel файл
-    df.to_excel(xlsx_result, index=False)
+    # Проверяем, есть ли данные для записи
+    if all_data:
+        # Создаем DataFrame из списка словарей
+        df = pd.DataFrame(all_data)
+
+        # Сохраняем DataFrame в Excel файл
+        df.to_excel(xlsx_result, index=False)
+        print(f"Данные успешно сохранены в файл {xlsx_result}")
+    else:
+        print("Нет данных для сохранения.")
 
 
 def get_json():
@@ -1099,7 +1103,7 @@ if __name__ == "__main__":
 
     #     asyncio.run(main_one())
     # parsing_page()
-    get_json()
-    # parsing_json()
+    # get_json()
+    parsing_json()
     # collect_unique_ids()
     # collect_unique_ids([company_id, company_id_old], all_ids)
