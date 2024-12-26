@@ -11,7 +11,7 @@ API_HASH = "39debb7f571db5ad62288c20780af81c"
 SESSION_NAME = "search_bot"
 
 # Ключевые слова для поиска
-KEYWORDS = ["грузоперевозки", "транспорт", "логистика", "перевозки"]
+KEYWORDS = ["ЗЕРНОВОЗИ", "ЛОГІСТИКА"]
 
 # Создание клиента с сохранением сессии
 with TelegramClient(SESSION_NAME, API_ID, API_HASH) as client:

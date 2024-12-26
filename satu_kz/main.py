@@ -520,65 +520,86 @@ def parsing_json():
     all_data = []
     for json_file in json_directory.glob("*.json"):
         print(f"Обрабатываем файл: {json_file.name}")
-        with json_file.open(encoding="utf-8") as file:
-            # Прочитать содержимое JSON файла
-            data = json.load(file)
+        try:
+            with json_file.open(encoding="utf-8") as file:
+                data = json.load(file)
+        except json.JSONDecodeError as e:
+            print(f"Ошибка декодирования JSON в файле {json_file.name}: {e}")
+            continue
 
         try:
             company_data = data.get("data", {}).get("company", {})
-            # Извлекаем координаты
-            geo_coordinates = company_data.get("geoCoordinates", {})
-            latitude = geo_coordinates.get("latitude", None)
-            longitude = geo_coordinates.get("longtitude", None)
+            if not isinstance(company_data, dict):
+                print(
+                    f"Некорректная структура данных 'company' в файле {json_file.name}"
+                )
+                continue
 
-            # Составляем плоский словарь для основной информации
+            geo_coordinates = company_data.get("geoCoordinates", {})
+            latitude = geo_coordinates.get("latitude") if geo_coordinates else None
+            longitude = geo_coordinates.get("longtitude") if geo_coordinates else None
+            branches = company_data.get("branches", [])
+            branch_count = len(branches) if isinstance(branches, list) else None
+
+            # Составляем словарь данных
             flat_data = {
-                "company_id": company_data.get("id", None),
-                "name": company_data.get("name", None),
-                "contact_person": company_data.get("contactPerson", None),
-                "contact_email": company_data.get("contactEmail", None),
-                "address": company_data.get("addressText", None),
-                "addressMapDescription": company_data.get(
-                    "addressMapDescription", None
+                "company_id": remove_illegal_characters(company_data.get("id")),
+                "name": remove_illegal_characters(company_data.get("name")),
+                "contact_person": remove_illegal_characters(
+                    company_data.get("contactPerson")
                 ),
-                "slug": company_data.get("slug", None),
-                "website_url": company_data.get("webSiteUrl", None),
-                "region_id": company_data.get("region", {}).get("id", None),
-                "phones": "; ".join(
-                    phone.get("number", "") for phone in company_data.get("phones", [])
+                "contact_email": remove_illegal_characters(
+                    company_data.get("contactEmail")
+                ),
+                "address": remove_illegal_characters(company_data.get("addressText")),
+                "addressMapDescription": remove_illegal_characters(
+                    company_data.get("addressMapDescription")
+                ),
+                "slug": remove_illegal_characters(company_data.get("slug")),
+                "website_url": remove_illegal_characters(
+                    company_data.get("webSiteUrl")
+                ),
+                "region_id": remove_illegal_characters(
+                    company_data.get("region", {}).get("id")
+                ),
+                "phones": remove_illegal_characters(
+                    "; ".join(
+                        phone.get("number", "")
+                        for phone in company_data.get("phones", [])
+                    )
                 ),
                 "latitude": latitude,
                 "longitude": longitude,
+                "branch_count": branch_count,
             }
 
-            # Извлекаем данные о филиалах (branches)
-            branches = company_data.get("branches", [])
-            for branch in branches:
-                branch_data = {
-                    "branch_name": branch.get("name", None),
-                    "branch_phones": "; ".join(branch.get("phones", [])),
-                    "branch_city": branch.get("address", {}).get("city", None),
-                    "branch_zipCode": branch.get("address", {}).get("zipCode", None),
-                    "branch_street": branch.get("address", {}).get("street", None),
-                }
-
-                # Объединяем основную информацию с информацией о филиале
-                combined_data = {**flat_data, **branch_data}
-                all_data.append(combined_data)
+            all_data.append(flat_data)
 
         except Exception as e:
             print(f"Ошибка при парсинге данных из файла {json_file.name}: {e}")
+            continue
 
-    # Проверяем, есть ли данные для записи
     if all_data:
-        # Создаем DataFrame из списка словарей
         df = pd.DataFrame(all_data)
-
-        # Сохраняем DataFrame в Excel файл
         df.to_excel(xlsx_result, index=False)
         print(f"Данные успешно сохранены в файл {xlsx_result}")
     else:
         print("Нет данных для сохранения.")
+
+
+def remove_illegal_characters(value):
+    """
+    Удаляет недопустимые символы из строки для записи в Excel.
+
+    :param value: Строка или любое значение.
+    :return: Очищенная строка.
+    """
+    if isinstance(value, str):
+        # Удаляем недопустимые символы, используя корректное регулярное выражение
+        return re.sub(
+            r"[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD\u10000-\u10FFFF]", "", value
+        )
+    return value
 
 
 def get_json():

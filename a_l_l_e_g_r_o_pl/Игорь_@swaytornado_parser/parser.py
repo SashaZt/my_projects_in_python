@@ -62,7 +62,9 @@ class Parser:
                 try:
                     max_page = int(max_page_text)
                 except ValueError:
-                    logger.error(f"Не удалось преобразовать 'data-maxpage' в число: {max_page_text}")
+                    logger.error(
+                        f"Не удалось преобразовать 'data-maxpage' в число: {max_page_text}"
+                    )
             else:
                 logger.warning("Тег <input> с атрибутом 'data-maxpage' не найден.")
         except Exception as e:
@@ -115,51 +117,101 @@ class Parser:
 
                 except demjson3.JSONDecodeError as e:
                     # Логируем ошибку при декодировании JSON
-                    logger.error(f"Ошибка")
+                    logger.error(f"Ошибка {e}")
                     return None
 
         # Логируем отсутствие подходящего JSON
         return None
 
+    # Рабочий вариант
+    # def parse_listing_store_state(self, json_data):
+    #     """
+    #     Парсит JSON-данные из __listing_StoreState, извлекает URL, если count >= 50.
+
+    #     :param json_data: JSON-объект, содержащий __listing_StoreState
+    #     :return: Список URL, где count >= 50
+    #     """
+    #     urls = set()
+
+    #     try:
+    #         # Navigate to elements under items
+    #         elements = json_data["__listing_StoreState"]["items"]["elements"]
+
+    #         for element in elements:
+    #             # Extract URL
+    #             url = element.get("url", None)
+    #             url_id = element.get("id", None)
+    #             exception_url = "https://allegro.pl/events"
+    #             # Extract productPopularity label and parse count
+    #             product_popularity = element.get("productPopularity", {})
+    #             label = product_popularity.get("label", "")
+
+    #             # Extract the numeric value from the label (e.g., "614 osób kupiło ostatnio")
+    #             count = None
+    #             # Регулярное выражение для извлечения числа перед 'osoby', 'osób', или 'osoba'
+    #             match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
+    #             count = int(match.group(1)) if match else 0
+    #             if count >= self.min_count and url and exception_url not in url:
+    #                 urls.add(url)
+
+    #     except KeyError as e:
+    #         pass
+    #     except Exception as e:
+    #         pass
+
+    #     return urls
+
+    # Тестовый вариант для проверки на уникальность
     def parse_listing_store_state(self, json_data):
         """
-        Парсит JSON-данные из __listing_StoreState, извлекает URL, если count >= 50.
+        Парсит JSON-данные из __listing_StoreState, извлекает URL, url_id и count,
+        возвращает список URL с уникальными url_id, у которых максимальный count.
 
         :param json_data: JSON-объект, содержащий __listing_StoreState
-        :return: Список URL, где count >= 50
+        :return: Список URL с уникальными url_id, где count максимален
         """
-        urls = set()
+        result = {}
 
         try:
-            # Navigate to elements under items
+            # Переход к элементам внутри items
             elements = json_data["__listing_StoreState"]["items"]["elements"]
 
             for element in elements:
-                # Extract URL
+                # Извлечение значений
                 url = element.get("url", None)
+                url_id = element.get("id", None)
                 exception_url = "https://allegro.pl/events"
-                # Extract productPopularity label and parse count
                 product_popularity = element.get("productPopularity", {})
                 label = product_popularity.get("label", "")
 
-                # Extract the numeric value from the label (e.g., "614 osób kupiło ostatnio")
-                count = None
-                # Регулярное выражение для извлечения числа перед 'osoby', 'osób', или 'osoba'
+                # Извлечение числового значения из текста (например, "614 osób kupiło ostatnio")
                 match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
                 count = int(match.group(1)) if match else 0
+
+                # Пропуск, если url или url_id отсутствует или url содержит exception_url
+                if not url or not url_id or exception_url in url:
+                    continue
+
+                # Проверка минимального значения count и других условий
                 if (
                     count >= self.min_count
                     and url
-                    and "https://allegro.pl/events" not in url
+                    and url_id
+                    and exception_url not in url
                 ):
-                    urls.add(url)
+                    # Обновление словаря result: сохраняется только запись с максимальным count
+                    if url_id not in result or count > result[url_id]["count"]:
+                        result[url_id] = {"url": url, "count": count}
 
         except KeyError as e:
             pass
         except Exception as e:
             pass
-
-        return urls
+        logger.info(result)
+        # Извлечение URL с максимальными значениями count для каждого уникального url_id
+        unique_urls = [entry["url"] for entry in result.values()]
+        logger.info(unique_urls)
+        return unique_urls
 
     # def parsin_page(self, src):
     #     """Парсит HTML-страницу и извлекает ссылки на статьи с числом упоминаний "osób" больше или равно 50.
@@ -1045,7 +1097,7 @@ class Parser:
         price_tag = soup.find("meta", itemprop="price")
         return price_tag["content"] if price_tag else None
 
-    def parse_sales_all_product(self, soup, file_html):
+    def parse_sales_all_product(self, soup):
         """Извлекает количество продаж из JSON-данных на странице."""
         script_tags = soup.find_all("script", type="application/json")
         sales_product = None
@@ -1064,7 +1116,7 @@ class Parser:
                             sales_product = int(match.group(1))
                             break
             except (json.JSONDecodeError, TypeError):
-                logger.info(file_html)
+                # logger.info(file_html)
                 continue
 
         return sales_product
@@ -1304,7 +1356,7 @@ class Parser:
             "Цена, ZLT": self.parse_price_product(soup),
             "Цена, $": "",
             "Sales": self.parse_sales_product(soup),
-            "Sales_all": self.parse_sales_all_product(soup, file_html),
+            "Sales_all": self.parse_sales_all_product(soup),
             "All_Sellers": self.parse_other_product_offers(soup),
             "Вес": weight,
             "Длина": length,
@@ -1351,6 +1403,7 @@ class Parser:
             "price_with_delivery": 0,
             "availableQuantity": self.parse_warehouse_balances(soup),
             "buyers": self.parse_other_product_offers(soup),
+            "count_sale": self.parse_sales_all_product(soup),
             "rating": self.parse_average_rating(soup),
             "reviews_count": self.parse_number_of_reviews(soup),
             "same_offers_id": self.pares_productid(soup),
@@ -1619,5 +1672,6 @@ class Parser:
         directory.mkdir(parents=True, exist_ok=True)
 
         json_result = directory / f'{all_names_folders_and_file["file"]}.json'
+        logger.info(json_result)
         with open(json_result, "w", encoding="utf-8") as json_file:
             json.dump(all_data, json_file, indent=4, ensure_ascii=False)

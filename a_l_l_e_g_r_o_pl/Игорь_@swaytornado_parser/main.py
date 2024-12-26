@@ -421,6 +421,7 @@ def main_loop():
                     all_results = parser.parsing_html()
                     writer.save_results_to_json(all_results)
                     writer.save_json_to_excel()
+                    parser.parsing_json()
 
                 elif choice == "4":
                     # Выполнение всех этапов
@@ -431,6 +432,7 @@ def main_loop():
                     all_results = parser.parsing_html()
                     writer.save_results_to_json(all_results)
                     writer.save_json_to_excel()
+                    parser.parsing_json()
                     end_time_now = datetime.now()
                     duration = end_time_now - start_time_now
                     minutes, seconds = divmod(duration.total_seconds(), 60)
