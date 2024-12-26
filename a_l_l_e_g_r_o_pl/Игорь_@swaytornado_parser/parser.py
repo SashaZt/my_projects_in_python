@@ -207,10 +207,10 @@ class Parser:
             pass
         except Exception as e:
             pass
-        logger.info(result)
+        # logger.info(result)
         # Извлечение URL с максимальными значениями count для каждого уникального url_id
         unique_urls = [entry["url"] for entry in result.values()]
-        logger.info(unique_urls)
+        # logger.info(unique_urls)
         return unique_urls
 
     # def parsin_page(self, src):
@@ -1672,6 +1672,6 @@ class Parser:
         directory.mkdir(parents=True, exist_ok=True)
 
         json_result = directory / f'{all_names_folders_and_file["file"]}.json'
-        logger.info(json_result)
+        # logger.info(json_result)
         with open(json_result, "w", encoding="utf-8") as json_file:
             json.dump(all_data, json_file, indent=4, ensure_ascii=False)

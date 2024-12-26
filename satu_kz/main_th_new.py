@@ -13,9 +13,11 @@ from configuration.logger_setup import logger
 # Путь к папкам
 current_directory = Path.cwd()
 json_directory = current_directory / "json"
+json_ua_directory = current_directory / "json_ua"
 data_directory = current_directory / "data"
 configuration_directory = current_directory / "configuration"
 json_directory.mkdir(exist_ok=True, parents=True)
+json_ua_directory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 output_csv = data_directory / "output.csv"
@@ -75,6 +77,66 @@ def p_c_h_j():
     return proxy, cookies, headers, json_data
 
 
+def p_c_h_j_ua():
+    # Прокси-сервер
+    proxy = {
+        "http": "http://5.79.73.131:13010",
+        "https": "http://5.79.73.131:13010",
+    }
+
+    cookies = {
+        "cid": "72094661161184140128709855205519538428",
+        "evoauth": "wb257cb1b150b487da5d806c512cd3e7c",
+        "timezone_offset": "120",
+        "__rtbh.lid": "%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%22gd6qsGr2Kka7A02frcg7%22%2C%22expiryDate%22%3A%222025-12-26T14%3A17%3A12.516Z%22%7D",
+        "_ga": "GA1.1.1881197054.1735222633",
+        "last_search_term": "",
+        "_gcl_au": "1.1.556140641.1735222633",
+        "auth": "d45e330ea2c3664c7bcadc635c47bd550f911f10",
+        "cto_bundle": "GS3iVl9PcDdWeUJ4cFdvMFElMkJkR0Fmd1FDYyUyQmk1QnpVWSUyRkM2SlFuZFdZdVQ5dXJYSWFxdmZFdWg5UmszVnFHM1BpRThmMGxEdWxacCUyRjFIZUVxRlh4JTJCY3RFbmRUbEw0MEFZajNGZHR1aHlPU1A0bVhJM1RnVTYlMkY4TiUyRmxFc3VvWHJPZUdC",
+        "__rtbh.uid": "%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%22unknown%22%2C%22expiryDate%22%3A%222025-12-26T14%3A17%3A13.425Z%22%7D",
+        "user_tracker": "13953bb79d0133a803d343205839a4b6731c56cb|193.24.221.34|2024-12-26",
+        "csrf_token": "913c65aca3114fa2be8e803c0907c3ab",
+        "_fbp": "fb.1.1735222634071.65435314411490255",
+        "_ga_F7T5DFHXY0": "GS1.1.1735222632.1.1.1735222639.53.0.0",
+    }
+
+    headers = {
+        "accept": "*/*",
+        "accept-language": "ru",
+        "content-type": "application/json",
+        # 'cookie': 'cid=72094661161184140128709855205519538428; evoauth=wb257cb1b150b487da5d806c512cd3e7c; timezone_offset=120; __rtbh.lid=%7B%22eventType%22%3A%22lid%22%2C%22id%22%3A%22gd6qsGr2Kka7A02frcg7%22%2C%22expiryDate%22%3A%222025-12-26T14%3A17%3A12.516Z%22%7D; _ga=GA1.1.1881197054.1735222633; last_search_term=; _gcl_au=1.1.556140641.1735222633; auth=d45e330ea2c3664c7bcadc635c47bd550f911f10; cto_bundle=GS3iVl9PcDdWeUJ4cFdvMFElMkJkR0Fmd1FDYyUyQmk1QnpVWSUyRkM2SlFuZFdZdVQ5dXJYSWFxdmZFdWg5UmszVnFHM1BpRThmMGxEdWxacCUyRjFIZUVxRlh4JTJCY3RFbmRUbEw0MEFZajNGZHR1aHlPU1A0bVhJM1RnVTYlMkY4TiUyRmxFc3VvWHJPZUdC; __rtbh.uid=%7B%22eventType%22%3A%22uid%22%2C%22id%22%3A%22unknown%22%2C%22expiryDate%22%3A%222025-12-26T14%3A17%3A13.425Z%22%7D; user_tracker=13953bb79d0133a803d343205839a4b6731c56cb|193.24.221.34|2024-12-26; csrf_token=913c65aca3114fa2be8e803c0907c3ab; _fbp=fb.1.1735222634071.65435314411490255; _ga_F7T5DFHXY0=GS1.1.1735222632.1.1.1735222639.53.0.0',
+        "dnt": "1",
+        "origin": "https://prom.ua",
+        "priority": "u=1, i",
+        "referer": "https://prom.ua/c2840586-denkmit.html",
+        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "x-forwarded-proto": "https",
+        "x-language": "ru",
+        "x-requested-with": "XMLHttpRequest",
+    }
+
+    json_data = {
+        "operationName": "CompanyContactsQuery",
+        "variables": {
+            "withGroupManagerPhones": False,
+            "withWorkingHoursWarning": False,
+            "getProductDetails": False,
+            "company_id": "company_id",
+            "groupId": -1,
+            "productId": -1,
+        },
+        "query": "query CompanyContactsQuery($company_id: Int!, $groupId: Int!, $productId: Long!, $withGroupManagerPhones: Boolean = false, $withWorkingHoursWarning: Boolean = false, $getProductDetails: Boolean = false) {\n  context {\n    context_meta\n    currentRegionId\n    recaptchaToken\n    __typename\n  }\n  company(id: $company_id) {\n    ...CompanyWorkingHoursFragment @include(if: $withWorkingHoursWarning)\n    ...CompanyRatingFragment\n    id\n    name\n    contactPerson\n    contactEmail\n    phones {\n      id\n      description\n      number\n      __typename\n    }\n    addressText\n    isChatVisible\n    mainLogoUrl(width: 100, height: 50)\n    slug\n    isOneClickOrderAllowed\n    isOrderableInCatalog\n    isPackageCPA\n    addressMapDescription\n    region {\n      id\n      __typename\n    }\n    geoCoordinates {\n      id\n      latitude\n      longtitude\n      __typename\n    }\n    branches {\n      id\n      name\n      phones\n      address {\n        region_id\n        country_id\n        city\n        zipCode\n        street\n        regionText\n        __typename\n      }\n      __typename\n    }\n    webSiteUrl\n    site {\n      id\n      isDisabled\n      __typename\n    }\n    operationType\n    __typename\n  }\n  productGroup(id: $groupId) @include(if: $withGroupManagerPhones) {\n    id\n    managerPhones {\n      id\n      number\n      __typename\n    }\n    __typename\n  }\n  product(id: $productId) @include(if: $getProductDetails) {\n    id\n    name\n    image(width: 60, height: 60)\n    price\n    signed_id\n    discountedPrice\n    priceCurrencyLocalized\n    buyButtonDisplayType\n    regions {\n      id\n      name\n      isCity\n      __typename\n    }\n    __typename\n  }\n}\n\nfragment CompanyWorkingHoursFragment on Company {\n  id\n  isWorkingNow\n  isOrderableInCatalog\n  scheduleSettings {\n    id\n    currentDayCaption\n    __typename\n  }\n  scheduleDays {\n    id\n    name\n    dayType\n    hasBreak\n    workTimeRangeStart\n    workTimeRangeEnd\n    breakTimeRangeStart\n    breakTimeRangeEnd\n    __typename\n  }\n  __typename\n}\n\nfragment CompanyRatingFragment on Company {\n  id\n  inTopSegment\n  opinionStats {\n    id\n    opinionPositivePercent\n    opinionTotal\n    __typename\n  }\n  __typename\n}",
+    }
+    return proxy, cookies, headers, json_data
+
+
 # Функция для чтения городов из CSV файла
 def read_cities_from_csv(input_csv_file):
     df = pd.read_csv(input_csv_file)
@@ -93,7 +155,7 @@ def load_proxies():
 def fetch_json(
     proxies, company, proxy, cookies, headers, json_data, unique_companies, lock
 ):
-    output_json_file = json_directory / f"{company}.json"
+    output_json_file = json_ua_directory / f"{company}.json"
     json_data["variables"]["company_id"] = company
     proxys = random.choice(proxies)  # Выбираем случайный прокси
     proxies_dict = {"http": proxys, "https": proxys}
@@ -121,14 +183,14 @@ def fetch_json(
                         unique_companies.add(company)
 
         else:
-            pass
-            # logger.warning(f"Ошибка ответа {response.status_code} для {company}")
+            # pass
+            logger.warning(f"Ошибка ответа {response.status_code} для {company}")
     except requests.exceptions.Timeout:
-        pass
-        # logger.error(f"Тайм-аут при обработке {company}")
+        # pass
+        logger.error(f"Тайм-аут при обработке {company}")
     except requests.exceptions.RequestException as e:
-        pass
-        # logger.error(f"Ошибка запроса для {company}: {e}")
+        # pass
+        logger.error(f"Ошибка запроса для {company}: {e}")
 
 
 # Функция для чтения файла уникальных компаний
@@ -153,11 +215,11 @@ def get_ids_from_json_files(json_dir):
 
 # Основной запуск с очередями и ThreadPoolExecutor
 if __name__ == "__main__":
-    total_records = 835001  # Общее количество записей
-    total_records = 200001  # Общее количество записей
-    start_record = 100001
-    batch_size = 10000  # Размер одной партии
-    max_workers = 50  # Количество одновременно работающих потоков
+    total_records = 5000001  # Общее количество записей
+    # total_records = 200001  # Общее количество записей
+    start_record = 1
+    batch_size = 100  # Размер одной партии
+    max_workers = 100  # Количество одновременно работающих потоков
 
     unique_companies_file = data_directory / "unique_companies.csv"
     count = 0
@@ -175,12 +237,13 @@ if __name__ == "__main__":
             )
 
             proxy, cookies, headers, json_data = p_c_h_j()
+            proxy, cookies, headers, json_data = p_c_h_j_ua()
 
             # Загрузка уже существующих уникальных компаний
             processed_companies = read_unique_companies(unique_companies_file)
 
             # Загрузка ID из JSON файлов
-            json_ids = get_ids_from_json_files(json_directory)
+            json_ids = get_ids_from_json_files(json_ua_directory)
             logger.info(f"Найдено {len(json_ids)} ID в папке JSON.")
             # Объединение уникальных компаний и ID из JSON файлов
             all_unique_items = list(processed_companies | json_ids)
