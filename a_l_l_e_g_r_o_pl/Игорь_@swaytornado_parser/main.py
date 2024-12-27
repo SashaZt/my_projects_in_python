@@ -441,6 +441,7 @@ def main_loop():
                     start_time_now = datetime.now()
                     tg_bot.send_message(f"Запуск парсера для {url_start}")
                     downloader.get_all_page_html()
+                    parser.scrap_page_json()
                     asyncio.run(downloader.main_url())
                     all_results = parser.parsing_html()
                     writer.save_results_to_json(all_results)
