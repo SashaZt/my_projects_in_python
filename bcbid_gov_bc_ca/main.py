@@ -12,9 +12,11 @@ from playwright.async_api import async_playwright
 current_directory = Path.cwd()
 html_directory = current_directory / "html"
 html_unverified_bid_results = current_directory / "html_unverified_bid_results"
+html_Contract_Awards = current_directory / "html_Contract_Awards"
 html_process_manage_extranet = current_directory / "html_process_manage_extranet"
 html_directory.mkdir(parents=True, exist_ok=True)
 html_unverified_bid_results.mkdir(parents=True, exist_ok=True)
+html_Contract_Awards.mkdir(parents=True, exist_ok=True)
 html_process_manage_extranet.mkdir(parents=True, exist_ok=True)
 unverified_bid_results_output_urls = (
     current_directory / "unverified_bid_results_output_urls.csv"
@@ -384,7 +386,7 @@ def scrap_html_contract_awards():
     all_data = []
 
     # Перебираем HTML файлы в директории
-    for html_file in html_directory.glob("*.html"):
+    for html_file in html_Contract_Awards.glob("*.html"):
         print(f"Обрабатываем файл: {html_file.name}")
 
         # Читаем содержимое файла
@@ -411,7 +413,7 @@ def scrap_html_contract_awards():
             # Создаем словарь, сопоставляя заголовки с ячейками
             row_data = dict(zip(headers, cells))
             all_data.append(row_data)
-    output_file = "output_data.json"
+    output_file = "output_contract_awards.json"
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(all_data, f, ensure_ascii=False, indent=4)
         # Создаем DataFrame из списка словарей
@@ -613,9 +615,10 @@ def scrap_html_unverified_bids_browse_public():
 
 
 if __name__ == "__main__":
+    scrap_html_contract_awards()
     # Запуск основной функции
     # asyncio.run(main())
     # scrap_html()
     # scrap_html_unverified_bids_browse_public()
-    scrap_html_unverified_bid_results()
+    # scrap_html_unverified_bid_results()
     # asyncio.run(main())

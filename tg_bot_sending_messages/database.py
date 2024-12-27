@@ -10,6 +10,8 @@ class DatabaseInitializer:
         self.pool = None
 
     async def create_pool(self):
+        await self.create_database()  # Создание базы данных
+        
         logger.info("Создание пула соединений с базой данных")
         self.pool = await aiomysql.create_pool(
             host=DB_CONFIG["host"],
@@ -21,7 +23,33 @@ class DatabaseInitializer:
             autocommit=True,
         )
         logger.info("Пул соединений успешно создан")
+    async def create_database(self):
+        """
+        Создаёт базу данных, если она отсутствует.
+        """
+        try:
+            # Подключение без указания базы данных
+            async with aiomysql.connect(
+                host=DB_CONFIG["host"],
+                port=3306,
+                user=DB_CONFIG["user"],
+                password=DB_CONFIG["password"],
+                charset="utf8mb4",
+            ) as connection:
+                async with connection.cursor() as cursor:
+                    # Проверка существования базы данных
+                    await cursor.execute(f"SHOW DATABASES LIKE '{DB_CONFIG['db']}';")
+                    result = await cursor.fetchone()
+                    if result:
+                        logger.info(f"База данных '{DB_CONFIG['db']}' уже существует. Пропускаем создание.")
+                        return
 
+                    # Если базы данных нет, создаём её
+                    await cursor.execute(f"CREATE DATABASE `{DB_CONFIG['db']}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+                    logger.info(f"База данных '{DB_CONFIG['db']}' успешно создана")
+        except Exception as e:
+            logger.error(f"Ошибка при создании базы данных: {e}")
+            raise
     async def init_db(self):
         logger.info("Инициализация базы данных")
         async with self.pool.acquire() as connection:
