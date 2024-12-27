@@ -220,7 +220,7 @@ def split_json_file(input_file, output_dir, chunk_size_mb=None, num_parts=None):
 
 if __name__ == "__main__":
     # объединение файлов
-    merge_json_data(main_file_path, secondary_file_path)
+    # merge_json_data(main_file_path, secondary_file_path)
     # Разбиваем файл
     # split_json_file(merged_file, output_folder, chunk_size_mb)
-    # split_json_file("merged_file.json", "output_parts", num_parts=25)
+    split_json_file("merged_file.json", "output_parts", num_parts=25)

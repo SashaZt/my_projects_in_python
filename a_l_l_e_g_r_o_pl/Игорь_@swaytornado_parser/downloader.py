@@ -418,8 +418,11 @@ class Downloader:
                                 body = response.json().get("response").get("body")
                                 with open(html_company, "w", encoding="utf-8") as file:
                                     file.write(body)
+                                # logger.info(
+                                #     f"Результаты для {status_url} сохранены в файл {html_company}"
+                                # )
                                 logger.info(
-                                    f"Результаты для {status_url} сохранены в файл {html_company}"
+                                    f"Результаты сохранены в файл {html_company}"
                                 )
                                 # Удаление JSON файла после успешного сохранения результата
                                 try:

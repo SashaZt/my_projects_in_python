@@ -477,6 +477,15 @@ def parsing_html():
                 phone_number = []
                 gps = []
                 # Создание структуры данных врач-клиника
+                polyclinic = {
+                    "clinic_name": clinic_name,
+                    "address": address,
+                    "website_doctor": web,
+                    "opening_hours": opening_hours,
+                    "phone_number": phone_number,
+                    "gps": gps,
+                }
+                polyclinics.append(polyclinic)
                 for doctor in doctors_list:
                     doctor_entry = {
                         "name": doctor.get("name"),
@@ -489,14 +498,7 @@ def parsing_html():
                         "description": full_description,
                         "accepted_insurances": [],
                         "services": services,
-                        "polyclinic": {
-                            "clinic_name": clinic_name,
-                            "address": address,
-                            "website_doctor": web,
-                            "opening_hours": opening_hours,
-                            "phone_number": phone_number,
-                            "gps": gps,
-                        },
+                        "polyclinics": polyclinics,
                     }
                     extracted_data["data"].append(doctor_entry)
 
