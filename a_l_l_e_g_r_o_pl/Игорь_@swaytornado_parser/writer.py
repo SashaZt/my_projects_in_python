@@ -9,13 +9,20 @@ from configuration.logger_setup import logger
 class Writer:
 
     def __init__(
-        self, csv_output_file, json_result, xlsx_result, use_ultra_premium, tg_bot
+        self,
+        csv_output_file,
+        json_result,
+        xlsx_result,
+        use_ultra_premium,
+        tg_bot,
+        json_files_directory,
     ):
         self.csv_output_file = csv_output_file
         self.json_result = json_result
         self.xlsx_result = xlsx_result
         self.use_ultra_premium = use_ultra_premium
         self.tg_bot = tg_bot
+        self.json_files_directory = json_files_directory
 
     def save_to_csv(self, href_set):
         """Сохраняет множество ссылок в CSV-файл.

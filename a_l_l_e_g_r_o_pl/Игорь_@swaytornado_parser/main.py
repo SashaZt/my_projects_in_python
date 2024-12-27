@@ -171,7 +171,9 @@ def make_directory(url_start):
     xlsx_files = data_directory / "xlsx"
     csv_files = data_directory / "csv"
     html_files = data_directory / "html_files"
+    json_page = data_directory / "json_page"
     html_files_directory = html_files / f"{formatted_date}_{directory_name}"
+    json_files_directory = json_page / f"{formatted_date}_{directory_name}"
     xlsx_directory = xlsx_files / f"{formatted_date}_{directory_name}"
     csv_directory = csv_files / f"{formatted_date}_{directory_name}"
 
@@ -184,6 +186,7 @@ def make_directory(url_start):
     xlsx_directory.mkdir(parents=True, exist_ok=True)
     temp_directory.mkdir(parents=True, exist_ok=True)
     html_files_directory.mkdir(exist_ok=True, parents=True)
+    json_files_directory.mkdir(exist_ok=True, parents=True)
     json_page_directory.mkdir(exist_ok=True, parents=True)
     json_products.mkdir(parents=True, exist_ok=True)
     json_scrapy.mkdir(parents=True, exist_ok=True)
@@ -201,6 +204,7 @@ def make_directory(url_start):
         json_scrapy,
         json_page_directory,
         temp_directory,
+        json_files_directory,
     )
 
 
@@ -219,6 +223,7 @@ def create_objects(
         json_scrapy,
         json_page_directory,
         temp_directory,
+        json_files_directory,
     ) = directories
 
     csv_output_file = csv_directory / f"{formatted_date}_{directory_name}.csv"
@@ -239,9 +244,15 @@ def create_objects(
         json_page_directory,
         use_ultra_premium,
         tg_bot,
+        json_files_directory,
     )
     writer = Writer(
-        csv_output_file, json_result, xlsx_result, use_ultra_premium, tg_bot
+        csv_output_file,
+        json_result,
+        xlsx_result,
+        use_ultra_premium,
+        tg_bot,
+        json_files_directory,
     )
     parser = Parser(
         min_count,
@@ -252,6 +263,7 @@ def create_objects(
         json_page_directory,
         use_ultra_premium,
         tg_bot,
+        json_files_directory,
     )
 
     return downloader, writer, parser
@@ -411,6 +423,7 @@ def main_loop():
                 if choice == "1":
                     # Скачивание страниц пагинации
                     downloader.get_all_page_html()
+                    parser.scrap_page_json()
 
                 elif choice == "2":
                     # Асинхронное скачивание товаров

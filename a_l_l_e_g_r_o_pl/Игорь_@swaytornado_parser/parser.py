@@ -1,6 +1,8 @@
 import json
 import re
+import shutil
 import traceback
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -24,6 +26,7 @@ class Parser:
         json_page_directory,
         use_ultra_premium,
         tg_bot,
+        json_files_directory,
     ):
         self.min_count = min_count
         self.html_files_directory = html_files_directory
@@ -33,6 +36,7 @@ class Parser:
         self.json_page_directory = json_page_directory
         self.use_ultra_premium = use_ultra_premium
         self.tg_bot = tg_bot
+        self.json_files_directory = json_files_directory
 
     def parsing_page_max_page(self, src):
         """Парсит HTML-страницу и возвращает максимальный номер страницы из блока пагинации.
@@ -103,8 +107,9 @@ class Parser:
 
                     # Логируем успешную загрузку JSON
                     json_result = (
-                        self.json_page_directory / f"result_{page_number}.json"
+                        self.json_files_directory / f"result_{page_number}.json"
                     )
+                    # logger.info(json_result)
                     # Записываем JSON в файл для проверки
                     with open(json_result, "w", encoding="utf-8") as json_file:
                         json.dump(json_data, json_file, indent=4, ensure_ascii=False)
@@ -124,94 +129,174 @@ class Parser:
         return None
 
     # Рабочий вариант
-    # def parse_listing_store_state(self, json_data):
-    #     """
-    #     Парсит JSON-данные из __listing_StoreState, извлекает URL, если count >= 50.
-
-    #     :param json_data: JSON-объект, содержащий __listing_StoreState
-    #     :return: Список URL, где count >= 50
-    #     """
-    #     urls = set()
-
-    #     try:
-    #         # Navigate to elements under items
-    #         elements = json_data["__listing_StoreState"]["items"]["elements"]
-
-    #         for element in elements:
-    #             # Extract URL
-    #             url = element.get("url", None)
-    #             url_id = element.get("id", None)
-    #             exception_url = "https://allegro.pl/events"
-    #             # Extract productPopularity label and parse count
-    #             product_popularity = element.get("productPopularity", {})
-    #             label = product_popularity.get("label", "")
-
-    #             # Extract the numeric value from the label (e.g., "614 osób kupiło ostatnio")
-    #             count = None
-    #             # Регулярное выражение для извлечения числа перед 'osoby', 'osób', или 'osoba'
-    #             match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
-    #             count = int(match.group(1)) if match else 0
-    #             if count >= self.min_count and url and exception_url not in url:
-    #                 urls.add(url)
-
-    #     except KeyError as e:
-    #         pass
-    #     except Exception as e:
-    #         pass
-
-    #     return urls
-
-    # Тестовый вариант для проверки на уникальность
     def parse_listing_store_state(self, json_data):
         """
-        Парсит JSON-данные из __listing_StoreState, извлекает URL, url_id и count,
-        возвращает список URL с уникальными url_id, у которых максимальный count.
+        Парсит JSON-данные из __listing_StoreState, извлекает URL, если count >= 50.
 
         :param json_data: JSON-объект, содержащий __listing_StoreState
-        :return: Список URL с уникальными url_id, где count максимален
+        :return: Список URL, где count >= 50
         """
-        result = {}
+        urls = set()
 
         try:
-            # Переход к элементам внутри items
+            # Navigate to elements under items
             elements = json_data["__listing_StoreState"]["items"]["elements"]
 
             for element in elements:
-                # Извлечение значений
+                # Extract URL
                 url = element.get("url", None)
-                url_id = element.get("id", None)
+                # url_id = element.get("id", None)
                 exception_url = "https://allegro.pl/events"
+                # Extract productPopularity label and parse count
                 product_popularity = element.get("productPopularity", {})
                 label = product_popularity.get("label", "")
 
-                # Извлечение числового значения из текста (например, "614 osób kupiło ostatnio")
+                # Extract the numeric value from the label (e.g., "614 osób kupiło ostatnio")
+                count = None
+                # Регулярное выражение для извлечения числа перед 'osoby', 'osób', или 'osoba'
                 match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
                 count = int(match.group(1)) if match else 0
-
-                # Пропуск, если url или url_id отсутствует или url содержит exception_url
-                if not url or not url_id or exception_url in url:
-                    continue
-
-                # Проверка минимального значения count и других условий
-                if (
-                    count >= self.min_count
-                    and url
-                    and url_id
-                    and exception_url not in url
-                ):
-                    # Обновление словаря result: сохраняется только запись с максимальным count
-                    if url_id not in result or count > result[url_id]["count"]:
-                        result[url_id] = {"url": url, "count": count}
+                if count >= self.min_count and url and exception_url not in url:
+                    urls.add(url)
 
         except KeyError as e:
             pass
         except Exception as e:
             pass
-        # logger.info(result)
-        # Извлечение URL с максимальными значениями count для каждого уникального url_id
-        unique_urls = [entry["url"] for entry in result.values()]
-        # logger.info(unique_urls)
-        return unique_urls
+
+        return urls
+
+    # Фильтр по уникальности url по всем категориям
+    def scrap_page_json(self):
+        """
+        Обходит все JSON-файлы в указанной директории, собирает count, url_id и url,
+        объединяет данные и возвращает список уникальных URL с максимальными count.
+
+        :return: Список уникальных URL
+        """
+        # Словарь для хранения данных: {url_id: {"url": str, "count": int}}
+        aggregated_data = defaultdict(lambda: {"url": None, "count": 0})
+        # all_data = []
+
+        # Обход JSON-файлов в директории
+        for json_file in Path(self.json_files_directory).glob("*.json"):
+            with json_file.open(encoding="utf-8") as file:
+                data = json.load(file)
+
+            try:
+                # Переход к элементам внутри items
+                elements = data["__listing_StoreState"]["items"]["elements"]
+
+                for element in elements:
+                    # Исключаем элементы с типом "banner" или у которых нет "url_id"
+                    if element.get("type") == "banner" or not element.get("id"):
+                        continue
+
+                    url = element.get("url", None)
+
+                    url_id = element.get("id", None)
+                    # Пропуск элементов, где id не является UUID
+                    if not url_id or not re.match(
+                        r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+                        url_id,
+                    ):
+                        continue
+
+                    exception_url = "https://allegro.pl/events"
+                    product_popularity = element.get("productPopularity", {})
+                    label = product_popularity.get("label", "")
+
+                    # Извлечение числового значения из текста
+                    match = re.search(r"\d+", label)
+                    count = int(match.group(0)) if match else 0
+
+                    # all_data.append(url_id)
+
+                    # Пропуск некорректных данных
+                    if not url_id or not url or exception_url in url:
+                        continue
+
+                    # Обновление aggregated_data, если count больше
+                    if (
+                        url_id not in aggregated_data
+                        or count > aggregated_data[url_id]["count"]
+                    ):
+                        aggregated_data[url_id] = {"url": url, "count": count}
+
+            except KeyError as e:
+                logger.error(f"KeyError in file {json_file}: {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error in file {json_file}: {e}")
+
+        # logger.info(all_data)
+        # Формирование списка уникальных URL
+        unique_urls = [
+            entry["url"] for entry in aggregated_data.values() if entry["url"]
+        ]
+
+        # Сохранение в CSV
+        df = pd.DataFrame(unique_urls, columns=["url"])
+        df.to_csv(self.csv_output_file, index=False, encoding="utf-8")
+
+        logger.info(f"Всего ссылок {len(unique_urls)}")
+        self.tg_bot.send_message(f"Всего ссылок {len(unique_urls)}")
+        if self.csv_output_file:
+            shutil.rmtree(self.json_files_directory)
+        # return unique_urls
+
+        # return unique_urls
+
+    # Тестовый вариант для проверки на уникальность
+    # def parse_listing_store_state(self, json_data):
+    #     """
+    #     Парсит JSON-данные из __listing_StoreState, извлекает URL, url_id и count,
+    #     возвращает список URL с уникальными url_id, у которых максимальный count.
+
+    #     :param json_data: JSON-объект, содержащий __listing_StoreState
+    #     :return: Список URL с уникальными url_id, где count максимален
+    #     """
+    #     result = {}
+
+    #     try:
+    #         # Переход к элементам внутри items
+    #         elements = json_data["__listing_StoreState"]["items"]["elements"]
+
+    #         for element in elements:
+    #             # Извлечение значений
+    #             url = element.get("url", None)
+    #             url_id = element.get("id", None)
+    #             exception_url = "https://allegro.pl/events"
+    #             product_popularity = element.get("productPopularity", {})
+    #             label = product_popularity.get("label", "")
+
+    #             # Извлечение числового значения из текста (например, "614 osób kupiło ostatnio")
+    #             match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
+    #             count = int(match.group(1)) if match else 0
+
+    #             # Пропуск, если url или url_id отсутствует или url содержит exception_url
+    #             if not url or not url_id or exception_url in url:
+    #                 continue
+
+    #             # Проверка минимального значения count и других условий
+    #             if (
+    #                 count >= self.min_count
+    #                 and url
+    #                 and url_id
+    #                 and exception_url not in url
+    #             ):
+    #                 # Обновление словаря result: сохраняется только запись с максимальным count
+    #                 if url_id not in result or count > result[url_id]["count"]:
+    #                     result[url_id] = {"url": url, "count": count}
+
+    #     except KeyError as e:
+    #         pass
+    #     except Exception as e:
+    #         pass
+    #     # logger.info(result)
+    #     # Извлечение URL с максимальными значениями count для каждого уникального url_id
+    #     unique_urls = [entry["url"] for entry in result.values()]
+    #     # logger.info(unique_urls)
+    #     return unique_urls
 
     # def parsin_page(self, src):
     #     """Парсит HTML-страницу и извлекает ссылки на статьи с числом упоминаний "osób" больше или равно 50.

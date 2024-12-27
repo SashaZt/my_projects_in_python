@@ -31,11 +31,13 @@ class Downloader:
         json_page_directory,
         use_ultra_premium,
         tg_bot,
+        json_files_directory,
     ):
 
         self.min_count = min_count
         self.api_key = api_key
         self.html_files_directory = html_files_directory
+        self.json_files_directory = json_files_directory
         self.csv_output_file = csv_output_file
         self.json_products = json_products
         self.json_scrapy = json_scrapy
@@ -56,9 +58,15 @@ class Downloader:
             json_page_directory,
             use_ultra_premium,
             tg_bot,
+            json_files_directory,
         )  # Создаем экземпляр Parser
         self.writer = Writer(
-            csv_output_file, json_result, xlsx_result, use_ultra_premium, tg_bot
+            csv_output_file,
+            json_result,
+            xlsx_result,
+            use_ultra_premium,
+            tg_bot,
+            json_files_directory,
         )
 
     def make_request_with_retries(self, url, params, max_retries=10, delay=30):
@@ -180,10 +188,10 @@ class Downloader:
                     # )
                     break
 
-        logger.info(f"Всего ссылок {len(all_data)}")
-        self.tg_bot.send_message(f"Всего ссылок {len(all_data)}")
+        # logger.info(f"Всего ссылок {len(all_data)}")
+        # self.tg_bot.send_message(f"Всего ссылок {len(all_data)}")
 
-        self.writer.save_to_csv(all_data)
+        # self.writer.save_to_csv(all_data)
 
     # Рабочий код
     # def get_all_page_html(self):
