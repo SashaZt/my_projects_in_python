@@ -1,0 +1,13 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram_bot
+    env_file:
+      - ./config/.env # Локальный файл .env находится в папке config
+    volumes:
+      - ./database:/app/database # Монтируем базу данных локально
+      - ./logging:/app/logging # Монтируем директорию для логов
+      - ./sessions:/app/sessions # Монтируем директорию для сессий Telethon
+    restart: unless-stopped
