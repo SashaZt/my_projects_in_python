@@ -1,4 +1,5 @@
 import random
+import asyncio
 
 from bot.authorization import authorize
 from config.config import API_HASH, API_ID, PAUSE_MAX, PAUSE_MIN, SESSION_NAME
@@ -37,26 +38,58 @@ async def subscribe_to_groups(group_links: list):
                     logger.info(f"Группа {link} уже подписана. Пропускаем.")
                     continue
 
-                # Подписываемся на группу
-                await client(JoinChannelRequest(link))
-                logger.info(f"Успешно подписались на группу: {link}")
-                # Рандомная пауза с диапазоном из конфига
-                pause_duration = random.uniform(PAUSE_MIN, PAUSE_MAX)
-                logger.info(
-                    f"Ожидание {pause_duration:.2f} секунд перед следующей отправкой."
-                )
+                max_retries = 5  # Максимальное количество попыток
+                retry_count = 0
 
-                # Обновляем статус подписки
-                cursor.execute(
-                    """
-                    INSERT INTO groups (group_link, subscription_status)
-                    VALUES (?, ?)
-                    ON CONFLICT(group_link) DO UPDATE SET subscription_status = 1
-                """,
-                    (link, True),
-                )
-                conn.commit()
+                while retry_count < max_retries:
+                    try:
+                        # Подписываемся на группу
+                        await client(JoinChannelRequest(link))
+                        logger.info(f"Успешно подписались на группу: {link}")
 
+                        # Рандомная пауза с диапазоном из конфига
+                        pause_duration = random.uniform(PAUSE_MIN, PAUSE_MAX)
+                        logger.info(
+                            f"Ожидание {pause_duration:.2f} секунд перед следующей отправкой."
+                        )
+                        await asyncio.sleep(pause_duration)
+
+                        # Обновляем статус подписки
+                        cursor.execute(
+                            """
+                            INSERT INTO groups (group_link, subscription_status)
+                            VALUES (?, ?)
+                            ON CONFLICT(group_link) DO UPDATE SET subscription_status = 1
+                            """,
+                            (link, True),
+                        )
+                        conn.commit()
+                        break  # Успех, выходим из цикла повторных попыток
+
+                    except Exception as e:
+                        error_message = str(e)
+
+                        # Обрабатываем ошибку "No user has ..."
+                        if "No user has" in error_message:
+                            logger.warning(f"Группа {link} пропущена: {error_message}")
+                            break  # Прерываем цикл, пропуская эту группу
+
+                        # Обрабатываем ошибку ожидания
+                        if "A wait of" in error_message:
+                            wait_time = int(
+                                "".join(filter(str.isdigit, error_message.split("A wait of")[1]))
+                            )
+                            wait_time += 60  # Добавляем 60 секунд
+                            logger.warning(
+                                f"Подписка на группу {link} требует ожидания {wait_time} секунд. Попробуем снова."
+                            )
+                            await asyncio.sleep(wait_time)
+                            retry_count += 1
+                        else:
+                            raise  # Если ошибка не обработана, пробрасываем её дальше
+
+                if retry_count >= max_retries:
+                    logger.error(f"Не удалось подписаться на группу {link} после {max_retries} попыток.")
             except Exception as e:
                 logger.error(f"Ошибка при подписке на группу {link}: {e}")
 
