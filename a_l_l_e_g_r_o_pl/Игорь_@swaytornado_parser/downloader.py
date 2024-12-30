@@ -188,10 +188,10 @@ class Downloader:
                     # )
                     break
 
-        # logger.info(f"Всего ссылок {len(all_data)}")
-        # self.tg_bot.send_message(f"Всего ссылок {len(all_data)}")
+        logger.info(f"Всего ссылок {len(all_data)}")
+        self.tg_bot.send_message(f"Всего ссылок {len(all_data)}")
 
-        # self.writer.save_to_csv(all_data)
+        self.writer.save_to_csv(all_data)
 
     # Рабочий код
     # def get_all_page_html(self):
@@ -469,8 +469,12 @@ class Downloader:
             await asyncio.sleep(10)
 
     # Функция для отправки задач на ScraperAPI
+
     def submit_jobs(self):
         urls = self.read_cities_from_csv(self.csv_output_file)
+        if not urls:  # Проверяем, если список пуст
+            logger.error("Список URL пуст. Завершаю выполнение.")
+            return False  # Возвращаем статус False для прекращения выполнения
         batch_size = 40000  # Размер каждой порции URL
         # Разделяем список urls на подсписки по batch_size
         for i in range(0, len(urls), batch_size):
@@ -527,6 +531,7 @@ class Downloader:
                         logger.error(f"Ошибка запроса для ")
                     except Exception as e:
                         logger.error(f"Неизвестная ошибка ")
+        return True  # Возвращаем True, если задачи успешно отправлены
 
     # Функция для чтения городов из CSV файла
 
@@ -534,14 +539,13 @@ class Downloader:
         df = pd.read_csv(input_csv_file)
         return df["url"].tolist()
 
-    # Основная функция для скачивания все товаров
+    # Основная функция для скачивания всех товаров
     async def main_url(self):
-        # Проверка наличия файлов в json_files_directory
         if any(self.json_scrapy.glob("*.json")):
-            # Получение результатов задач, если есть несохраненные результаты
             await self.fetch_results_async()
         else:
-            # Отправка задач на ScraperAPI, если json файлов нет
-            self.submit_jobs()
-            # Получение результатов задач
+            # Проверяем результат отправки задач
+            if not self.submit_jobs():
+                return False  # Прерываем выполнение, если список URL пуст
             await self.fetch_results_async()
+        return True  # Успешное выполнение

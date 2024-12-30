@@ -423,7 +423,8 @@ def main_loop():
                 if choice == "1":
                     # Скачивание страниц пагинации
                     downloader.get_all_page_html()
-                    parser.scrap_page_json()
+                    # Уникальность првоеряем
+                    #  parser.scrap_page_json()
 
                 elif choice == "2":
                     # Асинхронное скачивание товаров
@@ -441,8 +442,26 @@ def main_loop():
                     start_time_now = datetime.now()
                     tg_bot.send_message(f"Запуск парсера для {url_start}")
                     downloader.get_all_page_html()
-                    parser.scrap_page_json()
-                    asyncio.run(downloader.main_url())
+                    # Уникальность првоеряем
+                    # parser.scrap_page_json()
+                    # Проверяем результат выполнения main_url
+                    try:
+                        success = asyncio.run(downloader.main_url())
+                        if not success:
+                            logger.error(f"Список URL пуст для {url_start}. Пропускаю.")
+                            tg_bot.send_message(
+                                f"Список URL пуст для {url_start}. Пропускаю."
+                            )
+                            continue  # Пропускаем текущий URL
+                    except Exception as e:
+                        logger.error(
+                            f"Ошибка при выполнении main_url для {url_start}: {str(e)}"
+                        )
+                        tg_bot.send_message(
+                            f"Ошибка при выполнении main_url для {url_start}: {str(e)}"
+                        )
+                        continue  # Пропускаем текущий URL
+
                     all_results = parser.parsing_html()
                     writer.save_results_to_json(all_results)
                     writer.save_json_to_excel()

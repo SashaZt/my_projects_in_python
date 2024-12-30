@@ -331,6 +331,11 @@ class Parser:
         """
 
         all_files = self.list_html()
+        if not all_files:
+            logger.error(
+                f"Файлов в папке {self.html_files_directory} Завершаю выполнение."
+            )
+            return
         # Инициализация прогресс-бараedrpou.csv
         total_urls = len(all_files)
         progress_bar = tqdm(
