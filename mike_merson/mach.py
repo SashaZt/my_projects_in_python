@@ -71,7 +71,7 @@ import os
 
 # Пути к файлам
 main_file_path = "original_merged_file.json"
-secondary_file_path = "dr_flex_de.json"
+secondary_file_path = "dr-flex.de.json"
 merged_file = "merged_file.json"
 dictionary_name = "dr-flex.de"
 

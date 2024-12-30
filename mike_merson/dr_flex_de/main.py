@@ -411,6 +411,20 @@ def find_url_by_clinic_name(clinic_name, input_csv_file):
 #         logger.info(f"Все данные сохранены в {output_file}")
 #     except Exception as e:
 #         logger.error(f"Ошибка при сохранении данных в файл {output_file}: {e}")
+def convert_text_to_broken_encoding(source_text):
+    """
+    Функция принимает текст и возвращает его в виде с "ломаной" кодировкой.
+
+    :param source_text: str, текст на входе
+    :return: str, текст с "ломаной" кодировкой
+    """
+    # Перекодируем текст в байты с использованием 'utf-8'
+    bytes_text = source_text.encode("utf-8", errors="ignore")
+    # Декодируем байты обратно в строку с "ломаной" кодировкой
+    broken_text = bytes_text.decode("latin1", errors="ignore")
+    return broken_text
+
+
 def parsing_html():
     """
     Обрабатывает HTML-файлы в указанной директории, извлекает данные из тегов, сохраняет в файл JSON.
@@ -458,6 +472,9 @@ def parsing_html():
                         clinics = clinics_raw.find("h1")
                         if clinics:
                             clinic_name = clinics.text.strip()
+                            logger.info(clinic_name)
+                            clinic_name = convert_text_to_broken_encoding(clinic_name)
+
                     doctor_professions = clinic_overview.find("h2").find("span")
                     if doctor_professions:
                         doctor_profession = doctor_professions.text.strip()

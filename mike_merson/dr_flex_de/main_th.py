@@ -22,7 +22,7 @@ html_directory.mkdir(exist_ok=True, parents=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 output_csv = data_directory / "output.csv"
-file_proxy = configuration_directory / "roman.txt"
+file_proxy = configuration_directory / "1000ip.txt"
 
 
 # Функция для чтения городов из CSV файла
@@ -31,18 +31,12 @@ def read_cities_from_csv(input_csv_file):
     return df["url"].tolist()
 
 
-# Функция загрузки списка прокси
 def load_proxies():
-    if os.path.exists(file_proxy):
-        with open(file_proxy, "r", encoding="utf-8") as file:
-            proxies = [line.strip() for line in file]
-        logger.info(f"Загружено {len(proxies)} прокси.")
-        return proxies
-    else:
-        logger.warning(
-            "Файл с прокси не найден. Работа будет выполнена локально без прокси."
-        )
-        return []
+    file_path = "1000 ip.txt"
+    # Загрузка списка прокси из файла
+    with open(file_path, "r", encoding="utf-8") as file:
+        proxies = [line.strip() for line in file]
+    return proxies
 
 
 # Функция для парсинга прокси
@@ -103,17 +97,16 @@ def get_html(url):
     file_name = html_directory / f"{path}.html"
     if file_name.exists():
         return
-    proxy = {
-        "http": "http://5.79.73.131:13010",
-        "https": "http://5.79.73.131:13010",
-    }
     try:
         response = requests.get(
             url=url,
-            # proxies=proxy,
+            # proxies=proxies_dict,
             headers=headers,
             timeout=30,
         )
+        # Принудительно указываем кодировку UTF-8
+        response.encoding = "utf-8"
+
         if response.status_code == 200:
             src = response.text
             with open(file_name, "w", encoding="utf-8") as file:
@@ -134,9 +127,10 @@ def get_html(url):
 #     logger.info("Все задачи завершены.")
 if __name__ == "__main__":
     max_workers = 50  # Количество одновременно работающих потоков
-    proxies = load_proxies()  # Загрузка прокси
+    # proxies = load_proxies()  # Загрузка прокси
     while True:
         all_urls = read_cities_from_csv(output_csv)  # Заново считываем URL-ы
+        # proxies = load_proxies()  # Загружаем список всех прокси
         if not all_urls:
             logger.info("Список URL пуст. Ожидание новых данных...")
             time.sleep(1)  # Ждем перед новой проверкой
