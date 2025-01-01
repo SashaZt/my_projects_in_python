@@ -574,7 +574,6 @@ property_data = {
     "title": "Flat / apartment for sale in calle de Tòquio",
     "content": "<p>Описание объекта недвижимости...</p>",
     "excerpt": "<p>Краткое описание...</p>",
-    "featured_media": 16124,  # Главное изображение
     "meta": {"fave_property_images": [{"id": "17548"}]},
 }
 
