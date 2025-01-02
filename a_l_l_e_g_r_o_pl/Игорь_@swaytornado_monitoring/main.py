@@ -129,7 +129,7 @@ def main_loop():
     start_time = start_time_now.strftime("%Y-%m-%d %H:%M:%S")
 
     # Уведомляем о старте программы
-    tg_bot.send_message(f"Старт выполнения программы {start_time}")
+    tg_bot.send_message(f"Старт выполнения программы Monitoring {start_time}")
     count_url = count_urls(incoming_file)
 
     tg_bot.send_message(f"Количество товаров на проверку {count_url}")

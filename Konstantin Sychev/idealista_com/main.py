@@ -98,6 +98,25 @@ def extract_details(soup):
     return details_list
 
 
+def extract_bathrooms_year(details):
+    bathrooms_count = None
+    year_built = None
+
+    for detail_group in details:
+        for item in detail_group.get("items", []):
+            # Проверяем на наличие "bathroom" или "bathrooms"
+            bathroom_match = re.search(r"(\d+)\s+bathrooms?", item, re.IGNORECASE)
+            if bathroom_match:
+                bathrooms_count = int(bathroom_match.group(1))
+
+            # Проверяем на наличие "Built in <year>"
+            year_match = re.search(r"Built in (\d{4})", item, re.IGNORECASE)
+            if year_match:
+                year_built = int(year_match.group(1))
+
+    return bathrooms_count, year_built
+
+
 def parsing_html():
 
     extracted_data = []
@@ -149,20 +168,27 @@ def parsing_html():
 
         photos = extract_photo(soup)
         details = extract_details(soup)
+        bathrooms, year = extract_bathrooms_year(details)
+
         all_data = {
             "status": "publish",
             "type": "property",
             "title": {"rendered": title},
             "imgs_title": [imgs_title],
             "photos": photos,
-            "price": price,
+            # "price": price,
             "content": description,
             "location": location,
-            "area": area,
-            "number_of_rooms": number_of_rooms,
+            # "area": area,
+            # "number_of_rooms": number_of_rooms,
             "details": details,
             "property_meta": {
                 "fave_property_images": [],
+                "fave_property_bedrooms": number_of_rooms,
+                "fave_property_price": price,
+                "fave_property_size": area,
+                "fave_property_bathrooms": bathrooms,
+                "fave_property_year": year,
             },
         }
         extracted_data.append(all_data)
@@ -495,26 +521,29 @@ def make_get_request(url, headers):
         return None
 
 
-def make_post_request(
-    url,
-    payload,
-):
+def make_post_request(url, payload):
     """
     Универсальная функция для POST-запросов.
 
     :param url: URL для POST-запроса.
-    :param token: строка, токен авторизации.
     :param payload: словарь с данными для отправки.
     :return: результат запроса в виде JSON или None в случае ошибки.
     """
-    headers = load_headers()
+    headers = load_headers()  # Получение заголовков авторизации
 
-    response = requests.post(url, headers=headers, json=payload, timeout=30)
-    if response.status_code in [200, 201]:
-        logger.info(response.json())
-        return response.json()
-    else:
-        logger.error(f"Ошибка POST-запроса: {response.status_code} - {response.text}")
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        if response.status_code in [200, 201]:
+            pass
+            # logger.info(f"Запрос успешен. Ответ: {response.json()}")
+            # return response.json()
+        else:
+            logger.error(
+                f"Ошибка POST-запроса: {response.status_code} - {response.text}"
+            )
+            return None
+    except requests.RequestException as e:
+        logger.error(f"Ошибка запроса: {e}")
         return None
 
 
@@ -525,7 +554,32 @@ def get_property():
         property_datas = json.load(token_file)
     for property_data in property_datas:
         make_post_request(api_url, property_data)
-    # Отправка запроса с использованием токена
+
+
+def update_property(id_property):
+    # URL для вашего WordPress REST API
+    api_url = f"https://allproperty.ai/wp-json/wp/v2/properties/{id_property}"
+
+    # Данные для обновления
+    property_data = {
+        "content": "Ку",
+        "property_meta": {  # Используем стандартное поле meta
+            "fave_property_garage": ["1", "1"],
+            "fave_property_year": ["2016", "2016"],
+            "fave_property_map_address": [
+                "3047 W Argyle St, Chicago, IL 60625, USA",
+            ],
+            "fave_property_size": [
+                "1200",
+            ],
+            "fave_property_id": ["HZ33", "HZ33"],
+            "additional_features": [],
+            "property_country": [65],
+        },
+    }
+
+    # Выполнение запроса
+    make_post_request(api_url, property_data)
 
 
 if __name__ == "__main__":
@@ -534,5 +588,7 @@ if __name__ == "__main__":
     # load_posts_to_wordpress(token)
 
     # creative_new_post(token)
-    # parsing_html()
+    parsing_html()
     get_property()
+    # id_property = "17760"
+    # update_property(id_property)

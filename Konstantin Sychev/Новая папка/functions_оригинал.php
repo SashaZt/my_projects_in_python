@@ -24,30 +24,23 @@ function ap_handle_new_property_meta() {
                     return new WP_Error('rest_invalid_param', __('The value must be a JSON object (array)'));
                 }
 
-                // Получаем текущее значение property_meta
                 $current_value = get_post_meta($object->ID, 'property_meta', true);
-                $current_value = $current_value ? json_decode($current_value, true) : [];
-
-                // Объединяем текущие и новые значения
-                $merged_value = array_merge(
-                    is_array($current_value) ? $current_value : [],
-                    is_array($value) ? $value : []
-                );
-                update_post_meta($object->ID, 'property_meta', wp_json_encode($merged_value));
-
-                // Работа с fave_property_images
                 $images_arr = get_post_meta($object->ID, 'fave_property_images');
-                $merged_images = array_merge(
-                    is_array($images_arr) ? $images_arr : [],
-                    isset($value['fave_property_images']) && is_array($value['fave_property_images']) ? $value['fave_property_images'] : []
-                );
 
-                // Сохраняем изображения
+                $current_value = $current_value ? json_decode($current_value, true) : [];
+                $merged_value = array_merge($current_value, $value);
+                update_post_meta($object->ID, 'property_meta', wp_json_encode($merged_value));
+                $merged_images = [];
+                if(!empty($images_arr) && is_array($images_arr)) {
+                    $merged_images = array_merge($images_arr, $value['fave_property_images']);
+                } else {
+                    $merged_images = $value['fave_property_images'];
+                }
                 $array_to_save = [];
-                foreach ($merged_images as $image) {
+                foreach($merged_images as $image) {
                     array_push($array_to_save, $image);
                 }
-                foreach ($array_to_save as $item) {
+                foreach ( $array_to_save as $item ) {
                     add_post_meta($object->ID, 'fave_property_images', $item, false);
                 }
                 return $merged_value;
