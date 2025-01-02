@@ -4,6 +4,7 @@ import re
 import shutil
 from math import log
 from pathlib import Path
+from tkinter import NO
 
 import requests
 from bs4 import BeautifulSoup
@@ -117,6 +118,22 @@ def extract_bathrooms_year(details):
     return bathrooms_count, year_built
 
 
+def add_source_to_description(description, source_url):
+    """
+    Добавляет ссылку на источник в конец HTML-описания.
+
+    :param description: str, основное HTML-описание
+    :param source_url: str, URL источника
+    :return: str, обновленное HTML-описание с ссылкой на источник
+    """
+    # Формируем HTML-код для источника
+    source_html = f'<p>Source: <a href="{source_url}" target="_blank" rel="noopener noreferrer">{source_url}</a></p>'
+
+    # Добавляем HTML-код к описанию
+    updated_description = f"{description.strip()}\n\n{source_html}"
+    return updated_description
+
+
 def parsing_html():
 
     extracted_data = []
@@ -128,23 +145,25 @@ def parsing_html():
         soup = BeautifulSoup(content, "lxml")
         title = None
         location = None
-        price = None
-        description = None
         area = None
         number_of_rooms = None
-        imgs_title = None
         # Извлечение данных
         title = soup.find("span", class_="main-info__title-main")
         location = soup.find("span", class_="main-info__title-minor")
         price = soup.find("span", class_="info-data-price")
-        description = soup.find(
+        description_raw = soup.find(
             "div", class_="adCommentsLanguage expandable is-expandable"
         )
 
         title = title.get_text(strip=True) if title else None
         location = location.get_text(strip=True) if location else None
         price = price.get_text(strip=True) if price else None
-        description = description.get_text(strip=True) if description else None
+        url_add_raw = soup.find("link", attrs={"rel": "canonical"})
+        url_add = url_add_raw.get("href") if url_add_raw else None
+        # Только текст
+        # description = descriptio_raw.get_text(strip=True) if description else None
+        description = description_raw.decode_contents() if description_raw else None
+        updated_description = add_source_to_description(description, url_add)
 
         list_items = soup.find_all("li", {"class": "header-map-list"})
 
@@ -160,28 +179,21 @@ def parsing_html():
                 area = spans[0].get_text(strip=True)
                 number_of_rooms = spans[1].get_text(strip=True).split()[0]
 
-        imgs_title_raw = soup.find(
-            "img", attrs={"class", "image-focus show image-focus show"}
-        )
-        if imgs_title_raw:
-            imgs_title = imgs_title_raw.get("src")
-
         photos = extract_photo(soup)
         details = extract_details(soup)
         bathrooms, year = extract_bathrooms_year(details)
-
         all_data = {
             "status": "publish",
             "type": "property",
-            "title": {"rendered": title},
-            "imgs_title": [imgs_title],
+            "title": title,
+            # "imgs_title": [imgs_title],
             "photos": photos,
             # "price": price,
-            "content": description,
-            "location": location,
+            "content": updated_description,
+            # "location": location,
             # "area": area,
             # "number_of_rooms": number_of_rooms,
-            "details": details,
+            # "details": details,
             "property_meta": {
                 "fave_property_images": [],
                 "fave_property_bedrooms": number_of_rooms,
@@ -189,6 +201,7 @@ def parsing_html():
                 "fave_property_size": area,
                 "fave_property_bathrooms": bathrooms,
                 "fave_property_year": year,
+                "fave_property_map_address": location,
             },
         }
         extracted_data.append(all_data)
@@ -562,19 +575,8 @@ def update_property(id_property):
 
     # Данные для обновления
     property_data = {
-        "content": "Ку",
         "property_meta": {  # Используем стандартное поле meta
-            "fave_property_garage": ["1", "1"],
-            "fave_property_year": ["2016", "2016"],
-            "fave_property_map_address": [
-                "3047 W Argyle St, Chicago, IL 60625, USA",
-            ],
-            "fave_property_size": [
-                "1200",
-            ],
-            "fave_property_id": ["HZ33", "HZ33"],
-            "additional_features": [],
-            "property_country": [65],
+            "fave_property_price": 1380000,
         },
     }
 
@@ -585,10 +587,7 @@ def update_property(id_property):
 if __name__ == "__main__":
     # get_token()
 
-    # load_posts_to_wordpress(token)
-
-    # creative_new_post(token)
-    parsing_html()
-    get_property()
-    # id_property = "17760"
-    # update_property(id_property)
+    # parsing_html()
+    # get_property()
+    id_property = "17803"
+    update_property(id_property)
