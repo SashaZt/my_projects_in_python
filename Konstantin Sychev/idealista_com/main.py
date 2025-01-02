@@ -150,15 +150,20 @@ def parsing_html():
         photos = extract_photo(soup)
         details = extract_details(soup)
         all_data = {
-            "title": title,
+            "status": "publish",
+            "type": "property",
+            "title": {"rendered": title},
             "imgs_title": [imgs_title],
             "photos": photos,
             "price": price,
-            "description": description,
+            "content": description,
             "location": location,
             "area": area,
             "number_of_rooms": number_of_rooms,
             "details": details,
+            "property_meta": {
+                "fave_property_images": [],
+            },
         }
         extracted_data.append(all_data)
 
@@ -514,12 +519,10 @@ def make_post_request(url, token, payload=None):
         return None
 
 
-
 if __name__ == "__main__":
     # get_token()
 
     # load_posts_to_wordpress(token)
 
     # creative_new_post(token)
-    # parsing_html()
-    
+    parsing_html()

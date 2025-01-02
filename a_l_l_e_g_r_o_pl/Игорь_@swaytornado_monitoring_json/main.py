@@ -68,7 +68,7 @@ incoming_file = source_folder / INCOMING_FILE
 if not incoming_file.exists():
     logger.warning(f"Нету файла {INCOMING_FILE} в папке {source_folder}")
 
-
+tg_bot = TgBot(TELEGRAM_TOKEN, TELEGRAM_CHAT_IDS)
 
 
 def determine_file_type(file_path):

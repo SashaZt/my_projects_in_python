@@ -1761,7 +1761,7 @@ class Parser:
         parent_directory.mkdir(parents=True, exist_ok=True)
         directory.mkdir(parents=True, exist_ok=True)
 
-        json_result = directory / f'{all_names_folders_and_file["file"]}.json'
+        json_result = directory / f"{self.pares_iditem(soup)}.json"
         # logger.info(json_result)
         with open(json_result, "w", encoding="utf-8") as json_file:
             json.dump(all_data, json_file, indent=4, ensure_ascii=False)
