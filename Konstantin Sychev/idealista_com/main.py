@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import shutil
 from pathlib import Path
 
 import requests
@@ -11,11 +13,14 @@ current_directory = Path.cwd()
 
 data_directory = current_directory / "data"
 html_directory = current_directory / "html"
+photo_directory = current_directory / "photo"
 
 data_directory.mkdir(parents=True, exist_ok=True)
 html_directory.mkdir(parents=True, exist_ok=True)
+photo_directory.mkdir(parents=True, exist_ok=True)
 
 output_csv_file = data_directory / "output.csv"
+# api_url = "https://allproperty.ai/wp-json/wp/v2/properties"
 
 
 def extract_photo(soup):
@@ -167,7 +172,7 @@ BASE_URL = "https://allproperty.ai"  # Замените на URL вашего с
 TOKEN_FILE = "token.json"  # Файл для сохранения токена
 SCHEME_FILE = "scheme.json"  # Файл для сохранения токена
 USERNAME = "apiuser"  # Имя пользователя
-PASSWORD = "lHvAkp3u9rR2EFQzlSwvtmAz"  # Пароль пользователя
+PASSWORD = "mkXh8jHOnDmiYB8qSyGKO77H"  # Пароль пользователя
 
 
 # Функция для получения токена
@@ -192,17 +197,32 @@ def get_token():
         # Проверка, что запрос выполнен успешно
         if response.status_code == 200:
             data = response.json()
-            token = data["token"]
+            token_jwt = {"token": data["token"]}
             # Сохранение токена в файл
-            with open(TOKEN_FILE, "w") as token_file:
-                json.dump(data["token"], token_file, indent=4)
-            return token
+            with open(TOKEN_FILE, "w", encoding="utf-8") as token_file:
+                json.dump(token_jwt, token_file, indent=4)
+
         else:
             print(f"Ошибка при получении токена: {response.status_code}")
             print("Ответ сервера:", response.text)
 
     except requests.RequestException as e:
         print(f"Произошла ошибка при выполнении запроса: {e}")
+
+
+def load_headers():
+    # Загрузка токена
+    with open(TOKEN_FILE, "r", encoding="utf-8") as token_file:
+        token_data = json.load(token_file)
+        token = token_data.get("token")
+
+    # Заголовки для запроса
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    }
+    return headers
 
 
 # Функция для создания записи
@@ -451,11 +471,55 @@ def get_tags(token):
         return {}
 
 
+def make_get_request(url, token):
+    """
+    Универсальная функция для GET-запросов.
+
+    :param url: URL для GET-запроса.
+    :param token: строка, токен авторизации.
+    :return: результат запроса в виде JSON или None в случае ошибки.
+    """
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    }
+    response = requests.get(url, headers=headers, timeout=30)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        print(f"Ошибка GET-запроса: {response.status_code} - {response.text}")
+        return None
+
+
+def make_post_request(url, token, payload=None):
+    """
+    Универсальная функция для POST-запросов.
+
+    :param url: URL для POST-запроса.
+    :param token: строка, токен авторизации.
+    :param payload: словарь с данными для отправки.
+    :return: результат запроса в виде JSON или None в случае ошибки.
+    """
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    }
+    response = requests.post(url, headers=headers, json=payload, timeout=30)
+    if response.status_code in [200, 201]:
+        return response.json()
+    else:
+        print(f"Ошибка POST-запроса: {response.status_code} - {response.text}")
+        return None
+
 
 
 if __name__ == "__main__":
-    token = get_token()
-    load_posts_to_wordpress(token)
+    # get_token()
+
+    # load_posts_to_wordpress(token)
 
     # creative_new_post(token)
     # parsing_html()
+    

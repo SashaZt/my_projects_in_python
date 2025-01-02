@@ -62,7 +62,7 @@ def make_get_request(url, token):
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=30)
     if response.status_code == 200:
         return response.json()
     else:
@@ -84,7 +84,7 @@ def make_post_request(url, token, payload):
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
-    response = requests.post(url, headers=headers, json=payload)
+    response = requests.post(url, headers=headers, json=payload, timeout=30))
     if response.status_code in [200, 201]:
         return response.json()
     else:
@@ -149,52 +149,6 @@ def save_categories_and_tags(token):
 
     print("Категории и теги успешно сохранены.")
 
-
-def load_posts_to_wordpress():
-    with open(TOKEN_FILE, "r", encoding="utf-8") as file:
-        data = json.load(file)
-    token = data["token"]
-    data_path = "extracted_profile_data.json"
-    scheme_path = "scheme.json"
-    # Загрузка данных
-    with open(data_path, "r", encoding="utf-8") as file:
-        extracted_data = json.load(file)
-    with open(scheme_path, "r", encoding="utf-8") as file:
-        wp_schema = json.load(file)
-
-    # URL WordPress REST API
-    wordpress_url = "https://allproperty.ai/wp-json/wp/v2/posts"
-
-    for item in extracted_data:
-        # Сопоставление данных со схемой
-        payload = {
-            "title": item.get("title", "Untitled Post"),  # Заголовок
-            "content": generate_post_content(item),  # Содержимое
-            "status": "publish",  # Статус публикации
-            "meta": {
-                "location": item.get("location", ""),  # Местоположение
-                "price": item.get("price", ""),  # Цена
-                "area": item.get("area", ""),  # Площадь
-                "number_of_rooms": item.get("number_of_rooms", ""),  # Количество комнат
-            },
-            # Используем ID категорий и меток
-            "categories": item.get(
-                "category_ids", []
-            ),  # Используем ID категорий из файла
-            "tags": item.get("tag_ids", []),  # Используем ID тегов из файла
-        }
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        }
-        # Отправка данных на WordPress
-        response = requests.post(wordpress_url, headers=headers, json=payload)
-
-        if response.status_code == 201:
-            print(f"Post '{item['title']}' успешно создан.")
-        else:
-            print(f"Ошибка создания поста '{item['title']}': {response.text}")
 
 
 # Обновление категории и тегов

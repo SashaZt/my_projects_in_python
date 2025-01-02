@@ -51,7 +51,7 @@ async def main():
         await page.click("button#loginButton")
 
         # Ждем 60 секунд
-        await page.wait_for_timeout(60000)
+        await page.wait_for_timeout(600000)
 
         # Закрываем браузер
         await browser.close()
