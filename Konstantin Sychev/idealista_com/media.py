@@ -141,23 +141,6 @@ def extract_file_name(url):
         return None
 
 
-# # Чтение JSON-файла
-# def process_images_from_json():
-#     headers = load_headers()
-#     output_file = Path("extracted_profile_data.json")
-#     with open(output_file, "r", encoding="utf-8") as f:
-#         data = json.load(f)
-
-#     for entry in data:
-#         title = entry.get("title", "Без названия")
-#         logger.info(f"Обрабатываем объект: {title}")
-
-
-#         # Обработка изображений из photos
-#         photos = entry.get("photos", [])
-#         for photo in photos[:2]:
-#             image_id = download_and_upload_image(photo, headers)
-#             logger.info(f"Получен ID изображения: {image_id}")
 # Функция для загрузки изображения
 def upload_image(file_name, headers):
     # URL API для загрузки медиафайлов

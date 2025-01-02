@@ -36,7 +36,7 @@
     "python.analysis.extraPaths": [],
     "python.languageServer": "Pylance",
     "python.analysis.typeCheckingMode": "off",
-    "python.analysis.autoImportCompletions": false,
+    "python.analysis.autoImportCompletions": true,
     "python.analysis.diagnosticMode": "openFilesOnly",
     "python.REPL.enableREPLSmartSend": false,
     // Настройки форматирования для Python

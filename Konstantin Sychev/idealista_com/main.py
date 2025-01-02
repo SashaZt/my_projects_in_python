@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+from math import log
 from pathlib import Path
 
 import requests
@@ -18,9 +19,8 @@ photo_directory = current_directory / "photo"
 data_directory.mkdir(parents=True, exist_ok=True)
 html_directory.mkdir(parents=True, exist_ok=True)
 photo_directory.mkdir(parents=True, exist_ok=True)
-
-output_csv_file = data_directory / "output.csv"
-# api_url = "https://allproperty.ai/wp-json/wp/v2/properties"
+TOKEN_FILE = "token.json"  # Файл для сохранения токена
+output_file = Path("extracted_profile_data.json")
 
 
 def extract_photo(soup):
@@ -99,7 +99,7 @@ def extract_details(soup):
 
 
 def parsing_html():
-    output_file = Path("extracted_profile_data.json")
+
     extracted_data = []
     # Пройтись по каждому HTML файлу в папке
     for html_file in html_directory.glob("*.html"):
@@ -197,6 +197,7 @@ def get_token():
             "https://allproperty.ai/wp-json/jwt-auth/v1/token",
             headers=headers,
             json=auth_data,
+            timeout=30,
         )
 
         # Проверка, что запрос выполнен успешно
@@ -230,142 +231,142 @@ def load_headers():
     return headers
 
 
-# Функция для создания записи
-def create_post(token):
-    url = f"{BASE_URL}/wp-json/wp/v2/posts"
-    payload = {
-        "title": "Новая запись 2 ",
-        "content": "Это содержимое записи.",
-        "status": "publish",
-    }
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    }
+# # Функция для создания записи
+# def create_post(token):
+#     url = f"{BASE_URL}/wp-json/wp/v2/posts"
+#     payload = {
+#         "title": "Новая запись 2 ",
+#         "content": "Это содержимое записи.",
+#         "status": "publish",
+#     }
+#     headers = {
+#         "Authorization": f"Bearer {token}",
+#         "Content-Type": "application/json",
+#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+#     }
 
-    response = requests.post(url, json=payload, headers=headers)
+#     response = requests.post(url, json=payload, headers=headers)
 
-    if response.status_code == 201:
-        data = response.json()
-        print("Запись успешно создана:", data.get("link"))
-    else:
-        print("Ошибка создания записи:", response.status_code, response.text)
-
-
-def get_post_schema(token):
-    headers = {
-        "Content-Type": "application/json",
-        # "Authorization": f"Bearer {token}",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    }
-    response = requests.options(
-        "https://allproperty.ai/wp-json/wp/v2/posts", headers=headers
-    )
-    if response.status_code == 200:
-        schema = response.json()
-        # Сохранение токена в файл
-        with open(SCHEME_FILE, "w") as token_file:
-            json.dump(schema, token_file, indent=4)
-
-    else:
-        print(f"Ошибка при получении схемы: {response.status_code}")
+#     if response.status_code == 201:
+#         data = response.json()
+#         print("Запись успешно создана:", data.get("link"))
+#     else:
+#         print("Ошибка создания записи:", response.status_code, response.text)
 
 
-def creative_new_post(token):
-    # Load the extracted data and WordPress schema
-    extracted_data_path = "extracted_profile_data.json"
-    scheme_path = "scheme.json"
+# def get_post_schema(token):
+#     headers = {
+#         "Content-Type": "application/json",
+#         # "Authorization": f"Bearer {token}",
+#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+#     }
+#     response = requests.options(
+#         "https://allproperty.ai/wp-json/wp/v2/posts", headers=headers
+#     )
+#     if response.status_code == 200:
+#         schema = response.json()
+#         # Сохранение токена в файл
+#         with open(SCHEME_FILE, "w") as token_file:
+#             json.dump(schema, token_file, indent=4)
 
-    with open(extracted_data_path, "r", encoding="utf-8") as file:
-        extracted_data = json.load(file)
-
-    # WordPress REST API settings
-    wordpress_url = "https://allproperty.ai/wp-json/wp/v2/posts"
-
-    # Prepare the headers with the token
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    }
-
-    # Helper function to format and upload data
-    def create_wordpress_post(data):
-        # Extract fields from the data
-        post_title = data.get("title", "Untitled Post")
-        content = f"<p>{data.get('description', '')}</p>"
-
-        # Add image gallery if available
-        photos = data.get("photos", [])
-        gallery_content = ""
-        if photos:
-            gallery_content = '[gallery ids="'
-            for photo in photos:
-                for _, url in photo.items():  # Assuming each photo dict has one URL
-                    # Here, you would ideally upload the image and get its ID
-                    # For this example, we'll simulate this by using a placeholder ID
-                    # You need to implement actual image uploading to Media Library
-                    gallery_content += "1,"  # Replace with real ID after uploading
-            gallery_content = gallery_content.rstrip(",") + '"]'
-            content += gallery_content
-
-        # Add details if available
-        details = data.get("details", [])
-        if details:
-            for detail in details:
-                title = detail.get("title", "Details")
-                items = detail.get("items", [])
-                content += f"<h2>{title}</h2><ul>"
-                for item in items:
-                    content += f"<li>{item}</li>"
-                content += "</ul>"
-
-        # Prepare the payload for WordPress
-        payload = {
-            "title": post_title,
-            "content": content,
-            "status": "publish",  # Change to "draft" if you want to review before publishing
-            "format": "gallery",  # Setting the format to gallery
-        }
-
-        # Make the POST request to WordPress
-        response = requests.post(wordpress_url, json=payload, headers=headers)
-
-        if response.status_code == 201:
-            print(f"Post '{post_title}' created successfully.")
-        else:
-            print(f"Failed to create post '{post_title}'. Error: {response.text}")
-
-    # Process each item in the extracted data
-    for item in extracted_data:
-        create_wordpress_post(item)
+#     else:
+#         print(f"Ошибка при получении схемы: {response.status_code}")
 
 
-def generate_post_content(item):
-    content = f"<h1>{item.get('title', 'Untitled Post')}</h1>"
-    content += f"<p>{item.get('description', '')}</p>"
+# def creative_new_post(token):
+#     # Load the extracted data and WordPress schema
+#     extracted_data_path = "extracted_profile_data.json"
+#     scheme_path = "scheme.json"
 
-    # Галерея изображений
-    photos = item.get("photos", [])
-    if photos:
-        content += "<div class='gallery'>"
-        for photo in photos:
-            for description, url in photo.items():
-                content += f'<figure><img src="{url}" alt="{description}"><figcaption>{description}</figcaption></figure>'
-        content += "</div>"
+#     with open(extracted_data_path, "r", encoding="utf-8") as file:
+#         extracted_data = json.load(file)
 
-    # Детали
-    details = item.get("details", [])
-    for detail in details:
-        title = detail.get("title", "Details")
-        items = detail.get("items", [])
-        content += f"<h2>{title}</h2><ul>"
-        for item in items:
-            content += f"<li>{item}</li>"
-        content += "</ul>"
+#     # WordPress REST API settings
+#     wordpress_url = "https://allproperty.ai/wp-json/wp/v2/posts"
 
-    return content
+#     # Prepare the headers with the token
+#     headers = {
+#         "Authorization": f"Bearer {token}",
+#         "Content-Type": "application/json",
+#         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+#     }
+
+#     # Helper function to format and upload data
+#     def create_wordpress_post(data):
+#         # Extract fields from the data
+#         post_title = data.get("title", "Untitled Post")
+#         content = f"<p>{data.get('description', '')}</p>"
+
+#         # Add image gallery if available
+#         photos = data.get("photos", [])
+#         gallery_content = ""
+#         if photos:
+#             gallery_content = '[gallery ids="'
+#             for photo in photos:
+#                 for _, url in photo.items():  # Assuming each photo dict has one URL
+#                     # Here, you would ideally upload the image and get its ID
+#                     # For this example, we'll simulate this by using a placeholder ID
+#                     # You need to implement actual image uploading to Media Library
+#                     gallery_content += "1,"  # Replace with real ID after uploading
+#             gallery_content = gallery_content.rstrip(",") + '"]'
+#             content += gallery_content
+
+#         # Add details if available
+#         details = data.get("details", [])
+#         if details:
+#             for detail in details:
+#                 title = detail.get("title", "Details")
+#                 items = detail.get("items", [])
+#                 content += f"<h2>{title}</h2><ul>"
+#                 for item in items:
+#                     content += f"<li>{item}</li>"
+#                 content += "</ul>"
+
+#         # Prepare the payload for WordPress
+#         payload = {
+#             "title": post_title,
+#             "content": content,
+#             "status": "publish",  # Change to "draft" if you want to review before publishing
+#             "format": "gallery",  # Setting the format to gallery
+#         }
+
+#         # Make the POST request to WordPress
+#         response = requests.post(wordpress_url, json=payload, headers=headers)
+
+#         if response.status_code == 201:
+#             print(f"Post '{post_title}' created successfully.")
+#         else:
+#             print(f"Failed to create post '{post_title}'. Error: {response.text}")
+
+#     # Process each item in the extracted data
+#     for item in extracted_data:
+#         create_wordpress_post(item)
+
+
+# def generate_post_content(item):
+#     content = f"<h1>{item.get('title', 'Untitled Post')}</h1>"
+#     content += f"<p>{item.get('description', '')}</p>"
+
+#     # Галерея изображений
+#     photos = item.get("photos", [])
+#     if photos:
+#         content += "<div class='gallery'>"
+#         for photo in photos:
+#             for description, url in photo.items():
+#                 content += f'<figure><img src="{url}" alt="{description}"><figcaption>{description}</figcaption></figure>'
+#         content += "</div>"
+
+#     # Детали
+#     details = item.get("details", [])
+#     for detail in details:
+#         title = detail.get("title", "Details")
+#         items = detail.get("items", [])
+#         content += f"<h2>{title}</h2><ul>"
+#         for item in items:
+#             content += f"<li>{item}</li>"
+#         content += "</ul>"
+
+#     return content
 
 
 # def load_posts_to_wordpress(token):
@@ -442,7 +443,7 @@ def get_categories(token):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
-    response = requests.get(categories_url, headers=headers)
+    response = requests.get(categories_url, headers=headers, timeout=30)
 
     if response.status_code == 200:
         categories = response.json()
@@ -466,7 +467,7 @@ def get_tags(token):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
-    response = requests.get(tags_url, headers=headers)
+    response = requests.get(tags_url, headers=headers, timeout=30)
 
     if response.status_code == 200:
         tags = response.json()
@@ -476,7 +477,7 @@ def get_tags(token):
         return {}
 
 
-def make_get_request(url, token):
+def make_get_request(url, headers):
     """
     Универсальная функция для GET-запросов.
 
@@ -484,20 +485,20 @@ def make_get_request(url, token):
     :param token: строка, токен авторизации.
     :return: результат запроса в виде JSON или None в случае ошибки.
     """
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    }
+
     response = requests.get(url, headers=headers, timeout=30)
     if response.status_code == 200:
+        logger.info(response.json())
         return response.json()
     else:
-        print(f"Ошибка GET-запроса: {response.status_code} - {response.text}")
+        logger.error(f"Ошибка GET-запроса: {response.status_code} - {response.text}")
         return None
 
 
-def make_post_request(url, token, payload=None):
+def make_post_request(
+    url,
+    payload,
+):
     """
     Универсальная функция для POST-запросов.
 
@@ -506,17 +507,25 @@ def make_post_request(url, token, payload=None):
     :param payload: словарь с данными для отправки.
     :return: результат запроса в виде JSON или None в случае ошибки.
     """
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    }
+    headers = load_headers()
+
     response = requests.post(url, headers=headers, json=payload, timeout=30)
     if response.status_code in [200, 201]:
+        logger.info(response.json())
         return response.json()
     else:
-        print(f"Ошибка POST-запроса: {response.status_code} - {response.text}")
+        logger.error(f"Ошибка POST-запроса: {response.status_code} - {response.text}")
         return None
+
+
+def get_property():
+    # URL для вашего WordPress REST API
+    api_url = "https://allproperty.ai/wp-json/wp/v2/properties"
+    with open(output_file, "r", encoding="utf-8") as token_file:
+        property_datas = json.load(token_file)
+    for property_data in property_datas:
+        make_post_request(api_url, property_data)
+    # Отправка запроса с использованием токена
 
 
 if __name__ == "__main__":
@@ -525,4 +534,5 @@ if __name__ == "__main__":
     # load_posts_to_wordpress(token)
 
     # creative_new_post(token)
-    parsing_html()
+    # parsing_html()
+    get_property()

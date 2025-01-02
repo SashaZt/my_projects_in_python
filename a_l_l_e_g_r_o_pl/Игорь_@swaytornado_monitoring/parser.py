@@ -114,7 +114,8 @@ class Parser:
                 finally:
                     # Обновляем прогресс-бар после завершения обработки каждого файла
                     progress_bar.update(1)
-
+        # with open(json_result, "w", encoding="utf-8") as json_file:
+        #     json.dump(all_results, json_file, indent=4, ensure_ascii=False)
         # Закрываем прогресс-бар
         progress_bar.close()
         return all_results
