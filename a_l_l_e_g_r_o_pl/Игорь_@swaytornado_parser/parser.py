@@ -1483,13 +1483,18 @@ class Parser:
         with open(file_html, encoding="utf-8") as file:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
+        price = self.parse_price_product(soup)
+        if price is not None:
+            price = float(price)  # Преобразуем в float
+            if price.is_integer():  # Проверяем, является ли число целым
+                price = int(price)
         all_data = {
             "success": True,
-            "id": self.pares_iditem(soup),
+            "id": int(self.pares_iditem(soup)),
             "title": self.parse_name_product(soup),
             "url": self.parse_url_product(soup),
             "active": True,
-            "price": self.parse_price_product(soup),
+            "price": price,
             "price_with_delivery": 0,
             "availableQuantity": self.parse_warehouse_balances(soup),
             "buyers": self.parse_other_product_offers(soup),
@@ -1498,11 +1503,11 @@ class Parser:
             "reviews_count": self.parse_number_of_reviews(soup),
             "same_offers_id": self.pares_productid(soup),
             "same_offers_count": self.parse_other_product_offers(soup),
-            "seller_id": self.pares_sellerid(soup),
+            "seller_id": int(self.pares_sellerid(soup)),
             "seller_login": self.pares_sellername(soup),
-            "seller_rating": "",
-            "seller_positive_count": "",
-            "seller_negative_count": "",
+            "seller_rating": 0,
+            "seller_positive_count": 0,
+            "seller_negative_count": 0,
             "delivery_options": {
                 "Odbiór w punkcie": {
                     "Punkt DHL POP, DHL": {

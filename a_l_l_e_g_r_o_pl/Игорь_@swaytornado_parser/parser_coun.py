@@ -3,6 +3,7 @@ import re
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+from math import log
 from pathlib import Path
 
 import demjson3
@@ -1149,15 +1150,17 @@ def parse_single_html_json(file_html):
     with open(file_html, encoding="utf-8") as file:
         src = file.read()
     soup = BeautifulSoup(src, "lxml")
+    logger.info(pares_iditem(soup))
+    logger.info(type(pares_iditem(soup)))
     all_data = {
         "success": True,
-        "id": pares_iditem(soup),
+        "id": int(pares_iditem(soup)),
         "title": parse_name_product(soup),
         "url": parse_url_product(soup),
         "active": True,
-        "price": parse_price_product(soup),
+        "price": int(parse_price_product(soup)),
         "price_with_delivery": 0,
-        "availableQuantity": parse_warehouse_balances(soup),
+        "availableQuantity": int(parse_warehouse_balances(soup)),
         "buyers": parse_other_product_offers(soup),
         "count_sale": parse_sales_all_product(soup),
         "rating": parse_average_rating(soup),

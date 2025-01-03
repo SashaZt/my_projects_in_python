@@ -16,16 +16,6 @@ async def main():
             ignore_https_errors=True,
         )
 
-        # # Отключаем загрузку изображений, шрифтов и других медиафайлов
-        # await context.route(
-        #     "**/*",
-        #     lambda route, request: (
-        #         route.abort()
-        #         if request.resource_type in ["image", "media", "font", "stylesheet"]
-        #         else route.continue_()
-        #     ),
-        # )
-
         # Создаем новую страницу
         page = await context.new_page()
 
@@ -51,7 +41,18 @@ async def main():
         await page.click("button#loginButton")
 
         # Ждем 60 секунд
-        await page.wait_for_timeout(600000)
+        await page.wait_for_timeout(100000)
+        # Находим элемент "My Account" по title и нажимаем его
+        await page.click('a[title="My Account"]')
+
+        # Ждем появления выпадающего списка
+        await page.wait_for_selector('a[title="Logout"]')
+
+        # Находим элемент "Logout" по title и нажимаем его
+        await page.click('a[title="Logout"]')
+
+        # Ждем 5 секунд
+        await page.wait_for_timeout(50000)
 
         # Закрываем браузер
         await browser.close()

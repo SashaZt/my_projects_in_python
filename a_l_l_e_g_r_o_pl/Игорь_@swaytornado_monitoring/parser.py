@@ -247,11 +247,18 @@ class Parser:
         with open(file_html, encoding="utf-8") as file:
             src = file.read()
         soup = BeautifulSoup(src, "lxml")
+        price = self.parse_price_product(soup)
+        if price is not None:
+            price = float(price)  # Преобразуем в float
+            if price.is_integer():  # Проверяем, является ли число целым
+                price = int(price)
+        sales = self.parse_sales_product(soup)
+        sales = sales if sales is not None else 0
         data_monotoring = {
             "Actuall": True,
-            "ID_MP": self.pares_iditem(soup),
-            "Цена, ZLT": self.parse_price_product(soup),
-            "Sales": self.parse_sales_product(soup),
+            "ID_MP": int(self.pares_iditem(soup)),
+            "Цена, ZLT": price,
+            "Sales": sales,
             "Sales_all": self.parse_sales_all_product(soup),
             "Остатки на складах": self.parse_warehouse_balances(soup),
         }
