@@ -1,11 +1,11 @@
-import aiomysql
 import asyncio
-from dotenv import load_dotenv
-from configuration.logger_setup import logger
 import os
-from typing import Optional, Dict, Any, List
 from asyncio import TimeoutError, wait_for
+from typing import Any, Dict, List, Optional
 
+import aiomysql
+from configuration.logger_setup import logger
+from dotenv import load_dotenv
 
 # Указать путь к .env файлу
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
@@ -110,6 +110,8 @@ class DatabaseInitializer:
                                 usersite VARCHAR(255),  -- Веб-сайт контакта
                                 comment TEXT,  -- Комментарии к контакту
                                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP  -- Дата и время создания контакта
+                                
+
                             );
                         """
                         )
@@ -381,6 +383,25 @@ class DatabaseInitializer:
                             comments TEXT  # Комментарии к задаче, текстовое поле
                         );
                         """
+                        )
+                        # Создаем таблицу
+                        await cursor.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS telegram_messages (
+                            id INT AUTO_INCREMENT PRIMARY KEY,
+                            sender_name VARCHAR(255),         -- Имя отправителя
+                            sender_username VARCHAR(255),     -- Username отправителя
+                            sender_id BIGINT,                 -- Telegram ID отправителя
+                            sender_phone VARCHAR(20),         -- Телефон отправителя
+                            sender_type VARCHAR(50),          -- Тип отправителя (Пользователь, Бот, Канал, Группа)
+                            recipient_name VARCHAR(255),      -- Имя получателя
+                            recipient_username VARCHAR(255),  -- Username получателя
+                            recipient_id BIGINT,              -- Telegram ID получателя
+                            recipient_phone VARCHAR(20),      -- Телефон получателя
+                            message TEXT,                     -- Текст сообщения
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP -- Время создания записи
+                        );
+                            """
                         )
 
                         logger.info("Таблицы созданы или уже существуют")

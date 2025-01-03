@@ -1,30 +1,28 @@
-from fastapi.responses import JSONResponse
-from database import DatabaseInitializer  # Импорт класса для работы с базой данных
-from typing import List, Optional, Dict, Any
+import json
+from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 import aiomysql
+from configuration.logger_setup import logger  # Настройка логирования
+from database import DatabaseInitializer  # Импорт класса для работы с базой данных
 from fastapi import (
-    FastAPI,
-    Request,
-    Query,
-    Depends,
-    HTTPException,
     APIRouter,
-    UploadFile,
-    File,
     Body,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
 )
 from fastapi.encoders import jsonable_encoder
-from pathlib import Path
-import json
-from datetime import datetime
-from contextlib import asynccontextmanager
-from configuration.logger_setup import logger  # Настройка логирования
-from pydantic import BaseModel, Field, EmailStr
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import PlainTextResponse
-from configuration.logger_setup import logger
+from fastapi.responses import JSONResponse, PlainTextResponse
+from pydantic import BaseModel, EmailStr, Field
 from starlette.responses import Response
-
 
 router = APIRouter()
 
@@ -95,6 +93,20 @@ class TaskFilterModel(BaseModel):
     page: int = 1  # Номер страницы для пагинации
     sortBy: Optional[str] = ""  # Поле для сортировки задач
     sortOrder: Optional[str] = ""  # Порядок сортировки (возрастание или убывание)
+
+
+# Добавьте модель для структуры данных из Telegram:
+class TelegramMessageModel(BaseModel):
+    sender_name: str
+    sender_username: Optional[str]
+    sender_id: int
+    sender_phone: Optional[str]
+    sender_type: str
+    recipient_name: str
+    recipient_username: Optional[str]
+    recipient_id: int
+    recipient_phone: Optional[str]
+    message: str
 
 
 # Маршрут для создания контакта
@@ -815,4 +827,49 @@ async def create_or_update_role(role: dict = Body(...), db=Depends(get_db)):
                 "status": "failure",
                 "message": f"Failed to create or update role: {e}",
             },
+        )
+
+
+@router.post("/telegram/message")
+async def save_telegram_message(message: TelegramMessageModel, db=Depends(get_db)):
+    try:
+        # Преобразуем данные модели в словарь
+        message_data = message.dict()
+
+        async with db.pool.acquire() as connection:
+            async with connection.cursor() as cursor:
+                # SQL-запрос для вставки данных
+                sql = """
+                INSERT INTO telegram_messages (
+                    sender_name, sender_username, sender_id, sender_phone, sender_type,
+                    recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                """
+                values = (
+                    message_data["sender_name"],
+                    message_data["sender_username"],
+                    message_data["sender_id"],
+                    message_data["sender_phone"],
+                    message_data["sender_type"],
+                    message_data["recipient_name"],
+                    message_data["recipient_username"],
+                    message_data["recipient_id"],
+                    message_data["recipient_phone"],
+                    message_data["message"],
+                )
+                # Выполняем запрос
+                await cursor.execute(sql, values)
+                await connection.commit()
+
+        return JSONResponse(
+            status_code=200,
+            content={"status": "success", "message": "Данные успешно сохранены"},
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении сообщения: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"status": "failure", "message": f"Ошибка при сохранении: {e}"},
         )
