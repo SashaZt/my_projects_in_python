@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 from bs4 import BeautifulSoup
+from configuration.logger_setup import logger
 from playwright.async_api import async_playwright
 
 # Указываем пути к файлам и папкам
@@ -179,12 +180,55 @@ def is_file_missing(directory_path, file_name):
     return not (directory / file_name).exists()
 
 
+def has_required_files(directory_path, required_count):
+    """
+    Проверяет, существует ли директория и содержит ли она указанное количество файлов.
+
+    :param directory_path: Путь к директории (Path объект или строка).
+    :param required_count: Необходимое количество файлов в директории.
+    :return: True, если директория существует и содержит указанное количество файлов, иначе False.
+    """
+    directory = Path(directory_path)
+    if directory.exists() and directory.is_dir():
+        return len(list(directory.glob("*.html"))) >= required_count
+    return False
+
+
+def load_urls(file_path):
+    """
+    Загружает список URL из CSV файла.
+
+    :param file_path: Путь к файлу CSV.
+    :return: Список URL.
+    """
+    file = Path(file_path)
+    if file.exists():
+        df = pd.read_csv(file)
+        return df["url"].dropna().tolist()
+    return []
+
+
+def save_url(file_path, url):
+    """
+    Добавляет URL в CSV файл.
+
+    :param file_path: Путь к файлу CSV.
+    :param url: URL для добавления.
+    """
+    file = Path(file_path)
+    if file.exists():
+        df = pd.read_csv(file)
+        urls = df["url"].tolist()
+        if url not in urls:
+            urls.append(url)
+            df = pd.DataFrame({"url": urls})
+            df.to_csv(file_path, index=False)
+    else:
+        df = pd.DataFrame({"url": [url]})
+        df.to_csv(file_path, index=False)
+
+
 async def get_tenders():
-    urls = read_csv_to_list()
-    for url in urls:
-        id_url = extract_id(url)
-        id_url_directory = data_directory / id_url
-        id_url_directory.mkdir(parents=True, exist_ok=True)
     async with async_playwright() as playwright:
         # Запускаем браузер
         browser = await playwright.chromium.launch(headless=False)
@@ -225,67 +269,75 @@ async def get_tenders():
             # Проверяем наличие сообщения об ошибке
             error_message_selector = "div.message-panel-content > p"
             try:
-                # Убедимся, что элемент существует и доступен
                 await page.wait_for_selector(error_message_selector, timeout=5000)
                 error_message = await page.inner_text(error_message_selector)
                 if "The account provided is currently in use" in error_message:
-                    print("Account in use. Waiting for 10 minutes before retrying...")
+                    logger.info(
+                        "Account in use. Waiting for 10 minutes before retrying..."
+                    )
                     await asyncio.sleep(600)  # Пауза 10 минут
                 else:
-                    print("Unexpected error: Exiting.")
+                    logger.error("Unexpected error: Exiting.")
                     break
             except Exception:
-                # Если сообщение об ошибке не найдено, предполагаем успешный вход
-                print("Login successful.")
+                logger.info("Login successful.")
                 break
 
-        # Ждем 60 секунд после успешного входа
+        # Ждем 2 секунды после успешного входа
         await asyncio.sleep(2)
+        all_urls = load_urls("output.csv")
+        completed_urls_file = "completed_urls.csv"  # Здесь строка, а не список
+        completed_urls = load_urls(completed_urls_file)
 
-        # Ждем 60 секунд
-        await asyncio.sleep(5)
-        for url in urls:
+        urls_to_process = [url for url in all_urls if url not in completed_urls]
+        for url in urls_to_process:
             id_url = extract_id(url)
             id_url_directory = data_directory / id_url
+            if has_required_files(id_url_directory, 5):
+                logger.info(
+                    f"Skipping {url}, directory {id_url_directory} already has 5 files."
+                )
+                save_url(completed_urls_file, url)
+                continue
+
             id_url_directory.mkdir(parents=True, exist_ok=True)
-            # Переходим по URL
             await page.goto(url)
             file_name = id_url_directory / "page_Notice.html"
-            # Сохраняем контент страницы в HTML файл
             content = await page.content()
             with open(file_name, "w", encoding="utf-8") as file:
                 file.write(content)
-            # Находим только нужные элементы <a> по атрибуту title
+
             titles_to_click = [
                 "Categories",
                 "Bid Results",
                 "Award",
                 "List of suppliers who have downloaded documents",
             ]
-
+            await asyncio.sleep(2)
+            await page.wait_for_load_state("networkidle")
+            all_titles_completed = True
             for title in titles_to_click:
                 file_name = f"page_{title.replace(' ', '_')}.html"
-
-                if is_file_missing(id_url_directory, file_name):
-                    element = await page.query_selector(f'a[title="{title}"]')
-                    if element:
-                        print(f"Clicking on: {title}")
-
-                        # Делаем клик
+                file_path = id_url_directory / file_name
+                if not file_path.exists():
+                    # Используем XPath для поиска элемента
+                    xpath = f'//a[@title="{title}"]'
+                    element = page.locator(xpath)
+                    if await element.is_visible():
+                        logger.info(f"Нажимаем на: {title}")
                         await element.click()
-
-                        await page.wait_for_load_state(
-                            "networkidle"
-                        )  # Ждать, пока сеть будет в состоянии покоя.
-
-                        # Сохраняем контент страницы в файл
+                        await asyncio.sleep(1)
                         content = await page.content()
-                        with open(
-                            id_url_directory / file_name, "w", encoding="utf-8"
-                        ) as file:
+                        with open(file_path, "w", encoding="utf-8") as file:
                             file.write(content)
+                    else:
+                        all_titles_completed = False
+                        logger.error(f"Title '{title}' not found. Skipping.")
 
-        # Закрываем браузер
+            # Записываем URL в файл после завершения обработки
+            if all_titles_completed:
+                save_url(completed_urls_file, url)
+
         await browser.close()
 
 

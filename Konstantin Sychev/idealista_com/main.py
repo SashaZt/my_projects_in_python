@@ -4,7 +4,6 @@ import re
 import shutil
 from math import log
 from pathlib import Path
-from tkinter import NO
 
 import requests
 from bs4 import BeautifulSoup
@@ -143,8 +142,6 @@ def parsing_html():
             # Прочитать содержимое файла
             content = file.read()
         soup = BeautifulSoup(content, "lxml")
-        title = None
-        location = None
         area = None
         number_of_rooms = None
         # Извлечение данных
