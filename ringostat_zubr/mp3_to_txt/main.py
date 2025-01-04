@@ -71,7 +71,8 @@ def parse_mp3_filename(filename):
             "Телефон": phone_mp3,
             "Линия": line_mp3,
             "Имя менеджера": manager_mp3,
-            "Текст звонка": "",
+            # "Текст звонка Рус": "",
+            "Текст звонка Укр": "",
         }
 
     except IndexError:
@@ -113,12 +114,24 @@ def transcribe_audio_files():
 
             # Транскрибирование аудиофайла
             try:
+                # Основная транскрипция
                 result = model.transcribe(str(file_path))
-                # Запись результата в Google Sheets
-                message_text = result["text"]
-                result = {"text": message_text}
-                # Добавляем текст транскрипции
-                all_data["Текст звонка"] = result["text"]
+                # Транскрипция на русском языке
+                result_ru = model.transcribe(audio=str(file_path), language="ru")
+                # Транскрипция на украинском языке
+                result_uk = model.transcribe(audio=str(file_path), language="uk")
+
+                # Извлечение текстов транскрипции
+                # message_text = result["text"]
+                # message_text_ru = result_ru["text"]
+                message_text_uk = result_uk["text"]
+
+                # Разбираем имя файла и формируем словарь
+                all_data = parse_mp3_filename(file_path.name)
+                # all_data["Текст звонка Рус"] = message_text_ru
+                all_data["Текст звонка Укр"] = message_text_uk
+
+                # Запись данных в Google Sheets
                 write_dict_to_google_sheets(all_data)
                 # Запись текста в файл
                 with open(txt_file_path, "w", encoding="utf-8") as txt_file:
@@ -152,7 +165,7 @@ def write_dict_to_google_sheets(data_dict):
         if not existing_headers:
             existing_headers = list(data_dict.keys())
             sheet.append_row(existing_headers)
-            logger.info(f"Добавлены заголовки: {existing_headers}")
+            # logger.info(f"Добавлены заголовки: {existing_headers}")
 
         # Убедимся, что ключи словаря совпадают с заголовками таблицы
         row = [data_dict.get(header, "") for header in existing_headers]
