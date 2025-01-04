@@ -2,7 +2,6 @@ import json
 import os
 import re
 import shutil
-from math import log
 from pathlib import Path
 
 import pandas as pd
@@ -14,7 +13,37 @@ from tqdm import tqdm
 
 current_directory = Path.cwd()
 html_page_directory = current_directory / "html_page"
+data_directory = current_directory / "data"
 html_page_directory.mkdir(parents=True, exist_ok=True)
+data_directory.mkdir(parents=True, exist_ok=True)
+
+
+output_csv_file_all_category = data_directory / "output_all_category.csv"
+
+
+def read_csv_to_list():
+    """
+    Reads a CSV file with a column named 'url' and returns a list of URLs.
+
+    :param file_path: Path to the CSV file.
+    :return: List of URLs from the 'url' column.
+    """
+    try:
+        output_file = "output.csv"
+        # Читаем CSV файл
+        df = pd.read_csv(output_file)
+
+        # Проверяем, содержит ли файл столбец 'url'
+        if "url" not in df.columns:
+            raise ValueError("The CSV file does not contain a 'url' column.")
+
+        # Преобразуем столбец 'url' в список
+        url_list = df["url"].dropna().tolist()
+        return url_list
+
+    except Exception as e:
+        print(f"An error occurred while reading the CSV file: {e}")
+        return []
 
 
 # Загружаем переменные окружения из файла .env
@@ -56,9 +85,11 @@ def generate_all_urls():
 
 
 # Запись URL в CSV файл
-def write_urls_to_csv(df, filename="urls.csv"):
-    df.to_csv(filename, index=False, encoding="utf-8")
-    print(f"URLs успешно записаны в '{filename}'. Всего URL: {len(df)}")
+def write_urls_to_csv(df):
+    df.to_csv(output_csv_file_all_category, index=False, encoding="utf-8")
+    logger.info(
+        f"URLs успешно записаны в '{output_csv_file_all_category}'. Всего URL: {len(df)}"
+    )
 
 
 def parsing_html_page():
@@ -81,6 +112,10 @@ def parsing_html_page():
 
 if __name__ == "__main__":
     load_environment()
+    # Генерация URL
+    df_urls = generate_all_urls()
+    write_urls_to_csv(df_urls)
+
     # parsing_html_page()
     # Получаем переменные окружения
     # provinces, buy, rent, share, base_url, extra = get_env()
@@ -101,12 +136,3 @@ if __name__ == "__main__":
     # share_urls = generate_urls(base_url, share, provinces, extra)
     # print("\nShare URLs:")
     # print("\n".join(share_urls))
-
-    # Генерация URL
-    df_urls = generate_all_urls()
-
-    # Запись URL в файл
-    if not df_urls.empty:
-        write_urls_to_csv(df_urls)
-    else:
-        print("URL не были сгенерированы. Проверьте содержимое .env.")
