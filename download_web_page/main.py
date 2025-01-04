@@ -672,7 +672,76 @@ def get_category_html():
     pagination_div = soup.find("div", {"aria-label": "paginacja"})
 
 
+def get_html():
+    import requests
+
+    cookies = {
+        "visid_incap_2542910": "C8+R1/S+QZikPlNKDOQP/LnJa2cAAAAAQUIPAAAAAABjQZlBwDri2dhZhKe2QqiA",
+        "cookiesDeletedOnce": "1",
+        "mets.AuthenticationMode": "SAML|MERX_default",
+        "userTrackingConsent": "1",
+        "rxVisitor": "1735387254715AJF2LEAJDM8EG31HC4BVGQFUQ7IUBH9D",
+        "rxvt": "1735389054803|1735387254803",
+        "_gcl_au": "1.1.2056369122.1735387255",
+        "dtPC": "-60$187254307_795h-vSKKNATUWHHRKTQFCDIFSRAUQFRFILPMC-0e0",
+        "dtCookie": "v_4_srv_5_sn_1HINBQVQC1CASJ6I4A8M3D1V8TP09PV3_perc_100000_ol_0_mul_1_app-3A917b172f17b59873_0_rcs-3Acss_0",
+        "_fbp": "fb.1.1735387255399.431641267246744471",
+        "hubspotutk": "ff6a33420e09ef683e8ecbbe755a43fb",
+        "__hssrc": "1",
+        "_hjSessionUser_908494": "eyJpZCI6ImVjNzRkOGU4LTZlOTYtNWEwNC1iZWM0LTUwMjc4NDllYzM2OCIsImNyZWF0ZWQiOjE3MzUzODcyNTU0OTcsImV4aXN0aW5nIjp0cnVlfQ==",
+        "nlbi_2542910": "ZtAFYRup4wpGf2xuRTGedwAAAADxwl5a++JBNTc2M3+M0rAg",
+        "_gid": "GA1.2.2037640643.1735850795",
+        "JSESSIONID": "CE6BFC8F81C4CD74E3DA4CA5A2A81FF5.METS",
+        "incap_ses_520_2542910": "gNgoK6MW4hQVBnYCeWk3B1cpeGcAAAAA5FpbrJ/hkAb6rTMA/tczBg==",
+        "_hjSession_908494": "eyJpZCI6ImZhMDUxNmEwLWIxNzAtNGU0NC1hMTU3LWEzODg3ZmEzMDFjMCIsImMiOjE3MzU5MjgxNTMwODUsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjowfQ==",
+        "__hstc": "12282091.ff6a33420e09ef683e8ecbbe755a43fb.1735387255503.1735850795923.1735928153503.4",
+        "_afl1": "1",
+        "_dc_gtm_UA-19471401-1": "1",
+        "_uetsid": "a80b8d00c94a11efaae7d1b66fa3e556",
+        "_uetvid": "6473cbb0c51311efa15e5fba82fce2fb",
+        "__hssc": "12282091.4.1735928153503",
+        "_ga_W6Z1FSG324": "GS1.1.1735928152.7.1.1735928245.52.0.0",
+        "_ga": "GA1.2.609828506.1735387255",
+        "AWSALB": "veBeOrwzIw4toCp3G6KVUABlx31bx9NwvraPqIiGPV8edHN4dkTbmosZiIZUvE1tPF9QsnjeuGA0WPsTIOWz3dB5vF1MpG1MxIFllXG8jiX9RVfxSLH/F7AyojVI",
+        "AWSALBCORS": "veBeOrwzIw4toCp3G6KVUABlx31bx9NwvraPqIiGPV8edHN4dkTbmosZiIZUvE1tPF9QsnjeuGA0WPsTIOWz3dB5vF1MpG1MxIFllXG8jiX9RVfxSLH/F7AyojVI",
+    }
+
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Referer": "https://idp.merx.com/",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-site",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+    }
+
+    response = requests.get(
+        "https://www.merx.com/private/supplier/solicitations/search",
+        cookies=cookies,
+        headers=headers,
+    )
+    # Проверяем, успешно ли прошел логин (статус код 200 и наличие нужной информации в ответе)
+    if response.status_code == 200:
+        # Сохраняем HTML содержимое страницы в файл
+        filename = "protected_page.html"
+        with open(filename, "w", encoding="utf-8") as file:
+            file.write(response.text)
+
+    logger.info(response.status_code)
+
+
 if __name__ == "__main__":
+    get_html()
     # get_contact_prom()
     # get_category_html()
     # get_session_html()
@@ -789,15 +858,15 @@ if __name__ == "__main__":
     # get_html()
     # download_pdf()
     # parsing_page()
-    # Вызов функции с файлом unique_itm_urls.csv
-    parsing_product()
-    # get_responses_from_urls("unique_itm_urls.csv")
-    # parsing()
-    # Запуск функции для обхода директории
+    # # Вызов функции с файлом unique_itm_urls.csv
+    # parsing_product()
+    # # get_responses_from_urls("unique_itm_urls.csv")
+    # # parsing()
+    # # Запуск функции для обхода директории
 
-    # get_json()
-    download_xml()
-    pr_xml()
-    parsing_xml()
-    # fetch_and_save()
-    # parsing_csv()
+    # # get_json()
+    # download_xml()
+    # pr_xml()
+    # parsing_xml()
+    # # fetch_and_save()
+    # # parsing_csv()

@@ -63,12 +63,12 @@ Thumbs.db
 *.mp3
 *.tar
 *.session-journal
+*.session
 # Здесь мы игнорируем все .txt файлы...
 *.txt
 # ...но затем добавляем исключение для requirements.txt
 !requirements.txt
 !info.txt
-*.session
 
 # Игнорирование файл с прокси серверами
 **/proxi.json
