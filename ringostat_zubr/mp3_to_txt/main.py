@@ -7,6 +7,8 @@ import whisper
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
 from oauth2client.service_account import ServiceAccountCredentials
+from pydrive2.auth import GoogleAuth, ServiceAccountCredentials
+from pydrive2.drive import GoogleDrive
 
 # Путь к папкам и файлу для данных
 current_directory = Path.cwd()
@@ -23,6 +25,26 @@ env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(env_path)
 
 sheet_id = os.getenv("sheet_id")
+folder_id = os.getenv("FOLDER_ID")
+
+
+# Создание объекта Google Drive
+def create_drive_instance():
+    """
+    Создаёт экземпляр Google Drive для взаимодействия с файлами.
+    :return: Объект GoogleDrive
+    """
+    try:
+        gauth = GoogleAuth()
+        gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            service_account_file,
+            scopes=["https://www.googleapis.com/auth/drive"],
+        )
+        drive = GoogleDrive(gauth)
+        return drive
+    except Exception as e:
+        logger.error(f"Ошибка при создании экземпляра Google Drive: {e}")
+        raise e
 
 
 # Подключение к Google Sheets
@@ -79,71 +101,84 @@ def parse_mp3_filename(filename):
         raise ValueError(f"Невозможно разобрать имя файла: {filename}")
 
 
-def transcribe_audio_files():
+def get_mp3_files_from_google_drive(folder_id, drive):
     """
-    Транскрибирует файлы .mp3 из директории call_recording_directory,
-    создает .txt файлы с результатами транскрипции.
+    Получает список MP3 файлов из указанной папки на Google Drive.
+
+    :param folder_id: ID папки на Google Drive
+    :param drive: Объект GoogleDrive
+    :return: Список словарей с информацией о файлах (имя и ссылка на загрузку)
     """
-    logger.info("Старт транскрибирования файлов")
-    # Подключение к Google Sheets
     try:
+        query = f"'{folder_id}' in parents and mimeType='audio/mpeg' and trashed=false"
+        file_list = drive.ListFile({"q": query}).GetList()
 
-        # Явное указание использования CPU
-        logger.info("Загрузка модели Whisper...")
-        model = whisper.load_model("base", device="cpu")
-        logger.info("Модель Whisper успешно загружена")
+        mp3_files = []
+        for file in file_list:
+            mp3_files.append(
+                {
+                    "name": file["title"],
+                    "id": file["id"],
+                    "link": file["webContentLink"],
+                }
+            )
 
-        # Перебор всех файлов .mp3 в директории
-        for file_path in call_recording_directory.glob("*.mp3"):
-            logger.info(f"Проверка файла: {file_path}")
-            if not file_path.exists():
-                logger.error(f"Файл не найден: {file_path}")
-                continue
-            filename_mp3 = file_path.name
-            all_data = parse_mp3_filename(filename_mp3)
-            txt_file_path = file_path.with_suffix(
-                ".txt"
-            )  # Путь к .txt файлу с тем же именем
-
-            # Пропускаем, если транскрипция уже выполнена
-            if txt_file_path.exists():
-                logger.info(f"Транскрипция уже существует: {txt_file_path}")
-                continue
-
-            logger.info(f"Транскрибирование файла: {file_path}")
-
-            # Транскрибирование аудиофайла
-            try:
-                # Основная транскрипция
-                result = model.transcribe(str(file_path))
-                # Транскрипция на русском языке
-                result_ru = model.transcribe(audio=str(file_path), language="ru")
-                # Транскрипция на украинском языке
-                result_uk = model.transcribe(audio=str(file_path), language="uk")
-
-                # Извлечение текстов транскрипции
-                # message_text = result["text"]
-                # message_text_ru = result_ru["text"]
-                message_text_uk = result_uk["text"]
-
-                # Разбираем имя файла и формируем словарь
-                all_data = parse_mp3_filename(file_path.name)
-                # all_data["Текст звонка Рус"] = message_text_ru
-                all_data["Текст звонка Укр"] = message_text_uk
-
-                # Запись данных в Google Sheets
-                write_dict_to_google_sheets(all_data)
-                # Запись текста в файл
-                with open(txt_file_path, "w", encoding="utf-8") as txt_file:
-                    txt_file.write(result["text"])
-                logger.info(f"Файл транскрибирован и сохранен как: {txt_file_path}")
-            except Exception as transcribe_error:
-                logger.error(
-                    f"Ошибка при транскрибировании файла {file_path}: {transcribe_error}"
-                )
+        return mp3_files
 
     except Exception as e:
-        logger.error(f"Общая ошибка при транскрибировании: {e}")
+        logger.error(f"Ошибка при получении файлов из Google Drive: {e}")
+        return []
+
+
+def process_google_drive_mp3_files():
+    """
+    Получает MP3 файлы из Google Drive, транскрибирует их и записывает результаты в Google Sheets.
+
+    :param folder_id: ID папки на Google Drive
+    """
+    try:
+        # Создаём объект Google Drive
+        drive = create_drive_instance()
+
+        # Получаем список MP3 файлов
+        mp3_files = get_mp3_files_from_google_drive(folder_id, drive)
+        logger.info(f"Найдено {len(mp3_files)} MP3 файлов в Google Drive")
+
+        # Загрузка модели Whisper
+        model = whisper.load_model("base", device="cpu")
+
+        for file_info in mp3_files:
+            try:
+                file_name = file_info["name"]
+                file_id = file_info["id"]
+                file_link = file_info["link"]
+
+                # Скачиваем файл локально
+                local_file_path = call_recording_directory / file_name
+                logger.info(f"Скачивание файла: {file_name}")
+                file = drive.CreateFile({"id": file_id})
+                file.GetContentFile(str(local_file_path))
+                logger.info(f"Файл {file_name} скачан локально")
+
+                # Транскрибируем файл
+                result = model.transcribe(str(local_file_path))
+                result_text = result["text"]
+
+                # Формируем данные для записи
+                all_data = parse_mp3_filename(file_name)
+                all_data["Текст звонка Укр"] = result_text
+                all_data["Ссылка на MP3"] = file_link  # Добавляем ссылку на MP3
+
+                # Записываем данные в Google Sheets
+                write_dict_to_google_sheets(all_data)
+
+                # Удаляем локальный файл после обработки
+                os.remove(local_file_path)
+
+            except Exception as e:
+                logger.error(f"Ошибка при обработке файла {file_name}: {e}")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке Google Drive: {e}")
 
 
 def write_dict_to_google_sheets(data_dict):
@@ -183,4 +218,4 @@ def write_dict_to_google_sheets(data_dict):
 
 
 if __name__ == "__main__":
-    transcribe_audio_files()
+    process_google_drive_mp3_files()
