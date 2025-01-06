@@ -70,6 +70,7 @@ def connect_to_google_sheets(sheet_id):
 def parse_mp3_filename(filename):
     """
     Разбирает имя файла .mp3 и извлекает дату, номер телефона, линию и менеджера.
+    Добавляет имя файла как отдельное поле.
 
     :param filename: Имя файла .mp3 (например, "2024-11-30_15-03-53_380954532414_103_Петро_Ким.mp3")
     :return: Словарь с разобранными данными
@@ -93,8 +94,9 @@ def parse_mp3_filename(filename):
             "Телефон": phone_mp3,
             "Линия": line_mp3,
             "Имя менеджера": manager_mp3,
-            # "Текст звонка Рус": "",
             "Текст звонка Укр": "",
+            "Ссылка на MP3": "",
+            "Имя файла": filename,  # Имя файла как отдельное поле
         }
 
     except IndexError:
@@ -133,8 +135,6 @@ def get_mp3_files_from_google_drive(folder_id, drive):
 def process_google_drive_mp3_files():
     """
     Получает MP3 файлы из Google Drive, транскрибирует их и записывает результаты в Google Sheets.
-
-    :param folder_id: ID папки на Google Drive
     """
     try:
         # Создаём объект Google Drive
@@ -144,6 +144,18 @@ def process_google_drive_mp3_files():
         mp3_files = get_mp3_files_from_google_drive(folder_id, drive)
         logger.info(f"Найдено {len(mp3_files)} MP3 файлов в Google Drive")
 
+        # Подключение к Google Sheets
+        sheet = connect_to_google_sheets(sheet_id)
+
+        # Получаем уже существующие записи из первой колонки
+        existing_rows = sheet.get_all_values()  # Получаем все строки
+        existing_files = {
+            row[-1] for row in existing_rows[1:] if row
+        }  # Имена файлов в первой колонке
+
+        logger.info(f"Найдено {len(existing_files)} записей в Google Sheets")
+        logger.info(f"Найдено {existing_files} записей в Google Sheets")
+
         # Загрузка модели Whisper
         model = whisper.load_model("base", device="cpu")
 
@@ -152,6 +164,13 @@ def process_google_drive_mp3_files():
                 file_name = file_info["name"]
                 file_id = file_info["id"]
                 file_link = file_info["link"]
+
+                # Проверяем, есть ли файл уже в таблице
+                if file_name in existing_files:
+                    logger.info(
+                        f"Файл {file_name} уже существует в Google Sheets. Пропуск..."
+                    )
+                    continue
 
                 # Скачиваем файл локально
                 local_file_path = call_recording_directory / file_name
