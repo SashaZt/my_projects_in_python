@@ -1,9 +1,9 @@
 import asyncio
+import csv
 import json
 import os
 import random
 import re
-import ssl
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -22,6 +22,8 @@ current_directory = Path.cwd()
 data_directory = current_directory / "data"
 data_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
+html_directory = current_directory / "html"
+html_directory.mkdir(parents=True, exist_ok=True)
 
 
 def load_proxies():
@@ -672,76 +674,272 @@ def get_category_html():
     pagination_div = soup.find("div", {"aria-label": "paginacja"})
 
 
+def get_wa_me():
+    extracted_data = []
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_directory.glob("*.html"):
+        # Прочитать содержимое файла
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
+        soup = BeautifulSoup(content, "lxml")
+
+        # Ищем все <script> теги
+        script_tags = soup.find_all("script")
+
+        # Регулярное выражение для поиска всей строки с var url = "https://wa.me/"
+        url_pattern = re.compile(r'var url = "https://wa\.me/[^"]+"')
+
+        # Извлекаем строки
+        found_urls = []
+        for script in script_tags:
+            if script.string:  # Проверяем, что содержимое скрипта не пустое
+                matches = url_pattern.findall(script.string)
+                found_urls.extend(matches)
+        logger.info(found_urls)
+        # Извлекаем имя
+        name = soup.find("h4").get_text(strip=True)
+        url_profi = soup.find("link", {"rel": "canonical"}).get("href")
+        # Извлекаем ссылки
+        buttons = soup.find_all("button", class_="click_red")
+        links = {
+            button["data-ref"]: button["data-href"].strip()
+            for button in buttons
+            if "data-href" in button.attrs
+        }
+        # Извлекаем адрес
+        direccion_div = soup.find("div", class_="direccion")
+        direccion = None
+        if direccion_div:
+            direccion_text = direccion_div.find("span")
+            if direccion_text:
+                direccion = (
+                    direccion_text.get_text(strip=True)
+                    .replace("Direccion: ", "")
+                    .replace(" Comunidad", "")
+                )
+        # Ищем все элементы с классом "mid-item", содержащие <h3 class="">Tarifas</h3>
+        tarifas_data = []
+        mid_items = soup.find_all("div", class_="mid-item")
+
+        for mid_item in mid_items:
+            # Проверяем наличие заголовка <h3 class="">Tarifas</h3>
+            h3_tag = mid_item.find("h3", string="Tarifas")
+            if h3_tag:
+                # Ищем все тарифы внутри текущего элемента mid-item
+                tarifas_section = mid_item.find("div", class_="mid-item-info")
+                if tarifas_section:
+                    tarifas_items = tarifas_section.find_all(
+                        "div", class_="loaction-item"
+                    )
+                    for item in tarifas_items:
+                        # Извлекаем название услуги
+                        title_tag = item.find("h5")
+                        title = title_tag.get_text(strip=True) if title_tag else None
+
+                        # Извлекаем цену услуги
+                        price_tag = item.find("div", class_="tarifas_costo").find(
+                            "span"
+                        )
+                        price = (
+                            price_tag.get_text(strip=True).replace("€", "")
+                            if price_tag
+                            else None
+                        )
+
+                        # Формируем данные для текущего тарифа
+                        if title and price:
+                            tarifas_data.append(f"{title}, {price}")
+        # Формируем словарь
+        data = {
+            "name": name,
+            "web": links.get("web", ""),  # Подставляем пустую строку, если ссылки нет
+            "facebook": links.get("facebook", ""),
+            "instagram": links.get("instagram", ""),
+            "wa_urls": found_urls[0],
+            "url_profi": url_profi,
+            "direccion": direccion,
+            "tarifas": tarifas_data,
+        }
+        extracted_data.append(data)
+    # logger.info(extracted_data)
+    # Преобразуем данные для записи в Excel
+    rows = []
+    for data in extracted_data:
+        tarifas = " | ".join(data["tarifas"])  # Объединяем тарифы в одну строку
+        rows.append(
+            {
+                "Name": data["name"],
+                "Web": data["web"],
+                "Facebook": data["facebook"],
+                "Instagram": data["instagram"],
+                "WhatsApp": data["wa_urls"],
+                "Profile URL": data["url_profi"],
+                "Address": data["direccion"],
+                "Tarifas": tarifas,
+            }
+        )
+
+    # Создаем DataFrame
+    df = pd.DataFrame(rows)
+
+    # Сохраняем в Excel
+    output_file = "extracted_data.xlsx"
+    df.to_excel(output_file, index=False)
+
+
 def get_html():
-    import requests
+    import csv
 
-    cookies = {
-        "visid_incap_2542910": "C8+R1/S+QZikPlNKDOQP/LnJa2cAAAAAQUIPAAAAAABjQZlBwDri2dhZhKe2QqiA",
-        "cookiesDeletedOnce": "1",
-        "mets.AuthenticationMode": "SAML|MERX_default",
-        "userTrackingConsent": "1",
-        "rxVisitor": "1735387254715AJF2LEAJDM8EG31HC4BVGQFUQ7IUBH9D",
-        "rxvt": "1735389054803|1735387254803",
-        "_gcl_au": "1.1.2056369122.1735387255",
-        "dtPC": "-60$187254307_795h-vSKKNATUWHHRKTQFCDIFSRAUQFRFILPMC-0e0",
-        "dtCookie": "v_4_srv_5_sn_1HINBQVQC1CASJ6I4A8M3D1V8TP09PV3_perc_100000_ol_0_mul_1_app-3A917b172f17b59873_0_rcs-3Acss_0",
-        "_fbp": "fb.1.1735387255399.431641267246744471",
-        "hubspotutk": "ff6a33420e09ef683e8ecbbe755a43fb",
-        "__hssrc": "1",
-        "_hjSessionUser_908494": "eyJpZCI6ImVjNzRkOGU4LTZlOTYtNWEwNC1iZWM0LTUwMjc4NDllYzM2OCIsImNyZWF0ZWQiOjE3MzUzODcyNTU0OTcsImV4aXN0aW5nIjp0cnVlfQ==",
-        "nlbi_2542910": "ZtAFYRup4wpGf2xuRTGedwAAAADxwl5a++JBNTc2M3+M0rAg",
-        "_gid": "GA1.2.2037640643.1735850795",
-        "JSESSIONID": "CE6BFC8F81C4CD74E3DA4CA5A2A81FF5.METS",
-        "incap_ses_520_2542910": "gNgoK6MW4hQVBnYCeWk3B1cpeGcAAAAA5FpbrJ/hkAb6rTMA/tczBg==",
-        "_hjSession_908494": "eyJpZCI6ImZhMDUxNmEwLWIxNzAtNGU0NC1hMTU3LWEzODg3ZmEzMDFjMCIsImMiOjE3MzU5MjgxNTMwODUsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjowfQ==",
-        "__hstc": "12282091.ff6a33420e09ef683e8ecbbe755a43fb.1735387255503.1735850795923.1735928153503.4",
-        "_afl1": "1",
-        "_dc_gtm_UA-19471401-1": "1",
-        "_uetsid": "a80b8d00c94a11efaae7d1b66fa3e556",
-        "_uetvid": "6473cbb0c51311efa15e5fba82fce2fb",
-        "__hssc": "12282091.4.1735928153503",
-        "_ga_W6Z1FSG324": "GS1.1.1735928152.7.1.1735928245.52.0.0",
-        "_ga": "GA1.2.609828506.1735387255",
-        "AWSALB": "veBeOrwzIw4toCp3G6KVUABlx31bx9NwvraPqIiGPV8edHN4dkTbmosZiIZUvE1tPF9QsnjeuGA0WPsTIOWz3dB5vF1MpG1MxIFllXG8jiX9RVfxSLH/F7AyojVI",
-        "AWSALBCORS": "veBeOrwzIw4toCp3G6KVUABlx31bx9NwvraPqIiGPV8edHN4dkTbmosZiIZUvE1tPF9QsnjeuGA0WPsTIOWz3dB5vF1MpG1MxIFllXG8jiX9RVfxSLH/F7AyojVI",
-    }
+    from bs4 import BeautifulSoup
 
-    headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        "DNT": "1",
-        "Pragma": "no-cache",
-        "Referer": "https://idp.merx.com/",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "same-site",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-    }
+    # Читаем содержимое HTML файла
+    file_path = "protected_page.html"
+    with open(file_path, "r", encoding="utf-8") as file:
+        html_content = file.read()
 
-    response = requests.get(
-        "https://www.merx.com/private/supplier/solicitations/search",
-        cookies=cookies,
-        headers=headers,
-    )
-    # Проверяем, успешно ли прошел логин (статус код 200 и наличие нужной информации в ответе)
-    if response.status_code == 200:
-        # Сохраняем HTML содержимое страницы в файл
-        filename = "protected_page.html"
-        with open(filename, "w", encoding="utf-8") as file:
-            file.write(response.text)
+    # Парсим HTML с помощью BeautifulSoup
+    soup = BeautifulSoup(html_content, "html.parser")
 
-    logger.info(response.status_code)
+    # Ищем все элементы h3 с классом 'profesional-titulo', внутри которых есть ссылки
+    h3_elements = soup.find_all("h3", class_="profesional-titulo")
+
+    # Извлекаем href из <a> внутри каждого h3
+    urls = []
+    for h3 in h3_elements:
+        a_tag = h3.find("a", href=True)  # Ищем <a> с атрибутом href
+        if a_tag:
+            urls.append(a_tag["href"])
+
+    # Сохраняем список URL в CSV файл
+    output_file = "urls.csv"
+    with open(output_file, mode="w", encoding="utf-8", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["url"])  # Заголовок CSV файла
+        for url in urls:
+            writer.writerow([url])
+
+    print(f"Ссылки успешно сохранены в файл: {output_file}")
+
+
+def get_htmls():
+    # Множество для хранения уникальных ссылок
+    unique_urls = set()
+
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_directory.glob("*.html"):
+        # Прочитать содержимое файла
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
+
+        # Парсим HTML с помощью BeautifulSoup
+        soup = BeautifulSoup(content, "lxml")
+
+        # Ищем все <article> с классом "grid"
+        articles = soup.find_all("article", class_="grid")
+
+        # Извлекаем ссылки href из <a>
+        for article in articles:
+            links = article.find_all("a", href=True)
+            for link in links:
+                unique_urls.add(
+                    link["href"]
+                )  # Добавляем в множество (автоматически исключает дубликаты)
+
+    # Преобразуем множество в список словарей для записи в CSV
+    extracted_data = [{"url": url} for url in unique_urls]
+
+    # Запись данных в CSV файл
+    output_file = "extracted_urls.csv"
+    with open(output_file, mode="w", encoding="utf-8", newline="") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=["url"])
+        writer.writeheader()
+        writer.writerows(extracted_data)
+
+    print(f"Уникальные ссылки успешно сохранены в файл: {output_file}")
+
+
+def pars_htmls():
+    extracted_data = []
+
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
+
+        # Парсим HTML с помощью BeautifulSoup
+        soup = BeautifulSoup(content, "lxml")
+
+        # Извлечение имени
+        name_tag = soup.find("h1", class_="tCen")
+        name = name_tag.get_text(strip=True) if name_tag else None
+
+        # Извлечение локации
+        location_tag = soup.find("h3")
+        location = location_tag.get_text(strip=True) if location_tag else None
+        url_profi = soup.find("link", {"rel": "canonical"}).get("href")
+        # Извлечение ссылок
+        social_links = {}
+        social_section = soup.find("div", class_="capa_iconos_redes")
+        if social_section:
+            for a in social_section.find_all("a", href=True):
+                href = a["href"]
+                if "google.es/maps" in href:
+                    social_links["google_maps"] = href
+                elif "instagram.com" in href:
+                    social_links["instagram"] = href
+                elif "linkedin.com" in href:
+                    social_links["linkedin"] = href
+                elif "facebook.com" in href:
+                    social_links["facebook"] = href
+                elif "youtube.com" in href:
+                    social_links["youtube"] = href
+                elif "http" in href:
+                    social_links["website"] = href
+
+        # Извлечение тарифов
+        tarifas_section = soup.find("div", class_="capa_tarifas")
+        tarifas = []
+        if tarifas_section:
+            tarifas_items = tarifas_section.find_all("div", class_="capa_tarifas_datos")
+            for item in tarifas_items:
+                title_tag = item.find("div", class_="Tizq")
+                price_tag = item.find("div", class_="Tder")
+                title = title_tag.get_text(strip=True) if title_tag else None
+                price = (
+                    price_tag.get_text(strip=True).replace("€", "").strip()
+                    if price_tag
+                    else None
+                )
+                if title and price:
+                    tarifas.append(f"{title}, {price}")
+
+        # Сбор данных в список
+        extracted_data.append(
+            {
+                "name": name,
+                "location": location,
+                "url_profi": url_profi,
+                "google_maps": social_links.get("google_maps"),
+                "instagram": social_links.get("instagram"),
+                "linkedin": social_links.get("linkedin"),
+                "facebook": social_links.get("facebook"),
+                "youtube": social_links.get("youtube"),
+                "website": social_links.get("website"),
+                "tarifas": " | ".join(tarifas) if tarifas else None,
+            }
+        )
+
+    # Создание DataFrame и запись в Excel
+    df = pd.DataFrame(extracted_data)
+    df.to_excel("feepyf.xlsx", index=False)
+
+    # print(f"Данные успешно сохранены в файл: {output_file}")
 
 
 if __name__ == "__main__":
-    get_html()
+    pars_htmls()
+    # get_htmls()
+    # get_html()
     # get_contact_prom()
     # get_category_html()
     # get_session_html()

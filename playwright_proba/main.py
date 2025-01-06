@@ -442,15 +442,79 @@
 # # Запуск основной функции
 # asyncio.run(main())
 
+
 # if __name__ == "__main__":
 #     # parsing_num()
 #     # remove_duplicates()
 #     # url = "https://catalog.weidmueller.com/catalog/Start.do?localeId=ru&ObjectID=1021000000"
 #     # asyncio.run(main())
 #     # parsing_content()
+
+
 import asyncio
+import csv
+import re
+from pathlib import Path
 
 from playwright.async_api import async_playwright
+
+current_directory = Path.cwd()
+html_directory = current_directory / "html"
+html_directory.mkdir(parents=True, exist_ok=True)
+
+
+def get_urls_from_csv(file_path):
+    """
+    Читает CSV файл и возвращает список URL.
+
+    Args:
+        file_path (str): Путь к файлу CSV.
+
+    Returns:
+        list: Список URL из CSV файла.
+    """
+    urls = []
+    try:
+        with open(file_path, mode="r", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                if "url" in row:  # Убедимся, что есть столбец 'url'
+                    urls.append(row["url"])
+    except FileNotFoundError:
+        print(f"Файл {file_path} не найден.")
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
+
+    return urls
+
+
+def format_url(url):
+    """
+    Преобразует URL в формат: 'migueldefelipedelacuerda_4401',
+    удаляя специальные символы и заменяя их на подчеркивания.
+
+    Args:
+        url (str): URL в виде строки.
+
+    Returns:
+        str: Преобразованный формат строки.
+    """
+    # Извлекаем последний сегмент пути из URL
+    last_segment = url.rstrip("/").split("/")[-1]
+
+    # Удаляем расширения файлов (если есть)
+    last_segment = re.sub(r"\.[a-zA-Z0-9]+$", "", last_segment)
+
+    # Заменяем все небуквенно-цифровые символы на подчеркивания
+    formatted = re.sub(r"[^a-zA-Z0-9]", "_", last_segment)
+
+    # Убираем лишние подряд идущие подчеркивания
+    formatted = re.sub(r"_+", "_", formatted)
+
+    # Удаляем подчеркивания в начале и конце строки
+    formatted = formatted.strip("_")
+
+    return formatted
 
 
 async def run(playwright):
@@ -469,68 +533,93 @@ async def run(playwright):
         ignore_https_errors=True,
     )
     page = await context.new_page()
+    urls = get_urls_from_csv("extracted_urls.csv")
 
-    # Отключаем загрузку изображений, шрифтов и других медиафайлов
-    await context.route(
-        "**/*",
-        lambda route, request: (
-            route.abort()
-            if request.resource_type in ["image", "media", "font", "stylesheet"]
-            else route.continue_()
-        ),
-    )
+    # # Отключаем загрузку изображений, шрифтов и других медиафайлов
+    # await context.route(
+    #     "**/*",
+    #     lambda route, request: (
+    #         route.abort()
+    #         if request.resource_type in ["image", "media", "font", "stylesheet"]
+    #         else route.continue_()
+    #     ),
+    # )
 
     # Переходим на URL
-    url = "https://bcbid.gov.bc.ca/page.aspx/en/ctr/contract_browse_public"
+    url = "https://feepyf.com/entrenadores/barcelona/all"
     await page.goto(url)
+    # for i in range(1, 22):
+    #     url = f"https://feepyf.com/entrenadores/barcelona/all/pagina{i}"
+    #     await page.goto(url)
+    #     # Ждем завершения всех сетевых запросов
+    #     await page.wait_for_load_state("networkidle")
+    #     output_file = current_directory / f"Page_0{i}.html"
+    #     html_content = await page.content()
+    #     with open(output_file, "w", encoding="utf-8") as file:
+    #         file.write(html_content)
 
-    # Ожидаем начальную загрузку
-    await asyncio.sleep(1)
-    while True:
-        # Находим текущую страницу
-        current_page_element = await page.locator(
-            '//li[@aria-current="page"]'
-        ).element_handle()
-        if not current_page_element:
-            print("Не удалось найти текущую страницу.")
-            break
-        # Извлекаем номер текущей страницы
-        aria_label = await current_page_element.get_attribute("aria-label")
-        number_page = int(aria_label.split()[-1].strip())
+    # Ходим по ссылкам
+    for url in urls:
+        output_file = html_directory / f"{format_url(url)}.html"
+
+        if output_file.exists():
+            continue
+        await page.goto(url)
+        # Ждем завершения всех сетевых запросов
+        await page.wait_for_load_state("networkidle")
+
+        # Ожидаем начальную загрузку
+        # await asyncio.sleep(30)
         html_content = await page.content()
-        with open(f"page_content{number_page}.html", "w", encoding="utf-8") as file:
+        with open(output_file, "w", encoding="utf-8") as file:
             file.write(html_content)
-        print(f"Текущая страница: {number_page}")
-        # Находим кнопку "Next page"
-        next_button = await page.locator(
-            '//button[@aria-label="Next page"]'
-        ).element_handle()
-        if not next_button:
-            print("Кнопка 'Next page' не найдена. Конец.")
-            break
+    # Клик по whatsapp_cont
 
-        # Кликаем по кнопке "Next page" и ждем загрузки
-        await next_button.click()
-        await asyncio.sleep(1)  # Пауза для загрузки страницы
+    # while True:
+    #     # Находим текущую страницу
+    #     current_page_element = await page.locator(
+    #         '//li[@aria-current="page"]'
+    #     ).element_handle()
+    #     if not current_page_element:
+    #         print("Не удалось найти текущую страницу.")
+    #         break
+    #     # Извлекаем номер текущей страницы
+    #     aria_label = await current_page_element.get_attribute("aria-label")
+    #     number_page = int(aria_label.split()[-1].strip())
+    # html_content = await page.content()
+    # with open(f"page_content{number_page}.html", "w", encoding="utf-8") as file:
+    #     file.write(html_content)
+    #     print(f"Текущая страница: {number_page}")
+    #     # Находим кнопку "Next page"
+    #     next_button = await page.locator(
+    #         '//button[@aria-label="Next page"]'
+    #     ).element_handle()
+    #     if not next_button:
+    #         print("Кнопка 'Next page' не найдена. Конец.")
+    #         break
 
-    # Нажимаем на кнопку "Next" и ждем загрузки
-    for i in range(1, 11):
-        # Сохраняем содержимое страницы в HTML-файл
-        html_content = await page.content()
-        with open(f"page_content{i}.html", "w", encoding="utf-8") as file:
-            file.write(html_content)
+    #     # Кликаем по кнопке "Next page" и ждем загрузки
+    #     await next_button.click()
+    #     await asyncio.sleep(1)  # Пауза для загрузки страницы
 
-        # Проверяем наличие кнопки "Next"
-        next_button = page.locator("//span[@class='sr-only' and text()='Next']")
-        if await next_button.is_visible():
-            # Нажимаем на родительский элемент кнопки "Next"
-            await next_button.locator("..").click()
+    # # Нажимаем на кнопку "Next" и ждем загрузки
+    # for i in range(1, 11):
+    #     # Сохраняем содержимое страницы в HTML-файл
+    #     html_content = await page.content()
+    #     with open(f"page_content{i}.html", "w", encoding="utf-8") as file:
+    #         file.write(html_content)
 
-            # Ждем завершения загрузки страницы
-            await page.wait_for_load_state("networkidle")
-        else:
-            print("Next button not found.")
-            break
+    #     # Проверяем наличие кнопки "Next"
+    #     next_button = page.locator("//span[@class='sr-only' and text()='Next']")
+    #     if await next_button.is_visible():
+    #         # Нажимаем на родительский элемент кнопки "Next"
+    #         await next_button.locator("..").click()
+
+    #         # Ждем завершения загрузки страницы
+    #         await page.wait_for_load_state("networkidle")
+    #     else:
+    #         print("Next button not found.")
+    #         break
 
     # Закрываем браузер
     await browser.close()

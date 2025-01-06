@@ -164,6 +164,88 @@ def extract_json_from_script(content):
     return json.loads(json_text)
 
 
+def extract_type_of_property(soup):
+    """
+    Извлекает тип недвижимости из HTML и возвращает соответствующий ID из all_data.
+
+    :param soup: Объект BeautifulSoup с HTML-структурой.
+    :return: ID типа недвижимости или None, если тип не найден.
+    """
+    # Найти все теги <span> с классом "tag"
+    tag_type_of_property = soup.find_all("span", {"class": "tag"})
+
+    # Извлечь текст из каждого найденного тега
+    extracted_texts = [tag.get_text(strip=True) for tag in tag_type_of_property]
+
+    # Сопоставление с all_data
+    all_data = [
+        {"id": 72, "name": "Apartment"},
+        {"id": 26, "name": "Commercial"},
+        {"id": 73, "name": "Condo"},
+        {"id": 74, "name": "Multi Family Home"},
+        {"id": 48, "name": "Office"},
+    ]
+
+    # Проверка совпадений
+    for text in extracted_texts:
+        for item in all_data:
+            if text.lower() == item["name"].lower():
+                logger.info(f"Найдено совпадение в HTML: {text} -> ID {item['id']}")
+                return item["id"]
+
+    logger.info(f"Совпадений для {extracted_texts} в HTML не найдено.")
+    return None
+
+
+def find_word_in_string(input_string):
+    """
+    Ищет совпадение слова из списка в строке и возвращает соответствующий ID из all_data.
+
+    :param input_string: Строка, в которой нужно искать.
+    :return: ID типа недвижимости или None, если совпадений нет.
+    """
+    # Список слов для поиска
+    word_list = ["Flat", "Houses", "Home", "Apartment", "Villa"]
+
+    # Сопоставление с all_data
+    all_data = [
+        {"id": 72, "name": "Apartment"},
+        {"id": 26, "name": "Commercial"},
+        {"id": 73, "name": "Condo"},
+        {"id": 74, "name": "Multi Family Home"},
+        {"id": 48, "name": "Office"},
+    ]
+
+    input_string_lower = input_string.lower()  # Приводим строку к нижнему регистру
+    for word in word_list:
+        if word.lower() in input_string_lower:  # Ищем совпадение, игнорируя регистр
+            # Сопоставление со словарём all_data
+            for item in all_data:
+                if word.lower() == item["name"].lower():
+                    logger.info(
+                        f"Найдено совпадение в строке: {word} -> ID {item['id']}"
+                    )
+                    return item["id"]
+
+    logger.info(f"Совпадений в строке '{input_string}' не найдено.")
+    return None
+
+
+# Основная функция для определения типа недвижимости
+def determine_property_type(soup, title):
+    """
+    Определяет тип недвижимости: сначала проверяет HTML, затем текст строки.
+
+    :param soup: Объект BeautifulSoup с HTML.
+    :param title: Заголовок или текст строки для резервной проверки.
+    :return: ID типа недвижимости или None, если тип не определён.
+    """
+    property_type = extract_type_of_property(soup)
+    if property_type is None:
+        property_type = find_word_in_string(title)
+    return property_type
+
+
 def parsing_html():
 
     extracted_data = []
@@ -176,9 +258,6 @@ def parsing_html():
         area = None
         number_of_rooms = None
         # Извлечение данных
-        json_data = extract_json_from_script(content)
-        logger.info(json_data)
-        exit()
         title = soup.find("span", class_="main-info__title-main")
         location = soup.find("span", class_="main-info__title-minor")
         price = soup.find("span", class_="info-data-price")
@@ -210,6 +289,9 @@ def parsing_html():
                 area = spans[0].get_text(strip=True)
                 number_of_rooms = spans[1].get_text(strip=True).split()[0]
 
+        property_type = determine_property_type(soup, title)
+        logger.info(property_type)
+        exit()
         photos = extract_photo(soup)
         details = extract_details(soup)
         bathrooms, year = extract_bathrooms_year(details)
@@ -219,6 +301,7 @@ def parsing_html():
             "title": title,
             "photos": photos,
             "content": updated_description,
+            "property_type": property_type,
             "property_meta": {
                 "fave_property_images": [],
                 "fave_property_bedrooms": number_of_rooms,
@@ -599,11 +682,7 @@ def update_property(id_property):
     api_url = f"https://allproperty.ai/wp-json/wp/v2/properties/{id_property}"
 
     # Данные для обновления
-    property_data = {
-        "property_meta": {  # Используем стандартное поле meta
-            "fave_property_price": 1380000,
-        },
-    }
+    property_data = {"property_type": 72}
 
     # Выполнение запроса
     make_post_request(api_url, property_data)
