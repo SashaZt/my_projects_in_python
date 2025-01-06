@@ -612,7 +612,7 @@ def update_property(id_property):
 if __name__ == "__main__":
     # get_token()
 
-    # parsing_html()
+    parsing_html()
     # get_property()
-    id_property = "17803"
-    update_property(id_property)
+    # id_property = "17803"
+    # update_property(id_property)
