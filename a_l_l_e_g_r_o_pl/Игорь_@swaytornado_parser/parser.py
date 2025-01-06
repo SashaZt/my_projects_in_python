@@ -156,6 +156,7 @@ class Parser:
                 # Регулярное выражение для извлечения числа перед 'osoby', 'osób', или 'osoba'
                 match = re.search(r"(\d+)\s+(osoby|osób|osoba)", label)
                 count = int(match.group(1)) if match else 0
+                logger.info(f"Количество продаж {count}")
                 if count >= self.min_count and url and exception_url not in url:
                     urls.add(url)
 

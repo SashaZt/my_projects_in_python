@@ -133,18 +133,52 @@ def add_source_to_description(description, source_url):
     return updated_description
 
 
+def extract_json_from_script(content):
+    """
+    Извлекает JSON из тега <script>, начиная с {"page": и заканчивая }};.
+
+    :param content: HTML-содержимое.
+    :return: Python-словарь, полученный из JSON.
+    """
+    soup = BeautifulSoup(content, "lxml")
+
+    # Найти первый <script> тег, содержащий нужные данные
+    script_tag = soup.find(
+        "script", string=lambda text: text and "var utag_data =" in text
+    )
+    if not script_tag:
+        raise ValueError("Тег <script> с JSON не найден.")
+
+    # Извлечь текст внутри тега <script>
+    script_content = script_tag.string
+
+    # Найти JSON в тексте
+    start = script_content.find('{"page":')  # Начало JSON
+    end = script_content.rfind("}};")  # Конец JSON
+    if start == -1 or end == -1:
+        raise ValueError("JSON не найден в теге <script>.")
+
+    json_text = script_content[start : end + 2]  # Включаем "}}"
+
+    # Преобразовать JSON-строку в Python-словарь
+    return json.loads(json_text)
+
+
 def parsing_html():
 
     extracted_data = []
     # Пройтись по каждому HTML файлу в папке
     for html_file in html_directory.glob("*.html"):
+        # Прочитать содержимое файла
         with html_file.open(encoding="utf-8") as file:
-            # Прочитать содержимое файла
             content = file.read()
         soup = BeautifulSoup(content, "lxml")
         area = None
         number_of_rooms = None
         # Извлечение данных
+        json_data = extract_json_from_script(content)
+        logger.info(json_data)
+        exit()
         title = soup.find("span", class_="main-info__title-main")
         location = soup.find("span", class_="main-info__title-minor")
         price = soup.find("span", class_="info-data-price")
@@ -183,14 +217,8 @@ def parsing_html():
             "status": "publish",
             "type": "property",
             "title": title,
-            # "imgs_title": [imgs_title],
             "photos": photos,
-            # "price": price,
             "content": updated_description,
-            # "location": location,
-            # "area": area,
-            # "number_of_rooms": number_of_rooms,
-            # "details": details,
             "property_meta": {
                 "fave_property_images": [],
                 "fave_property_bedrooms": number_of_rooms,
