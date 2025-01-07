@@ -134,7 +134,46 @@ def get_mp3_files_from_google_drive(folder_id, drive):
         return []
 
 
-def upload_audio(file_link):
+def get_id_tr(file_name):
+    # Ваш API ключ
+    api_key = "bb92ee43-b90e-4516-9483-63ae06351b64"
+
+    # URL для получения всех транскрипций
+    transcripts_url = "https://api.fireflies.ai/graphql"
+
+    # Заголовки для запроса
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+
+    # GraphQL запрос для получения всех транскрипций
+    query = """
+    query {
+    transcripts {
+        id
+        title
+        # Здесь можно добавить другие поля, которые вам нужны
+    }
+    }
+    """
+
+    # Отправляем запрос на получение всех транскрипций
+    response = requests.post(transcripts_url, headers=headers, json={"query": query})
+
+    if response.status_code == 200:
+        result = response.json()
+        if "data" in result and "transcripts" in result["data"]:
+            for transcript in result["data"]["transcripts"]:
+                transcript_id = transcript["id"]
+                transcript_title = transcript["title"]
+                if file_name == transcript_title:
+                    return transcript_id
+        else:
+            logger.error("Нет доступных транскрипций или ошибка в структуре ответа.")
+    else:
+        logger.error(f"Ошибка запроса: {response.status_code}")
+        logger.error(response.text)
+
+
+def upload_audio(file_link, file_name):
     # Ваш API ключ
     api_key = "bb92ee43-b90e-4516-9483-63ae06351b64"
 
@@ -159,7 +198,7 @@ def upload_audio(file_link):
     variables = {
         "input": {
             "url": file_link,
-            "title": "Meeting Title",  # Вы можете изменить это на желаемое название встречи
+            "title": file_name,  # Вы можете изменить это на желаемое название встречи
         }
     }
 
@@ -171,13 +210,14 @@ def upload_audio(file_link):
     )
 
     if response.status_code == 200:
-        logger.info(response.status_code)
+        # logger.info(response.status_code)
         result = response.json()
-        logger.info(result)
+        # logger.info(result)
+        # logger.info(file_name)
         if result["data"]["uploadAudio"]["success"]:
             logger.info("Аудио успешно загружено.")
-            logger.info("Титул:", result["data"]["uploadAudio"]["title"])
-            logger.info("Сообщение:", result["data"]["uploadAudio"]["message"])
+            # logger.info("Титул:", result["data"]["uploadAudio"]["title"])
+            # logger.info("Сообщение:", result["data"]["uploadAudio"]["message"])
 
             # Теперь нужно получить transcript_id, когда аудио будет обработано
             get_transcript_query = """
@@ -195,7 +235,7 @@ def upload_audio(file_link):
                     headers=headers,
                     json={
                         "query": get_transcript_query,
-                        "variables": {"title": "Meeting Title"},
+                        "variables": {"title": file_name},
                     },
                 )
 
@@ -205,7 +245,7 @@ def upload_audio(file_link):
                         transcript_id = get_transcript_result["data"]["transcripts"][0][
                             "id"
                         ]
-                        logger.info(transcript_id)
+                        # logger.info(transcript_id)
                         return transcript_id
                     else:
                         logger.warning("Ожидание обработки аудио...")
@@ -259,7 +299,7 @@ def get_transcrip(transcript_id):
         if "data" in data and "transcripts" in data["data"]:
             for transcript in data["data"]["transcripts"]:
                 transcript_id = transcript["id"]
-                logger.info(transcript_id)
+                # logger.info(transcript_id)
                 # Сбор всех предложений в одну строку
                 full_text = " ".join(
                     sentence["text"] for sentence in transcript.get("sentences", [])
@@ -291,38 +331,77 @@ def process_google_drive_mp3_files():
         existing_files = {
             row[-1] for row in existing_rows[1:] if row
         }  # Имена файлов в первой колонке
-        logger.info(f"Найдено {len(existing_files)} записей в Google Sheets")
-        logger.info(f"Найдено {existing_files} записей в Google Sheets")
+        # logger.info(f"Найдено {len(existing_files)} записей в Google Sheets")
+        # logger.info(f"Найдено {existing_files} записей в Google Sheets")
+        # logger.info(existing_files)
 
         # Загрузка модели Whisper
         # model = whisper.load_model("base", device="cpu")
 
-        for file_info in mp3_files[3:5]:
+        for file_info in mp3_files[3:6]:
             try:
                 file_name = file_info["name"]
-                file_id = file_info["id"]
                 file_link = file_info["link"]
-
+                transcript_id = get_id_tr(file_name)
                 # Проверяем, есть ли файл уже в таблице
-                if file_name in existing_files:
+                if transcript_id in existing_files:
                     logger.info(
-                        f"Файл {file_name} уже существует в Google Sheets. Пропуск..."
+                        f"Файл {transcript_id} уже существует в Google Sheets. Пропуск..."
                     )
                     continue
-                transcript_id = upload_audio(file_link)
-                logger.info(transcript_id)
-                # if transcript_id is None:
-                #     logger.info(f"Файл пропускаем {file_name}")
-                #     continue
-                # transcript_id = "uc2E4zaXMk80Q0ID"
-                result_text = get_transcrip(transcript_id)
+                if transcript_id:
+                    # Если transcript_title совпадает с file_name и есть transcript_id
+                    result_text = get_transcrip(transcript_id)
+                else:
+                    # Если нет transcript_id или названия не совпадают
+                    transcript_id = upload_audio(file_link, file_name)
+                    result_text = get_transcrip(transcript_id)
+
                 # Формируем данные для записи
                 all_data = parse_mp3_filename(file_name)
                 all_data["Текст звонка Укр"] = result_text
+                all_data["transcript_id"] = transcript_id
                 all_data["Ссылка на MP3"] = file_link  # Добавляем ссылку на MP3
 
                 # Записываем данные в Google Sheets
                 write_dict_to_google_sheets(all_data)
+                # if transcript_title == file_name:
+                #     if transcript_id:
+                #         # transcript_id = "uc2E4zaXMk80Q0ID"
+                #         result_text = get_transcrip(transcript_id)
+                #         # Формируем данные для записи
+                #         all_data = parse_mp3_filename(file_name)
+                #         all_data["Текст звонка Укр"] = result_text
+                #         all_data["Ссылка на MP3"] = file_link  # Добавляем ссылку на MP3
+                #     else:
+                #         transcript_id = upload_audio(file_link, file_name)
+                #         result_text = get_transcrip(transcript_id)
+                #         # Формируем данные для записи
+                #         all_data = parse_mp3_filename(file_name)
+                #         all_data["Текст звонка Укр"] = result_text
+                #         all_data["Ссылка на MP3"] = file_link  # Добавляем ссылку на MP3
+                # else:
+                #     transcript_id = upload_audio(file_link, file_name)
+                #     result_text = get_transcrip(transcript_id)
+                #     # Формируем данные для записи
+                #     all_data = parse_mp3_filename(file_name)
+                #     all_data["Текст звонка Укр"] = result_text
+                #     all_data["Ссылка на MP3"] = file_link  # Добавляем ссылку на MP3
+
+                # # transcript_id = upload_audio(file_link, file_name)
+                # # logger.info(transcript_id)
+                # # # if transcript_id is None:
+                # # #     logger.info(f"Файл пропускаем {file_name}")
+                # # #     continue
+                # # # transcript_id = "uc2E4zaXMk80Q0ID"
+                # # result_text = get_transcrip(transcript_id)
+                # # # Формируем данные для записи
+                # # all_data = parse_mp3_filename(file_name)
+                # # all_data["Текст звонка Укр"] = result_text
+                # # all_data["Ссылка на MP3"] = file_link  # Добавляем ссылку на MP3
+
+                # # Записываем данные в Google Sheets
+                # write_dict_to_google_sheets(all_data)
 
                 # # Удаляем локальный файл после обработки
                 # os.remove(local_file_path)
@@ -343,7 +422,7 @@ def write_dict_to_google_sheets(data_dict):
     try:
         # Подключение к Google Sheets
         sheet = connect_to_google_sheets(sheet_id)
-        logger.info(f"Подключение к Google Sheets выполнено: {sheet_id}")
+        # logger.info(f"Подключение к Google Sheets выполнено: {sheet_id}")
 
         # Получаем заголовки из первого ряда таблицы
         existing_headers = sheet.row_values(1)
@@ -363,7 +442,7 @@ def write_dict_to_google_sheets(data_dict):
 
         # Записываем данные в следующую свободную строку
         sheet.insert_row(row, next_free_row)
-        logger.info(f"Добавлены данные: {row} в строку {next_free_row}")
+        # logger.info(f"Добавлены данные: {row} в строку {next_free_row}")
 
     except Exception as e:
         logger.error(f"Ошибка при записи в Google Sheets: {e}")
