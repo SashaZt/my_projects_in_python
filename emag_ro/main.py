@@ -268,6 +268,69 @@ def extract_feedback_from_file(file_path, object_name="EM.feedback"):
         print(f"Произошла ошибка: {e}")
 
 
+def extract_json_product(soup):
+    # Находим все теги <script> с типом application/ld+json
+    script_tags = soup.find_all("script", {"type": "application/ld+json"})
+    for script in script_tags:
+        try:
+            # Преобразуем содержимое тега <script> в Python-объект
+            data = json.loads(script.string)
+            # Проверяем наличие ключа @type и его значение
+            if data.get("@type") == "Product":
+                return data
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def extract_json_breadcrumblist(soup):
+    # Находим все теги <script> с типом application/ld+json
+    script_tags = soup.find_all("script", {"type": "application/ld+json"})
+    for script in script_tags:
+        try:
+            # Преобразуем содержимое тега <script> в Python-объект
+            data = json.loads(script.string)
+            # Проверяем наличие ключа @type и его значение
+            if data.get("@type") == "BreadcrumbList":
+                return data
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def extract_description_texts(soup):
+    """
+    Извлекает теги (h1, h2, p, b) внутри div с data-box-name="Description".
+
+    :param soup: Объект BeautifulSoup для HTML-страницы
+    :return: Список тегов (элементов BeautifulSoup)
+    """
+    # Находим div с атрибутом data-box-name="Description"
+    description_div = soup.find("div", {"id": "description-body"})
+
+    if not description_div:
+        return ""  # Возвращаем пустую строку, если div не найден
+
+    # Извлекаем текстовые теги внутри найденного div
+    tags = description_div.find_all(["h1", "h2", "p", "b", "ul", "li", "img"])
+
+    # Преобразуем все теги в строки и объединяем их через join
+    return "".join(str(tag) for tag in tags)
+
+
+def get_reviews_count(soup):
+
+    # Находим контейнеры с рейтингами 5* и 1*
+    rating_5 = soup.select_one(".rating-5-stars a:last-child")
+    rating_1 = soup.select_one(".rating-1-stars a:last-child")
+
+    # Извлекаем количество отзывов
+    count_5 = int(rating_5.text.strip("()")) if rating_5 else 0
+    count_1 = int(rating_1.text.strip("()")) if rating_1 else 0
+
+    return count_5, count_1
+
+
 def process_html():
     html_file = "Masina.html"
     # Чтение содержимого файла
@@ -361,6 +424,30 @@ def process_html():
 
     # Добавляем specifications_dict в output_data
     output_data = add_specifications_to_json(output_data, specifications_dict)
+
+    product_json = extract_json_product(soup)
+    product_sku = product_json["sku"]
+    output_data["ecommerce"]["detail"]["products"][0]["sku"] = product_sku
+    breadcrumblist_json = extract_json_breadcrumblist(soup)
+    item_list = breadcrumblist_json.get("itemListElement", [])
+    if len(item_list) >= 2:  # Проверяем, есть ли хотя бы два элемента
+        penultimate_item = item_list[-2]  # Предпоследний элемент
+        penultimate_id = penultimate_item.get("item", {}).get("@id", None)
+        penultimate_name = penultimate_item.get("item", {}).get("name", None)
+    output_data["ecommerce"]["detail"]["products"][0]["url_category"] = penultimate_id
+    output_data["ecommerce"]["detail"]["products"][0][
+        "name_category"
+    ] = penultimate_name
+
+    description = extract_description_texts(soup)
+    output_data["ecommerce"]["detail"]["products"][0]["description"] = description
+
+    secondary_offers_count = len(output_data.get("secondary_offers", []))
+    output_data["secondary_offers_count"] = secondary_offers_count
+    count_5, count_1 = get_reviews_count(soup)
+    output_data["ecommerce"]["detail"]["products"][0]["positive_reviews"] = count_5
+    output_data["ecommerce"]["detail"]["products"][0]["negative_reviews"] = count_1
+
     # Сохраняем оба JSON файла
     with open("output.json", "w", encoding="utf-8") as output_file:
         json.dump(output_data, output_file, indent=4, ensure_ascii=False)
