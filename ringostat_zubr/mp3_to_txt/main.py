@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 from oauth2client.service_account import ServiceAccountCredentials
 from pydrive2.auth import GoogleAuth, ServiceAccountCredentials
 from pydrive2.drive import GoogleDrive
+from pydub import AudioSegment
+from pydub.effects import normalize
 
 # Путь к папкам и файлу для данных
 current_directory = Path.cwd()
@@ -179,8 +181,21 @@ def process_google_drive_mp3_files():
                 file.GetContentFile(str(local_file_path))
                 logger.info(f"Файл {file_name} скачан локально")
 
+                # Предварительная обработка файла (нормализация громкости)
+                audio = AudioSegment.from_file(local_file_path)
+                audio = normalize(audio)
+                processed_file_path = str(local_file_path).replace(
+                    ".mp3", "_processed.mp3"
+                )
+                audio.export(processed_file_path, format="mp3")
+
                 # Транскрибируем файл
-                result = model.transcribe(str(local_file_path))
+                result = model.transcribe(
+                    audio=processed_file_path,
+                    language="uk",
+                    fp16=False,
+                    temperature=0.0,
+                )
                 result_text = result["text"]
 
                 # Формируем данные для записи
