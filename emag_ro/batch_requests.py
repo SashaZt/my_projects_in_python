@@ -65,7 +65,7 @@ class Batch:
             return None
 
     async def check_all_job_statuses(
-        self, session, job_response, max_concurrent_tasks=500
+        self, session, job_response, max_concurrent_tasks=1000
     ):
         """
         Проверяет статусы всех заданий из job_response и обновляет JOB_FILE после завершения заданий.
@@ -104,14 +104,9 @@ class Batch:
                         # logger.info(f"Статус задания {job['id']}: {current_status}")
 
                         if current_status == "finished":
-                            # logger.info(
-                            #     f"Задание {job['id']} завершено. Сохраняем результат..."
-                            # )
-
                             # Сохраняем результат
                             await self.save_result_to_file(job_status)
 
-                            # logger.info(f"Результат задания {job['id']} успешно сохранен.")
                             return None  # Задание завершено
 
                         # Если статус не "finished", возвращаем задание для дальнейшей проверки
@@ -140,9 +135,9 @@ class Batch:
 
             # Обновляем JOB_FILE
             await self.save_jobs_to_file(remaining_jobs)
-            # logger.info(
-            #     f"Файл {JOB_FILE} обновлен. Осталось {len(remaining_jobs)} заданий."
-            # )
+            # Пауза в 30 секунд
+            logger.info("Пауза на 30 секунд перед следующей проверкой...")
+            await asyncio.sleep(30)
 
             logger.info(
                 f"Завершено заданий: {completed_jobs_count}. Осталось: {len(remaining_jobs)}."
@@ -188,29 +183,29 @@ class Batch:
             logger.error(f"Error submitting batch job: {e}")
             return []
 
-    async def fetch_data(self, session, status_url):
-        """
-        Извлекает данные из задания, если body отсутствует.
+    # async def fetch_data(self, session, status_url):
+    #     """
+    #     Извлекает данные из задания, если body отсутствует.
 
-        Args:
-            session (aiohttp.ClientSession): Сессия для выполнения HTTP-запроса.
-            status_url (str): URL завершенного задания.
+    #     Args:
+    #         session (aiohttp.ClientSession): Сессия для выполнения HTTP-запроса.
+    #         status_url (str): URL завершенного задания.
 
-        Returns:
-            str or None: Содержимое ответа (body) или None, если запрос не удался.
-        """
-        try:
-            async with session.get(status_url) as response:
-                response.raise_for_status()
-                result = await response.json()
+    #     Returns:
+    #         str or None: Содержимое ответа (body) или None, если запрос не удался.
+    #     """
+    #     try:
+    #         async with session.get(status_url) as response:
+    #             response.raise_for_status()
+    #             result = await response.json()
 
-                # Извлечение body
-                return result.get("response", {}).get("body", None)
-        except Exception as e:
-            logger.error(f"Ошибка извлечения данных из {status_url}: {e}")
-            return None
+    #             # Извлечение body
+    #             return result.get("response", {}).get("body", None)
+    #     except Exception as e:
+    #         logger.error(f"Ошибка извлечения данных из {status_url}: {e}")
+    #         return None
 
-    async def scrape_and_save_batch(self, urls, max_concurrent_tasks=500):
+    async def scrape_and_save_batch(self, urls, max_concurrent_tasks=1000):
         """
         Создает задания или использует существующие из JOB_FILE и обрабатывает их.
 
@@ -358,7 +353,9 @@ class Batch:
             logger.error(f"Ошибка при чтении CSV: {e}")
             return []
 
+    # Рабочий вариант
     def main(self):
+
         # Очистка JOB_FILE перед обработкой
         self.clean_completed_jobs(self.job_file, self.html_files_directory)
         urls_to_scrape = self.read_csv(self.csv_output_file)

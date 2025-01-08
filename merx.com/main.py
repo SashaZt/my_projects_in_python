@@ -65,6 +65,7 @@ async def main():
             # Ждем, пока появится блок навигации
             navigation_div = await page.query_selector("div.mets-page-navigation")
             if navigation_div:
+
                 # Извлекаем номер текущей страницы
                 selected_span = await navigation_div.query_selector("span.selected")
                 if selected_span:
@@ -306,19 +307,14 @@ async def get_tenders():
             content = await page.content()
             with open(file_name, "w", encoding="utf-8") as file:
                 file.write(content)
-
+            logger.info("Ищем tab_view")
             # Находим основной блок с вкладками
             tab_view = await page.query_selector("//ul[@id='innerTabView']")
             if not tab_view:
-                print("Tab view not found. Skipping URL.")
+                logger.error("Tab view not found. Skipping URL.")
                 continue
-
-            # Находим основной блок с вкладками
-            tab_view = await page.query_selector("//ul[@id='innerTabView']")
-            if not tab_view:
-                print("Tab view not found. Skipping URL.")
-                continue
-
+            logger.info("Есть tab_view")
+            await asyncio.sleep(10)  # Пауза 10 сек
             # Находим только нужные вкладки внутри tab_view
             titles_to_click = [
                 "Categories",
@@ -330,22 +326,27 @@ async def get_tenders():
             all_titles_completed = True
 
             for title in titles_to_click:
+                logger.info(title)
                 title_element = await tab_view.query_selector(f'a[title="{title}"]')
+                await asyncio.sleep(1)  # Пауза 10 сек
                 if title_element:
+                    logger.info(f"Элемент есть {title}")
                     file_name = (
                         f"page_{title.replace(' ', '_').replace('&', 'and')}.html"
                     )
                     file_path = id_url_directory / file_name
 
                     if not file_path.exists():
-                        print(f"Clicking on: {title}")
+                        logger.info(f"Нажимаем {title}")
                         await title_element.click()
                         await page.wait_for_load_state("networkidle")
-
+                        logger.info(f"Сохраняем в {file_path}")
                         # Сохраняем контент страницы в файл
                         content = await page.content()
                         with open(file_path, "w", encoding="utf-8") as file:
                             file.write(content)
+                    else:
+                        logger.info(f"Файл есть {file_path}")
                 else:
                     all_titles_completed = False
                     print(f"Title '{title}' not found. Skipping.")
