@@ -25,7 +25,7 @@ class Parser:
         json_products,
         json_page_directory,
         use_ultra_premium,
-        tg_bot,
+        # tg_bot,
         json_files_directory,
     ):
         self.min_count = min_count
@@ -35,8 +35,30 @@ class Parser:
         self.json_products = json_products
         self.json_page_directory = json_page_directory
         self.use_ultra_premium = use_ultra_premium
-        self.tg_bot = tg_bot
+        # self.tg_bot = tg_bot
         self.json_files_directory = json_files_directory
+
+    def scrap_all_page_json(self):
+        # Обход JSON-файлов в директории
+        all_urls = set()
+        for json_file in Path(self.json_files_directory).glob("*.json"):
+            with json_file.open(encoding="utf-8") as file:
+                data = json.load(file)
+
+            # Безопасно переходим через уровни data -> items
+            items = data.get("data", {}).get("items", [])
+            for item in items:
+                path = item.get("url", {}).get("path")
+                if path:  # Добавляем только если путь существует
+                    url = f"https://www.emag.ro{path}"
+                    all_urls.add(url)
+        # Создание DataFrame и сохранение в CSV
+
+        df = pd.DataFrame(list(all_urls), columns=["url"])
+        df.to_csv(self.csv_output_file, index=False, encoding="utf-8")
+        # Логирование и отправка сообщения в Telegram
+        logger.info(f"Данные успешно сохранены в {self.csv_output_file}")
+        # self.tg_bot.send_message(f"Данные успешно сохранены в {self.csv_output_file}")
 
     def parsing_page_max_page(self, src):
         """Парсит HTML-страницу и возвращает максимальный номер страницы из блока пагинации.

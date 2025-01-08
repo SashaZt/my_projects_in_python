@@ -8,7 +8,7 @@ from configuration.logger_setup import logger
 
 def write_json():
     # Загрузка содержимого HTML файла
-    with open("Masina.html", "r", encoding="utf-8") as file:
+    with open("pd_D603G9MBM.html", "r", encoding="utf-8") as file:
         content = file.read()
 
     # Создаем объект BeautifulSoup
@@ -352,7 +352,7 @@ def get_reviews_count(soup):
 
 
 def process_html():
-    html_file = "Masina.html"
+    html_file = "Polizor.html"
     # Чтение содержимого файла
     with open(html_file, "r", encoding="utf-8") as file:
         content = file.read()
@@ -449,8 +449,6 @@ def process_html():
     product_sku = product_json["sku"]
     output_data["ecommerce"]["detail"]["products"][0]["sku"] = product_sku
     breadcrumblist_json = extract_json_breadcrumblist(soup)
-    logger.info(breadcrumblist_json)
-    exit()
     item_list = breadcrumblist_json.get("itemListElement", [])
     if len(item_list) >= 2:  # Проверяем, есть ли хотя бы два элемента
         penultimate_item = item_list[-2]  # Предпоследний элемент

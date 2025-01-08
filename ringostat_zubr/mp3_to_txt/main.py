@@ -156,7 +156,9 @@ def get_id_tr(file_name):
     """
 
     # Отправляем запрос на получение всех транскрипций
-    response = requests.post(transcripts_url, headers=headers, json={"query": query})
+    response = requests.post(
+        transcripts_url, headers=headers, json={"query": query}, timeout=30
+    )
 
     if response.status_code == 200:
         result = response.json()
@@ -207,17 +209,13 @@ def upload_audio(file_link, file_name):
         api_url,
         headers=headers,
         json={"query": upload_query, "variables": variables},
+        timeout=30,
     )
 
     if response.status_code == 200:
-        # logger.info(response.status_code)
         result = response.json()
-        # logger.info(result)
-        # logger.info(file_name)
         if result["data"]["uploadAudio"]["success"]:
             logger.info("Аудио успешно загружено.")
-            # logger.info("Титул:", result["data"]["uploadAudio"]["title"])
-            # logger.info("Сообщение:", result["data"]["uploadAudio"]["message"])
 
             # Теперь нужно получить transcript_id, когда аудио будет обработано
             get_transcript_query = """
@@ -237,6 +235,7 @@ def upload_audio(file_link, file_name):
                         "query": get_transcript_query,
                         "variables": {"title": file_name},
                     },
+                    timeout=30,
                 )
 
                 if get_transcript_response.status_code == 200:
@@ -245,7 +244,6 @@ def upload_audio(file_link, file_name):
                         transcript_id = get_transcript_result["data"]["transcripts"][0][
                             "id"
                         ]
-                        # logger.info(transcript_id)
                         return transcript_id
                     else:
                         logger.warning("Ожидание обработки аудио...")
@@ -291,6 +289,7 @@ def get_transcrip(transcript_id):
         api_url,
         headers=headers,
         json={"query": query_transcript, "variables": variables},
+        timeout=30,
     )
 
     # Обработка ответа
@@ -299,7 +298,6 @@ def get_transcrip(transcript_id):
         if "data" in data and "transcripts" in data["data"]:
             for transcript in data["data"]["transcripts"]:
                 transcript_id = transcript["id"]
-                # logger.info(transcript_id)
                 # Сбор всех предложений в одну строку
                 full_text = " ".join(
                     sentence["text"] for sentence in transcript.get("sentences", [])
@@ -331,10 +329,6 @@ def process_google_drive_mp3_files():
         existing_files = {
             row[-1] for row in existing_rows[1:] if row
         }  # Имена файлов в первой колонке
-        # logger.info(f"Найдено {len(existing_files)} записей в Google Sheets")
-        # logger.info(f"Найдено {existing_files} записей в Google Sheets")
-        # logger.info(existing_files)
-
         # Загрузка модели Whisper
         # model = whisper.load_model("base", device="cpu")
 

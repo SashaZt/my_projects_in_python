@@ -2,11 +2,11 @@ import asyncio
 import os
 import shutil
 from datetime import datetime, timedelta
-
-# from parser import Parser
+from parser import Parser
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
+from batch_requests import Batch
 from configuration.logger_setup import logger
 from dotenv import dotenv_values, load_dotenv
 from downloader import Downloader
@@ -130,6 +130,7 @@ def make_directory(url_start):
     json_page_directory.mkdir(exist_ok=True, parents=True)
     json_products.mkdir(parents=True, exist_ok=True)
     json_scrapy.mkdir(parents=True, exist_ok=True)
+    job_file = json_scrapy / "active_jobs.json"  # Файл для хранения задания
 
     configuration_directory.mkdir(parents=True, exist_ok=True)
 
@@ -145,6 +146,7 @@ def make_directory(url_start):
         json_page_directory,
         temp_directory,
         json_files_directory,
+        job_file,
     )
 
 
@@ -167,6 +169,7 @@ def create_objects(
         json_page_directory,
         temp_directory,
         json_files_directory,
+        job_file,
     ) = directories
 
     csv_output_file = csv_directory / f"{formatted_date}_{directory_name}.csv"
@@ -187,6 +190,22 @@ def create_objects(
         json_page_directory,
         use_ultra_premium,
         json_files_directory,
+    )
+    batch = Batch(
+        min_count,
+        api_key,
+        html_files_directory,
+        csv_output_file,
+        json_products,
+        json_scrapy,
+        url_start,
+        max_workers,
+        json_result,
+        xlsx_result,
+        json_page_directory,
+        use_ultra_premium,
+        json_files_directory,
+        job_file,
     )
     # downloader = Downloader(
     #     min_count,
@@ -212,6 +231,16 @@ def create_objects(
     #     tg_bot,
     #     json_files_directory,
     # )
+    parser = Parser(
+        min_count,
+        html_files_directory,
+        csv_output_file,
+        max_workers,
+        json_products,
+        json_page_directory,
+        use_ultra_premium,
+        json_files_directory,
+    )
     # parser = Parser(
     #     min_count,
     #     html_files_directory,
@@ -224,7 +253,7 @@ def create_objects(
     #     json_files_directory,
     # )
 
-    return downloader
+    return downloader, parser, batch
     # return downloader, writer, parser
 
 
@@ -249,10 +278,12 @@ def main_loop():
             # )
 
             for url_start in url_starts:
-                # Генерируем URL для текущей ссылки
+                # Базовый путь и суффикс
+                base = url_start  #
+                suffix = "c"  # Общая часть после номера страницы
                 full_url = link_formation(url_start)
-                directories = make_directory(full_url)
-                downloader = create_objects(
+                directories = make_directory(base)
+                downloader, parser, batch = create_objects(
                     min_count,
                     api_key,
                     max_workers,
@@ -273,20 +304,20 @@ def main_loop():
                 if choice == "1":
                     # Скачивание страниц пагинации
                     # downloader.get_all_page_html()
-                    downloader.get_all_page_json(" /televizoare/c")
-                    # Уникальность првоеряем
-                    #  parser.scrap_page_json()
+                    downloader.get_all_page_json(base, suffix)
 
-                # elif choice == "2":
-                #     # Асинхронное скачивание товаров
-                #     asyncio.run(downloader.main_url())
+                elif choice == "2":
+                    # Асинхронное скачивание товаров
+                    # asyncio.run(downloader.main_url())
+                    parser.scrap_all_page_json()
 
-                # elif choice == "3":
-                #     # Сохранение результатов
-                #     all_results = parser.parsing_html()
-                #     writer.save_results_to_json(all_results)
-                #     writer.save_json_to_excel()
-                #     parser.parsing_json()
+                elif choice == "3":
+                    batch.main()
+                    # # Сохранение результатов
+                    # all_results = parser.parsing_html()
+                    # writer.save_results_to_json(all_results)
+                    # writer.save_json_to_excel()
+                    # parser.parsing_json()
 
                 # elif choice == "4":
                 #     # Выполнение всех этапов

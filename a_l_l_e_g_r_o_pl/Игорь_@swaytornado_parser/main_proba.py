@@ -119,8 +119,9 @@ retry_delay = 10  # Задержка между проверками (в сек�
 
 for _ in range(max_retries):
     json_response = response.json()
+    status_url = json_response.get("statusUrl")
+    response = requests.get(url=status_url, timeout=30)
     job_status = json_response.get("status")
-
     if job_status == "finished":
         name_file = json_response.get("id")
         json_file = f"{name_file}.json"
@@ -248,50 +249,50 @@ for _ in range(max_retries):
 # # else:
 # #     print(f"Ошибка: {response.status_code}")
 # #     print(response.text)
-# import requests
+import requests
 
-# max_retries = 100  # Максимальное количество проверок статуса
-# retry_delay = 10  # Задержка между проверками (в секундах)
-# response = requests.get(
-#     "https://async.scraperapi.com/jobs/ad39dc04-d003-4e9b-a36b-2571c871eaba"
-# )
-# for _ in range(max_retries):
-#     json_response = response.json()
-#     job_status = json_response.get("status")
+max_retries = 100  # Максимальное количество проверок статуса
+retry_delay = 10  # Задержка между проверками (в секундах)
+response = requests.get(
+    "https://async.scraperapi.com/jobs/a0907e2d-6911-4357-b0be-39d0ea9edbad"
+)
+for _ in range(max_retries):
+    json_response = response.json()
+    job_status = json_response.get("status")
 
-#     if job_status == "finished":
-#         name_file = json_response.get("id")
-#         json_file = f"{name_file}.json"
-#         extracted_body = json_response.get("response", {}).get("body")
+    if job_status == "finished":
+        name_file = json_response.get("id")
+        json_file = f"{name_file}.json"
+        extracted_body = json_response.get("response", {}).get("body")
 
-#         if extracted_body:
-#             try:
-#                 # Попытка обработать содержимое "body" как JSON
-#                 cleaned_body = json.loads(extracted_body)
+        if extracted_body:
+            try:
+                # Попытка обработать содержимое "body" как JSON
+                cleaned_body = json.loads(extracted_body)
 
-#                 # Сохранение результата в файл
-#                 with open(json_file, "w", encoding="utf-8") as output_file:
-#                     json.dump(
-#                         cleaned_body,
-#                         output_file,
-#                         indent=4,
-#                         ensure_ascii=False,
-#                     )
-#                 print(f"Результат сохранён в файл: {json_file}")
-#                 break
-#             except json.JSONDecodeError as e:
-#                 print(f"Ошибка при декодировании JSON из 'body': {e}")
-#                 break
-#     else:
-#         print("Задача ещё не завершена, ожидаем...")
-#         time.sleep(retry_delay)
+                # Сохранение результата в файл
+                with open(json_file, "w", encoding="utf-8") as output_file:
+                    json.dump(
+                        cleaned_body,
+                        output_file,
+                        indent=4,
+                        ensure_ascii=False,
+                    )
+                print(f"Результат сохранён в файл: {json_file}")
+                break
+            except json.JSONDecodeError as e:
+                print(f"Ошибка при декодировании JSON из 'body': {e}")
+                break
+    else:
+        print("Задача ещё не завершена, ожидаем...")
+        time.sleep(retry_delay)
 
-#         # Повторный запрос для проверки статуса
-#         status_url = json_response.get("statusUrl")
-#         if status_url:
-#             response = requests.get(status_url)
-#         else:
-#             print("Не удалось получить URL для проверки статуса.")
-#             break
-# else:
-#     print("Задача не завершена в отведённое время.")
+        # Повторный запрос для проверки статуса
+        status_url = json_response.get("statusUrl")
+        if status_url:
+            response = requests.get(status_url)
+        else:
+            print("Не удалось получить URL для проверки статуса.")
+            break
+else:
+    print("Задача не завершена в отведённое время.")
