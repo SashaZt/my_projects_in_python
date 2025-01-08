@@ -2,17 +2,16 @@ import asyncio
 import os
 import shutil
 from datetime import datetime, timedelta
-
-# from parser import Parser
+from parser import Parser
 from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
 from configuration.logger_setup import logger
 from dotenv import dotenv_values, load_dotenv
 from downloader import Downloader
+from send_messages import TgBot
+from writer import Writer
 
-# from send_messages import TgBot
-# from writer import Writer
 
 
 def link_formation(url_start):
@@ -30,7 +29,6 @@ def link_formation(url_start):
     }
     full_url = f"{url_start}?{urlencode(query_params)}"
     return full_url
-
 
 def get_env():
     env_path = os.path.join(os.getcwd(), "configuration", ".env")
@@ -60,7 +58,7 @@ def get_env():
         chat_ids = os.getenv("CHAT_IDS")
         TELEGRAM_CHAT_IDS = chat_ids.split(",") if chat_ids else []
 
-        # tg_bot = TgBot(TELEGRAM_TOKEN, TELEGRAM_CHAT_IDS)
+        tg_bot = TgBot(TELEGRAM_TOKEN, TELEGRAM_CHAT_IDS)
 
         logger.info("Файл .env загружен успешно.")
         return (
@@ -69,15 +67,8 @@ def get_env():
             max_workers,
             url_starts,
             use_ultra_premium,
+            tg_bot,
         )
-        # return (
-        #     min_count,
-        #     api_key,
-        #     max_workers,
-        #     url_starts,
-        #     use_ultra_premium,
-        #     tg_bot,
-        # )
     else:
         logger.error(f"Файл {env_path} не найден!")
         return None
@@ -150,11 +141,8 @@ def make_directory(url_start):
 
 # Создание объектов
 def create_objects(
-    min_count, api_key, max_workers, url_start, directories, use_ultra_premium
+    min_count, api_key, max_workers, url_start, directories, use_ultra_premium, tg_bot
 ):
-    # def create_objects(
-    #     min_count, api_key, max_workers, url_start, directories, use_ultra_premium, tg_bot
-    # ):
     (
         directory_name,
         formatted_date,
@@ -186,46 +174,31 @@ def create_objects(
         xlsx_result,
         json_page_directory,
         use_ultra_premium,
+        tg_bot,
         json_files_directory,
     )
-    # downloader = Downloader(
-    #     min_count,
-    #     api_key,
-    #     html_files_directory,
-    #     csv_output_file,
-    #     json_products,
-    #     json_scrapy,
-    #     url_start,
-    #     max_workers,
-    #     json_result,
-    #     xlsx_result,
-    #     json_page_directory,
-    #     use_ultra_premium,
-    #     tg_bot,
-    #     json_files_directory,
-    # )
-    # writer = Writer(
-    #     csv_output_file,
-    #     json_result,
-    #     xlsx_result,
-    #     use_ultra_premium,
-    #     tg_bot,
-    #     json_files_directory,
-    # )
-    # parser = Parser(
-    #     min_count,
-    #     html_files_directory,
-    #     csv_output_file,
-    #     max_workers,
-    #     json_products,
-    #     json_page_directory,
-    #     use_ultra_premium,
-    #     tg_bot,
-    #     json_files_directory,
-    # )
+    writer = Writer(
+        csv_output_file,
+        json_result,
+        xlsx_result,
+        use_ultra_premium,
+        tg_bot,
+        json_files_directory,
+    )
+    parser = Parser(
+        min_count,
+        html_files_directory,
+        csv_output_file,
+        max_workers,
+        json_products,
+        json_page_directory,
+        use_ultra_premium,
+        tg_bot,
+        json_files_directory,
+    )
 
-    return downloader
-    # return downloader, writer, parser
+    return downloader, writer, parser
+
 
 
 def main_loop():
@@ -243,87 +216,77 @@ def main_loop():
 
         if choice in {"1", "2", "3", "4"}:
             # Перезагружаем данные из .env и получаем список ссылок
-            min_count, api_key, max_workers, url_starts, use_ultra_premium = get_env()
-            # min_count, api_key, max_workers, url_starts, use_ultra_premium, tg_bot = (
-            #     get_env()
-            # )
+            min_count, api_key, max_workers, url_starts, use_ultra_premium, tg_bot = (
+                get_env()
+            )
 
             for url_start in url_starts:
                 # Генерируем URL для текущей ссылки
                 full_url = link_formation(url_start)
                 directories = make_directory(full_url)
-                downloader = create_objects(
+                downloader, writer, parser = create_objects(
                     min_count,
                     api_key,
                     max_workers,
                     full_url,
                     directories,
                     use_ultra_premium,
+                    tg_bot,
                 )
-                # downloader, writer, parser = create_objects(
-                #     min_count,
-                #     api_key,
-                #     max_workers,
-                #     full_url,
-                #     directories,
-                #     use_ultra_premium,
-                #     tg_bot,
-                # )
 
                 if choice == "1":
                     # Скачивание страниц пагинации
-                    # downloader.get_all_page_html()
-                    downloader.get_all_page_json(" /televizoare/c")
+                    downloader.get_all_page_html()
                     # Уникальность првоеряем
                     #  parser.scrap_page_json()
 
-                # elif choice == "2":
-                #     # Асинхронное скачивание товаров
-                #     asyncio.run(downloader.main_url())
+                elif choice == "2":
+                    # Асинхронное скачивание товаров
+                    asyncio.run(downloader.main_url())
 
-                # elif choice == "3":
-                #     # Сохранение результатов
-                #     all_results = parser.parsing_html()
-                #     writer.save_results_to_json(all_results)
-                #     writer.save_json_to_excel()
-                #     parser.parsing_json()
+                elif choice == "3":
+                    # Сохранение результатов
+                    all_results = parser.parsing_html()
+                    writer.save_results_to_json(all_results)
+                    writer.save_json_to_excel()
+                    parser.parsing_json()
 
-                # elif choice == "4":
-                #     # Выполнение всех этапов
-                #     start_time_now = datetime.now()
-                #     tg_bot.send_message(f"Запуск парсера для {url_start}")
-                #     downloader.get_all_page_html()
-                #     # Уникальность првоеряем
-                #     # parser.scrap_page_json()
-                #     # Проверяем результат выполнения main_url
-                #     try:
-                #         success = asyncio.run(downloader.main_url())
-                #         if not success:
-                #             logger.error(f"Список URL пуст для {url_start}. Пропускаю.")
-                #             tg_bot.send_message(
-                #                 f"Список URL пуст для {url_start}. Пропускаю."
-                #             )
-                #             continue  # Пропускаем текущий URL
-                #     except Exception as e:
-                #         logger.error(
-                #             f"Ошибка при выполнении main_url для {url_start}: {str(e)}"
-                #         )
-                #         tg_bot.send_message(
-                #             f"Ошибка при выполнении main_url для {url_start}: {str(e)}"
-                #         )
-                #         continue  # Пропускаем текущий URL
+                elif choice == "4":
+                    # Выполнение всех этапов
+                    start_time_now = datetime.now()
+                    tg_bot.send_message(f"Запуск парсера для {url_start}")
+                    downloader.get_all_page_html()
+                    # Уникальность првоеряем
+                    # parser.scrap_page_json()
+                    # Проверяем результат выполнения main_url
+                    try:
+                        success = asyncio.run(downloader.main_url())
+                        if not success:
+                            logger.error(f"Список URL пуст для {url_start}. Пропускаю.")
+                            tg_bot.send_message(
+                                f"Список URL пуст для {url_start}. Пропускаю."
+                            )
+                            continue  # Пропускаем текущий URL
+                    except Exception as e:
+                        logger.error(
+                            f"Ошибка при выполнении main_url для {url_start}: {str(e)}"
+                        )
+                        tg_bot.send_message(
+                            f"Ошибка при выполнении main_url для {url_start}: {str(e)}"
+                        )
+                        continue  # Пропускаем текущий URL
 
-                #     all_results = parser.parsing_html()
-                #     writer.save_results_to_json(all_results)
-                #     writer.save_json_to_excel()
-                #     parser.parsing_json()
-                #     end_time_now = datetime.now()
-                #     duration = end_time_now - start_time_now
-                #     minutes, seconds = divmod(duration.total_seconds(), 60)
-                #     tg_bot.send_message(
-                #         f"Обработка {url_start} завершена за {int(minutes)} мин {int(seconds)} сек"
-                #     )
-            # tg_bot.send_message("Все категории собраны")
+                    all_results = parser.parsing_html()
+                    writer.save_results_to_json(all_results)
+                    writer.save_json_to_excel()
+                    parser.parsing_json()
+                    end_time_now = datetime.now()
+                    duration = end_time_now - start_time_now
+                    minutes, seconds = divmod(duration.total_seconds(), 60)
+                    tg_bot.send_message(
+                        f"Обработка {url_start} завершена за {int(minutes)} мин {int(seconds)} сек"
+                    )
+            tg_bot.send_message("Все категории собраны")
             logger.info("Все категории собраны")
         elif choice == "5":
             shutil.rmtree(directories[-1])  # Удаление временных файлов
