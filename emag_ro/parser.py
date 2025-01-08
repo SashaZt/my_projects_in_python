@@ -40,6 +40,7 @@ class Parser:
 
     def scrap_all_page_json(self):
         # Обход JSON-файлов в директории
+        logger.info(self.json_files_directory)
         all_urls = set()
         for json_file in Path(self.json_files_directory).glob("*.json"):
             with json_file.open(encoding="utf-8") as file:

@@ -227,7 +227,7 @@ class Downloader:
 
                             logger.info(f"Результат сохранён в файл: {json_file}")
                             json_scrapy.unlink()
-                            logger.info(f"Файл удален: {json_scrapy}")
+                            # logger.info(f"Файл удален: {json_scrapy}")
                             return cleaned_body
                         except json.JSONDecodeError as e:
                             logger.error(
@@ -288,7 +288,7 @@ class Downloader:
             response = requests.post(api_url, json=payload, headers=headers, timeout=30)
 
             if response.status_code == 200:
-                logger.info("Успешный запрос!")
+                # logger.info("Успешный запрос!")
                 response_data = response.json()
                 job_id = response_data.get("id")
                 json_file = self.json_scrapy / f"{job_id}.json"

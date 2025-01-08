@@ -18,36 +18,17 @@ class Batch:
 
     def __init__(
         self,
-        min_count,
         api_key,
         html_files_directory,
         csv_output_file,
-        json_products,
-        json_scrapy,
-        url_start,
-        max_workers,
-        json_result,
-        xlsx_result,
-        json_page_directory,
-        use_ultra_premium,
         # tg_bot,
-        json_files_directory,
         job_file,
     ):
 
-        self.min_count = min_count
+        # self.min_count = min_count
         self.api_key = api_key
         self.html_files_directory = html_files_directory
-        self.json_files_directory = json_files_directory
         self.csv_output_file = csv_output_file
-        self.json_products = json_products
-        self.json_scrapy = json_scrapy
-        self.url_start = url_start
-        self.max_workers = max_workers
-        self.json_result = json_result
-        self.xlsx_result = xlsx_result
-        self.json_page_directory = json_page_directory
-        self.use_ultra_premium = use_ultra_premium
         self.job_file = job_file
 
     def load_jobs_from_file(self):
@@ -264,17 +245,6 @@ class Batch:
         except Exception as e:
             logger.error(f"Ошибка сохранения файла {filename}: {e}")
 
-    # def generate_file_name(self, url, output_dir):
-    #     """
-    #     Генерирует имя файла на основе URL.
-    #     """
-    #     url_parts = url.split("/")
-    #     last_part = url_parts[-1].split("?")
-    #     base_name = "_".join(
-    #         part.replace("-", "_") for part in url_parts[-3:-1] if part
-    #     )
-    #     file_name = f"{base_name}_{last_part[0].replace('-', '_')}.html"
-    #     return Path(output_dir) / file_name
     def generate_file_name(self, url, output_dir):
         """
         Генерирует имя файла на основе URL в формате pd_<last_part>.
@@ -307,8 +277,9 @@ class Batch:
         Returns:
             None
         """
-        if not os.path.exists(self.job_file):
-            logger.info(f"Файл {self.job_file} не найден. Очистка не требуется.")
+        logger.info(job_file)
+        if not os.path.exists(job_file):
+            logger.info(f"Файл {job_file} не найден. Очистка не требуется.")
             return
 
         try:
@@ -355,7 +326,6 @@ class Batch:
 
     # Рабочий вариант
     def main(self):
-
         # Очистка JOB_FILE перед обработкой
         self.clean_completed_jobs(self.job_file, self.html_files_directory)
         urls_to_scrape = self.read_csv(self.csv_output_file)
