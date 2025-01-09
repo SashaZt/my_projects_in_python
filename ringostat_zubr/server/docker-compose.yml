@@ -6,12 +6,14 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./app/configuration:/app/configuration
+      - ./app/configuration:/app/configuration # Локальная конфигурация
     env_file:
-      - ./app/configuration/.env
+      - ./app/configuration/.env # Переменные окружения для FastAPI
     depends_on:
-      - mysql
-
+      - mysql # Зависимость от MySQL
+    networks:
+      - my_network
+    restart: always
   mysql:
     build:
       context: ./mysql
@@ -19,6 +21,12 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - ./mysql/database:/var/lib/mysql
+      - ./mysql/database:/var/lib/mysql # Для данных базы данных
+      - ./mysql/configuration/my.cnf:/etc/mysql/my.cnf  # Подключение пользовательского my.cnf
     env_file:
-      - ./app/configuration/.env
+      - ./mysql/configuration/.env # Переменные окружения для MySQL
+    networks:
+      - my_network
+networks:
+  my_network:
+    name: my_network

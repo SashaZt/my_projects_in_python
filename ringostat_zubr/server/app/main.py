@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 import dependencies
 from configuration.logger_setup import logger
-from database import DatabaseInitializer
+from database import DatabaseInitializer,wait_for_db
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from get_routes import router as get_router  # Import the new GET routes
@@ -16,6 +16,7 @@ from get_routes import router as get_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db_initializer = DatabaseInitializer()
+    await wait_for_db()  # Убедитесь, что MySQL готов
     await db_initializer.create_database()
     await db_initializer.create_pool()
     await db_initializer.init_db()
@@ -24,16 +25,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-@app.get("/", response_class=HTMLResponse)
-async def read_root():
-    with open("templates/index.html", "r") as f:
-        html_content = f.read()
-    return HTMLResponse(content=html_content, status_code=200)
-
 
 # Подключаем маршруты API
 app.include_router(get_router)
@@ -71,7 +62,7 @@ if __name__ == "__main__":
         app,
         host="0.0.0.0",
         port=5000,
-        ssl_keyfile="/root/ringostat_zubr/key.pem",
-        ssl_certfile="/root/ringostat_zubr/cert.pem",
+        ssl_keyfile="/etc/ssl/private/key.pem",  # Укажите путь к ключу внутри контейнера
+        ssl_certfile="/etc/ssl/private/cert.pem",  # Укажите путь к сертификату внутри контейнера
         log_level="debug",
     )

@@ -12,13 +12,38 @@ env_path = os.path.join(os.getcwd(), "configuration", ".env")
 # Загрузить переменные из .env файла
 load_dotenv(dotenv_path=env_path)
 
+
 # Используйте переменные окружения для подключения к базе данных
 user_db = os.getenv("MYSQL_USER")
 user_db_password = os.getenv("MYSQL_PASSWORD")
 host_db = os.getenv("HOST_DB")
 port_db = int(os.getenv("PORT_DB", 3306))
 db_name = os.getenv("MYSQL_DATABASE")
-logger.info(user_db)
+logger.info(f"Host: {host_db}, Port: {port_db}, User: {user_db}, DB: {db_name}")
+
+
+
+async def wait_for_db():
+    """Ожидание доступности базы данных."""
+    logger.info("Проверяем доступность базы данных...")
+    for _ in range(10):  # Попытки подключения (10 раз)
+        try:
+            conn = await aiomysql.connect(
+                host=host_db,
+                port=port_db,
+                user=user_db,
+                password=user_db_password,
+                db=db_name,
+                autocommit=True,
+            )
+            conn.close()
+            logger.info("База данных доступна!")
+            return True
+        except Exception as e:
+            logger.warning(f"База данных недоступна, повтор через 5 секунды: {e}")
+            await asyncio.sleep(5)
+    logger.error("Не удалось подключиться к базе данных после 10 попыток.")
+    raise TimeoutError("База данных не доступна")
 
 
 class DatabaseInitializer:

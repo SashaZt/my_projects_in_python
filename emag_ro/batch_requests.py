@@ -116,7 +116,9 @@ class Batch:
             # Завершенные задания исключаются из remaining_jobs
             remaining_jobs += [job for job in results if job]
             completed_jobs_count += len(current_batch) - len(results)
-
+            if len(remaining_jobs) < 30:
+                remaining_jobs = 0
+                return remaining_jobs
             # Обновляем JOB_FILE
             await self.save_jobs_to_file(remaining_jobs)
             # Пауза в 30 секунд
@@ -166,28 +168,6 @@ class Batch:
         except Exception as e:
             logger.error(f"Error submitting batch job: {e}")
             return []
-
-    # async def fetch_data(self, session, status_url):
-    #     """
-    #     Извлекает данные из задания, если body отсутствует.
-
-    #     Args:
-    #         session (aiohttp.ClientSession): Сессия для выполнения HTTP-запроса.
-    #         status_url (str): URL завершенного задания.
-
-    #     Returns:
-    #         str or None: Содержимое ответа (body) или None, если запрос не удался.
-    #     """
-    #     try:
-    #         async with session.get(status_url) as response:
-    #             response.raise_for_status()
-    #             result = await response.json()
-
-    #             # Извлечение body
-    #             return result.get("response", {}).get("body", None)
-    #     except Exception as e:
-    #         logger.error(f"Ошибка извлечения данных из {status_url}: {e}")
-    #         return None
 
     async def scrape_and_save_batch(self, urls, max_concurrent_tasks=1000):
         """

@@ -1,19 +1,24 @@
-# Используем официальный образ Python 3.12
+# Используем базовый образ
 FROM python:3.12-slim
 
-# Устанавливаем рабочую директорию
+# Установим openssl для генерации ключей и сертификатов
+RUN apt-get update && apt-get install -y openssl
+
+# Создаём рабочую директорию
 WORKDIR /app
 
-# Копируем файл зависимостей
-COPY requirements.txt /app/requirements.txt
+# Копируем файлы приложения
+COPY . /app
+
+# Генерация SSL-ключей и сертификатов
+RUN mkdir -p /etc/ssl/private && \
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /etc/ssl/private/key.pem \
+    -out /etc/ssl/private/cert.pem \
+    -subj "/C=US/ST=State/L=City/O=Organization/OU=Unit/CN=localhost"
 
 # Устанавливаем зависимости и очищаем временные файлы
 RUN pip install --no-cache-dir -r requirements.txt && \
     rm -rf /root/.cache
-
-# Копируем исходный код приложения
-COPY . /app
-
-# Указываем открытые порты и запускаем приложение
-EXPOSE 5000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
+# Запуск приложения
+CMD ["python", "main.py"]

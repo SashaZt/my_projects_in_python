@@ -332,7 +332,7 @@ def process_google_drive_mp3_files():
         # Загрузка модели Whisper
         # model = whisper.load_model("base", device="cpu")
 
-        for file_info in mp3_files[3:6]:
+        for file_info in mp3_files:
             try:
                 file_name = file_info["name"]
                 file_link = file_info["link"]

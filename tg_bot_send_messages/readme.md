@@ -219,3 +219,31 @@ sudo docker load < tg_bot_send_messages-bot.tar
 
 ---
 
+Шаги для загрузки базы данных в контейнер
+1. Скопируйте файл дампа в контейнер
+Используйте команду docker cp для копирования файла Dump20250109.sql в контейнер MySQL:
+
+
+sudo docker cp Dump20250109.sql server-mysql-1:/tmp/Dump20250109.sql
+Замените server-mysql-1 на имя вашего контейнера MySQL.
+Файл будет скопирован в папку /tmp внутри контейнера.
+2. Импортируйте дамп внутри контейнера
+Подключитесь к контейнеру MySQL:
+
+
+sudo docker exec -it server-mysql-1 bash
+Внутри контейнера подключитесь к MySQL с пользователем python_mysql:
+
+
+mysql -u python_mysql -p
+Введите пароль python_mysql, а затем выполните импорт:
+
+
+SOURCE /tmp/Dump20250109.sql;
+3. Проверка
+После выполнения команды SOURCE, проверьте, что база данных импортирована:
+
+
+SHOW DATABASES;
+USE your_database_name;
+SHOW TABLES;

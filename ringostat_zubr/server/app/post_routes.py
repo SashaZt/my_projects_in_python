@@ -3,7 +3,7 @@ import json
 from configuration.logger_setup import logger  # Настройка логирования
 
 # Импорт класса для работы с базой данных
-from database import DatabaseInitializer
+from database import DatabaseInitializer,wait_for_db
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
@@ -13,6 +13,7 @@ router = APIRouter()
 async def get_db():
     db_initializer = DatabaseInitializer()
     # Создание базы данных, если она не существует
+    await wait_for_db()  # Убедитесь, что MySQL готов
     await db_initializer.create_database()
     await db_initializer.create_pool()  # Создание пула соединений к базе данных
     # Инициализация базы данных и создание необходимых таблиц
