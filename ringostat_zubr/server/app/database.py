@@ -13,11 +13,11 @@ env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(dotenv_path=env_path)
 
 # Используйте переменные окружения для подключения к базе данных
-user_db = os.getenv("USER_DB")
-user_db_password = os.getenv("USER_DB_PASSWORD")
+user_db = os.getenv("MYSQL_USER")
+user_db_password = os.getenv("MYSQL_PASSWORD")
 host_db = os.getenv("HOST_DB")
 port_db = int(os.getenv("PORT_DB", 3306))
-db_name = os.getenv("DB")
+db_name = os.getenv("MYSQL_DATABASE")
 logger.info(user_db)
 
 
