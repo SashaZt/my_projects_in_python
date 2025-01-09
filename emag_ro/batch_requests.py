@@ -1,5 +1,6 @@
 # Рабочий код для сайта scraperapi асинхронное скачивание файлов через сервис
 import asyncio
+import concurrent.futures
 import json
 import os
 from pathlib import Path
@@ -23,6 +24,7 @@ class Batch:
         csv_output_file,
         # tg_bot,
         job_file,
+        json_scrapy,
     ):
 
         # self.min_count = min_count
@@ -30,6 +32,7 @@ class Batch:
         self.html_files_directory = html_files_directory
         self.csv_output_file = csv_output_file
         self.job_file = job_file
+        self.json_scrapy = json_scrapy
 
     def load_jobs_from_file(self):
         """
@@ -136,7 +139,7 @@ class Batch:
         try:
             async with aiofiles.open(self.job_file, "w", encoding="utf-8") as file:
                 await file.write(json.dumps(job_response, indent=4, ensure_ascii=False))
-            logger.info(f"Задание сохранено в файл {self.job_file}.")
+            # logger.info(f"Задание сохранено в файл {self.job_file}.")
         except Exception as e:
             logger.error(f"Ошибка при сохранении задания в файл: {e}")
 
@@ -262,6 +265,7 @@ class Batch:
         """
         Фильтрует список URL, оставляя только те, для которых файлы еще не созданы.
         """
+
         return [
             url for url in urls if not self.generate_file_name(url, output_dir).exists()
         ]
@@ -277,11 +281,12 @@ class Batch:
         Returns:
             None
         """
-        logger.info(job_file)
+
         if not os.path.exists(job_file):
             logger.info(f"Файл {job_file} не найден. Очистка не требуется.")
             return
-
+        else:
+            logger.info(f"Файл есть {job_file}")
         try:
             # Загружаем задания из JOB_FILE
             with open(job_file, "r", encoding="utf-8") as file:
@@ -324,6 +329,51 @@ class Batch:
             logger.error(f"Ошибка при чтении CSV: {e}")
             return []
 
+    def process_batch(self, batch_instance):
+        """
+        Проверяет задания в одном экземпляре Batch, не удаляя файлы.
+
+        Args:
+            batch_instance (Batch): Экземпляр Batch для проверки.
+        """
+        logger.info(f"Начало проверки для {batch_instance.job_file}")
+        batch_instance.main()  # Основная проверка
+        logger.info(f"Проверка завершена для {batch_instance.job_file}")
+
+    def process_all_jobs_concurrently(self, batches, max_workers=10):
+        """
+        Обрабатывает проверки всех объектов Batch параллельно.
+
+        Args:
+            batches (list): Список объектов Batch.
+            max_workers (int): Количество параллельных потоков.
+        """
+        if not batches:
+            logger.info("Нет объектов Batch для обработки.")
+            return
+
+        logger.info(f"Найдено {len(batches)} объектов Batch для проверки.")
+
+        def process_batch_task(batch):
+            """
+            Обрабатывает один Batch в отдельном потоке.
+            """
+            self.process_batch(batch)
+
+        # Используем ThreadPoolExecutor для многопоточной обработки
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(process_batch_task, batch): batch for batch in batches
+            }
+
+            for future in concurrent.futures.as_completed(futures):
+                batch = futures[future]
+                try:
+                    future.result()
+                    logger.info(f"Batch для {batch.job_file} успешно проверен.")
+                except Exception as e:
+                    logger.error(f"Ошибка при проверке Batch {batch.job_file}: {e}")
+
     # Рабочий вариант
     def main(self):
         # Очистка JOB_FILE перед обработкой
@@ -332,10 +382,20 @@ class Batch:
         filtered_urls = self.filter_urls_to_scrape(
             urls_to_scrape, self.html_files_directory
         )
+        # Проверка на отсутствие заданий
+        if not filtered_urls:
+            logger.info(f"Все задания для {self.job_file} завершены.")
+
+            # Удаление файла задания
+            if os.path.exists(self.job_file):
+                os.remove(self.job_file)
+                logger.info(f"Файл {self.job_file} удалён.")
+            return
 
         if not filtered_urls and not os.path.exists(self.job_file):
             logger.info("Нет URL для обработки и активных заданий.")
         else:
+
             # Разбиваем filtered_urls на блоки по 50,000
             chunk_size = 40000
             chunks = [

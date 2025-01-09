@@ -50,12 +50,27 @@ def init_db():
             logger.info("Соединение с базой данных закрыто.")
 
 
+# def get_connection():
+#     """
+#     Получить соединение с базой данных.
+#     """
+#     try:
+#         conn = sqlite3.connect(DB_PATH)
+#         logger.info("Успешное подключение к базе данных.")
+#         return conn
+#     except sqlite3.Error as e:
+#         logger.error(f"Ошибка подключения к базе данных: {e}")
+#         raise
 def get_connection():
     """
-    Получить соединение с базой данных.
+    Получить соединение с базой данных SQLite с таймаутом.
     """
     try:
-        conn = sqlite3.connect(DB_PATH)
+        # Устанавливаем соединение с таймаутом и включаем режим WAL
+        conn = sqlite3.connect(DB_PATH, timeout=10)  # Таймаут в секундах
+        conn.execute("PRAGMA journal_mode=WAL;")  # Включаем WAL для предотвращения блокировок
+        conn.execute("PRAGMA synchronous=NORMAL;")  # Улучшаем производительность
+        conn.execute("PRAGMA foreign_keys=ON;")  # Включаем поддержку внешних ключей
         logger.info("Успешное подключение к базе данных.")
         return conn
     except sqlite3.Error as e:

@@ -236,7 +236,7 @@ class Downloader:
                             logger.error(f"Содержимое 'body': {extracted_body}")
                             return
                 else:
-                    logger.info("Задача ещё не завершена, повторная проверка...")
+                    # logger.info("Задача ещё не завершена, повторная проверка...")
                     time.sleep(retry_delay)  # Задержка перед следующим запросом
 
     def get_page_json(self, base, suffix, all_page):

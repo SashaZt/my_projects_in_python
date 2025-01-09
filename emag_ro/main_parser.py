@@ -444,7 +444,10 @@ def process_html():
 
     # Добавляем specifications_dict в output_data
     output_data = add_specifications_to_json(output_data, specifications_dict)
-
+    img_title_tag = soup.find("meta", {"property": "og:image"})
+    if img_title_tag:
+        img_title = img_title_tag.get("content") if img_title_tag else None
+    output_data["ecommerce"]["detail"]["products"][0]["img_title"] = img_title
     product_json = extract_json_product(soup)
     product_sku = product_json["sku"]
     output_data["ecommerce"]["detail"]["products"][0]["sku"] = product_sku

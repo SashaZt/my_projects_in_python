@@ -1,9 +1,8 @@
-import sqlite3
-
+import aiosqlite
 from config.logger_setup import logger
 from database import get_connection
 from telethon.tl.functions.channels import JoinChannelRequest
-
+from config.config import DB_PATH
 
 def add_groups(group_links: str):
     """
@@ -51,38 +50,67 @@ async def join_groups(client, group_links: list):
         except Exception as e:
             logger.error(f"Не удалось присоединиться к группе {link}: {e}")
 
-
-def get_groups_with_subscription():
+async def get_groups_with_subscription():
     """
-    Получить группы с активным статусом подписки.
+    Асинхронное получение групп с активным статусом подписки.
     """
-    conn = get_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            "SELECT id, group_link FROM groups WHERE subscription_status = 1"
-        )
-        groups = cursor.fetchall()
-        if not groups:
-            logger.info("В базе данных нет подписанных групп.")
-        else:
-            logger.info(f"Получено {len(groups)} подписанных групп из базы данных.")
-            logger.debug(f"Список подписанных групп: {groups}")
-
-        # Проверяем, что каждая группа имеет корректную структуру
-        valid_groups = [group for group in groups if len(group) > 1 and group[1]]
-        if len(valid_groups) != len(groups):
-            logger.warning(
-                f"Некорректные записи обнаружены в результатах: {len(groups) - len(valid_groups)} пропущено."
+    async with aiosqlite.connect(DB_PATH) as conn:
+        try:
+            cursor = await conn.execute(
+                "SELECT id, group_link FROM groups WHERE subscription_status = 1"
             )
+            groups = await cursor.fetchall()
+            await cursor.close()
 
-        return valid_groups
-    except sqlite3.Error as e:
-        logger.error(f"Ошибка при получении подписанных групп: {e}")
-        return []
-    finally:
-        conn.close()
-        logger.info(
-            "Соединение с базой данных закрыто после получения подписанных групп."
-        )
+            if not groups:
+                logger.info("В базе данных нет подписанных групп.")
+            else:
+                logger.info(f"Получено {len(groups)} подписанных групп из базы данных.")
+                logger.debug(f"Список подписанных групп: {groups}")
+
+            # Проверяем, что каждая группа имеет корректную структуру
+            valid_groups = [group for group in groups if len(group) > 1 and group[1]]
+            if len(valid_groups) != len(groups):
+                logger.warning(
+                    f"Некорректные записи обнаружены в результатах: {len(groups) - len(valid_groups)} пропущено."
+                )
+
+            return valid_groups
+        except aiosqlite.Error as e:
+            logger.error(f"Ошибка при получении подписанных групп: {e}")
+            return []
+# #РАБОЧИЙ
+# def get_groups_with_subscription():
+#     """
+#     Получить группы с активным статусом подписки.
+#     """
+#     conn = get_connection()
+#     cursor = conn.cursor()
+#     try:
+#         cursor.execute(
+#             "SELECT id, group_link FROM groups WHERE subscription_status = 1"
+#         )
+#         groups = cursor.fetchall()
+#         if not groups:
+#             logger.info("В базе данных нет подписанных групп.")
+#         else:
+#             logger.info(f"Получено {len(groups)} подписанных групп из базы данных.")
+#             logger.debug(f"Список подписанных групп: {groups}")
+
+#         # Проверяем, что каждая группа имеет корректную структуру
+#         valid_groups = [group for group in groups if len(group) > 1 and group[1]]
+#         if len(valid_groups) != len(groups):
+#             logger.warning(
+#                 f"Некорректные записи обнаружены в результатах: {len(groups) - len(valid_groups)} пропущено."
+#             )
+
+#         return valid_groups
+#     except sqlite3.Error as e:
+#         logger.error(f"Ошибка при получении подписанных групп: {e}")
+#         return []
+#     finally:
+#         conn.close()
+#         logger.info(
+#             "Соединение с базой данных закрыто после получения подписанных групп."
+#         )
 
