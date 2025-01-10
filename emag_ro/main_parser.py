@@ -351,6 +351,40 @@ def get_reviews_count(soup):
     return count_5, count_1
 
 
+def extract_images(soup):
+    images = []
+    # Находим основной блок галереи
+    ph_scroller = soup.find("div", class_="product-gallery-inner")
+
+    # Проверяем, что блок найден
+    if not ph_scroller:
+        return images
+
+    # Находим все контейнеры с классом thumbnail-wrapper
+    thumbnail_wrappers = ph_scroller.find_all("div", class_="thumbnail-wrapper")
+
+    for wrapper in thumbnail_wrappers:
+        # Извлекаем тег <a> и его атрибут href
+        link = wrapper.find("a", href=True)
+        original = link["href"] if link else ""
+
+        # Извлекаем тег <img> и его атрибуты src и alt
+        img = wrapper.find("img")
+        if img:
+            thumbnail = img.get("src", "")
+            alt = img.get("alt", "")
+        else:
+            # Если <img> нет, ищем <div class="preloader">
+            preloader = wrapper.find("div", class_="preloader")
+            thumbnail = preloader.get("data-src", "") if preloader else ""
+            alt = preloader.get("data-alt", "") if preloader else ""
+
+        # Добавляем данные в список
+        images.append({"original": original, "thumbnail": thumbnail, "alt": alt})
+
+    return images
+
+
 def process_html():
     html_file = "Polizor.html"
     # Чтение содержимого файла
@@ -381,7 +415,6 @@ def process_html():
                 except json.JSONDecodeError as e:
                     logger.error(f"Ошибка при парсинге JSON: {e}")
                     logger.error(f"Содержимое вызова dataLayer.push: {cleaned_data}")
-
     # Парсим объекты вида EM.key = value
     script_tag = soup.find(
         "script", string=lambda text: text and "var dataLayer=dataLayer||[]" in text
@@ -469,10 +502,12 @@ def process_html():
 
     secondary_offers_count = len(output_data.get("secondary_offers", []))
     output_data["secondary_offers_count"] = secondary_offers_count
+
     count_5, count_1 = get_reviews_count(soup)
     output_data["ecommerce"]["detail"]["products"][0]["positive_reviews"] = count_5
     output_data["ecommerce"]["detail"]["products"][0]["negative_reviews"] = count_1
 
+    output_data["ecommerce"]["detail"]["products"][0]["images"] = extract_images(soup)
     # Сохраняем оба JSON файла
     with open("output.json", "w", encoding="utf-8") as output_file:
         json.dump(output_data, output_file, indent=4, ensure_ascii=False)

@@ -169,7 +169,7 @@ class Downloader:
 
         # Тело запроса для ScraperAPI
         payload = {
-            "apiKey": "b7141d2b54426945a9f0bf6ab4c7bc54",  # Ваш API-ключ
+            "apiKey": self.api_key,  # Ваш API-ключ
             "url": target_url,  # Целевой URL
             "keep_headers": True,  # Указываем, что используем свои заголовки
             "method": "GET",  # HTTP-метод
@@ -279,7 +279,7 @@ class Downloader:
 
             # Тело запроса для ScraperAPI
             payload = {
-                "apiKey": "b7141d2b54426945a9f0bf6ab4c7bc54",  # Ваш API-ключ
+                "apiKey": self.api_key,  # Ваш API-ключ
                 "url": target_url,  # Целевой URL
                 "keep_headers": True,  # Указываем, что используем свои заголовки
                 "method": "GET",  # HTTP-метод
