@@ -1,17 +1,16 @@
+import os
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import gspread
+import pandas as pd
 import requests
 from configuration.logger_setup import logger
-import xml.etree.ElementTree as ET
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import pandas as pd
-import os
 from dotenv import load_dotenv
-from pathlib import Path
+from oauth2client.service_account import ServiceAccountCredentials
 
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(env_path)
-
-
 
 SPREADSHEET = os.getenv("SPREADSHEET")
 SHEET = os.getenv("SHEET")
@@ -35,7 +34,9 @@ def get_google_sheet():
             "https://www.googleapis.com/auth/drive.file",
             "https://www.googleapis.com/auth/drive",
         ]
-        creds = ServiceAccountCredentials.from_json_keyfile_name(service_account_file, scope)
+        creds = ServiceAccountCredentials.from_json_keyfile_name(
+            service_account_file, scope
+        )
         client = gspread.authorize(creds)
 
         # Открыть таблицу по ключу
@@ -54,6 +55,7 @@ def get_google_sheet():
 
 # Получение листа Google Sheets
 sheet = get_google_sheet()
+
 
 def download_xml():
     save_path = "sitemap.xml"
@@ -90,22 +92,52 @@ def download_xml():
     else:
         logger.error(f"Ошибка при скачивании файла: {response.status_code}")
 
+
 # Функция для парсинга XML и извлечения данных
+
+
 def parse_xml(file_path):
     tree = ET.parse(file_path)
     root = tree.getroot()
-    
+
     # Извлечение данных из XML
     items = []
-    for item in root.findall('item'):
+    for item in root.findall("item"):
         # Проверка на наличие элемента и текста
-        prod_name = item.find('prod_name').text.strip() if item.find('prod_name') is not None and item.find('prod_name').text is not None else ""
-        prod_symbol = item.find('prod_symbol').text.strip() if item.find('prod_symbol') is not None and item.find('prod_symbol').text is not None else ""
-        prod_ean = item.find('prod_ean').text.strip() if item.find('prod_ean') is not None and item.find('prod_ean').text is not None else ""
-        prod_tax_id = item.find('prod_tax_id').text.strip().replace('.', ',')  if item.find('prod_tax_id') is not None and item.find('prod_tax_id').text is not None else "0"
-        prod_amount = item.find('prod_amount').text.strip() if item.find('prod_amount') is not None and item.find('prod_amount').text is not None else "0"
-        
-        # items.append([prod_name, prod_symbol, prod_ean, prod_tax_id, prod_amount])
+        prod_name = (
+            item.find("prod_name").text.strip()
+            if item.find("prod_name") is not None
+            and item.find("prod_name").text is not None
+            else ""
+        )
+        prod_symbol = (
+            item.find("prod_symbol").text.strip()
+            if item.find("prod_symbol") is not None
+            and item.find("prod_symbol").text is not None
+            else ""
+        )
+        prod_ean = (
+            item.find("prod_ean").text.strip()
+            if item.find("prod_ean") is not None
+            and item.find("prod_ean").text is not None
+            else ""
+        )
+        prod_tax_id = (
+            item.find("prod_tax_id").text.strip().replace(".", ",")
+            if item.find("prod_tax_id") is not None
+            and item.find("prod_tax_id").text is not None
+            else "0"
+        )
+        prod_amount = (
+            item.find("prod_amount").text.strip()
+            if item.find("prod_amount") is not None
+            and item.find("prod_amount").text is not None
+            else "0"
+        )
+        prod_amount = int(
+            prod_amount.strip()
+        )  # Удаление лишних символов и преобразование
+
         result = {
             "Назва": prod_name,
             "Kod produktu": prod_symbol,
@@ -114,17 +146,24 @@ def parse_xml(file_path):
             "Quantity": prod_amount,
         }
         items.append(result)
-    update_sheet_with_data(sheet, items)
+    # Сортировка по полю "Quantity" от большего к меньшему
+    sorted_items = sorted(items, key=lambda x: x["Quantity"], reverse=True)
+    update_sheet_with_data(sheet, sorted_items)
     return items
+
+
 # Функция для сохранения данных в CSV
+
+
 def save_to_csv(data, csv_file_path):
     # Заголовки столбцов
     headers = ["Назва", "Kod produktu", "EAN", "Price netto", "Quantity"]
-    
+
     # Создание DataFrame и сохранение в CSV
     df = pd.DataFrame(data, columns=headers)
     df.to_csv(csv_file_path, index=False, encoding="utf-8-sig")
     print(f"Данные успешно сохранены в {csv_file_path}")
+
 
 def ensure_row_limit(sheet, required_rows=8000):
     """Увеличивает количество строк в листе Google Sheets, если оно меньше требуемого.
@@ -142,6 +181,8 @@ def ensure_row_limit(sheet, required_rows=8000):
 ensure_row_limit(sheet, 8000)
 
 # Функция для записи данных в указанные столбцы листа Google Sheets с использованием пакетного обновления
+
+
 def update_sheet_with_data(sheet, data, total_rows=8000):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления.
 
@@ -180,7 +221,8 @@ def update_sheet_with_data(sheet, data, total_rows=8000):
 
     # Добавляем пустые строки, если их меньше total_rows
     if len(rows) < total_rows:
-        empty_row = [""] * len(headers)  # Пустая строка с нужным числом столбцов
+        # Пустая строка с нужным числом столбцов
+        empty_row = [""] * len(headers)
         rows.extend([empty_row] * (total_rows - len(rows)))
 
     # Записываем данные начиная со второй строки
@@ -188,9 +230,11 @@ def update_sheet_with_data(sheet, data, total_rows=8000):
         65 + len(headers) - 1
     )  # Преобразуем номер колонки в букву (например, A, B, C)
     range_name = (
-        f"A2:{end_col}{total_rows + 1}"  # Диапазон включает заголовок и 1500 строк
+        # Диапазон включает заголовок и 1500 строк
+        f"A2:{end_col}{total_rows + 1}"
     )
     sheet.update(range_name=range_name, values=rows, value_input_option="USER_ENTERED")
+
 
 if __name__ == "__main__":
     download_xml()
@@ -198,7 +242,7 @@ if __name__ == "__main__":
     xml_file_path = "sitemap.xml"
     # Путь для сохранения CSV-файла
     csv_file_path = "products.csv"
-    
+
     # Извлечение данных из XML
     extracted_data = parse_xml(xml_file_path)
     # Сохранение данных в CSV

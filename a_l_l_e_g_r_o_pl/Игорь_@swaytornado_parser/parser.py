@@ -1491,6 +1491,7 @@ class Parser:
             price = float(price)  # Преобразуем в float
             if price.is_integer():  # Проверяем, является ли число целым
                 price = int(price)
+
         all_data = {
             "success": True,
             "id": int(self.pares_iditem(soup)),
@@ -1504,6 +1505,8 @@ class Parser:
             "count_sale": self.parse_sales_all_product(soup),
             "rating": self.parse_average_rating(soup),
             "reviews_count": self.parse_number_of_reviews(soup),
+            "Sales": int(self.parse_sales_product(soup)),
+            "Sales_all": int(self.parse_sales_all_product(soup)),
             "same_offers_id": self.pares_productid(soup),
             "same_offers_count": self.parse_other_product_offers(soup),
             "seller_id": int(self.pares_sellerid(soup)),
