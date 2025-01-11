@@ -18,6 +18,7 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 db_lock = Lock()
 
+
 # Состояния для рассылки сообщений
 class BroadcastStates(StatesGroup):
     waiting_for_message = State()
@@ -138,16 +139,64 @@ async def add_message_handler(message: Message):
 
     await message.reply("Введите текст сообщения для добавления в базу данных:")
 
-# Рабочий код
+
+# # Рабочий код отправки сообщений
+# @dp.message(BroadcastStates.waiting_for_message)
+# async def process_broadcast_message(message: Message, state: FSMContext):
+#     """
+#     Выполнение рассылки сообщения от имени пользователя.
+#     """
+#     logger.info(f"Пользователь {message.from_user.id} вводит текст для рассылки: {message.text}")
+#     try:
+#         # async with db_lock:  # Синхронизация доступа к базе данных
+#         #     groups = get_groups_with_subscription()
+#         async with db_lock:
+#             groups = await get_groups_with_subscription()
+#         if not groups:
+#             await message.reply("Нет подписанных групп для рассылки.")
+#             await state.clear()
+#             return
+
+#         broadcast_message = message.text.strip()
+#         if not broadcast_message:
+#             await message.reply("Сообщение для рассылки не может быть пустым.")
+#             await state.clear()
+#             return
+
+#         # Авторизация пользователя
+#         client = await authorize()
+
+#         # Рассылка сообщений
+#         for group in groups:
+#             try:
+#                 await client.send_message(group[1], broadcast_message)
+#                 logger.info(f"Сообщение отправлено в группу: {group[1]}")
+
+#                 # Рандомная пауза с диапазоном из конфига
+#                 pause_duration = random.uniform(PAUSE_MIN, PAUSE_MAX)
+#                 logger.info(f"Ожидание {pause_duration:.2f} секунд перед следующей отправкой.")
+#                 await asyncio.sleep(pause_duration)
+#             except Exception as e:
+#                 logger.error(f"Ошибка при отправке сообщения в группу {group[1]}: {e}")
+
+
+#         await message.reply("Рассылка завершена.")
+#     except Exception as e:
+#         logger.error(f"Ошибка при рассылке: {e}")
+#         await message.reply(f"Ошибка при рассылке: {e}")
+#     finally:
+#         await state.clear()
+#         if client:
+#             await client.disconnect()  # Отключаем клиента
 @dp.message(BroadcastStates.waiting_for_message)
 async def process_broadcast_message(message: Message, state: FSMContext):
     """
-    Выполнение рассылки сообщения от имени пользователя.
+    Выполнение рассылки сообщения от имени пользователя с повторением через заданные интервалы.
     """
-    logger.info(f"Пользователь {message.from_user.id} вводит текст для рассылки: {message.text}")
+    logger.info(
+        f"Пользователь {message.from_user.id} вводит текст для рассылки: {message.text}"
+    )
     try:
-        # async with db_lock:  # Синхронизация доступа к базе данных
-        #     groups = get_groups_with_subscription()
         async with db_lock:
             groups = await get_groups_with_subscription()
         if not groups:
@@ -161,31 +210,50 @@ async def process_broadcast_message(message: Message, state: FSMContext):
             await state.clear()
             return
 
-        # Авторизация пользователя
-        client = await authorize()
+        # Запрашиваем количество повторений и интервал
+        repetitions = 3  # Количество повторений
+        interval = 2 * 60 * 60  # Интервал между рассылками в секундах (2 часа)
 
-        # Рассылка сообщений
-        for group in groups:
-            try:
-                await client.send_message(group[1], broadcast_message)
-                logger.info(f"Сообщение отправлено в группу: {group[1]}")
+        for attempt in range(repetitions):
+            logger.info(f"Начало рассылки {attempt + 1} из {repetitions}.")
+            client = await authorize()  # Авторизация пользователя
 
-                # Рандомная пауза с диапазоном из конфига
-                pause_duration = random.uniform(PAUSE_MIN, PAUSE_MAX)
-                logger.info(f"Ожидание {pause_duration:.2f} секунд перед следующей отправкой.")
-                await asyncio.sleep(pause_duration)
-            except Exception as e:
-                logger.error(f"Ошибка при отправке сообщения в группу {group[1]}: {e}")
+            # Рассылка сообщений
+            for group in groups:
+                try:
+                    await client.send_message(group[1], broadcast_message)
+                    logger.info(f"Сообщение отправлено в группу: {group[1]}")
 
-        await message.reply("Рассылка завершена.")
+                    # Рандомная пауза с диапазоном из конфига
+                    pause_duration = random.uniform(PAUSE_MIN, PAUSE_MAX)
+                    logger.info(
+                        f"Ожидание {pause_duration:.2f} секунд перед следующей отправкой."
+                    )
+                    await asyncio.sleep(pause_duration)
+                except Exception as e:
+                    logger.error(
+                        f"Ошибка при отправке сообщения в группу {group[1]}: {e}"
+                    )
+
+            await client.disconnect()  # Отключаем клиента
+            logger.info(f"Рассылка {attempt + 1} завершена.")
+
+            # Если это не последняя итерация, ожидаем перед повторной рассылкой
+            if attempt < repetitions - 1:
+                logger.info(
+                    f"Ожидание {interval // 3600} часов перед следующей рассылкой."
+                )
+                await asyncio.sleep(interval)
+
+        await message.reply("Все рассылки завершены.")
     except Exception as e:
         logger.error(f"Ошибка при рассылке: {e}")
         await message.reply(f"Ошибка при рассылке: {e}")
     finally:
         await state.clear()
-        if client:
-            await client.disconnect()  # Отключаем клиента
-#РАБОЧИЙ
+
+
+# РАБОЧИЙ
 # async def process_broadcast_message(message: Message, state: FSMContext):
 #     """
 #     Выполнение рассылки сообщения от имени пользователя.
@@ -236,9 +304,6 @@ async def process_broadcast_message(message: Message, state: FSMContext):
 #         await state.clear()
 #         if client:
 #             await client.disconnect()  # Отключаем клиента
-
-
-
 
 
 @dp.message(

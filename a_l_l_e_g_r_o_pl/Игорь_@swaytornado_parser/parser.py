@@ -393,11 +393,6 @@ class Parser:
         # Многопоточная обработка файлов
         all_results = []
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # ПОСЕЛ ТЕСТА ОТКРЫТЬ
-            # futures = {
-            #     executor.submit(self.parse_single_html, file_html): file_html
-            #     for file_html in all_files
-            # }
             futures = {
                 executor.submit(self.parse_single_html_json, file_html): file_html
                 for file_html in all_files
@@ -487,7 +482,7 @@ class Parser:
         """
         Извлекает параметры веса, длины, ширины и высоты из переданного словаря.
 
-        :param parametry: Словарь с параметрами продукта.
+        :param soup: Объект BeautifulSoup для анализа HTML.
         :return: Кортеж из четырех переменных (weight, length, width, height).
         """
         # Инициализация переменных
@@ -495,21 +490,28 @@ class Parser:
         length = None
         width = None
         height = None
+
+        # Извлечение параметров
         parametry = self.extract_params(soup)
+
+        # Проверка, что parametry не None
+        if parametry is None:
+            return weight, length, width, height
+
         # Проверка наличия параметров и присвоение значений переменным
         if (
             "Waga" in parametry
             or "Waga produktu z opakowaniem jednostkowym" in parametry
         ):
             weight = parametry.get("Waga") or parametry.get(
-                "Waga produktu z opakowaniem jednostkowym"
+                "Waga produktu z опаковaniem jednostkowym"
             )
 
         if "Głębokość" in parametry or "Głębokość produktu" in parametry:
-            length = parametry.get("Głębokość") or parametry.get("Głębokość produktu")
+            length = parametry.get("Głębokość") or parametry.get("Głębокоść продукта")
 
         if "Szerokość" in parametry or "Szerokość produktu" in parametry:
-            width = parametry.get("Szerokość") or parametry.get("Szerokość produktu")
+            width = parametry.get("Szerokość") or parametry.get("Szerокоść продукта")
 
         if "Wysokość" in parametry or "Wysokość produktu" in parametry:
             height = parametry.get("Wysokość") or parametry.get("Wysokość продукта")
@@ -781,9 +783,15 @@ class Parser:
 
         # Словарь для хранения всех параметров singleValueParams
         params_dict = {}
+        if json_data is None:
+            return None
+
+        groups = json_data.get("groups", [])
+        if not groups:
+            return None
 
         # Проходим по всем группам в "groups"
-        for group in json_data.get("groups", []):
+        for group in groups:
             # Проходим по всем параметрам в "singleValueParams"
             for param in group.get("singleValueParams", []):
                 # Получаем название параметра и его значение
@@ -1491,6 +1499,11 @@ class Parser:
             price = float(price)  # Преобразуем в float
             if price.is_integer():  # Проверяем, является ли число целым
                 price = int(price)
+        sales = self.parse_sales_product(soup)
+        if sales is not None:
+            sales = int(self.parse_sales_product(soup))
+        else:
+            sales = 0
 
         all_data = {
             "success": True,
@@ -1501,12 +1514,12 @@ class Parser:
             "price": price,
             "price_with_delivery": 0,
             "availableQuantity": self.parse_warehouse_balances(soup),
+            "Sales": sales,
+            "Sales_all": int(self.parse_sales_all_product(soup)),
             "buyers": self.parse_other_product_offers(soup),
             "count_sale": self.parse_sales_all_product(soup),
             "rating": self.parse_average_rating(soup),
             "reviews_count": self.parse_number_of_reviews(soup),
-            "Sales": int(self.parse_sales_product(soup)),
-            "Sales_all": int(self.parse_sales_all_product(soup)),
             "same_offers_id": self.pares_productid(soup),
             "same_offers_count": self.parse_other_product_offers(soup),
             "seller_id": int(self.pares_sellerid(soup)),
@@ -1772,7 +1785,7 @@ class Parser:
         parent_directory.mkdir(parents=True, exist_ok=True)
         directory.mkdir(parents=True, exist_ok=True)
 
-        json_result = directory / f"{self.pares_iditem(soup)}.json"
+        json_result = self.json_products / f"{self.pares_iditem(soup)}.json"
         # logger.info(json_result)
         with open(json_result, "w", encoding="utf-8") as json_file:
             json.dump(all_data, json_file, indent=4, ensure_ascii=False)
