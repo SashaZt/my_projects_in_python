@@ -1,0 +1,2 @@
+# Запуск Python-скрипта каждые 15 минут с 7:00 до 21:00
+*/2 7-23 * * * python /client/main.py >> /var/log/cron.log 2>&1

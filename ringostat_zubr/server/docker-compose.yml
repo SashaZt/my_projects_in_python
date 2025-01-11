@@ -27,6 +27,19 @@ services:
       - ./mysql/configuration/.env # Переменные окружения для MySQL
     networks:
       - my_network
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    volumes:
+      - ./client:/client  # Монтирование клиентской директории
+    env_file:
+      - ./client/configuration/.env
+    depends_on:
+      - app
+    networks:
+      - my_network
+    restart: always
 networks:
   my_network:
     name: my_network

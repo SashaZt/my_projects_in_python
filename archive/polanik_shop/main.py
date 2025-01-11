@@ -291,10 +291,6 @@ def get_parsing():
         }
         all_data.append(result)
     update_sheet_with_data(sheet, all_data)
-    # data_df = pd.DataFrame(all_data)
-
-    # # Сохраняем данные в новый Excel файл
-    # data_df.to_excel(directories["results_report"], index=False)
 
 
 # Увеличение количества строк на листе до 1500, если необходимо
