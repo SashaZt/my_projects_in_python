@@ -37,6 +37,7 @@ temp_data_output_file = data_directory / "temp_data.json"
 recordings_output_file = data_directory / "recording.json"
 result_output_file = data_directory / "result.json"
 invalid_json = data_directory / "invalid.json"
+PROCESSED_FILES_CACHE = data_directory / "processed_files.json"
 service_account_file = configuration_directory / "service_account.json"
 
 # Принудительно включаем TLS 1.2
@@ -121,6 +122,10 @@ def fetch_all_data():
         json_invalid = load_data_from_file(invalid_json)
         deleting_data_in_database(json_invalid)
     for call in calls:
+        # Пропускаем записи с talk_time = 0 или null
+        talk_time = call.get("talk_time")
+        if talk_time in [0, None]:  # Проверяем, если значение 0 или None
+            continue
         call_recording = call.get("call_recording")  # Получение записи
         call_date = call.get("call_date")  # Получение даты
         caller_number = call.get("caller_number")  # Получение номера
@@ -329,8 +334,34 @@ def task_upload_to_google_drive():
 
     except Exception as e:
         logger.error(f"An error occurred: {e}\n")
+def load_processed_files():
+    """
+    Загружает список обработанных файлов из локального кэша.
+    Если кэш отсутствует, возвращает пустой список.
+    """
+    if Path(PROCESSED_FILES_CACHE).exists():
+        with open(PROCESSED_FILES_CACHE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
+def save_processed_files(processed_files):
+    """
+    Сохраняет обновлённый список обработанных файлов в локальный кэш.
+    """
+    with open(PROCESSED_FILES_CACHE, "w", encoding="utf-8") as f:
+        json.dump(processed_files, f, ensure_ascii=False, indent=4)
 
+def get_new_files_from_drive(mp3_files, processed_files):
+    """
+    Находит файлы из Google Drive, которых нет в локальном кэше.
+    :param mp3_files: Список файлов из Google Drive.
+    :param processed_files: Список обработанных файлов из локального кэша.
+    :return: Список новых файлов для обработки.
+    """
+    processed_file_names = {entry["file_name"] for entry in processed_files}
+    return [
+        file for file in mp3_files if file["name"] not in processed_file_names
+    ]
 def process_google_drive_mp3_files():
     """
     Получает MP3 файлы из Google Drive, транскрибирует их и записывает результаты в Google Sheets.
@@ -340,32 +371,55 @@ def process_google_drive_mp3_files():
         # Подключение к Google Sheets
         sheet = connect_to_google_sheets(sheet_id)
 
-        # # Получаем уже существующие записи из первой колонки
-        existing_rows = sheet.get_all_values()  # Получаем все строки
-        existing_files = {
-            row[-1] for row in existing_rows[1:] if row
-        }  # Имена файлов в последней колонке
+        # # # Получаем уже существующие записи из первой колонки
+        # existing_rows = sheet.get_all_values()  # Получаем все строки
+        # existing_files = {
+        #     row[-1] for row in existing_rows[1:] if row
+        # }  # Имена файлов в последней колонке
+        existing_rows = sheet.get_all_values()
+
+        # Преобразуем данные в список словарей, анализируя последнюю колонку
+        existing_files = [
+            {"transcript_id": row[-1], "Имя файла": row[-2]}
+            for row in existing_rows[1:] if len(row) >= 2
+        ]
+
+        # Преобразуем данные в два отдельных множества для быстрой проверки
+        existing_transcripts = {entry["transcript_id"] for entry in existing_files}
+        existing_file_names = {entry["Имя файла"] for entry in existing_files}
 
         # Создаём объект Google Drive
         drive = create_drive_instance()
-
+        # Загружаем обработанные файлы
+        processed_files = load_processed_files()
         # Получаем список MP3 файлов
         mp3_files = get_mp3_files_from_google_drive(drive)
+        new_files = get_new_files_from_drive(mp3_files, processed_files)
+        
         invalid_data = []
-        for file_info in mp3_files:
+        
+        logger.info(f"Найдено {len(new_files)} новых файлов для обработки.")
+        for file_info in new_files:
             try:
 
                 file_name = file_info["name"]
                 file_link = file_info["link"]
                 transcript_id = get_id_tr(file_name)
 
-                # Проверяем, есть ли файл уже в таблице
-                if transcript_id in existing_files:
-                    logger.info(
-                        f"Файл {
-                            transcript_id} уже существует в Google Sheets. Пропуск..."
-                    )
+                # # Проверяем, есть ли файл уже в таблице
+                # if transcript_id in existing_files:
+                #     logger.info(
+                #         f"Файл {
+                #             transcript_id} уже существует в Google Sheets. Пропуск..."
+                #     )
+                #     continue
+                # Проверяем наличие transcript_id или file_name в существующих данных
+                if transcript_id in existing_transcripts or file_name in existing_file_names:
+                    logger.info(f'Добавили в кеш {file_name}')
+                     # Добавляем обработанный файл в локальный кэш
+                    processed_files.append({"transcript_id": transcript_id, "file_name": file_name})
                     continue
+
                 if transcript_id:
                     # Если transcript_title совпадает с file_name и есть transcript_id
                     result_text = get_transcrip(transcript_id)
@@ -411,6 +465,10 @@ def process_google_drive_mp3_files():
         # Сохраняем данные в файл result.json
         with open(invalid_json, "w", encoding="utf-8") as f:
             json.dump(invalid_data, f, ensure_ascii=False, indent=4)
+        
+        save_processed_files(processed_files)
+        logger.info(f"Обновлённый кэш сохранён в {PROCESSED_FILES_CACHE}.")
+
     except Exception as e:
         logger.error(f"Ошибка при обработке Google Drive: {e}")
 
@@ -764,7 +822,10 @@ def write_dict_to_google_sheets(data_dict):
 
 
 def deleting_data_in_database(data):
-    logger.info(data)
+    # Если data пустой список, логируем сообщение и пропускаем
+    if not data:
+        logger.info("Список данных пуст, пропуск выполнения.")
+        return
     # URL API для удаления записей
     url = f"https://{IP}/delete_records"
     # Заголовки запроса

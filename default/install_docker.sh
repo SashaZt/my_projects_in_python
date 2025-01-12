@@ -4,6 +4,12 @@
 # chmod +x install_docker.sh
 # ./install_docker.sh
 
+# Устанавливаем временную зону на Киев
+echo "Настройка времени на Киев..."
+sudo timedatectl set-timezone Europe/Kiev
+echo "Текущее время и временная зона:"
+timedatectl
+
 # Обновляем пакетный индекс
 sudo apt-get update
 

@@ -6,6 +6,12 @@ from configuration.logger_setup import logger  # Настройка логиро
 from database import DatabaseInitializer,wait_for_db
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException
+from database import DatabaseInitializer
+from pydantic import BaseModel
+from typing import List
+from loguru import logger
+
 
 router = APIRouter()
 
@@ -20,6 +26,12 @@ async def get_db():
     await db_initializer.init_db()
     return db_initializer
 
+# Модель для входных данных
+class DeleteRecord(BaseModel):
+    call_date: str
+    caller_number: str
+    employee_ext_number: str
+    employee: str
 
 @router.post("/ringostat_zubr")
 async def ringostat_post(request: Request, db=Depends(get_db)):

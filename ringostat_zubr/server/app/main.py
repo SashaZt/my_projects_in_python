@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from get_routes import router as get_router
+from delete_routes import router as delete_routes
 
 
 @asynccontextmanager
@@ -52,6 +53,7 @@ async def log_middleware(request: Request, call_next):
 # Подключение маршрутов
 app.include_router(post_router)
 app.include_router(get_router)  # Include the new router
+app.include_router(delete_routes)  # Include the new router
 
 
 if __name__ == "__main__":

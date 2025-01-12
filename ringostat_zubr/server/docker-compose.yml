@@ -7,6 +7,8 @@ services:
       - "5000:5000"
     volumes:
       - ./app/configuration:/app/configuration # Локальная конфигурация
+      - /etc/localtime:/etc/localtime:ro  # Использование временной зоны хоста
+      - /etc/timezone:/etc/timezone:ro   # Использование временной зоны хоста
     env_file:
       - ./app/configuration/.env # Переменные окружения для FastAPI
     depends_on:
@@ -23,6 +25,8 @@ services:
     volumes:
       - ./mysql/database:/var/lib/mysql # Для данных базы данных
       - ./mysql/configuration/my.cnf:/etc/mysql/my.cnf  # Подключение пользовательского my.cnf
+      - /etc/localtime:/etc/localtime:ro  # Использование временной зоны хоста
+      - /etc/timezone:/etc/timezone:ro   # Использование временной зоны хоста
     env_file:
       - ./mysql/configuration/.env # Переменные окружения для MySQL
     networks:
@@ -33,6 +37,8 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./client:/client  # Монтирование клиентской директории
+      - /etc/localtime:/etc/localtime:ro  # Использование временной зоны хоста
+      - /etc/timezone:/etc/timezone:ro   # Использование временной зоны хоста
     env_file:
       - ./client/configuration/.env
     depends_on:
