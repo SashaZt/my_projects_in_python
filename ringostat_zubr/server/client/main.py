@@ -428,7 +428,8 @@ def process_google_drive_mp3_files():
                     if transcript_id is None:
                         datas = parse_mp3_filename_sql(file_name)
                         invalid_data.append(datas)
-                        # logger.warning(f"Не удалось получить transcript_id для {file_name}. Удаляем файл из Google Drive.")
+                        
+                        logger.error(f"Не удалось получить transcript_id для {file_name}. Удаляем файл из Google Drive.")
                         # Поиск файла в Google Drive
                         query = f"title = '{file_name}' and trashed = false"
                         try:
@@ -447,6 +448,8 @@ def process_google_drive_mp3_files():
                             logger.error(f"Ошибка при поиске файла {file_name}: {e}")
 
                     result_text = get_transcrip(transcript_id)
+                # if transcript_id is not None:
+                logger.debug(f"Подготовка данных для записи: {file_name}, transcript_id: {transcript_id}")
 
                 # Формируем данные для записи
                 all_data = parse_mp3_filename(file_name)
@@ -459,6 +462,7 @@ def process_google_drive_mp3_files():
                 write_dict_to_google_sheets(all_data)
 
             except Exception as e:
+                # ОТКРЫТЬ КАК ПРОТЕСТИРУЮ
                 logger.error(f"Ошибка при обработке файла {file_name}: {e}")
                 datas = parse_mp3_filename_sql(file_name)
                 invalid_data.append(datas)
