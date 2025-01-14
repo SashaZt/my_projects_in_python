@@ -1,6 +1,9 @@
-import requests
+import sys
 
-# Ваш API ключ
+import requests
+from configuration.logger_setup import logger
+
+# API ключ
 api_key = "bb92ee43-b90e-4516-9483-63ae06351b64"
 
 # URL для GraphQL
@@ -62,21 +65,22 @@ def get_transcript_summary(transcript_id):
                 "summary": transcript.get("summary", {}),
             }
         else:
-            print("Ошибка: данные не найдены.")
-            print(data)
+            logger.error("Ошибка: данные не найдены.")
+            logger.error(data)
     else:
-        print(f"Ошибка запроса: {response.status_code}")
-        print(response.text)
+        logger.error(f"Ошибка запроса: {response.status_code}")
+        logger.error(response.text)
 
 
 # Пример использования функции
 if __name__ == "__main__":
     transcript_id = "sOCb1BMUWFEOO5oT"  # Укажите реальный ID транскрипции
     result = get_transcript_summary(transcript_id)
-
-    if result:
-        print(f"ID: {result['id']}")
-        print(f"Title: {result['title']}")
-        print("Summary:")
-        for key, value in result["summary"].items():
-            print(f"{key}: {value}")
+    logger.info(result.get("summary", {}).get("overview", None))
+    logger.info(result.get("summary", {}).get("shorthand_bullet", None))
+    # if result:
+    #     logger.info(f"ID: {result['id']}")
+    #     logger.info(f"Title: {result['title']}")
+    #     logger.info("Summary:")
+    #     for key, value in result["summary"].items():
+    #         logger.info(f"{key}: {value}")

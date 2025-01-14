@@ -67,6 +67,9 @@ class Downloader:
                                     f"Статус задачи для {status_url}: {job_status}"
                                 )
                                 all_finished = False  # Еще есть незавершенные задачи
+                        elif response.status_code == 404:
+                            json_file.unlink()
+
                         else:
                             logger.error(
                                 f"Ошибка при получении статуса задачи: {response.status_code}"
@@ -127,6 +130,7 @@ class Downloader:
                 if html_company.exists():
                     continue
                 url = f"https://allegro.pl/oferta/{url_id}"
+                logger.info(url)
                 success = False
                 # Бесконечный цикл до успешного выполнения
                 while not success:
