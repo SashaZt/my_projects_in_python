@@ -20,11 +20,17 @@ from pydrive2.drive import GoogleDrive
 # logger.info("Loading environment variables from .env file")
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(env_path)
-folder_id = os.getenv("FOLDER_ID")
-sheet_id = os.getenv("sheet_id")
 IP = os.getenv("IP")
 FOLDER_ID = os.getenv("FOLDER_ID")
+SHEET_ID = os.getenv("SHEET_ID")
+API_KEY = os.getenv("API_KEY")
+GRAPHQL_URL = os.getenv("GRAPHQL_URL")
 
+# Заголовки для запроса
+headers_api = {
+    "Authorization": f"Bearer {API_KEY}",
+    "Content-Type": "application/json",
+}
 
 # Путь к папкам и файлу для данных
 current_directory = Path.cwd()
@@ -109,14 +115,15 @@ def comparison_tables(mp3_files_drive, mp3_files_sql):
 
 
 def fetch_all_data():
-    
     """Загружает данные из файла result.json и применяет фильтры, выводя результат в интерфейсе"""
     # data = load_data_from_file()
     # Создаём объект Google Drive
+    logger.info("Пауза в 10 сек перед запуском")
+    time.sleep(10)
     drive = create_drive_instance()
     all_recordings = []
     calls = download_data_to_file()
-    #Удалем из БД файлы которые не нужны
+    # Удалем из БД файлы которые не нужны
     if invalid_json.exists():
         logger.info(f"Файл есть {invalid_json}")
         json_invalid = load_data_from_file(invalid_json)
@@ -181,13 +188,13 @@ def create_drive_instance():
 #     """
 #     Получает список MP3 файлов из указанной папки на Google Drive.
 
-#     :param folder_id: ID папки на Google Drive
+#     :param FOLDER_ID: ID папки на Google Drive
 #     :param drive: Объект GoogleDrive
 #     :return: Список словарей с информацией о файлах (имя и ссылка на загрузку)
 #     """
 #     try:
 #         query = f"'{
-#             folder_id}' in parents and mimeType='audio/mpeg' and trashed=false"
+#             FOLDER_ID}' in parents and mimeType='audio/mpeg' and trashed=false"
 #         file_list = drive.ListFile({"q": query}).GetList()
 
 #         mp3_files = []
@@ -213,7 +220,7 @@ def get_mp3_files_from_google_drive(drive):
     :return: Список словарей с информацией о файлах (имя и ссылка на загрузку)
     """
     query = f"'{
-        folder_id}' in parents and mimeType='audio/mpeg' and trashed=false"
+        FOLDER_ID}' in parents and mimeType='audio/mpeg' and trashed=false"
     try:
         for attempt in range(3):  # 3 попытки
             try:
@@ -287,10 +294,7 @@ def task_download_and_convert_to_mp3(datas):
                     # Удаление оригинального WAV файла
                     os.remove(wav_file_path)
                 else:
-                    logger.error(
-                        f"Failed to download: {call_recording_url} (status code: {
-                            response.status_code})\n",
-                    )
+                    logger.error(f"Failed to download: {call_recording_url} (status code: {response.status_code})")
 
             except Exception as e:
                 logger.error(f"An error occurred: {e}\n")
@@ -334,6 +338,8 @@ def task_upload_to_google_drive():
 
     except Exception as e:
         logger.error(f"An error occurred: {e}\n")
+
+
 def load_processed_files():
     """
     Загружает список обработанных файлов из локального кэша.
@@ -344,12 +350,14 @@ def load_processed_files():
             return json.load(f)
     return []
 
+
 def save_processed_files(processed_files):
     """
     Сохраняет обновлённый список обработанных файлов в локальный кэш.
     """
     with open(PROCESSED_FILES_CACHE, "w", encoding="utf-8") as f:
         json.dump(processed_files, f, ensure_ascii=False, indent=4)
+
 
 def get_new_files_from_drive(mp3_files, processed_files):
     """
@@ -359,17 +367,17 @@ def get_new_files_from_drive(mp3_files, processed_files):
     :return: Список новых файлов для обработки.
     """
     processed_file_names = {entry["file_name"] for entry in processed_files}
-    return [
-        file for file in mp3_files if file["name"] not in processed_file_names
-    ]
+    return [file for file in mp3_files if file["name"] not in processed_file_names]
+
+
 def process_google_drive_mp3_files():
     """
     Получает MP3 файлы из Google Drive, транскрибирует их и записывает результаты в Google Sheets.
     """
     try:
-       
+
         # Подключение к Google Sheets
-        sheet = connect_to_google_sheets(sheet_id)
+        sheet = connect_to_google_sheets(SHEET_ID)
 
         # # # Получаем уже существующие записи из первой колонки
         # existing_rows = sheet.get_all_values()  # Получаем все строки
@@ -381,7 +389,8 @@ def process_google_drive_mp3_files():
         # Преобразуем данные в список словарей, анализируя последнюю колонку
         existing_files = [
             {"transcript_id": row[-1], "Имя файла": row[-2]}
-            for row in existing_rows[1:] if len(row) >= 2
+            for row in existing_rows[1:]
+            if len(row) >= 2
         ]
 
         # Преобразуем данные в два отдельных множества для быстрой проверки
@@ -395,9 +404,9 @@ def process_google_drive_mp3_files():
         # Получаем список MP3 файлов
         mp3_files = get_mp3_files_from_google_drive(drive)
         new_files = get_new_files_from_drive(mp3_files, processed_files)
-        
+
         invalid_data = []
-        
+
         logger.info(f"Найдено {len(new_files)} новых файлов для обработки.")
         for file_info in new_files:
             try:
@@ -406,30 +415,35 @@ def process_google_drive_mp3_files():
                 file_link = file_info["link"]
                 transcript_id = get_id_tr(file_name)
 
-                # # Проверяем, есть ли файл уже в таблице
-                # if transcript_id in existing_files:
-                #     logger.info(
-                #         f"Файл {
-                #             transcript_id} уже существует в Google Sheets. Пропуск..."
-                #     )
-                #     continue
                 # Проверяем наличие transcript_id или file_name в существующих данных
-                if transcript_id in existing_transcripts or file_name in existing_file_names:
-                    logger.info(f'Добавили в кеш {file_name}')
-                     # Добавляем обработанный файл в локальный кэш
-                    processed_files.append({"transcript_id": transcript_id, "file_name": file_name})
+                if (
+                    transcript_id in existing_transcripts
+                    or file_name in existing_file_names
+                ):
+                    logger.info(f"Добавили в кеш {file_name}")
+                    # Добавляем обработанный файл в локальный кэш
+                    processed_files.append(
+                        {"transcript_id": transcript_id, "file_name": file_name}
+                    )
                     continue
 
                 if transcript_id:
                     # Если transcript_title совпадает с file_name и есть transcript_id
                     result_text = get_transcrip(transcript_id)
+                    result_summary = get_transcript_summary(transcript_id)
+                    overview = result_summary.get("summary", {}).get("overview", None)
+                    shorthand_bullet = result_summary.get("summary", {}).get(
+                        "shorthand_bullet", None
+                    )
                 else:
                     transcript_id = upload_audio(file_link, file_name)
                     if transcript_id is None:
                         datas = parse_mp3_filename_sql(file_name)
                         invalid_data.append(datas)
-                        
-                        logger.error(f"Не удалось получить transcript_id для {file_name}. Удаляем файл из Google Drive.")
+
+                        logger.error(
+                            f"Не удалось получить transcript_id для {file_name}. Удаляем файл из Google Drive."
+                        )
                         # Поиск файла в Google Drive
                         query = f"title = '{file_name}' and trashed = false"
                         try:
@@ -439,21 +453,37 @@ def process_google_drive_mp3_files():
                                 for file in file_list:
                                     try:
                                         file.Delete()
-                                        logger.info(f"Файл {file_name} успешно удалён из Google Drive.")
+                                        logger.info(
+                                            f"Файл {file_name} успешно удалён из Google Drive."
+                                        )
                                     except Exception as e:
-                                        logger.error(f"Ошибка при удалении файла {file_name}: {e}")
+                                        logger.error(
+                                            f"Ошибка при удалении файла {file_name}: {e}"
+                                        )
                             else:
-                                logger.warning(f"Файл {file_name} не найден в Google Drive.")
+                                logger.warning(
+                                    f"Файл {file_name} не найден в Google Drive."
+                                )
                         except Exception as e:
                             logger.error(f"Ошибка при поиске файла {file_name}: {e}")
 
                     result_text = get_transcrip(transcript_id)
+                    result_summary = get_transcript_summary(transcript_id)
+                    overview = result_summary.get("summary", {}).get("overview", None)
+                    shorthand_bullet = result_summary.get("summary", {}).get(
+                        "shorthand_bullet", None
+                    )
                 # if transcript_id is not None:
-                logger.debug(f"Подготовка данных для записи: {file_name}, transcript_id: {transcript_id}")
+                logger.debug(
+                    f"Подготовка данных для записи: {file_name}, transcript_id: {transcript_id}"
+                )
 
                 # Формируем данные для записи
                 all_data = parse_mp3_filename(file_name)
+
                 all_data["Текст звонка Укр"] = result_text
+                all_data["Overview"] = overview
+                all_data["Notes"] = shorthand_bullet
                 all_data["transcript_id"] = transcript_id
                 # Добавляем ссылку на MP3
                 all_data["Ссылка на MP3"] = file_link
@@ -469,7 +499,7 @@ def process_google_drive_mp3_files():
         # Сохраняем данные в файл result.json
         with open(invalid_json, "w", encoding="utf-8") as f:
             json.dump(invalid_data, f, ensure_ascii=False, indent=4)
-        
+
         save_processed_files(processed_files)
         logger.info(f"Обновлённый кэш сохранён в {PROCESSED_FILES_CACHE}.")
 
@@ -480,11 +510,11 @@ def process_google_drive_mp3_files():
 # Подключение к Google Sheets
 
 
-def connect_to_google_sheets(sheet_id, retries=3, delay=5):
+def connect_to_google_sheets(SHEET_ID, retries=3, delay=5):
     """
     Устанавливает соединение с Google Sheets по ID таблицы с обработкой ошибок и тайм-аутами.
 
-    :param sheet_id: ID таблицы Google Sheets
+    :param SHEET_ID: ID таблицы Google Sheets
     :param retries: Количество попыток подключения
     :param delay: Задержка между попытками
     :return: Объект листа (worksheet)
@@ -504,7 +534,7 @@ def connect_to_google_sheets(sheet_id, retries=3, delay=5):
             http = credentials.authorize(http)  # Авторизуем HTTP-клиент
             client = gspread.Client(auth=credentials)
             client.session = http  # Устанавливаем HTTP-клиент для gspread
-            sheet = client.open_by_key(sheet_id).sheet1
+            sheet = client.open_by_key(SHEET_ID).sheet1
             logger.info("Успешное подключение к Google Sheets")
             return sheet
         except Exception as e:
@@ -516,17 +546,16 @@ def connect_to_google_sheets(sheet_id, retries=3, delay=5):
                 raise
 
 
-
 def get_id_tr(file_name):
     logger.info(f"Проверяем {file_name}")
-    # Ваш API ключ
-    api_key = "bb92ee43-b90e-4516-9483-63ae06351b64"
+    # # Ваш API ключ
+    # API_KEY = "bb92ee43-b90e-4516-9483-63ae06351b64"
 
-    # URL для получения всех транскрипций
-    transcripts_url = "https://api.fireflies.ai/graphql"
+    # # URL для получения всех транскрипций
+    # transcripts_url = "https://api.fireflies.ai/graphql"
 
-    # Заголовки для запроса
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    # # Заголовки для запроса
+    # headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
     # GraphQL запрос для получения всех транскрипций
     query = """
@@ -541,7 +570,7 @@ def get_id_tr(file_name):
 
     # Отправляем запрос на получение всех транскрипций
     response = requests.post(
-        transcripts_url, headers=headers, json={"query": query}, timeout=60
+        GRAPHQL_URL, headers=headers_api, json={"query": query}, timeout=60
     )
 
     if response.status_code == 200:
@@ -562,13 +591,13 @@ def get_id_tr(file_name):
 def upload_audio(file_link, file_name):
     logger.info(f"Загружаем {file_name}")
     # Ваш API ключ
-    api_key = "bb92ee43-b90e-4516-9483-63ae06351b64"
+    # API_KEY = "bb92ee43-b90e-4516-9483-63ae06351b64"
 
-    # URL для загрузки аудиофайла и получения транскрипции
-    api_url = "https://api.fireflies.ai/graphql"
+    # # URL для загрузки аудиофайла и получения транскрипции
+    # api_url = "https://api.fireflies.ai/graphql"
 
-    # Заголовки для запроса
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    # # Заголовки для запроса
+    # headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
     # GraphQL запрос для загрузки аудио
     upload_query = """
@@ -591,8 +620,8 @@ def upload_audio(file_link, file_name):
 
     # Отправляем POST запрос для загрузки файла
     response = requests.post(
-        api_url,
-        headers=headers,
+        GRAPHQL_URL,
+        headers=headers_api,
         json={"query": upload_query, "variables": variables},
         timeout=60,
     )
@@ -620,7 +649,7 @@ def upload_audio(file_link, file_name):
             # Ждем, пока аудио не будет обработано
             while True:
                 get_transcript_response = requests.post(
-                    api_url,
+                    GRAPHQL_URL,
                     headers=headers,
                     json={
                         "query": get_transcript_query,
@@ -672,12 +701,15 @@ def extract_error_message(response):
 
 def get_transcrip(transcript_id):
     logger.info(f"Получаем текст из {transcript_id}")
-    # Ваш API ключ
-    api_key = "bb92ee43-b90e-4516-9483-63ae06351b64"
-    # URL для загрузки аудиофайла и получения транскрипции
-    api_url = "https://api.fireflies.ai/graphql"
-    # Заголовки для запроса
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    if transcript_id is None:
+        logger.info(f"Нету {transcript_id}")
+        return None
+    # # Ваш API ключ
+    # API_KEY = "bb92ee43-b90e-4516-9483-63ae06351b64"
+    # # URL для загрузки аудиофайла и получения транскрипции
+    # api_url = "https://api.fireflies.ai/graphql"
+    # # Заголовки для запроса
+    # headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
     # GraphQL запрос для получения предложений
     query_transcript = """
@@ -696,8 +728,8 @@ def get_transcrip(transcript_id):
     variables = {"transcriptId": transcript_id}
     # Отправка запроса
     response = requests.post(
-        api_url,
-        headers=headers,
+        GRAPHQL_URL,
+        headers=headers_api,
         json={"query": query_transcript, "variables": variables},
         timeout=60,
     )
@@ -747,6 +779,8 @@ def parse_mp3_filename(filename):
             "Линия": line_mp3,
             "Имя менеджера": manager_mp3,
             "Текст звонка Укр": "",
+            "Overview": "",
+            "Notes": "",
             "Ссылка на MP3": "",
             "Имя файла": filename,  # Имя файла как отдельное поле
             "transcript_id": "",  # Имя файла как отдельное поле
@@ -793,13 +827,13 @@ def write_dict_to_google_sheets(data_dict):
     """
     Записывает словарь в Google Sheets, где ключи словаря — это заголовки столбцов.
 
-    :param sheet_id: ID таблицы Google Sheets
+    :param SHEET_ID: ID таблицы Google Sheets
     :param data_dict: Словарь данных для записи (ключи — заголовки, значения — данные)
     """
     try:
         # Подключение к Google Sheets
-        sheet = connect_to_google_sheets(sheet_id)
-        # logger.info(f"Подключение к Google Sheets выполнено: {sheet_id}")
+        sheet = connect_to_google_sheets(SHEET_ID)
+        # logger.info(f"Подключение к Google Sheets выполнено: {SHEET_ID}")
 
         # Получаем заголовки из первого ряда таблицы
         existing_headers = sheet.row_values(1)
@@ -852,9 +886,66 @@ def deleting_data_in_database(data):
         logger.error(f"Ошибка при выполнении запроса: {e}")
 
 
+def get_transcript_summary(transcript_id):
+    """
+    Получает данные транскрипта (Summary: keywords, action_items, overview и т.д.).
+
+    :param transcript_id: ID транскрипции
+    :return: Словарь с данными Summary
+    """
+    if transcript_id is None:
+        return None
+    # GraphQL запрос для получения данных транскрипта
+    query = """
+    query Transcript($transcriptId: String!) {
+    transcript(id: $transcriptId) {
+        id
+        title
+        summary {
+        keywords
+        action_items
+        outline
+        shorthand_bullet
+        overview
+        bullet_gist
+        gist
+        short_summary
+        }
+    }
+    }
+    """
+
+    # Переменные для GraphQL запроса
+    variables = {"transcriptId": transcript_id}
+
+    # Отправляем запрос
+    response = requests.post(
+        GRAPHQL_URL,
+        headers=headers_api,
+        json={"query": query, "variables": variables},
+        timeout=30,
+    )
+
+    # Обработка ответа
+    if response.status_code == 200:
+        data = response.json()
+        if "data" in data and "transcript" in data["data"]:
+            transcript = data["data"]["transcript"]
+            return {
+                "id": transcript["id"],
+                "title": transcript["title"],
+                "summary": transcript.get("summary", {}),
+            }
+        else:
+            logger.error("Ошибка: данные не найдены.")
+            logger.error(data)
+    else:
+        logger.error(f"Ошибка запроса: {response.status_code}")
+        logger.error(response.text)
+
+
 if __name__ == "__main__":
     start_time = datetime.now()  # Здесь используется datetime из модуля
-
     logger.info(f"Скрипт запущен в {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     fetch_all_data()
     process_google_drive_mp3_files()

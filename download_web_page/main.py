@@ -41,39 +41,40 @@ def get_html():
     proxy = random.choice(proxies)  # Выбираем случайный прокси
     proxies_dict = {"http": proxy, "https": proxy}
 
-    cookies = {
-        "cid": "38151285142402004135884277792469422435",
-        "evoauth": "we73d6bf140cf439eba971a0483a05c8f",
-        "timezone_offset": "120",
-        "auth": "879752e05b9c2bfa0a928626b3981767a3741e97",
-        "user_tracker": "101dfcb70c3124fa578c8a1209895e39f55a10a6|193.24.221.34|2024-11-26",
-        "csrf_token": "2c09e87f92be4d98bd481efbd7066117",
-        "visited_products": "120535748.106553552.48311559.112024327.120153155",
-        "ext_referer": "aHR0cHM6Ly92dGVsbC5zYXR1Lmt6Lw==",
-        "last_search_term": "",
-    }
-
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept": "*/*",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        # 'cookie': 'cid=38151285142402004135884277792469422435; evoauth=we73d6bf140cf439eba971a0483a05c8f; timezone_offset=120; auth=879752e05b9c2bfa0a928626b3981767a3741e97; user_tracker=101dfcb70c3124fa578c8a1209895e39f55a10a6|193.24.221.34|2024-11-26; csrf_token=2c09e87f92be4d98bd481efbd7066117; visited_products=120535748.106553552.48311559.112024327.120153155; ext_referer=aHR0cHM6Ly92dGVsbC5zYXR1Lmt6Lw==; last_search_term=',
         "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
+        "origin": "https://www.goat.com",
+        "priority": "u=1, i",
         "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "cross-site",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
+    params = {
+        "c": "ciojs-client-2.54.0",
+        "key": "key_XT7bjdbvjgECO5d8",
+        "i": "35c8e262-6a40-47b2-aa22-edfa7d397659",
+        "s": "4",
+        "page": "1",
+        "num_results_per_page": "24",
+        "filters[brand]": "new balance",
+        "filters[gender]": "women",
+        "sort_by": "relevance",
+        "sort_order": "descending",
+        "_dt": "1736837847518",
+    }
+
     response = requests.get(
-        "https://satu.kz/Tehnika-i-elektronika", cookies=cookies, headers=headers
+        "https://ac.cnstrc.com/browse/group_id/sneakers",
+        params=params,
+        headers=headers,
+        timeout=30,
     )
 
     # Проверка кода ответа
@@ -787,38 +788,38 @@ def get_wa_me():
     df.to_excel(output_file, index=False)
 
 
-def get_html():
-    import csv
+# def get_html():
+#     import csv
 
-    from bs4 import BeautifulSoup
+#     from bs4 import BeautifulSoup
 
-    # Читаем содержимое HTML файла
-    file_path = "protected_page.html"
-    with open(file_path, "r", encoding="utf-8") as file:
-        html_content = file.read()
+#     # Читаем содержимое HTML файла
+#     file_path = "protected_page.html"
+#     with open(file_path, "r", encoding="utf-8") as file:
+#         html_content = file.read()
 
-    # Парсим HTML с помощью BeautifulSoup
-    soup = BeautifulSoup(html_content, "html.parser")
+#     # Парсим HTML с помощью BeautifulSoup
+#     soup = BeautifulSoup(html_content, "html.parser")
 
-    # Ищем все элементы h3 с классом 'profesional-titulo', внутри которых есть ссылки
-    h3_elements = soup.find_all("h3", class_="profesional-titulo")
+#     # Ищем все элементы h3 с классом 'profesional-titulo', внутри которых есть ссылки
+#     h3_elements = soup.find_all("h3", class_="profesional-titulo")
 
-    # Извлекаем href из <a> внутри каждого h3
-    urls = []
-    for h3 in h3_elements:
-        a_tag = h3.find("a", href=True)  # Ищем <a> с атрибутом href
-        if a_tag:
-            urls.append(a_tag["href"])
+#     # Извлекаем href из <a> внутри каждого h3
+#     urls = []
+#     for h3 in h3_elements:
+#         a_tag = h3.find("a", href=True)  # Ищем <a> с атрибутом href
+#         if a_tag:
+#             urls.append(a_tag["href"])
 
-    # Сохраняем список URL в CSV файл
-    output_file = "urls.csv"
-    with open(output_file, mode="w", encoding="utf-8", newline="") as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["url"])  # Заголовок CSV файла
-        for url in urls:
-            writer.writerow([url])
+#     # Сохраняем список URL в CSV файл
+#     output_file = "urls.csv"
+#     with open(output_file, mode="w", encoding="utf-8", newline="") as csvfile:
+#         writer = csv.writer(csvfile)
+#         writer.writerow(["url"])  # Заголовок CSV файла
+#         for url in urls:
+#             writer.writerow([url])
 
-    print(f"Ссылки успешно сохранены в файл: {output_file}")
+#     print(f"Ссылки успешно сохранены в файл: {output_file}")
 
 
 def get_htmls():
@@ -937,7 +938,7 @@ def pars_htmls():
 
 
 if __name__ == "__main__":
-    pars_htmls()
+    # pars_htmls()
     # get_htmls()
     # get_html()
     # get_contact_prom()
@@ -1053,7 +1054,7 @@ if __name__ == "__main__":
     # for proxy in formatted_proxies:
     #     print(proxy)
     # url_test()
-    # get_html()
+    get_html()
     # download_pdf()
     # parsing_page()
     # # Вызов функции с файлом unique_itm_urls.csv

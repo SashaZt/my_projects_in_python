@@ -76,8 +76,8 @@ def get_transcript_summary(transcript_id):
 if __name__ == "__main__":
     transcript_id = "sOCb1BMUWFEOO5oT"  # Укажите реальный ID транскрипции
     result = get_transcript_summary(transcript_id)
-    logger.info(result.get("summary", {}).get("overview", None))
-    logger.info(result.get("summary", {}).get("shorthand_bullet", None))
+    overview = result.get("summary", {}).get("overview", None)
+    shorthand_bullet = result.get("summary", {}).get("shorthand_bullet", None)
     # if result:
     #     logger.info(f"ID: {result['id']}")
     #     logger.info(f"Title: {result['title']}")
