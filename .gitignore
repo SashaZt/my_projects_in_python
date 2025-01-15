@@ -60,6 +60,7 @@ Thumbs.db
 *.db
 *.pem
 *.crt
+*.key
 *.mp3
 *.tar
 *.session-journal

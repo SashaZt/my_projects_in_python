@@ -62,7 +62,7 @@ def download_data_to_file():
         if response.status_code == 200:
             # logger.info("Data fetched successfully")
             data = response.json().get("data", [])
-            logger.info("Данные с сервера получены\n")
+            logger.info("Данные с сервера получены")
             return data
             # Сохраняем данные в файл result.json
         else:
@@ -548,15 +548,6 @@ def connect_to_google_sheets(SHEET_ID, retries=3, delay=5):
 
 def get_id_tr(file_name):
     logger.info(f"Проверяем {file_name}")
-    # # Ваш API ключ
-    # API_KEY = "bb92ee43-b90e-4516-9483-63ae06351b64"
-
-    # # URL для получения всех транскрипций
-    # transcripts_url = "https://api.fireflies.ai/graphql"
-
-    # # Заголовки для запроса
-    # headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
-
     # GraphQL запрос для получения всех транскрипций
     query = """
     query {
@@ -590,15 +581,6 @@ def get_id_tr(file_name):
 
 def upload_audio(file_link, file_name):
     logger.info(f"Загружаем {file_name}")
-    # Ваш API ключ
-    # API_KEY = "bb92ee43-b90e-4516-9483-63ae06351b64"
-
-    # # URL для загрузки аудиофайла и получения транскрипции
-    # api_url = "https://api.fireflies.ai/graphql"
-
-    # # Заголовки для запроса
-    # headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
-
     # GraphQL запрос для загрузки аудио
     upload_query = """
     mutation UploadAudio($input: AudioUploadInput!) {
@@ -650,7 +632,7 @@ def upload_audio(file_link, file_name):
             while True:
                 get_transcript_response = requests.post(
                     GRAPHQL_URL,
-                    headers=headers,
+                    headers=headers_api,
                     json={
                         "query": get_transcript_query,
                         "variables": {"title": file_name},
@@ -704,13 +686,6 @@ def get_transcrip(transcript_id):
     if transcript_id is None:
         logger.info(f"Нету {transcript_id}")
         return None
-    # # Ваш API ключ
-    # API_KEY = "bb92ee43-b90e-4516-9483-63ae06351b64"
-    # # URL для загрузки аудиофайла и получения транскрипции
-    # api_url = "https://api.fireflies.ai/graphql"
-    # # Заголовки для запроса
-    # headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
-
     # GraphQL запрос для получения предложений
     query_transcript = """
     query {
@@ -842,7 +817,6 @@ def write_dict_to_google_sheets(data_dict):
         if not existing_headers:
             existing_headers = list(data_dict.keys())
             sheet.append_row(existing_headers)
-            # logger.info(f"Добавлены заголовки: {existing_headers}")
 
         # Убедимся, что ключи словаря совпадают с заголовками таблицы
         row = [data_dict.get(header, "") for header in existing_headers]
@@ -867,11 +841,11 @@ def deleting_data_in_database(data):
     # URL API для удаления записей
     url = f"https://{IP}/delete_records"
     # Заголовки запроса
-    headers = {"Content-Type": "application/json"}
+    headers_database = {"Content-Type": "application/json"}
     try:
         # Отправляем DELETE-запрос
         response = requests.delete(
-            url, headers=headers, data=json.dumps(data), verify=False, timeout=30
+            url, headers=headers_database, data=json.dumps(data), verify=False, timeout=30
         )  # verify=False отключает проверку SSL
 
         # Проверяем статус ответа

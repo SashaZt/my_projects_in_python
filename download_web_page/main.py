@@ -36,43 +36,27 @@ def load_proxies():
 
 
 def get_html():
-    timeout = 30
-    proxies = load_proxies()  # Загружаем список всех прокси
-    proxy = random.choice(proxies)  # Выбираем случайный прокси
-    proxies_dict = {"http": proxy, "https": proxy}
-
     headers = {
-        "accept": "*/*",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
         "dnt": "1",
-        "origin": "https://www.goat.com",
-        "priority": "u=1, i",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "referer": "https://cosco.com.ua/product-sitemap.xml",
         "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "cross-site",
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
-    params = {
-        "c": "ciojs-client-2.54.0",
-        "key": "key_XT7bjdbvjgECO5d8",
-        "i": "35c8e262-6a40-47b2-aa22-edfa7d397659",
-        "s": "4",
-        "page": "1",
-        "num_results_per_page": "24",
-        "filters[brand]": "new balance",
-        "filters[gender]": "women",
-        "sort_by": "relevance",
-        "sort_order": "descending",
-        "_dt": "1736837847518",
-    }
-
     response = requests.get(
-        "https://ac.cnstrc.com/browse/group_id/sneakers",
-        params=params,
+        "https://cosco.com.ua/penal-shhenyachyj-patrul-stakanchyk-zubna-shhitka-zubna-pasta/",
         headers=headers,
         timeout=30,
     )
@@ -870,63 +854,68 @@ def pars_htmls():
         # Парсим HTML с помощью BeautifulSoup
         soup = BeautifulSoup(content, "lxml")
 
-        # Извлечение имени
-        name_tag = soup.find("h1", class_="tCen")
-        name = name_tag.get_text(strip=True) if name_tag else None
+        # 1. Извлечь заголовок продукта
+        product_title = soup.find(
+            "h1", class_="product_title entry-title wd-entities-title"
+        )
+        product_title_text = product_title.text.strip() if product_title else None
 
-        # Извлечение локации
-        location_tag = soup.find("h3")
-        location = location_tag.get_text(strip=True) if location_tag else None
-        url_profi = soup.find("link", {"rel": "canonical"}).get("href")
-        # Извлечение ссылок
-        social_links = {}
-        social_section = soup.find("div", class_="capa_iconos_redes")
-        if social_section:
-            for a in social_section.find_all("a", href=True):
-                href = a["href"]
-                if "google.es/maps" in href:
-                    social_links["google_maps"] = href
-                elif "instagram.com" in href:
-                    social_links["instagram"] = href
-                elif "linkedin.com" in href:
-                    social_links["linkedin"] = href
-                elif "facebook.com" in href:
-                    social_links["facebook"] = href
-                elif "youtube.com" in href:
-                    social_links["youtube"] = href
-                elif "http" in href:
-                    social_links["website"] = href
+        # 2. Извлечь цену
+        price = soup.select_one("p.price span.woocommerce-Price-amount.amount bdi")
+        price_text = price.text.strip() if price else None
 
-        # Извлечение тарифов
-        tarifas_section = soup.find("div", class_="capa_tarifas")
-        tarifas = []
-        if tarifas_section:
-            tarifas_items = tarifas_section.find_all("div", class_="capa_tarifas_datos")
-            for item in tarifas_items:
-                title_tag = item.find("div", class_="Tizq")
-                price_tag = item.find("div", class_="Tder")
-                title = title_tag.get_text(strip=True) if title_tag else None
-                price = (
-                    price_tag.get_text(strip=True).replace("€", "").strip()
-                    if price_tag
-                    else None
-                )
-                if title and price:
-                    tarifas.append(f"{title}, {price}")
+        # 3. Извлечь информацию о наличии
+        stock_info = soup.find("p", class_="stock in-stock wd-style-default")
+        stock_text = stock_info.text.strip() if stock_info else None
 
+        # 4. Извлечь описание
+        description = soup.find("div", id="tab-description")
+        description_text = description.get_text(strip=True) if description else None
+
+        # 5. Извлечь артикул
+        sku = soup.select_one("span.sku_wrapper span.sku")
+        sku_text = sku.text.strip() if sku else None
+
+        # 6. Извлечь категории (текст в строку через join)
+        categories = soup.select('span.posted_in a[rel="tag"]')
+        category_texts = (
+            ", ".join(category.get_text(strip=True) for category in categories)
+            if categories
+            else ""
+        )
+
+        # 7. Найти все изображения с атрибутом role="presentation" и извлечь src
+        script_tag = soup.find(
+            "script", {"type": "application/ld+json", "class": "rank-math-schema"}
+        )
+
+        if script_tag:
+            # Загрузить JSON из содержимого тега
+            data = json.loads(script_tag.string)
+
+            # Инициализировать список для ссылок на изображения
+            image_urls = []
+
+            # Проход по массиву @graph
+            for item in data.get("@graph", []):
+                if "@type" in item and item["@type"] == "Product":
+                    images = item.get("image", [])
+                    # Если изображения представлены списком
+                    if isinstance(images, list):
+                        image_urls.extend(img["url"] for img in images if "url" in img)
+
+            # Преобразовать список ссылок в строку, разделенную запятыми
+            images_string = ", ".join(image_urls)
         # Сбор данных в список
         extracted_data.append(
             {
-                "name": name,
-                "location": location,
-                "url_profi": url_profi,
-                "google_maps": social_links.get("google_maps"),
-                "instagram": social_links.get("instagram"),
-                "linkedin": social_links.get("linkedin"),
-                "facebook": social_links.get("facebook"),
-                "youtube": social_links.get("youtube"),
-                "website": social_links.get("website"),
-                "tarifas": " | ".join(tarifas) if tarifas else None,
+                "product_title_text": product_title_text,
+                "price_text": price_text,
+                "stock_text": stock_text,
+                "description_text": description_text,
+                "sku_text": sku_text,
+                "category_texts": category_texts,
+                "images_string": images_string,
             }
         )
 
@@ -938,8 +927,10 @@ def pars_htmls():
 
 
 if __name__ == "__main__":
-    # pars_htmls()
+    # get_html()
+
     # get_htmls()
+    pars_htmls()
     # get_html()
     # get_contact_prom()
     # get_category_html()
@@ -1054,7 +1045,7 @@ if __name__ == "__main__":
     # for proxy in formatted_proxies:
     #     print(proxy)
     # url_test()
-    get_html()
+
     # download_pdf()
     # parsing_page()
     # # Вызов функции с файлом unique_itm_urls.csv
