@@ -1,14 +1,15 @@
+import csv
+import glob
 import json
 import os
-import sys
-from tkinter import N, NO
-import requests
-import time
 import random
-import glob
-import csv
-from datetime import datetime
 import shutil
+import sys
+import time
+from datetime import datetime
+from tkinter import NO, N
+
+import requests
 
 current_directory = os.getcwd()
 # Создайте полный путь к папке temp
@@ -182,9 +183,10 @@ def get_all_ads():
     headers = config.get("headers", {})
     time_a = config.get("time_a", "")
     time_b = config.get("time_b", "")
+    city = config.get("city", "")
     for accounts in all_account:
         params = {
-            "city": "Manchester",
+            "city": city,
             "state": "Maine",
         }
         filename_page = os.path.join(ads_path, f"ads_{accounts}.json")
@@ -557,6 +559,7 @@ if __name__ == "__main__":
             get_all_pages()
             print("Получили все страницы \nПереходим к пункту 2")
         elif user_input == 2:
+
             get_all_ads()
             print("Получили все объявления \nПереходим к пункту 3")
         elif user_input == 3:

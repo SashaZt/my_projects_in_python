@@ -1,18 +1,20 @@
-from urllib.parse import urlparse, parse_qs
-import requests
-from selectolax.parser import HTMLParser
-import os
-import json
 import asyncio
-import aiofiles
 import glob
-from curl_cffi.requests import AsyncSession
+import json
+import os
+import shutil
+import sys
+from typing import Dict, List
+from urllib.parse import parse_qs, urlparse
+
+import aiofiles
+import requests
 from bd import initialize_db
 from configuration.config import database
-from typing import List, Dict
 from configuration.logging_config import logger
+from curl_cffi.requests import AsyncSession
+from selectolax.parser import HTMLParser
 from sqlalchemy.exc import SQLAlchemyError
-import shutil
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
@@ -20,6 +22,22 @@ data_path = os.path.join(current_directory, "data")
 logging_path = os.path.join(current_directory, "logging")
 view_property_C_path = os.path.join(temp_path, "view_property_C")
 view_property_R_path = os.path.join(temp_path, "view_property_R")
+
+
+def load_config():
+    if getattr(sys, "frozen", False):
+        # Если приложение 'заморожено' с помощью PyInstaller
+        application_path = os.path.dirname(sys.executable)
+    else:
+        # Обычный режим выполнения (например, во время разработки)
+        application_path = os.path.dirname(os.path.abspath(__file__))
+
+    filename_config = os.path.join(application_path, "config.json")
+
+    with open(filename_config, "r") as config_file:
+        config = json.load(config_file)
+
+    return config
 
 
 def сreation_temp_directory():
@@ -43,6 +61,8 @@ def remove_temp_directory():
 
 
 def get_all_url():
+    config = load_config()
+    city = config.get("city", "")
     cookies = {
         "PHPSESSID": "li2h6f073blagdq5h70ehh2n71",
     }
@@ -59,7 +79,7 @@ def get_all_url():
     }
     filename = os.path.join(data_path, "all_url.html")
     response = requests.post(
-        "https://gilford.univers-clt.com/index.php",
+        f"https://{city}.univers-clt.com/index.php",
         cookies=cookies,
         headers=headers,
         data=data,
@@ -77,8 +97,10 @@ def get_all_url():
 
 # Функция для безопасного извлечения значения атрибута href из элемента a
 def safe_extract_href(element, default=None):
+    config = load_config()
+    city = config.get("city", "")
     return (
-        f"https://gilford.univers-clt.com/{element.attributes.get('href', default)}"
+        f"https://{city}.univers-clt.com/{element.attributes.get('href', default)}"
         if element
         else default
     )
