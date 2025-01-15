@@ -54,6 +54,7 @@ def delete_old_data():
 def ger_totalrecords():
     config = load_config()
     headers = config.get("headers", {})
+    id_city = config.get("id_city", "")
 
     params = {
         "query": "",
@@ -93,7 +94,7 @@ def ger_totalrecords():
         },
     }
     response = requests.post(
-        "https://harris-hopp.com:8086/api/propertysearch/1051",
+       f"https://harris-hopp.com:8086/api/propertysearch/{id_city}",
         params=params,
         headers=headers,
         json=json_data,
@@ -109,6 +110,7 @@ def get_all_pages():
     headers = config.get("headers", {})
     time_a = config.get("time_a", "")
     time_b = config.get("time_b", "")
+    id_city = config.get("id_city", "")
     pages = ger_totalrecords()
     for page in range(1, pages + 1):
         params = {
@@ -151,7 +153,7 @@ def get_all_pages():
         filename_page = os.path.join(pages_path, f"page_{page}.json")
         if not os.path.exists(filename_page):
             response = requests.post(
-                "https://harris-hopp.com:8086/api/propertysearch/1051",
+                f"https://harris-hopp.com:8086/api/propertysearch/{id_city}",
                 params=params,
                 headers=headers,
                 json=json_data,

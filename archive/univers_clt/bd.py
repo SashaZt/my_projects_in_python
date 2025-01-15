@@ -1,9 +1,10 @@
 # from databases import Database
 # import sqlalchemy
-from sqlalchemy import create_engine, text
 import asyncio
+
 from configuration.config import database, database_name, initial_database_url
-from configuration.logging_config import logger
+from configuration.logger_setup import logger
+from sqlalchemy import create_engine, text
 
 
 # Функция для создания базы данных

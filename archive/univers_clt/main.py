@@ -11,7 +11,7 @@ import aiofiles
 import requests
 from bd import initialize_db
 from configuration.config import database
-from configuration.logging_config import logger
+from configuration.logger_setup import logger
 from curl_cffi.requests import AsyncSession
 from selectolax.parser import HTMLParser
 from sqlalchemy.exc import SQLAlchemyError
@@ -63,6 +63,7 @@ def remove_temp_directory():
 def get_all_url():
     config = load_config()
     city = config.get("city", "")
+    # Менять куки обезательно
     cookies = {
         "PHPSESSID": "li2h6f073blagdq5h70ehh2n71",
     }
