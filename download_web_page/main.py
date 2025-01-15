@@ -888,7 +888,7 @@ def pars_htmls():
         script_tag = soup.find(
             "script", {"type": "application/ld+json", "class": "rank-math-schema"}
         )
-
+        images_string = None
         if script_tag:
             # Загрузить JSON из содержимого тега
             data = json.loads(script_tag.string)
@@ -927,7 +927,7 @@ def pars_htmls():
 
 
 if __name__ == "__main__":
-    # get_html()
+    get_html()
 
     # get_htmls()
     pars_htmls()
