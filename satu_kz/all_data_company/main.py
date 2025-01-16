@@ -5,6 +5,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
+import csv
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -14,17 +15,6 @@ configuration_directory = current_directory / "configuration"
 # Создание директорий, если их нет
 html_directory.mkdir(parents=True, exist_ok=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
-
-# # Пути к файлам
-# output_csv_file = data_directory / "output.csv"
-
-# all_ids = data_directory / "all_ids_new.csv"
-# all_urls_file = data_directory / "all_urls.csv"
-# product_catalog_csv = data_directory / "product_catalog.csv"
-# xlsx_result = data_directory / "result.xlsx"
-# json_result = data_directory / "result.json"
-# file_proxy = configuration_directory / "proxy.txt"
-# config_txt_file = configuration_directory / "config.txt"
 
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -46,7 +36,7 @@ headers = {
 }
 
 
-def get_html_product_list(url, headers=None, max_retries=10, delay=5):
+def get_html_product_list(url, max_retries=10, delay=5):
     """
     Получение HTML-страницы списка продуктов с обработкой повторных запросов.
 
@@ -71,10 +61,11 @@ def get_html_product_list(url, headers=None, max_retries=10, delay=5):
                 content = response.text
                 logger.info(f"Успешный запрос: статус {response.status_code}")
                 return content
+            elif response.status_code == 404:
+                return None
             else:
                 retries += 1
-                logger.error(f"Попытка {
-                             retries}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд...")
+                logger.error(f"Попытка {retries}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд...")
                 time.sleep(delay)
 
         except requests.RequestException as e:
@@ -93,6 +84,7 @@ def get_product_count(soup):
 
     # Счётчик объектов типа Product
     product_count = 0
+    product_names = []
 
     for script in script_tags:
         try:
@@ -102,13 +94,15 @@ def get_product_count(soup):
             # Если это объект, а не массив
             if isinstance(data, dict) and data.get('@type') == 'Product':
                 product_count += 1
+                product_names.append(data.get('name', 'No Name'))
             # Если это массив или содержит вложенный объект
             elif isinstance(data, dict) and '@graph' in data:
                 product_count += sum(1 for item in data['@graph'] if item.get('@type') == 'Product')
+                roduct_names.append(item.get('name', None))
         except json.JSONDecodeError:
             # Игнорировать ошибки, если содержимое не валидное JSON
             continue
-    return product_count
+    return int(product_count),product_names[:3]
 
 
 def paginator(soup):
@@ -132,7 +126,6 @@ def paginator(soup):
 
 def get_total_products(url):
 
-    extracted_data = []
     content = get_html_product_list(url)
     # Пройтись по каждому HTML файлу в папке
     # for html_file in html_directory.glob("*.html"):
@@ -142,12 +135,12 @@ def get_total_products(url):
         # Парсим HTML с помощью BeautifulSoup
         soup = BeautifulSoup(content, "lxml")
         # Количество товароа на странице
-        product_count = get_product_count(soup)
+        product_count, product_names = get_product_count(soup)
         pages_count, per_page = paginator(soup)
         # Количество товароа на последней странице
         product_count_last_page = None
         if pages_count is not None and pages_count > 1:
-            product_count_last_page = get_last_page(pages_count)
+            product_count_last_page = get_last_page(url, pages_count)
         # Убедитесь, что переменные имеют значения или установите их по умолчанию
         product_count = product_count or 0  # Если None, установить в 0
         pages_count = pages_count or 0      # Если None, установить в 0
@@ -165,18 +158,17 @@ def get_total_products(url):
         all_data = {
             "total_product":total_product
         }
-        return all_data
-
-    # print(f"Данные успешно сохранены в файл: {output_file}")
+        return all_data, product_names
 
 
-def get_last_page(last_page, max_retries=10, delay=5):
+
+def get_last_page(url, last_page, max_retries=10, delay=5):
 
     retries = 0  # Счётчик попыток
 
     while retries < max_retries:
         response = requests.get(
-            f"https://oil-market.kz/product_list/page_{last_page}",
+            f"{url}product_list/page_{last_page}",
             headers=headers,
             timeout=30,)
         product_count = None
@@ -186,12 +178,13 @@ def get_last_page(last_page, max_retries=10, delay=5):
             # Парсим HTML с помощью BeautifulSoup
             soup = BeautifulSoup(content, "lxml")
             # Количество товаров на странице
-            product_count = int(get_product_count(soup))
+            product_count, product_names = get_product_count(soup)
             return product_count
+        elif response.status_code == 404:
+            return None
         else:
             retries += 1
-            logger.error(f"Попытка {
-                         retries}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд...")
+            logger.error(f"Попытка {retries}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд...")
             time.sleep(delay)  # Задержка перед повторным запросом
             return product_count
 
@@ -276,6 +269,8 @@ def get_contacts(url, headers=None, max_retries=10, delay=5):
                 content = response.text
                 logger.info(f"Успешный запрос: статус {response.status_code}")
                 return content
+            elif response.status_code == 404:
+                return None
             else:
                 retries += 1
                 logger.error(f"Попытка {retries}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд...")
@@ -290,199 +285,7 @@ def get_contacts(url, headers=None, max_retries=10, delay=5):
     # Если все попытки исчерпаны
     logger.error(f"Не удалось получить HTML после {max_retries} попыток.")
     return None
-# def scrap_testimonials(url):
-#     """
-#     Извлечение контактной информации с указанной страницы.
 
-#     :param url: str - URL страницы с контактной информацией
-#     :return: dict - Словарь с контактной информацией
-#     """
-#     # Получить содержимое страницы
-#     content = get_testimonials(url)
-#     if content is None:
-#         logger.error("Не удалось получить содержимое страницы.")
-#         return {}
-
-#     # Парсим HTML с помощью BeautifulSoup
-#     soup = BeautifulSoup(content, "lxml")
-#     # Найти тег <script type="application/ld+json">
-#     script_tag = soup.find("script", {"type": "application/ld+json"})
-#     if not script_tag:
-#         logger.error("Тег <script type='application/ld+json'> не найден.")
-#         return {}
-#     logger.info("Найден тег <script type='application/ld+json'>.")
-
-#     try:
-#         # Преобразовать содержимое тега в словарь
-#         data = json.loads(script_tag.string)
-#         logger.info("JSON успешно загружен.")
-
-#         # Проверка на тип Organization
-#         if data.get("@type") == "Organization":
-#             contact_info = {
-#                 "url": data.get("url"),
-#                 "name": data.get("name"),
-#                 "email": data.get("email"),  # Если email есть в JSON
-#                 "telephones": [
-#                     point.get("telephone")
-#                     for point in data.get("contactPoint", [])
-#                     if point.get("telephone")
-#                 ],
-#                 "addressLocality": data.get("address", {}).get("addressLocality"),
-#                 "addressRegion": data.get("address", {}).get("addressRegion"),
-#                 "addressCountryname": data.get("address", {}).get("addressCountry", {}).get("name"),
-#             }
-#             logger.info("Контактная информация успешно извлечена.")
-#             logger.info(contact_info)
-#             return contact_info
-#         else:
-#             logger.error("Данные не содержат тип Organization.")
-#             return {}
-#     except json.JSONDecodeError as e:
-#         logger.error(f"Ошибка декодирования JSON: {e}")
-#         return {}
-# def parse_reviews(url):
-#     """
-#     Парсит отзывы из HTML-контента и возвращает список словарей с данными об отзывах.
-    
-#     :param html_content: str - HTML-контент
-#     :return: list - Список словарей с данными об отзывах
-#     """
-#     html_content = get_testimonials(url)
-#     total_pages = get_pagination_pages_testimonials(html_content)
-#     soup = BeautifulSoup(html_content, "lxml")
-#     reviews = []
-#     for page in range(2, total_pages + 1):
-#         review = srcap_review(soup)
-#         reviews.append(review)
-
-# def srcap_review(soup):
-#     # Найти все элементы отзывов
-#     review_items = soup.find_all("li", class_="cs-comments__item")
-
-#     for item in review_items:
-#         # Извлечь дату отзыва
-#         date_tag = item.find("time", class_="cs-date")
-#         review_date = date_tag["datetime"].split("T")[0] if date_tag and date_tag.has_attr("datetime") else None
-
-#         # Проверка года
-#         if review_date:
-#             year = int(review_date.split("-")[0])
-#             if year < 2023 or year > 2024:
-#                 continue  # Пропускаем отзывы за другие годы
-
-#         # Извлечь рейтинг
-#         rating_tag = item.find("span", class_="cs-rating__state")
-#         rating_text = rating_tag["title"] if rating_tag and rating_tag.has_attr("title") else None
-#         rating = None
-#         if rating_text and "Рейтинг" in rating_text:
-#             rating = int(rating_text.split()[1])  # Извлечение числа рейтинга
-
-#         # Добавить данные в список
-#         if review_date and rating is not None:
-#             reuslt = {"date": review_date, "rating": rating}
-
-#     return reuslt
-
-
-# def get_page_review(url, headers=None, max_retries=10, delay=5):
-#     """
-#     Получение HTML-страницы списка продуктов с обработкой повторных запросов.
-
-#     :param url: str - Базовый URL
-#     :param headers: dict - Заголовки для запроса
-#     :param max_retries: int - Максимальное количество попыток
-#     :param delay: int - Задержка между попытками (в секундах)
-#     :return: str или None - HTML содержимое или None, если не удалось получить данные
-#     """
-#     retries = 0  # Счётчик попыток
-
-#     while retries < max_retries:
-#         try:
-#             response = requests.get(
-#                 f"{url}/testimonials",
-#                 headers=headers,
-#                 timeout=30,
-#             )
-
-#             # Проверка кода ответа
-#             if response.status_code == 200:
-#                 content = response.text
-#                 logger.info(f"Успешный запрос: статус {response.status_code}")
-#                 return content
-#             else:
-#                 retries += 1
-#                 logger.error(f"Попытка {retries}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд...")
-#                 time.sleep(delay)
-
-#         except requests.RequestException as e:
-#             retries += 1
-#             logger.error(
-#                 f"Попытка {retries}/{max_retries}. Ошибка: {e}. Повтор через {delay} секунд...")
-#             time.sleep(delay)
-
-#     # Если все попытки исчерпаны
-#     logger.error(f"Не удалось получить HTML после {max_retries} попыток.")
-#     return None
-# def get_testimonials(url, headers=None, max_retries=10, delay=5):
-#     """
-#     Получение HTML-страницы списка продуктов с обработкой повторных запросов.
-
-#     :param url: str - Базовый URL
-#     :param headers: dict - Заголовки для запроса
-#     :param max_retries: int - Максимальное количество попыток
-#     :param delay: int - Задержка между попытками (в секундах)
-#     :return: str или None - HTML содержимое или None, если не удалось получить данные
-#     """
-#     retries = 0  # Счётчик попыток
-
-#     while retries < max_retries:
-#         try:
-#             response = requests.get(
-#                 f"{url}/testimonials",
-#                 headers=headers,
-#                 timeout=30,
-#             )
-
-#             # Проверка кода ответа
-#             if response.status_code == 200:
-#                 content = response.text
-#                 logger.info(f"Успешный запрос: статус {response.status_code}")
-#                 return content
-#             else:
-#                 retries += 1
-#                 logger.error(f"Попытка {retries}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд...")
-#                 time.sleep(delay)
-
-#         except requests.RequestException as e:
-#             retries += 1
-#             logger.error(
-#                 f"Попытка {retries}/{max_retries}. Ошибка: {e}. Повтор через {delay} секунд...")
-#             time.sleep(delay)
-
-#     # Если все попытки исчерпаны
-#     logger.error(f"Не удалось получить HTML после {max_retries} попыток.")
-#     return None
-
-# def get_pagination_pages_testimonials(html_content):
-#     """
-#     Извлекает количество страниц из атрибута data-pagination-pages-count.
-    
-#     :param html_content: str - HTML-контент
-#     :return: int - Количество страниц или None, если атрибут не найден
-#     """
-#     soup = BeautifulSoup(html_content, "lxml")
-    
-#     # Найти div с атрибутом data-bazooka="Paginator"
-#     paginator_div = soup.find("div", {"data-bazooka": "Paginator"})
-    
-#     if paginator_div:
-#         # Извлечь значение атрибута data-pagination-pages-count
-#         pages_count = paginator_div.get("data-pagination-pages-count")
-#         if pages_count:
-#             return int(pages_count)  # Преобразуем в число и возвращаем
-    
-#     return None  # Возвращаем None, если атрибут не найден
 def get_pagination_pages_testimonials(html_content):
     """
     Извлекает количество страниц из атрибута data-pagination-pages-count.
@@ -518,6 +321,8 @@ def get_testimonials(url, max_retries=10, delay=5):
             response = requests.get(url, headers=headers, timeout=30)
             if response.status_code == 200:
                 return response.text
+            elif response.status_code == 404:
+                return None
             else:
                 retries += 1
                 time.sleep(delay)
@@ -573,34 +378,7 @@ def scrape_reviews(soup):
     logger.info(f"Всего собранных отзывов: {len(reviews)}")
     logger.info(reviews)
     return reviews, False
-# def scrape_reviews(soup):
-#     reviews = []
-#     # Найти все элементы отзывов
-#     review_items = soup.find_all("li", class_="cs-comments__item")
 
-#     for item in review_items:
-#         # Извлечь дату отзыва
-#         date_tag = item.find("time", class_="cs-date")
-#         review_date = date_tag["datetime"].split("T")[0] if date_tag and date_tag.has_attr("datetime") else None
-
-#         # Проверка года
-#         if review_date:
-#             year = int(review_date.split("-")[0])
-#             if year < 2023 or year > 2024:
-#                 return reviews, True
-
-#         # Извлечь рейтинг
-#         rating_tag = item.find("span", class_="cs-rating__state")
-#         rating_text = rating_tag["title"] if rating_tag and rating_tag.has_attr("title") else None
-#         rating = None
-#         if rating_text and "Рейтинг" in rating_text:
-#             rating = int(rating_text.split()[1])  # Извлечение числа рейтинга
-
-#         # Добавить данные в список
-#         if review_date and rating is not None:
-#             reuslt = {"date": review_date, "rating": rating}
-
-#     return reviews, False
 def parse_reviews(url):
     """
     Парсит отзывы со всех страниц, пока не найдёт отзывы за год раньше 2023.
@@ -613,10 +391,12 @@ def parse_reviews(url):
 
     # Первая страница
     html_content = get_testimonials(url)
-    if html_content:
-        save_html_to_file(html_content, "testimonials.html")
-    else:
-        print("Не удалось получить HTML-контент.")
+    # #Сохранение контента
+    # if html_content:
+    #     save_html_to_file(html_content, "testimonials.html")
+    # else:
+    #     logger.error("Не удалось получить HTML-контент.")
+    
     if not html_content:
         return extracted_data
 
@@ -657,10 +437,10 @@ def save_html_to_file(html_content, file_path):
     try:
         with open(file_path, "w", encoding="utf-8") as file:
             file.write(html_content)
-        print(f"HTML сохранён в файл: {file_path}")
+        logger.info(f"HTML сохранён в файл: {file_path}")
     except Exception as e:
-        print(f"Ошибка при сохранении HTML: {e}")
-def merge_data(reviews, contact_info, total_products):
+        logger.error(f"Ошибка при сохранении HTML: {e}")
+def merge_data(reviews, contact_info, total_products, product_names):
     """
     Объединяет данные отзывов, контактной информации и общего количества продуктов в один JSON.
 
@@ -678,6 +458,8 @@ def merge_data(reviews, contact_info, total_products):
         combined_data.update(contact_info)
     if total_products and isinstance(total_products, dict):
         combined_data.update(total_products)
+    if product_names and isinstance(product_names, list):
+        combined_data["product_names"] = product_names  # Добавляем список товаров
         # Объединяем данные
     # Преобразуем в JSON-строку (опционально)
     return combined_data
@@ -691,18 +473,102 @@ def save_to_file_json(data, filename):
     try:
         with open(filename, "w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
-        print(f"Данные успешно записаны в файл: {filename}")
+        logger.info(f"Данные успешно записаны в файл: {filename}")
     except Exception as e:
-        print(f"Ошибка при записи в файл: {e}")
+        logger.error(f"Ошибка при записи в файл: {e}")
+def save_to_excel(data, filename):
+    """
+    Сохраняет данные в Excel-файл с использованием pandas.
+    
+    :param data: dict - Данные для записи
+    :param filename: str - Имя файла
+    """
+    with pd.ExcelWriter(filename, engine="openpyxl") as writer:
+        # Записываем отзывы
+        if "reviews" in data and isinstance(data["reviews"], list):
+            reviews_df = pd.DataFrame(data["reviews"])
+            reviews_df.to_excel(writer, sheet_name="Reviews", index=False)
+
+        # Записываем контакты
+        if "contacts" in data and isinstance(data["contacts"], list):
+            contacts_df = pd.DataFrame(data["contacts"])
+            contacts_df.to_excel(writer, sheet_name="Contacts", index=False)
+
+        # Записываем общее количество продуктов
+        if "total_product" in data:
+            total_product_df = pd.DataFrame(
+                [{"total_product": data["total_product"]}]
+            )
+            total_product_df.to_excel(writer, sheet_name="TotalProduct", index=False)
+
+    logger.info(f"Данные успешно записаны в файл: {filename}")
+
+def write_combined_data_to_csv_v2(combined_data, filename="combined_data.csv"):
+    """
+    Записывает данные в CSV в одну строку, с каждым значением в своей колонке.
+    
+    :param combined_data: dict - Данные для записи
+    :param filename: str - Имя файла CSV
+    """
+    with open(filename, mode="w", encoding="utf-8", newline="") as file:
+        writer = csv.writer(file)
+        
+        # Заголовки
+        headers = []
+        values = []
+        
+        # Добавляем отзывы
+        reviews = combined_data.get("reviews", [])
+        for i, review in enumerate(reviews, 1):
+            headers.append(f"review_{i}_date")
+            values.append(review.get("date", ""))
+            headers.append(f"review_{i}_rating")
+            values.append(review.get("rating", ""))
+        
+        # Добавляем контактную информацию
+        contacts = combined_data.get("contacts", [])
+        if contacts:
+            contact = contacts[0]  # Берём первый контакт
+            for key, value in contact.items():
+                if isinstance(value, list):
+                    headers.append(key)
+                    values.append(", ".join(value))
+                else:
+                    headers.append(key)
+                    values.append(value)
+        
+        # Добавляем общее количество продуктов
+        headers.append("total_product")
+        values.append(combined_data.get("total_product", ""))
+        
+        # Добавляем названия продуктов
+        headers.append("product_names")
+        values.append(", ".join(combined_data.get("product_names", [])))
+        
+        # Пишем в файл
+        writer.writerow(headers)
+        writer.writerow(values)
+    logger.info(f"Данные успешно записаны в {filename}")
+
+def read_cities_from_csv(input_csv_file):
+    df = pd.read_csv(input_csv_file)
+    return df["url"].tolist()
+
 def main():
     url = "https://oil-market.kz/"
-    total_products = get_total_products(url)
+
+    total_products, product_names  = get_total_products(url)
     contact_info = scrap_contacts(url)
     reviews = parse_reviews(url)
+
     # Объединяем данные
-    combined_json = merge_data(reviews, contact_info, total_products)
+    combined_json = merge_data(reviews, contact_info, total_products, product_names)
         # Сохраняем combined_json в файл
+    
+    write_combined_data_to_csv_v2(combined_json)
     save_to_file_json(combined_json, "combined_data.json")
+    # Сохраняем combined_json в Excel
+    save_to_excel(combined_json, "combined_data.xlsx")
 if __name__ == "__main__":
     main()
     

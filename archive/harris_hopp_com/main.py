@@ -94,7 +94,7 @@ def ger_totalrecords():
         },
     }
     response = requests.post(
-       f"https://harris-hopp.com:8086/api/propertysearch/{id_city}",
+        f"https://harris-hopp.com:8086/api/propertysearch/{id_city}",
         params=params,
         headers=headers,
         json=json_data,
@@ -110,6 +110,7 @@ def get_all_pages():
     headers = config.get("headers", {})
     time_a = config.get("time_a", "")
     time_b = config.get("time_b", "")
+    # Узнать при открытие страницы
     id_city = config.get("id_city", "")
     pages = ger_totalrecords()
     for page in range(1, pages + 1):
@@ -157,6 +158,7 @@ def get_all_pages():
                 params=params,
                 headers=headers,
                 json=json_data,
+                timeout=30,
             )
             json_data = response.json()
             with open(filename_page, "w", encoding="utf-8") as f:
@@ -197,6 +199,7 @@ def get_all_ads():
                 f"https://harris-hopp.com:8086/api/fullproperty/{accounts}",
                 params=params,
                 headers=headers,
+                timeout=30,
             )
             json_data = response.json()
             with open(filename_page, "w", encoding="utf-8") as f:
