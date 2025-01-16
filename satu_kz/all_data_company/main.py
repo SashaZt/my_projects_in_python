@@ -10,8 +10,10 @@ import csv
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
 html_directory = current_directory / "html"
+csv_directory = current_directory / "csv"
 configuration_directory = current_directory / "configuration"
-
+# Пути к файлам
+output_csv_file = current_directory / "urls.csv"
 # Создание директорий, если их нет
 html_directory.mkdir(parents=True, exist_ok=True)
 configuration_directory.mkdir(parents=True, exist_ok=True)
@@ -556,19 +558,23 @@ def read_cities_from_csv(input_csv_file):
 
 def main():
     url = "https://oil-market.kz/"
+    urls = read_cities_from_csv(output_csv_file)
+    for url in urls[:10]:
+        file_name = url.split("/")[-2].replace("-", "_").replace(".", "_")
+        total_products, product_names  = get_total_products(url)
+        contact_info = scrap_contacts(url)
+        reviews = parse_reviews(url)
 
-    total_products, product_names  = get_total_products(url)
-    contact_info = scrap_contacts(url)
-    reviews = parse_reviews(url)
-
-    # Объединяем данные
-    combined_json = merge_data(reviews, contact_info, total_products, product_names)
-        # Сохраняем combined_json в файл
-    
-    write_combined_data_to_csv_v2(combined_json)
-    save_to_file_json(combined_json, "combined_data.json")
-    # Сохраняем combined_json в Excel
-    save_to_excel(combined_json, "combined_data.xlsx")
+        # Объединяем данные
+        combined_json = merge_data(reviews, contact_info, total_products, product_names)
+            # Сохраняем combined_json в файл
+        csv_files = csv_directory / f"{file_name}.csv"
+        if csv_files.exists():
+            continue
+        write_combined_data_to_csv_v2(combined_json, csv_files)
+        # save_to_file_json(combined_json, "combined_data.json")
+        # # Сохраняем combined_json в Excel
+        # save_to_excel(combined_json, "combined_data.xlsx")
 if __name__ == "__main__":
     main()
     
