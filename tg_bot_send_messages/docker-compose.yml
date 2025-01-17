@@ -10,4 +10,6 @@ services:
       - ./database:/app/database # Монтируем базу данных локально
       - ./logging:/app/logging # Монтируем директорию для логов
       - ./sessions:/app/sessions # Монтируем директорию для сессий Telethon
+      - /etc/localtime:/etc/localtime:ro  # Использование временной зоны хоста
+      - /etc/timezone:/etc/timezone:ro   # Использование временной зоны хоста
     restart: unless-stopped
