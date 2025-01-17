@@ -16,5 +16,6 @@
     },
     "time_a": 0,
     "time_b": 5,
-    "city": ""
+    "city": "",
+    "id_city": ""
 }

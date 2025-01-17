@@ -63,9 +63,10 @@ def remove_temp_directory():
 def get_all_url():
     config = load_config()
     city = config.get("city", "")
+    id_cooki = config.get("id_cooki", "")
     # Менять куки обезательно
     cookies = {
-        "PHPSESSID": "li2h6f073blagdq5h70ehh2n71",
+        "PHPSESSID": id_cooki,
     }
 
     headers = {
@@ -85,6 +86,7 @@ def get_all_url():
         headers=headers,
         data=data,
         verify=False,  # запрос без проверки SSL-сертификата.
+        timeout=30,
     )
     if response.status_code == 200:
         html = response.content
