@@ -1,17 +1,14 @@
-import concurrent.futures
-import csv
 import json
-import os
-import random
-import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-
+import time
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
-
+import csv
+import random
+import concurrent.futures
+import os
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
 html_directory = current_directory / "html"
@@ -45,15 +42,15 @@ headers = {
 }
 
 
+
+
 def load_proxies():
     """Загружает список прокси-серверов из файла."""
     with open(txt_file_proxies, "r", encoding="utf-8") as file:
         proxies = [line.strip() for line in file]
     logger.info(f"Загружено {len(proxies)} прокси.")
     return proxies
-
-
-def get_html_product_list(url, proxies_dict, max_retries=100, delay=5):
+def get_html_product_list(url,proxies_dict, max_retries=100, delay=5):
     """
     Получение HTML-страницы списка продуктов с обработкой повторных запросов.
 
@@ -80,26 +77,19 @@ def get_html_product_list(url, proxies_dict, max_retries=100, delay=5):
                 logger.info(f"Успешный запрос product_list")
                 return content
             elif response.status_code in [404, 502]:  # Проверяем 404 и 502
-                logger.warning(
-                    f"Статус {response.status_code}: Страница недоступна.")
+                logger.warning(f"Статус {response.status_code}: Страница недоступна.")
                 return None
             else:
                 logger.error(
-                    f"Попытка {retries + 1}/{max_retries}: статус {
-                        response.status_code}. Повтор через {delay} секунд..."
+                    f"Попытка {retries + 1}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд..."
                 )
         except requests.exceptions.ProxyError as e:
             if "502 Bad Gateway" in str(e):
-                logger.error(f"Ошибка 502 Bad Gateway: {
-                             e}. Прерываем попытки.")
+                logger.error(f"Ошибка 502 Bad Gateway: {e}. Прерываем попытки.")
                 return None
-            logger.error(f"Ошибка ProxyError: {
-                         e}. Повтор через {delay} секунд...")
+            logger.error(f"Ошибка ProxyError: {e}. Повтор через {delay} секунд...")
         except requests.RequestException as e:
-            logger.error(
-                f"Ошибка запроса: {e}. Попытка {
-                    retries + 1}/{max_retries}. Повтор через {delay} секунд..."
-            )
+            logger.error(f"Ошибка запроса: {e}. Попытка {retries + 1}/{max_retries}. Повтор через {delay} секунд...")
 
         retries += 1
         time.sleep(delay)
@@ -110,7 +100,7 @@ def get_html_product_list(url, proxies_dict, max_retries=100, delay=5):
 
 
 def get_product_count(soup):
-    script_tags = soup.find_all("script", {"type": "application/ld+json"})
+    script_tags = soup.find_all('script', {'type': 'application/ld+json'})
 
     # Счётчик объектов типа Product
     product_count = 0
@@ -122,32 +112,30 @@ def get_product_count(soup):
             data = json.loads(script.string)
 
             # Если это объект, а не массив
-            if isinstance(data, dict) and data.get("@type") == "Product":
+            if isinstance(data, dict) and data.get('@type') == 'Product':
                 product_count += 1
-                product_names.append(data.get("name", "No Name"))
+                product_names.append(data.get('name', 'No Name'))
             # Если это массив или содержит вложенный объект
-            elif isinstance(data, dict) and "@graph" in data:
-                product_count += sum(
-                    1 for item in data["@graph"] if item.get("@type") == "Product"
-                )
-                roduct_names.append(item.get("name", None))
+            elif isinstance(data, dict) and '@graph' in data:
+                product_count += sum(1 for item in data['@graph'] if item.get('@type') == 'Product')
+                roduct_names.append(item.get('name', None))
         except json.JSONDecodeError:
             # Игнорировать ошибки, если содержимое не валидное JSON
             continue
-    return int(product_count), product_names[:3]
+    return int(product_count),product_names[:3]
 
 
 def paginator(soup):
     # Найти div с атрибутом data-bazooka="Paginator"
-    pagination_div = soup.find("div", {"data-bazooka": "Paginator"})
+    pagination_div = soup.find('div', {'data-bazooka': 'Paginator'})
     # Количество страниц
     pages_count = None
     # Количество товаров на странице
     per_page = None
     # Проверка и извлечение данных
     if pagination_div:
-        pages_count = int(pagination_div.get("data-pagination-pages-count"))
-        per_page = int(pagination_div.get("data-pagination-per-page"))
+        pages_count = int(pagination_div.get('data-pagination-pages-count'))
+        per_page = int(pagination_div.get('data-pagination-per-page'))
         return pages_count, per_page
         # # Логирование с корректным выводом
         # logger.info(f"Количество страниц (data-pagination-pages-count): {pages_count}")
@@ -156,9 +144,9 @@ def paginator(soup):
         return pages_count, per_page
 
 
-def get_total_products(url, proxies_dict):
+def get_total_products(url,proxies_dict):
 
-    content = get_html_product_list(url, proxies_dict)
+    content = get_html_product_list(url,proxies_dict)
     # Пройтись по каждому HTML файлу в папке
     # for html_file in html_directory.glob("*.html"):
     #     with html_file.open(encoding="utf-8") as file:
@@ -172,14 +160,11 @@ def get_total_products(url, proxies_dict):
         # Количество товароа на последней странице
         product_count_last_page = None
         if pages_count is not None and pages_count > 1:
-            product_count_last_page = get_last_page(
-                url, proxies_dict, pages_count)
+            product_count_last_page = get_last_page(url,proxies_dict, pages_count)
         # Убедитесь, что переменные имеют значения или установите их по умолчанию
         product_count = product_count or 0  # Если None, установить в 0
-        pages_count = pages_count or 0  # Если None, установить в 0
-        product_count_last_page = (
-            product_count_last_page or 0
-        )  # Если None, установить в 0
+        pages_count = pages_count or 0      # Если None, установить в 0
+        product_count_last_page = product_count_last_page or 0  # Если None, установить в 0
         # logger.info(f"Количество товароа на странице {product_count}")
         # logger.info(f"Количество страниц {pages_count}")
         # logger.info(f"Количество товароа на последней странице {product_count_last_page}")
@@ -190,11 +175,14 @@ def get_total_products(url, proxies_dict):
             total_product = product_count * \
                 (pages_count - 1) + product_count_last_page
             # logger.info(f"Всего товаро/услуг {total_product}")
-        all_data = {"total_product": total_product}
+        all_data = {
+            "total_product":total_product
+        }
         return all_data, product_names
 
 
-def get_last_page(url, proxies_dict, last_page, max_retries=100, delay=5):
+
+def get_last_page(url,proxies_dict, last_page, max_retries=100, delay=5):
 
     retries = 0  # Счётчик попыток
 
@@ -204,10 +192,9 @@ def get_last_page(url, proxies_dict, last_page, max_retries=100, delay=5):
                 f"{url}product_list/page_{last_page}",
                 headers=headers,
                 # proxies=proxies_dict,
-                timeout=30,
-            )
+                timeout=30,)
             product_count = None
-
+            
             if response.status_code == 200:
                 # Сохранение HTML-страницы целиком
                 content = response.text
@@ -217,34 +204,25 @@ def get_last_page(url, proxies_dict, last_page, max_retries=100, delay=5):
                 product_count, product_names = get_product_count(soup)
                 return product_count
             elif response.status_code in [404, 502]:  # Проверяем 404 и 502
-                logger.warning(
-                    f"Статус {response.status_code}: Страница {
-                        last_page} недоступна."
-                )
+                logger.warning(f"Статус {response.status_code}: Страница {last_page} недоступна.")
                 return None
             else:
                 logger.error(
-                    f"Попытка {retries + 1}/{max_retries}: статус {
-                        response.status_code}. Повтор через {delay} секунд..."
+                    f"Попытка {retries + 1}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд..."
                 )
         except requests.exceptions.ProxyError as e:
             if "502 Bad Gateway" in str(e):
-                logger.error(f"Ошибка 502 Bad Gateway: {
-                             e}. Прерываем попытки.")
+                logger.error(f"Ошибка 502 Bad Gateway: {e}. Прерываем попытки.")
                 return None
-            logger.error(f"Ошибка ProxyError: {
-                         e}. Повтор через {delay} секунд...")
+            logger.error(f"Ошибка ProxyError: {e}. Повтор через {delay} секунд...")
         except requests.RequestException as e:
-            logger.error(
-                f"Ошибка запроса: {e}. Попытка {
-                    retries + 1}/{max_retries}. Повтор через {delay} секунд..."
-            )
+            logger.error(f"Ошибка запроса: {e}. Попытка {retries + 1}/{max_retries}. Повтор через {delay} секунд...")
 
         retries += 1
         time.sleep(delay)
 
 
-def scrap_contacts(url, proxies_dict):
+def scrap_contacts(url,proxies_dict):
     """
     Извлечение контактной информации с указанной страницы.
 
@@ -253,7 +231,7 @@ def scrap_contacts(url, proxies_dict):
     """
     extracted_data = {"contacts": []}
     # Получить содержимое страницы
-    content = get_contacts(url, proxies_dict)
+    content = get_contacts(url,proxies_dict)
     if content is None:
         logger.error("Не удалось получить содержимое страницы.")
         return {}
@@ -285,9 +263,7 @@ def scrap_contacts(url, proxies_dict):
                 ],
                 "addressLocality": data.get("address", {}).get("addressLocality"),
                 "addressRegion": data.get("address", {}).get("addressRegion"),
-                "addressCountryname": data.get("address", {})
-                .get("addressCountry", {})
-                .get("name"),
+                "addressCountryname": data.get("address", {}).get("addressCountry", {}).get("name"),
             }
             # logger.info(contact_info)
             extracted_data["contacts"].append(contact_info)
@@ -299,7 +275,6 @@ def scrap_contacts(url, proxies_dict):
     except json.JSONDecodeError as e:
         logger.error(f"Ошибка декодирования JSON: {e}")
         return {}
-
 
 def get_contacts(url, proxies_dict, max_retries=100, delay=5):
     """
@@ -328,26 +303,19 @@ def get_contacts(url, proxies_dict, max_retries=100, delay=5):
                 # logger.info(f"Успешный запрос: статус {response.status_code}")
                 return content
             elif response.status_code in [404, 502]:  # Проверяем 404 и 502
-                logger.warning(
-                    f"Статус {response.status_code}: Страница недоступна.")
+                logger.warning(f"Статус {response.status_code}: Страница недоступна.")
                 return None
             else:
                 logger.error(
-                    f"Попытка {retries + 1}/{max_retries}: статус {
-                        response.status_code}. Повтор через {delay} секунд..."
+                    f"Попытка {retries + 1}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд..."
                 )
         except requests.exceptions.ProxyError as e:
             if "502 Bad Gateway" in str(e):
-                logger.error(f"Ошибка 502 Bad Gateway: {
-                             e}. Прерываем попытки.")
+                logger.error(f"Ошибка 502 Bad Gateway: {e}. Прерываем попытки.")
                 return None
-            logger.error(f"Ошибка ProxyError: {
-                         e}. Повтор через {delay} секунд...")
+            logger.error(f"Ошибка ProxyError: {e}. Повтор через {delay} секунд...")
         except requests.RequestException as e:
-            logger.error(
-                f"Ошибка запроса: {e}. Попытка {
-                    retries + 1}/{max_retries}. Повтор через {delay} секунд..."
-            )
+            logger.error(f"Ошибка запроса: {e}. Попытка {retries + 1}/{max_retries}. Повтор через {delay} секунд...")
 
         retries += 1
         time.sleep(delay)
@@ -356,30 +324,28 @@ def get_contacts(url, proxies_dict, max_retries=100, delay=5):
     logger.error(f"Не удалось получить HTML после {max_retries} попыток.")
     return None
 
-
 def get_pagination_pages_testimonials(html_content):
     """
     Извлекает количество страниц из атрибута data-pagination-pages-count.
-
+    
     :param html_content: str - HTML-контент
     :return: int - Количество страниц или None, если атрибут не найден
     """
     soup = BeautifulSoup(html_content, "lxml")
-
-    pagination_div = soup.find("div", {"data-bazooka": "Paginator"})
+    
+    pagination_div = soup.find('div', {'data-bazooka': 'Paginator'})
     if pagination_div:
-        pages_count = int(pagination_div.get("data-pagination-pages-count"))
+        pages_count = int(pagination_div.get('data-pagination-pages-count'))
         if pages_count:
-
+            
             return int(pages_count)  # Преобразуем в число и возвращаем
-
+    
     return None
 
-
-def get_testimonials(url, proxies_dict, max_retries=10, delay=5):
+def get_testimonials(url, proxies_dict,max_retries=10, delay=5):
     """
     Получение HTML-страницы списка отзывов с обработкой повторных запросов.
-
+    
     :param url: str - URL страницы отзывов
     :param headers: dict - Заголовки для запроса
     :param max_retries: int - Максимальное количество попыток
@@ -390,42 +356,32 @@ def get_testimonials(url, proxies_dict, max_retries=10, delay=5):
     while retries < max_retries:
         try:
             url = f"{url}testimonials"
-            response = requests.get(
-                url, headers=headers, timeout=30
-            )  # proxies=proxies_dict,
+            response = requests.get(url, headers=headers, timeout=30)#proxies=proxies_dict,
             if response.status_code == 200:
                 return response.text
             elif response.status_code in [404, 502]:  # Проверяем 404 и 502
-                logger.warning(
-                    f"Статус {response.status_code}: Страница недоступна.")
+                logger.warning(f"Статус {response.status_code}: Страница недоступна.")
                 return None
             else:
                 logger.error(
-                    f"Попытка {retries + 1}/{max_retries}: статус {
-                        response.status_code}. Повтор через {delay} секунд..."
+                    f"Попытка {retries + 1}/{max_retries}: статус {response.status_code}. Повтор через {delay} секунд..."
                 )
         except requests.exceptions.ProxyError as e:
             if "502 Bad Gateway" in str(e):
-                logger.error(f"Ошибка 502 Bad Gateway: {
-                             e}. Прерываем попытки.")
+                logger.error(f"Ошибка 502 Bad Gateway: {e}. Прерываем попытки.")
                 return None
-            logger.error(f"Ошибка ProxyError: {
-                         e}. Повтор через {delay} секунд...")
+            logger.error(f"Ошибка ProxyError: {e}. Повтор через {delay} секунд...")
         except requests.RequestException as e:
-            logger.error(
-                f"Ошибка запроса: {e}. Попытка {
-                    retries + 1}/{max_retries}. Повтор через {delay} секунд..."
-            )
+            logger.error(f"Ошибка запроса: {e}. Попытка {retries + 1}/{max_retries}. Повтор через {delay} секунд...")
 
         retries += 1
         time.sleep(delay)
     return None
 
-
 def scrape_reviews(soup):
     """
     Извлекает отзывы за 2023 и 2024 годы с текущей страницы.
-
+    
     :param soup: BeautifulSoup - Объект BeautifulSoup страницы
     :return: list - Список отзывов, bool - Флаг остановки
     """
@@ -436,11 +392,7 @@ def scrape_reviews(soup):
     for item in review_items:
         # Извлекаем дату
         date_tag = item.find("time", class_="cs-date")
-        review_date = (
-            date_tag["datetime"].split("T")[0]
-            if date_tag and date_tag.has_attr("datetime")
-            else None
-        )
+        review_date = date_tag["datetime"].split("T")[0] if date_tag and date_tag.has_attr("datetime") else None
         # logger.info(f"Дата отзыва: {review_date}")
 
         if review_date:
@@ -457,17 +409,10 @@ def scrape_reviews(soup):
 
         # Извлекаем рейтинг
         rating_tag = item.find("span", class_="cs-rating__state")
-        rating_text = (
-            rating_tag["title"] if rating_tag and rating_tag.has_attr(
-                "title") else None
-        )
+        rating_text = rating_tag["title"] if rating_tag and rating_tag.has_attr("title") else None
         # logger.info(f"Текст рейтинга: {rating_text}")
 
-        rating = (
-            int(rating_text.split()[1])
-            if rating_text and "Рейтинг" in rating_text
-            else None
-        )
+        rating = int(rating_text.split()[1]) if rating_text and "Рейтинг" in rating_text else None
         if rating is None:
             logger.warning("Не удалось извлечь рейтинг, пропускаем отзыв.")
             continue
@@ -480,8 +425,6 @@ def scrape_reviews(soup):
     # logger.info(f"Всего собранных отзывов: {len(reviews)}")
     # logger.info(reviews)
     return reviews, False
-
-
 def calculate_review_statistics(reviews):
     """
     Рассчитывает сумму оценок и количество отзывов по годам (2022, 2023, 2024).
@@ -523,7 +466,7 @@ def parse_reviews(url, proxies_dict):
     extracted_data = {"reviews": []}
 
     # Первая страница
-    html_content = get_testimonials(url, proxies_dict)
+    html_content = get_testimonials(url,proxies_dict)
     logger.info("Первая страница отзывов")
     if not html_content:
         return extracted_data
@@ -557,8 +500,6 @@ def parse_reviews(url, proxies_dict):
 
     statistics = calculate_review_statistics(extracted_data["reviews"])
     return {**statistics}
-
-
 # def calculate_review_statistics(reviews):
 #     """
 #     Рассчитывает сумму оценок и количество отзывов.
@@ -631,7 +572,7 @@ def parse_reviews(url, proxies_dict):
 # def parse_reviews(url):
 #     """
 #     Парсит отзывы со всех страниц, пока не найдёт отзывы за год раньше 2023.
-
+    
 #     :param url: str - URL страницы отзывов
 #     :param headers: dict - Заголовки для запросов
 #     :return: list - Список всех собранных отзывов
@@ -645,7 +586,7 @@ def parse_reviews(url, proxies_dict):
 #     #     save_html_to_file(html_content, "testimonials.html")
 #     # else:
 #     #     logger.error("Не удалось получить HTML-контент.")
-
+    
 #     if not html_content:
 #         return extracted_data
 
@@ -673,14 +614,13 @@ def parse_reviews(url, proxies_dict):
 #         # Добавляем отзывы в список
 #         extracted_data["reviews"].extend(page_reviews)
 
-
 #         if stop:  # Останавливаем, если найден отзыв за год раньше 2023
 #             break
 #     return extracted_data
 def save_html_to_file(html_content, file_path):
     """
     Сохраняет HTML-контент в файл.
-
+    
     :param html_content: str - HTML-контент для сохранения
     :param file_path: str - Путь к файлу для сохранения
     """
@@ -690,8 +630,6 @@ def save_html_to_file(html_content, file_path):
         logger.info(f"HTML сохранён в файл: {file_path}")
     except Exception as e:
         logger.error(f"Ошибка при сохранении HTML: {e}")
-
-
 def merge_data(reviews_statistics, contact_info, total_products, product_names):
     """
     Объединяет данные отзывов, контактной информации и общего количества продуктов в один JSON.
@@ -702,7 +640,7 @@ def merge_data(reviews_statistics, contact_info, total_products, product_names):
     :return: dict - Объединённый JSON
     """
     combined_data = {}
-
+    
     # Добавляем данные, если они есть
     if reviews_statistics and isinstance(reviews_statistics, dict):
         combined_data.update(reviews_statistics)
@@ -711,13 +649,10 @@ def merge_data(reviews_statistics, contact_info, total_products, product_names):
     if total_products and isinstance(total_products, dict):
         combined_data.update(total_products)
     if product_names and isinstance(product_names, list):
-        # Добавляем список товаров
-        combined_data["product_names"] = product_names
+        combined_data["product_names"] = product_names  # Добавляем список товаров
         # Объединяем данные
     # Преобразуем в JSON-строку (опционально)
     return combined_data
-
-
 def save_to_file_json(data, filename):
     """
     Сохраняет данные в JSON-файл.
@@ -731,12 +666,10 @@ def save_to_file_json(data, filename):
         logger.info(f"Данные успешно записаны в файл: {filename}")
     except Exception as e:
         logger.error(f"Ошибка при записи в файл: {e}")
-
-
 def save_to_excel(data, filename):
     """
     Сохраняет данные в Excel-файл с использованием pandas.
-
+    
     :param data: dict - Данные для записи
     :param filename: str - Имя файла
     """
@@ -754,27 +687,26 @@ def save_to_excel(data, filename):
         # Записываем общее количество продуктов
         if "total_product" in data:
             total_product_df = pd.DataFrame(
-                [{"total_product": data["total_product"]}])
-            total_product_df.to_excel(
-                writer, sheet_name="TotalProduct", index=False)
+                [{"total_product": data["total_product"]}]
+            )
+            total_product_df.to_excel(writer, sheet_name="TotalProduct", index=False)
 
     logger.info(f"Данные успешно записаны в файл: {filename}")
-
 
 # def write_combined_data_to_csv_v2(combined_data, filename="combined_data.csv"):
 #     """
 #     Записывает данные в CSV в одну строку, с каждым значением в своей колонке.
-
+    
 #     :param combined_data: dict - Данные для записи
 #     :param filename: str - Имя файла CSV
 #     """
 #     with open(filename, mode="w", encoding="utf-8", newline="") as file:
 #         writer = csv.writer(file)
-
+        
 #         # Заголовки
 #         headers = []
 #         values = []
-
+        
 #         # Добавляем отзывы
 #         reviews = combined_data.get("reviews", [])
 #         for i, review in enumerate(reviews, 1):
@@ -782,13 +714,58 @@ def save_to_excel(data, filename):
 #             values.append(review.get("date", ""))
 #             headers.append(f"review_{i}_rating")
 #             values.append(review.get("rating", ""))
-
+        
 #         # Добавляем контактную информацию
 #         contacts = combined_data.get("contacts", [])
 #         if contacts:
 #             contact = contacts[0]  # Берём первый контакт
 #             for key, value in contact.items():
 #                 if isinstance(value, list):
+#                     headers.append(key)
+#                     values.append(", ".join(value))
+#                 else:
+#                     headers.append(key)
+#                     values.append(value)
+        
+#         # Добавляем общее количество продуктов
+#         headers.append("total_product")
+#         values.append(combined_data.get("total_product", ""))
+        
+#         # Добавляем названия продуктов
+#         headers.append("product_names")
+#         values.append(", ".join(combined_data.get("product_names", [])))
+        
+#         # Пишем в файл
+#         writer.writerow(headers)
+#         writer.writerow(values)
+#     logger.info(f"Данные успешно записаны в {filename}")
+# def write_combined_data_to_csv(combined_data, filename="combined_data.csv"):
+#     """
+#     Записывает объединённые данные в CSV в одну строку, включая статистику отзывов по годам.
+
+#     :param combined_data: dict - Данные для записи
+#     :param filename: str - Имя файла CSV
+#     """
+#     with open(filename, mode="w", encoding="utf-8", newline="") as file:
+#         writer = csv.writer(file)
+
+#         # Заголовки и значения
+#         headers = []
+#         values = []
+
+#         # Добавляем статистику отзывов по годам
+#         for year in ["2022", "2023", "2024"]:
+#             headers.append(f"total_rating_sum_{year}")
+#             values.append(combined_data.get(f"total_rating_sum_{year}", ""))
+#             headers.append(f"total_review_count_{year}")
+#             values.append(combined_data.get(f"total_review_count_{year}", ""))
+
+#         # Добавляем контактную информацию
+#         contacts = combined_data.get("contacts", [])
+#         if contacts:
+#             contact = contacts[0]  # Берём первый контакт
+#             for key, value in contact.items():
+#                 if isinstance(value, list):  # Если значение список (например, телефоны)
 #                     headers.append(key)
 #                     values.append(", ".join(value))
 #                 else:
@@ -803,11 +780,12 @@ def save_to_excel(data, filename):
 #         headers.append("product_names")
 #         values.append(", ".join(combined_data.get("product_names", [])))
 
-
-#         # Пишем в файл
+#         # Запись в файл
 #         writer.writerow(headers)
 #         writer.writerow(values)
+
 #     logger.info(f"Данные успешно записаны в {filename}")
+
 def write_combined_data_to_csv(combined_data, filename="combined_data.csv"):
     """
     Записывает объединённые данные в CSV в одну строку, включая статистику отзывов по годам.
@@ -815,8 +793,14 @@ def write_combined_data_to_csv(combined_data, filename="combined_data.csv"):
     :param combined_data: dict - Данные для записи
     :param filename: str - Имя файла CSV
     """
+    def clean_value(value):
+        """Удаляет переносы строк и лишние пробелы в строках."""
+        if isinstance(value, str):
+            return value.replace("\n", " ").strip()
+        return value
+
     with open(filename, mode="w", encoding="utf-8", newline="") as file:
-        writer = csv.writer(file)
+        writer = csv.writer(file, delimiter=';', quotechar='"', quoting=csv.QUOTE_ALL)
 
         # Заголовки и значения
         headers = []
@@ -825,9 +809,9 @@ def write_combined_data_to_csv(combined_data, filename="combined_data.csv"):
         # Добавляем статистику отзывов по годам
         for year in ["2022", "2023", "2024"]:
             headers.append(f"total_rating_sum_{year}")
-            values.append(combined_data.get(f"total_rating_sum_{year}", ""))
+            values.append(clean_value(combined_data.get(f"total_rating_sum_{year}", "")))
             headers.append(f"total_review_count_{year}")
-            values.append(combined_data.get(f"total_review_count_{year}", ""))
+            values.append(clean_value(combined_data.get(f"total_review_count_{year}", "")))
 
         # Добавляем контактную информацию
         contacts = combined_data.get("contacts", [])
@@ -836,34 +820,31 @@ def write_combined_data_to_csv(combined_data, filename="combined_data.csv"):
             for key, value in contact.items():
                 if isinstance(value, list):  # Если значение список (например, телефоны)
                     headers.append(key)
-                    values.append(", ".join(value))
+                    values.append(clean_value(", ".join(value)))
                 else:
                     headers.append(key)
-                    values.append(value)
+                    values.append(clean_value(value))
 
         # Добавляем общее количество продуктов
         headers.append("total_product")
-        values.append(combined_data.get("total_product", ""))
+        values.append(clean_value(combined_data.get("total_product", "")))
 
         # Добавляем названия продуктов
         headers.append("product_names")
-        values.append(", ".join(combined_data.get("product_names", [])))
+        values.append(clean_value(", ".join(combined_data.get("product_names", []))))
 
         # Запись в файл
         writer.writerow(headers)
         writer.writerow(values)
 
     logger.info(f"Данные успешно записаны в {filename}")
-
-
 def read_cities_from_csv(input_csv_file):
     df = pd.read_csv(input_csv_file)
     return df["url"].tolist()
 
-
 # def main():
 #     proxies = load_proxies()
-
+    
 #     urls = read_cities_from_csv(output_csv_file)
 #     for url in urls[:100]:
 #         file_name = url.split("/")[-2].replace("-", "_").replace(".", "_")
@@ -873,22 +854,22 @@ def read_cities_from_csv(input_csv_file):
 #         proxy = random.choice(proxies)  # Выбираем случайный прокси
 #         proxies_dict = {"http": proxy, "https": proxy}
 #         logger.info(proxies_dict)
-
+        
 #         total_products, product_names  = get_total_products(url,proxies_dict)
-
+        
 #         proxy = random.choice(proxies)  # Выбираем случайный прокси
 #         proxies_dict = {"http": proxy, "https": proxy}
 #         contact_info = scrap_contacts(url, proxies_dict)
-
+        
 #         proxy = random.choice(proxies)  # Выбираем случайный прокси
 #         proxies_dict = {"http": proxy, "https": proxy}
 #         reviews = parse_reviews(url,proxies_dict)
-
+        
 #         # Объединяем данные
 #         combined_json = merge_data(reviews, contact_info, total_products, product_names)
 #         # logger.info(combined_json)
 #             # Сохраняем combined_json в файл
-
+        
 #         write_combined_data_to_csv(combined_json, csv_files)
 #         # save_to_file_json(combined_json, "combined_data.json")
 #         # # Сохраняем combined_json в Excel
@@ -921,8 +902,7 @@ def main_worker(url, proxies):
         reviews = parse_reviews(url, proxies_dict)
 
         # Объединяем данные
-        combined_json = merge_data(
-            reviews, contact_info, total_products, product_names)
+        combined_json = merge_data(reviews, contact_info, total_products, product_names)
 
         # Сохраняем в CSV
         write_combined_data_to_csv(combined_json, csv_files)
@@ -930,11 +910,11 @@ def main_worker(url, proxies):
     except Exception as e:
         logger.error(f"Ошибка при обработке URL {url}: {e}")
 
-
 def main():
     proxies = load_proxies()
     urls = read_cities_from_csv(output_csv_file)  # Берём первые 100 URL
 
+    
     # Используем ThreadPoolExecutor для многопоточности
     with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
         futures = [executor.submit(main_worker, url, proxies) for url in urls]
@@ -944,12 +924,10 @@ def main():
                 future.result()  # Проверяем, если были ошибки
             except Exception as e:
                 logger.error(f"Ошибка в потоке: {e}")
-
-
 def merge_csv_files(output_file="merged_data.csv"):
     """
     Объединяет все CSV-файлы в указанной директории в один файл.
-
+    
     :param csv_directory: str - Путь к директории с CSV-файлами
     :param output_file: str - Имя выходного файла
     """
@@ -976,53 +954,42 @@ def merge_csv_files(output_file="merged_data.csv"):
     else:
         print("Не удалось объединить данные.")
 
-
-def read_csv_file(file_path):
+def merge_csv_files_pandas(output_file="merged_data.csv", delimiter=';'):
     """
-    Читает CSV-файл и возвращает DataFrame.
-    """
-    try:
-        return pd.read_csv(file_path)
-    except Exception as e:
-        print(f"Ошибка при чтении файла {file_path}: {e}")
-        return None
-
-
-def merge_csv_files_parallel(output_file="merged_data.csv", max_workers=10):
-    """
-    Объединяет CSV-файлы из указанной директории в один файл с использованием параллельной обработки.
+    Объединяет все CSV-файлы в указанной директории в один файл.
 
     :param csv_directory: str - Путь к директории с CSV-файлами
     :param output_file: str - Имя выходного файла
-    :param max_workers: int - Максимальное количество потоков
+    :param delimiter: str - Разделитель для CSV-файлов (по умолчанию ';')
     """
-    csv_files = [
-        os.path.join(csv_directory, f)
-        for f in os.listdir(csv_directory)
-        if f.endswith(".csv")
-    ]
+    # Список всех CSV-файлов в директории
+    csv_files = [os.path.join(csv_directory, f) for f in os.listdir(csv_directory) if f.endswith(".csv")]
     if not csv_files:
         print("Нет файлов CSV для объединения.")
         return
 
-    all_data = []
+    all_data = []  # Список для хранения данных
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = executor.map(read_csv_file, csv_files)
+    for csv_file in csv_files:
+        try:
+            # Чтение CSV с указанием разделителя
+            data = pd.read_csv(csv_file, delimiter=delimiter)
+            all_data.append(data)
+        except Exception as e:
+            print(f"Ошибка при чтении файла {csv_file}: {e}")
 
-    for df in results:
-        if df is not None:
-            all_data.append(df)
-
-    # Объединяем и записываем
+    # Объединяем все данные в один DataFrame
     if all_data:
-        merged_df = pd.concat(all_data, ignore_index=True)
-        merged_df.to_csv(output_file, index=False)
-        print(f"Объединённые данные успешно сохранены в {output_file}.")
+        try:
+            merged_df = pd.concat(all_data, ignore_index=True)
+            # Сохраняем объединённый DataFrame в CSV с указанным разделителем
+            merged_df.to_csv(output_file, index=False, sep=delimiter, quotechar='"', quoting=1)
+            print(f"Объединённые данные успешно сохранены в {output_file}.")
+        except Exception as e:
+            print(f"Ошибка при объединении данных: {e}")
     else:
         print("Не удалось объединить данные.")
-
-
 if __name__ == "__main__":
     # main()
-    merge_csv_files_parallel()
+    # merge_csv_files()
+    merge_csv_files_pandas()

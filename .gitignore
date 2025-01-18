@@ -63,6 +63,12 @@ Thumbs.db
 *.key
 *.mp3
 *.tar
+*.max
+*.mtl
+*.obj
+*.rar
+*.fbx
+
 *.session-journal
 *.session
 # Здесь мы игнорируем все .txt файлы...
