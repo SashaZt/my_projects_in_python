@@ -97,6 +97,8 @@ def process_all_files():
 
         # Извлекаем имя файла без расширения
         base_name = Path(image_path).stem
+        # Имя файла для записи в БД
+        image_name = Path(image_path).name
 
         # Пропускаем обработку, если base_name уже в обработанных
         if base_name in processed_base_names:
@@ -114,6 +116,8 @@ def process_all_files():
 
         if archive_path:
             logger.info(f"Найден архив: {archive_path}")
+            # Имя архива для записи в БД
+            archive_name = Path(archive_path).name
             # Извлечение ссылку на продукт
             slug = fetch_slug_from_3dsky(base_name)
             if not slug:
@@ -125,7 +129,9 @@ def process_all_files():
             tags = fetch_tags_from_3dsky(base_name)
             # Если есть все три значения, записываем в БД
             if slug and style_en and tags:
-                update_local_file_search(base_name, slug, style_en, tags)
+                update_local_file_search(
+                    base_name, image_name, archive_name, slug, style_en, tags
+                )
             continue  # Переходим к следующей картинке
         else:
             # Если архива нет, проверяем, существует ли папка с таким именем
@@ -146,7 +152,9 @@ def process_all_files():
                     tags = fetch_tags_from_3dsky(base_name)
                     # Если есть все три значения, записываем в БД
                     if slug and style_en and tags:
-                        update_local_file_search(base_name, slug, style_en, tags)
+                        update_local_file_search(
+                            base_name, image_name, archive_name, slug, style_en, tags
+                        )
                 else:
                     logger.error(f"Ошибка при архивировании папки: {folder_path}")
             else:
@@ -318,12 +326,14 @@ def fetch_slug_from_3dsky(query):
         return []
 
 
-def update_local_file_search(base_name, slug, style_en, tags):
+def update_local_file_search(base_name, image_name, archive_name, slug, style_en, tags):
     """
     Обновляет запись в таблице: если запись с указанным base_name существует, обновляет её.
     Если записи нет, добавляет её с указанными данными.
 
     :param base_name: Имя для поиска записи (base_name).
+    :param image_name: Имя файла изображения с расширением.
+    :param archive_name: Имя архива с расширением.
     :param slug: Уникальный идентификатор модели (slug).
     :param style_en: Стиль модели (style_en).
     :param tags: Теги для модели (список).
@@ -358,27 +368,27 @@ def update_local_file_search(base_name, slug, style_en, tags):
             cursor.execute(
                 f"""
             UPDATE {TABLE_NAME}
-            SET slug = ?, style_en = ?, tags = ?, local_file_search = 1
+            SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, local_file_search = 1
             WHERE id = ?
             """,
-                (slug, style_en, tags_str, record[0]),
+                (image_name, archive_name, slug, style_en, tags_str, record[0]),
             )
             conn.commit()
             logger.info(
-                f"Обновлена запись с id = {record[0]}: base_name = {base_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}"
+                f"Обновлена запись с id = {record[0]}: base_name = {base_name}, image_name = {image_name}, archive_name = {archive_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}"
             )
         else:
             # Если записи нет, добавляем новую запись
             cursor.execute(
                 f"""
-            INSERT INTO {TABLE_NAME} (base_name, slug, style_en, tags, local_file_search, posting_telegram)
-            VALUES (?, ?, ?, ?, 1, 0)
+            INSERT INTO {TABLE_NAME} (base_name, image_name, archive_name, slug, style_en, tags, local_file_search, posting_telegram)
+            VALUES (?, ?, ?, ?, ?, ?, 1, 0)
             """,
-                (base_name, slug, style_en, tags_str),
+                (base_name, image_name, archive_name, slug, style_en, tags_str),
             )
             conn.commit()
             logger.info(
-                f"Добавлена новая запись: base_name = {base_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}"
+                f"Добавлена новая запись: base_name = {base_name}, image_name = {image_name}, archive_name = {archive_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}"
             )
     except ValueError as ve:
         logger.error(f"Ошибка в переданных данных: {ve}")
@@ -388,8 +398,6 @@ def update_local_file_search(base_name, slug, style_en, tags):
         if conn:
             conn.close()
             logger.info("Соединение с базой данных закрыто.")
-
-            # logger.info("Соединение с базой данных закрыто.")
 
 
 def get_processed_base_names():
@@ -444,6 +452,8 @@ def initialize_database():
         CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             base_name TEXT NOT NULL,
+            image_name TEXT NOT NULL,
+            archive_name TEXT NOT NULL,
             slug TEXT,
             style_en TEXT,
             tags TEXT,
@@ -463,6 +473,39 @@ def initialize_database():
             conn.close()
 
 
+def add_columns_to_table(image_name, archive_name):
+    """
+    Добавляет две новые колонки image_name и archive_name в существующую таблицу.
+
+    :param db_name: Имя базы данных.
+    :param table_name: Имя таблицы.
+    """
+    try:
+        # Подключение к базе данных
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        # Добавляем колонку image_name
+        cursor.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN {image_name} TEXT NOT NULL DEFAULT '';"
+        )
+        # Добавляем колонку archive_name
+        cursor.execute(
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN {archive_name} TEXT NOT NULL DEFAULT '';"
+        )
+
+        conn.commit()
+        logger.info(
+            f"Колонки {image_name} и {archive_name} успешно добавлены в таблицу {TABLE_NAME}."
+        )
+    except sqlite3.Error as e:
+        logger.error(f"Ошибка при добавлении колонок: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+
 if __name__ == "__main__":
-    initialize_database()
+    # initialize_database()
+    # add_columns_to_table("image_name", "archive_name")
     process_all_files()
