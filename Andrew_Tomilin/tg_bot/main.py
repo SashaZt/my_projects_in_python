@@ -15,6 +15,30 @@ LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY", "./data")
 ARCHIVE_FORMAT = "7z"  # Зафиксировали формат, чтобы избежать ошибок
 DB_NAME = os.getenv("DB_NAME", "default.db")
 TABLE_NAME = os.getenv("TABLE_NAME", "default_table")
+cookies = {
+    "besrv": "app56",
+    "CookieConsent_en": "1%7C1766079412",
+    "PHPSESSID": "b81c565f6d0e14a859e3fe6540cd7daf",
+}
+headers = {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    "cache-control": "no-cache",
+    "content-type": "application/json",
+    "dnt": "1",
+    "expires": "Sat, 01 Jan 2000 00:00:00 GMT",
+    "origin": "https://3dsky.org",
+    "pragma": "no-cache",
+    "priority": "u=1, i",
+    "referer": "https://3dsky.org/",
+    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-site",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+}
 
 
 def find_first_file(directory, extensions):
@@ -70,7 +94,6 @@ def process_all_files():
         return
 
     for image_path in images:
-        # logger.info(f"Обрабатываем картинку: {image_path}")
 
         # Извлекаем имя файла без расширения
         base_name = Path(image_path).stem
@@ -79,46 +102,100 @@ def process_all_files():
         if base_name in processed_base_names:
             logger.info(f"Картинка с base_name {base_name} уже обработана. Пропускаем.")
             continue
-
-        # Проверяем, существует ли архив в любом формате
-        archive_found = any(
-            os.path.exists(os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}"))
-            for ext in archive_extensions
+        # Проверяем, существует ли архив
+        archive_path = next(
+            (
+                os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}")
+                for ext in (".zip", ".rar", ".7z")
+                if os.path.exists(os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}"))
+            ),
+            None,
         )
 
-        if archive_found:
-            # Извлечение slug, style и tags, обновление базы данных
+        if archive_path:
+            logger.info(f"Найден архив: {archive_path}")
+            # Извлечение ссылку на продукт
             slug = fetch_slug_from_3dsky(base_name)
             if not slug:
-                logger.warning(f"Нету данных на: {base_name}")
+                logger.warning(f"На сайте 3dsky.org нету данных на: {base_name}")
                 continue
+            # Извлечение стиль на продукт
             style_en = fetch_styles_from_3dsky(slug)
+            # Извлечение теги продукта
             tags = fetch_tags_from_3dsky(base_name)
-
+            # Если есть все три значения, записываем в БД
             if slug and style_en and tags:
                 update_local_file_search(base_name, slug, style_en, tags)
             continue  # Переходим к следующей картинке
-
-        # Если архива нет, проверяем, существует ли папка с таким именем
-        folder_path = os.path.join(LOCAL_DIRECTORY, base_name)
-        if os.path.isdir(folder_path):
-            logger.info(f"Найдена папка для архивирования: {folder_path}")
-            archive_path = archive_directory(folder_path)
-            if archive_path:
-                logger.info(f"Создан архив: {archive_path}")
-                if not slug:
-                    logger.warning(f"Нету данных на: {base_name}")
-                    continue
-                slug = fetch_slug_from_3dsky(base_name)
-                style_en = fetch_styles_from_3dsky(slug)
-                tags = fetch_tags_from_3dsky(base_name)
-                if slug and style_en and tags:
-                    update_local_file_search(base_name, slug, style_en, tags)
-                continue  # Переходим к следующей картинке
-            else:
-                logger.error(f"Ошибка при архивировании папки: {folder_path}")
         else:
-            logger.error(f"Папка с именем {base_name} не найдена.")
+            # Если архива нет, проверяем, существует ли папка с таким именем
+            folder_path = os.path.join(LOCAL_DIRECTORY, base_name)
+            if os.path.isdir(folder_path):
+                logger.info(f"Найдена папка для архивирования: {folder_path}")
+                archive_path = archive_directory(folder_path)
+                if archive_path:
+                    logger.info(f"Создан архив: {archive_path}")
+                    # Извлечение ссылку на продукт
+                    slug = fetch_slug_from_3dsky(base_name)
+                    if not slug:
+                        logger.warning(f"Нету данных на: {base_name}")
+                        continue
+                    # Извлечение стиль на продукт
+                    style_en = fetch_styles_from_3dsky(slug)
+                    # Извлечение теги продукта
+                    tags = fetch_tags_from_3dsky(base_name)
+                    # Если есть все три значения, записываем в БД
+                    if slug and style_en and tags:
+                        update_local_file_search(base_name, slug, style_en, tags)
+                else:
+                    logger.error(f"Ошибка при архивировании папки: {folder_path}")
+            else:
+                logger.error(f"Папки и архива с именем {base_name} не найдена.")
+        # # Проверяем, существует ли архив в любом формате
+        # archive_found = any(
+        #     os.path.exists(os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}"))
+        #     for ext in archive_extensions
+        # )
+
+        # if archive_found:
+        #     # Извлечение ссылку на продукт
+        #     slug = fetch_slug_from_3dsky(base_name)
+        #     if not slug:
+        #         logger.warning(f"Нету данных на: {base_name}")
+        #         continue
+        #     # Извлечение стиль на продукт
+        #     style_en = fetch_styles_from_3dsky(slug)
+        #     # Извлечение теги продукта
+        #     tags = fetch_tags_from_3dsky(base_name)
+        #     # Если есть все три значения, записываем в БД
+        #     if slug and style_en and tags:
+        #         update_local_file_search(base_name, slug, style_en, tags)
+        #     continue  # Переходим к следующей картинке
+
+        # # Если архива нет, проверяем, существует ли папка с таким именем
+        # folder_path = os.path.join(LOCAL_DIRECTORY, base_name)
+        # if os.path.isdir(folder_path):
+        #     logger.info(f"Найдена папка для архивирования: {folder_path}")
+        #     archive_path = archive_directory(folder_path)
+        #     if archive_path:
+        #         logger.info(f"Создан архив: {archive_path}")
+        #         # Извлечение ссылку на продукт
+        #         slug = fetch_slug_from_3dsky(base_name)
+        #         if not slug:
+        #             logger.warning(f"Нету данных на: {base_name}")
+        #             continue
+        #         # Извлечение стиль на продукт
+        #         style_en = fetch_styles_from_3dsky(slug)
+        #         # Извлечение теги продукта
+        #         tags = fetch_tags_from_3dsky(base_name)
+        #         # Если есть все три значения, записываем в БД
+        #         if slug and style_en and tags:
+        #             update_local_file_search(base_name, slug, style_en, tags)
+        #         continue  # Переходим к следующей картинке
+        #     else:
+        #         logger.error(f"Ошибка при архивировании папки: {folder_path}")
+        # else:
+        #     logger.error(f"Папка с именем {base_name} не найдена.")
 
 
 def fetch_tags_from_3dsky(query):
@@ -128,31 +205,6 @@ def fetch_tags_from_3dsky(query):
     :param slug: Идентификатор модели (значение для 'slug' в запросе)
     :return: Список значений title из data
     """
-    cookies = {
-        "besrv": "app56",
-        "CookieConsent_en": "1%7C1766079412",
-        "PHPSESSID": "b81c565f6d0e14a859e3fe6540cd7daf",
-    }
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        "content-type": "application/json",
-        "dnt": "1",
-        "expires": "Sat, 01 Jan 2000 00:00:00 GMT",
-        "origin": "https://3dsky.org",
-        "pragma": "no-cache",
-        "priority": "u=1, i",
-        "referer": "https://3dsky.org/",
-        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    }
-
     json_data = {
         "query": query,
         "order": "relevance",
@@ -193,26 +245,6 @@ def fetch_styles_from_3dsky(slug):
     :param slug: Идентификатор модели (значение для 'slug' в запросе)
     :return: Список значений title из data
     """
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        "content-type": "application/json",
-        "dnt": "1",
-        "expires": "Sat, 01 Jan 2000 00:00:00 GMT",
-        "origin": "https://3dsky.org",
-        "pragma": "no-cache",
-        "priority": "u=1, i",
-        "referer": "https://3dsky.org/",
-        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    }
-
     json_data = {
         "slug": slug,
     }
@@ -250,31 +282,6 @@ def fetch_slug_from_3dsky(query):
     :param slug: Идентификатор модели (значение для 'slug' в запросе)
     :return: Список значений title из data
     """
-    cookies = {
-        "besrv": "app56",
-        "CookieConsent_en": "1%7C1766079412",
-        "PHPSESSID": "b81c565f6d0e14a859e3fe6540cd7daf",
-    }
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        "content-type": "application/json",
-        "dnt": "1",
-        "expires": "Sat, 01 Jan 2000 00:00:00 GMT",
-        "origin": "https://3dsky.org",
-        "pragma": "no-cache",
-        "priority": "u=1, i",
-        "referer": "https://3dsky.org/",
-        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-site",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-    }
-
     json_data = {
         "query": query,
         "order": "relevance",
@@ -446,11 +453,11 @@ def initialize_database():
         """
         )
         conn.commit()
-        print(
+        logger.info(
             f"База данных '{DB_NAME}' и таблица '{TABLE_NAME}' успешно инициализированы."
         )
     except sqlite3.Error as e:
-        print(f"Ошибка при инициализации базы данных: {e}")
+        logger.error(f"Ошибка при инициализации базы данных: {e}")
     finally:
         if conn:
             conn.close()
