@@ -138,8 +138,8 @@ def process_file(base_name, image_name, archive_name):
     Обрабатывает файл: извлекает данные из 3dsky и записывает в БД.
     """
     try:
-        slug, title = fetch_slug_from_3dsky(base_name)
-        if not slug or not title:
+        slug, title, category = fetch_slug_from_3dsky(base_name)
+        if not slug or not title or not category:
             logger.warning(f"На сайте 3dsky.org нет данных для base_name: {base_name}")
             return
 
@@ -148,7 +148,14 @@ def process_file(base_name, image_name, archive_name):
 
         if slug and style_en and tags:
             update_local_file_search(
-                base_name, image_name, archive_name, slug, style_en, tags, title
+                base_name,
+                image_name,
+                archive_name,
+                slug,
+                style_en,
+                tags,
+                title,
+                category,
             )
             logger.info(f"Обработан файл с base_name: {base_name}")
     except Exception as e:
@@ -259,7 +266,8 @@ def fetch_slug_from_3dsky(query):
                 model = models[0]  # Берем первую модель
                 slug = model.get("slug")
                 title = model.get("title")
-                return slug, title
+                category = model.get("category", {}).get("title_en")
+                return slug, title, category
 
         else:
             logger.error(
@@ -271,11 +279,11 @@ def fetch_slug_from_3dsky(query):
         logger.error(f"Ошибка обработки JSON: {e}")
 
     # Возвращаем (None, None), если что-то пошло не так
-    return None, None
+    return None, None, None
 
 
 def update_local_file_search(
-    base_name, image_name, archive_name, slug, style_en, tags, title
+    base_name, image_name, archive_name, slug, style_en, tags, title, category
 ):
     """
     Обновляет запись в таблице: если запись с указанным base_name существует, обновляет её.
@@ -313,25 +321,43 @@ def update_local_file_search(
             cursor.execute(
                 f"""
                 UPDATE {TABLE_NAME}
-                SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, title = ?, local_file_search = 1
+                SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, title = ?, category = ?, local_file_search = 1
                 WHERE id = ?
                 """,
-                (image_name, archive_name, slug, style_en, tags_str, title, record[0]),
+                (
+                    image_name,
+                    archive_name,
+                    slug,
+                    style_en,
+                    tags_str,
+                    title,
+                    category,
+                    record[0],
+                ),
             )
             conn.commit()
             logger.info(
                 f"Обновлена запись с id = {record[0]}: base_name = {base_name}, image_name = {image_name}, "
-                f"archive_name = {archive_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}, title = {title}"
+                # f"archive_name = {archive_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}, title = {title}"
             )
         else:
             # Если записи нет, добавляем новую запись
             cursor.execute(
                 f"""
                 INSERT INTO {TABLE_NAME} 
-                (base_name, image_name, archive_name, slug, style_en, tags, title, local_file_search, posting_telegram)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)
+                (base_name, image_name, archive_name, slug, style_en, tags, title,category, local_file_search, posting_telegram)
+                VALUES (?, ?, ?, ?, ?, ?, ?,?, 1, 0)
                 """,
-                (base_name, image_name, archive_name, slug, style_en, tags_str, title),
+                (
+                    base_name,
+                    image_name,
+                    archive_name,
+                    slug,
+                    style_en,
+                    tags_str,
+                    title,
+                    category,
+                ),
             )
             conn.commit()
             logger.info(f"Добавлена новая запись: base_name = {base_name}")
@@ -396,6 +422,7 @@ def initialize_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             base_name TEXT NOT NULL,
             title TEXT NOT NULL,
+            category TEXT NOT NULL,
             image_name TEXT NOT NULL,
             archive_name TEXT NOT NULL,
             slug TEXT,
@@ -444,5 +471,5 @@ def add_columns_to_table(image_name):
 
 if __name__ == "__main__":
     # initialize_database()
-    # add_columns_to_table("title")
+    # add_columns_to_table("category")
     process_all_files()

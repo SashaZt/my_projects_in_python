@@ -13,7 +13,6 @@ env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(env_path)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-# BOT_TOKEN = "7299947082:AAF1tvJn9Jl5Op2Co-FQx0KRMlNHtz-CW1k"
 DB_NAME = os.getenv("DB_NAME")
 TABLE_NAME = os.getenv("TABLE_NAME")
 LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY")
@@ -129,11 +128,20 @@ async def handle_post_models_free(message: Message):
     logger.info(
         f"Команда 'post_models_free' вызвана пользователем {message.from_user.id}"
     )
-    item = await fetch_next_item()
-    if item:
-        await post_item_to_channel(item, CHANNEL_ID_Models_Free)
-    else:
+
+    # Загружаем данные из JSON
+    data = fetch_json()
+    logger.info(data)
+    if not data:
         await message.reply("Нет доступных записей для публикации.")
+        return
+
+    # Проверяем каждую запись и публикуем
+    for item in data:
+        if not item["posting_telegram"]:  # Проверяем статус публикации
+            await post_item_to_channel(item, CHANNEL_ID_Models_Free)
+
+    await message.reply("Публикация завершена.")
 
 
 @dp.message(Command("post_models_pro"))
@@ -222,7 +230,23 @@ async def materials_pro_group_button_handler(message: Message):
     await materials_pro_group_button_handler(message)
 
 
-# Функция для поста
+def fetch_json(filename="temp_data.json"):
+    """
+    Считывает данные из JSON-файла.
+
+    :param filename: Имя файла с данными.
+    :return: Список записей из файла.
+    """
+    try:
+        with open(filename, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            logger.info("Данные успешно загружены из JSON.")
+            return data
+    except Exception as e:
+        logger.error(f"Ошибка чтения JSON-файла: {e}")
+        return []
+
+
 async def post_item_to_channel(item, channel_id):
     """
     Публикует фото в канал с подписью, если файл найден и posting_telegram = False.
@@ -231,10 +255,6 @@ async def post_item_to_channel(item, channel_id):
     :param channel_id: ID канала для публикации.
     """
     try:
-        if item["posting_telegram"]:
-            logger.info(f"Запись {item['id']} уже опубликована. Пропускаем.")
-            return
-
         # Формируем путь к изображению
         image_path = os.path.join(LOCAL_DIRECTORY, item["image_name"])
 
@@ -250,15 +270,15 @@ async def post_item_to_channel(item, channel_id):
         photo = InputFile(image_path)
         await bot.send_photo(chat_id=channel_id, photo=photo, caption=caption)
 
-        # Отмечаем запись как опубликованную (обновление в базе данных)
-        await mark_as_posted(item["id"])
-        logger.info(f"Запись {item['id']} опубликована в канале.")
+        # Отмечаем запись как опубликованную
+        item["posting_telegram"] = True
+        await mark_as_posted(item["id"])  # Обновляем в базе данных
+        logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
 
     except Exception as e:
         logger.error(f"Ошибка при публикации записи {item['id']}: {e}")
 
 
-# Функция для обновление в БД о посте
 async def mark_as_posted(record_id):
     """
     Отмечает запись как опубликованную в базе данных.

@@ -27,4 +27,4 @@ if not exist "%PYTHON_EXE%" (
 )
 
 :: Запуск main.py
-"%PYTHON_EXE%" "%CURRENT_DIR%main_tg_new.py"
+"%PYTHON_EXE%" "%CURRENT_DIR%main_mouse.py"
