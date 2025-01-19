@@ -94,116 +94,65 @@ def process_all_files():
         return
 
     for image_path in images:
-
         # Извлекаем имя файла без расширения
         base_name = Path(image_path).stem
-        # Имя файла для записи в БД
         image_name = Path(image_path).name
 
         # Пропускаем обработку, если base_name уже в обработанных
         if base_name in processed_base_names:
             logger.info(f"Картинка с base_name {base_name} уже обработана. Пропускаем.")
             continue
-        # Проверяем, существует ли архив
+
+        # Проверяем существование архива
         archive_path = next(
             (
                 os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}")
-                for ext in (".zip", ".rar", ".7z")
+                for ext in archive_extensions
                 if os.path.exists(os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}"))
             ),
             None,
         )
 
+        # Обработка, если архив найден
         if archive_path:
-            logger.info(f"Найден архив: {archive_path}")
-            # Имя архива для записи в БД
             archive_name = Path(archive_path).name
-            # Извлечение ссылку на продукт
-            slug = fetch_slug_from_3dsky(base_name)
-            if not slug:
-                logger.warning(f"На сайте 3dsky.org нету данных на: {base_name}")
-                continue
-            # Извлечение стиль на продукт
-            style_en = fetch_styles_from_3dsky(slug)
-            # Извлечение теги продукта
-            tags = fetch_tags_from_3dsky(base_name)
-            # Если есть все три значения, записываем в БД
-            if slug and style_en and tags:
-                update_local_file_search(
-                    base_name, image_name, archive_name, slug, style_en, tags
-                )
-            continue  # Переходим к следующей картинке
-        else:
-            # Если архива нет, проверяем, существует ли папка с таким именем
-            folder_path = os.path.join(LOCAL_DIRECTORY, base_name)
-            if os.path.isdir(folder_path):
-                logger.info(f"Найдена папка для архивирования: {folder_path}")
-                archive_path = archive_directory(folder_path)
-                if archive_path:
-                    logger.info(f"Создан архив: {archive_path}")
-                    # Извлечение ссылку на продукт
-                    slug = fetch_slug_from_3dsky(base_name)
-                    if not slug:
-                        logger.warning(f"Нету данных на: {base_name}")
-                        continue
-                    # Извлечение стиль на продукт
-                    style_en = fetch_styles_from_3dsky(slug)
-                    # Извлечение теги продукта
-                    tags = fetch_tags_from_3dsky(base_name)
-                    # Если есть все три значения, записываем в БД
-                    if slug and style_en and tags:
-                        update_local_file_search(
-                            base_name, image_name, archive_name, slug, style_en, tags
-                        )
-                else:
-                    logger.error(f"Ошибка при архивировании папки: {folder_path}")
+            process_file(base_name, image_name, archive_name)
+            continue
+
+        # Если архива нет, проверяем наличие папки
+        folder_path = os.path.join(LOCAL_DIRECTORY, base_name)
+        if os.path.isdir(folder_path):
+            logger.info(f"Найдена папка для архивирования: {folder_path}")
+            archive_path = archive_directory(folder_path)
+            if archive_path:
+                archive_name = Path(archive_path).name
+                process_file(base_name, image_name, archive_name)
             else:
-                logger.error(f"Папки и архива с именем {base_name} не найдена.")
-        # # Проверяем, существует ли архив в любом формате
-        # archive_found = any(
-        #     os.path.exists(os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}"))
-        #     for ext in archive_extensions
-        # )
+                logger.error(f"Ошибка при архивировании папки: {folder_path}")
+        else:
+            logger.error(f"Папки и архива с именем {base_name} не найдена.")
 
-        # if archive_found:
-        #     # Извлечение ссылку на продукт
-        #     slug = fetch_slug_from_3dsky(base_name)
-        #     if not slug:
-        #         logger.warning(f"Нету данных на: {base_name}")
-        #         continue
-        #     # Извлечение стиль на продукт
-        #     style_en = fetch_styles_from_3dsky(slug)
-        #     # Извлечение теги продукта
-        #     tags = fetch_tags_from_3dsky(base_name)
-        #     # Если есть все три значения, записываем в БД
-        #     if slug and style_en and tags:
-        #         update_local_file_search(base_name, slug, style_en, tags)
-        #     continue  # Переходим к следующей картинке
 
-        # # Если архива нет, проверяем, существует ли папка с таким именем
-        # folder_path = os.path.join(LOCAL_DIRECTORY, base_name)
-        # if os.path.isdir(folder_path):
-        #     logger.info(f"Найдена папка для архивирования: {folder_path}")
-        #     archive_path = archive_directory(folder_path)
-        #     if archive_path:
-        #         logger.info(f"Создан архив: {archive_path}")
-        #         # Извлечение ссылку на продукт
-        #         slug = fetch_slug_from_3dsky(base_name)
-        #         if not slug:
-        #             logger.warning(f"Нету данных на: {base_name}")
-        #             continue
-        #         # Извлечение стиль на продукт
-        #         style_en = fetch_styles_from_3dsky(slug)
-        #         # Извлечение теги продукта
-        #         tags = fetch_tags_from_3dsky(base_name)
-        #         # Если есть все три значения, записываем в БД
-        #         if slug and style_en and tags:
-        #             update_local_file_search(base_name, slug, style_en, tags)
-        #         continue  # Переходим к следующей картинке
-        #     else:
-        #         logger.error(f"Ошибка при архивировании папки: {folder_path}")
-        # else:
-        #     logger.error(f"Папка с именем {base_name} не найдена.")
+def process_file(base_name, image_name, archive_name):
+    """
+    Обрабатывает файл: извлекает данные из 3dsky и записывает в БД.
+    """
+    try:
+        slug, title = fetch_slug_from_3dsky(base_name)
+        if not slug or not title:
+            logger.warning(f"На сайте 3dsky.org нет данных для base_name: {base_name}")
+            return
+
+        style_en = fetch_styles_from_3dsky(slug)
+        tags = fetch_tags_from_3dsky(base_name)
+
+        if slug and style_en and tags:
+            update_local_file_search(
+                base_name, image_name, archive_name, slug, style_en, tags, title
+            )
+            logger.info(f"Обработан файл с base_name: {base_name}")
+    except Exception as e:
+        logger.error(f"Ошибка обработки файла {base_name}: {e}")
 
 
 def fetch_tags_from_3dsky(query):
@@ -285,10 +234,10 @@ def fetch_styles_from_3dsky(slug):
 
 def fetch_slug_from_3dsky(query):
     """
-    Выполняет POST-запрос к API 3dsky.org и возвращает список title из data.
+    Выполняет POST-запрос к API 3dsky.org и возвращает slug и title первой модели.
 
-    :param slug: Идентификатор модели (значение для 'slug' в запросе)
-    :return: Список значений title из data
+    :param query: Запрос для поиска
+    :return: Кортеж (slug, title) или (None, None), если данные не найдены
     """
     json_data = {
         "query": query,
@@ -305,28 +254,29 @@ def fetch_slug_from_3dsky(query):
         response.raise_for_status()  # Проверяем на ошибки HTTP
         data = response.json()
         if data.get("status") == 200 and "data" in data:
-            data = data["data"]
-            models = data.get("models", [])
-
+            models = data["data"].get("models", [])
             if models:
                 model = models[0]  # Берем первую модель
                 slug = model.get("slug")
-                return slug
-            # else:
-            #     logger.warning("Список models пуст.")
+                title = model.get("title")
+                return slug, title
+
         else:
             logger.error(
                 f"Ошибка в ответе API: {data.get('message', 'Неизвестная ошибка')}"
             )
     except requests.RequestException as e:
         logger.error(f"Ошибка выполнения запроса: {e}")
-        return []
     except ValueError as e:
-        logger.error(e)
-        return []
+        logger.error(f"Ошибка обработки JSON: {e}")
+
+    # Возвращаем (None, None), если что-то пошло не так
+    return None, None
 
 
-def update_local_file_search(base_name, image_name, archive_name, slug, style_en, tags):
+def update_local_file_search(
+    base_name, image_name, archive_name, slug, style_en, tags, title
+):
     """
     Обновляет запись в таблице: если запись с указанным base_name существует, обновляет её.
     Если записи нет, добавляет её с указанными данными.
@@ -337,27 +287,22 @@ def update_local_file_search(base_name, image_name, archive_name, slug, style_en
     :param slug: Уникальный идентификатор модели (slug).
     :param style_en: Стиль модели (style_en).
     :param tags: Теги для модели (список).
+    :param title: Название объекта.
     """
     try:
         # Подключение к базе данных
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
 
-        # Убедимся, что tags — это список, даже если пустой
-        if not tags:
-            tags = []
-        elif not isinstance(tags, list):
-            raise ValueError("Tags должны быть списком.")
-
         # Преобразуем список tags в строку
-        tags_str = ",".join(tags)
+        tags_str = ",".join(tags if tags else [])
 
         # Проверка существования записи с указанным base_name
         cursor.execute(
             f"""
-        SELECT id FROM {TABLE_NAME}
-        WHERE base_name = ?
-        """,
+            SELECT id FROM {TABLE_NAME}
+            WHERE base_name = ?
+            """,
             (base_name,),
         )
 
@@ -367,31 +312,29 @@ def update_local_file_search(base_name, image_name, archive_name, slug, style_en
             # Если запись существует, обновляем её
             cursor.execute(
                 f"""
-            UPDATE {TABLE_NAME}
-            SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, local_file_search = 1
-            WHERE id = ?
-            """,
-                (image_name, archive_name, slug, style_en, tags_str, record[0]),
+                UPDATE {TABLE_NAME}
+                SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, title = ?, local_file_search = 1
+                WHERE id = ?
+                """,
+                (image_name, archive_name, slug, style_en, tags_str, title, record[0]),
             )
             conn.commit()
             logger.info(
-                f"Обновлена запись с id = {record[0]}: base_name = {base_name}, image_name = {image_name}, archive_name = {archive_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}"
+                f"Обновлена запись с id = {record[0]}: base_name = {base_name}, image_name = {image_name}, "
+                f"archive_name = {archive_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}, title = {title}"
             )
         else:
             # Если записи нет, добавляем новую запись
             cursor.execute(
                 f"""
-            INSERT INTO {TABLE_NAME} (base_name, image_name, archive_name, slug, style_en, tags, local_file_search, posting_telegram)
-            VALUES (?, ?, ?, ?, ?, ?, 1, 0)
-            """,
-                (base_name, image_name, archive_name, slug, style_en, tags_str),
+                INSERT INTO {TABLE_NAME} 
+                (base_name, image_name, archive_name, slug, style_en, tags, title, local_file_search, posting_telegram)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0)
+                """,
+                (base_name, image_name, archive_name, slug, style_en, tags_str, title),
             )
             conn.commit()
-            logger.info(
-                f"Добавлена новая запись: base_name = {base_name}, image_name = {image_name}, archive_name = {archive_name}, slug = {slug}, style_en = {style_en}, tags = {tags_str}"
-            )
-    except ValueError as ve:
-        logger.error(f"Ошибка в переданных данных: {ve}")
+            logger.info(f"Добавлена новая запись: base_name = {base_name}")
     except sqlite3.Error as e:
         logger.error(f"Ошибка работы с базой данных: {e}")
     finally:
@@ -452,6 +395,7 @@ def initialize_database():
         CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             base_name TEXT NOT NULL,
+            title TEXT NOT NULL,
             image_name TEXT NOT NULL,
             archive_name TEXT NOT NULL,
             slug TEXT,
@@ -473,7 +417,7 @@ def initialize_database():
             conn.close()
 
 
-def add_columns_to_table(image_name, archive_name):
+def add_columns_to_table(image_name):
     """
     Добавляет две новые колонки image_name и archive_name в существующую таблицу.
 
@@ -489,15 +433,8 @@ def add_columns_to_table(image_name, archive_name):
         cursor.execute(
             f"ALTER TABLE {TABLE_NAME} ADD COLUMN {image_name} TEXT NOT NULL DEFAULT '';"
         )
-        # Добавляем колонку archive_name
-        cursor.execute(
-            f"ALTER TABLE {TABLE_NAME} ADD COLUMN {archive_name} TEXT NOT NULL DEFAULT '';"
-        )
-
         conn.commit()
-        logger.info(
-            f"Колонки {image_name} и {archive_name} успешно добавлены в таблицу {TABLE_NAME}."
-        )
+        logger.info(f"Колонки {image_name} в таблицу {TABLE_NAME}.")
     except sqlite3.Error as e:
         logger.error(f"Ошибка при добавлении колонок: {e}")
     finally:
@@ -507,5 +444,5 @@ def add_columns_to_table(image_name, archive_name):
 
 if __name__ == "__main__":
     # initialize_database()
-    # add_columns_to_table("image_name", "archive_name")
+    # add_columns_to_table("title")
     process_all_files()
