@@ -314,20 +314,21 @@ async def get_tenders():
                 logger.error("Tab view not found. Skipping URL.")
                 continue
             logger.info("Есть tab_view")
-            await asyncio.sleep(10)  # Пауза 10 сек
-            # Находим только нужные вкладки внутри tab_view
-            titles_to_click = [
-                "Categories",
-                "Bid Results",
-                "Award",
-                "List of suppliers who have downloaded documents",
-            ]
+            await asyncio.sleep(1)  # Пауза 10 сек
+            # Словарь для привязки titles к их селекторам
+            titles_to_selectors = {
+                "Categories": "#categoriesAbstractTab",
+                "Bid Results": "#bidResultAbstractTab",
+                "Award": "#awardAbstractTab",
+                "List of suppliers who have downloaded documents": "#docs-requestAbstractTab",
+            }
 
             all_titles_completed = True
 
-            for title in titles_to_click:
+            for title, selector in titles_to_selectors.items():
                 logger.info(title)
-                title_element = await tab_view.query_selector(f'a[title="{title}"]')
+                # Используем селектор из словаря
+                title_element = await tab_view.query_selector(selector)
                 await asyncio.sleep(1)  # Пауза 10 сек
                 if title_element:
                     logger.info(f"Элемент есть {title}")
@@ -338,6 +339,7 @@ async def get_tenders():
 
                     if not file_path.exists():
                         logger.info(f"Нажимаем {title}")
+                        await asyncio.sleep(1)  # Пауза 10 сек
                         await title_element.click()
                         await page.wait_for_load_state("networkidle")
                         logger.info(f"Сохраняем в {file_path}")
@@ -349,7 +351,7 @@ async def get_tenders():
                         logger.info(f"Файл есть {file_path}")
                 else:
                     all_titles_completed = False
-                    print(f"Title '{title}' not found. Skipping.")
+                    logger.error(f"Title '{title}' not found. Skipping.")
 
             # Записываем URL в файл после завершения обработки
             if all_titles_completed:
