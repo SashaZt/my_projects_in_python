@@ -654,10 +654,41 @@ async def run(playwright):
     # )
 
     # Переходим на URL
-    url = "https://www.midasbuy.com/midasbuy/fi/redeem/pubgm"
+    url = "https://sasktenders.ca/content/public/Search.aspx"
     await page.goto(url)
+    await page.wait_for_load_state("networkidle")
+    await asyncio.sleep(30)  # Пауза
+    output_file = current_directory / "Page_01.html"
+    html_content = await page.content()
+    with open(output_file, "w", encoding="utf-8") as file:
+        file.write(html_content)
+    count = 1
+    while True:
+        try:
+            # Ждём появления элемента с таймаутом (например, 5 секунд)
+            await page.wait_for_selector(
+                "#ContentPlaceHolder1_imgNextPage", timeout=5000
+            )
+            await page.wait_for_load_state("networkidle")
+
+            # Если элемент найден, кликаем
+            await page.click("#ContentPlaceHolder1_imgNextPage")
+            count += 1
+            output_file = current_directory / f"Page_0{count}.html"
+            html_content = await page.content()
+            with open(output_file, "w", encoding="utf-8") as file:
+                file.write(html_content)
+
+            print("Clicked on #ContentPlaceHolder1_imgNextPage")
+        except:
+            # Если элемент не найден, выходим из цикла
+            print(
+                "Element #ContentPlaceHolder1_imgNextPage no longer present. Stopping."
+            )
+            break
+    await browser.close()
+
     # for i in range(1, 22):
-    #     url = f"https://feepyf.com/entrenadores/barcelona/all/pagina{i}"
     #     await page.goto(url)
     #     # Ждем завершения всех сетевых запросов
     #     await page.wait_for_load_state("networkidle")
@@ -666,84 +697,84 @@ async def run(playwright):
     #     with open(output_file, "w", encoding="utf-8") as file:
     #         file.write(html_content)
 
-    # Ждем завершения всех сетевых запросов
-    # await page.wait_for_load_state("networkidle")
-    await asyncio.sleep(5)  # Пауза для загрузки страницы
-    print("Страница загружена")
+    # # Ждем завершения всех сетевых запросов
+    # # await page.wait_for_load_state("networkidle")
+    # await asyncio.sleep(5)  # Пауза для загрузки страницы
+    # print("Страница загружена")
 
-    # Ищем и нажимаем элемент с текстом "Sign In Midasbuy Account"
-    sign_in_button = page.locator(
-        "div.Button_icon_text__C-ysi:has-text('Sign In Midasbuy Account')"
-    )
-    if await sign_in_button.is_visible():
-        print("Кнопка 'Sign In Midasbuy Account' найдена, нажимаем")
-        await sign_in_button.click()
-    else:
-        print("Ошибка: Кнопка 'Sign In Midasbuy Account' не найдена")
-        return
-    await asyncio.sleep(5)  # Пауза
-    # Переходим к iframe
-    iframe = page.frame(name="iframe-window")
-    if not iframe:
-        print("Ошибка: iframe не найден")
-        return
-    await asyncio.sleep(5)  # Пауза
-    # Ждем появления поля для ввода email
-    email_input = iframe.locator(
-        "input[placeholder='Enter email to sign in or sign up'][type='email'][autocomplete='username']"
-    )
-    await email_input.wait_for()
+    # # Ищем и нажимаем элемент с текстом "Sign In Midasbuy Account"
+    # sign_in_button = page.locator(
+    #     "div.Button_icon_text__C-ysi:has-text('Sign In Midasbuy Account')"
+    # )
+    # if await sign_in_button.is_visible():
+    #     print("Кнопка 'Sign In Midasbuy Account' найдена, нажимаем")
+    #     await sign_in_button.click()
+    # else:
+    #     print("Ошибка: Кнопка 'Sign In Midasbuy Account' не найдена")
+    #     return
+    # await asyncio.sleep(5)  # Пауза
+    # # Переходим к iframe
+    # iframe = page.frame(name="iframe-window")
+    # if not iframe:
+    #     print("Ошибка: iframe не найден")
+    #     return
+    # await asyncio.sleep(5)  # Пауза
+    # # Ждем появления поля для ввода email
+    # email_input = iframe.locator(
+    #     "input[placeholder='Enter email to sign in or sign up'][type='email'][autocomplete='username']"
+    # )
+    # await email_input.wait_for()
 
-    # Вводим email
-    await email_input.fill("testmidass@gmail.com")  # Замените на ваш email
-    print("Email введен")
-    await asyncio.sleep(5)  # Пауза
+    # # Вводим email
+    # await email_input.fill("testmidass@gmail.com")  # Замените на ваш email
+    # print("Email введен")
+    # await asyncio.sleep(5)  # Пауза
 
-    # Нажимаем кнопку "Continue"
-    continue_button = page.locator(".btn.comfirm-btn:has-text('Continue')")
-    if await continue_button.is_visible():
-        print("Кнопка 'Continue' найдена, нажимаем")
-        await continue_button.click()
-    else:
-        print("Ошибка: Кнопка 'Continue' не найдена")
-        return
-    await asyncio.sleep(5)  # Пауза
+    # # Нажимаем кнопку "Continue"
+    # continue_button = page.locator(".btn.comfirm-btn:has-text('Continue')")
+    # if await continue_button.is_visible():
+    #     print("Кнопка 'Continue' найдена, нажимаем")
+    #     await continue_button.click()
+    # else:
+    #     print("Ошибка: Кнопка 'Continue' не найдена")
+    #     return
+    # await asyncio.sleep(5)  # Пауза
 
-    # Ждем появления поля для ввода пароля
-    password_input = page.locator("input[type='password']")
-    await password_input.wait_for()
-    await asyncio.sleep(5)  # Пауза
-    print("Поле для ввода пароля найдено")
+    # # Ждем появления поля для ввода пароля
+    # password_input = page.locator("input[type='password']")
+    # await password_input.wait_for()
+    # await asyncio.sleep(5)  # Пауза
+    # print("Поле для ввода пароля найдено")
 
-    # Вводим пароль
-    await password_input.fill("xebgyd-cabnag-xoXba6")  # Замените на ваш пароль
-    print("Пароль введен")
+    # # Вводим пароль
+    # await password_input.fill("xebgyd-cabnag-xoXba6")  # Замените на ваш пароль
+    # print("Пароль введен")
 
-    # Устанавливаем чекбокс
-    checkbox = page.locator("svg[viewBox='0 0 16 16']")
-    if await checkbox.is_visible():
-        print("Чекбокс найден, устанавливаем")
-        await checkbox.click()
-    else:
-        print("Ошибка: Чекбокс не найден")
-        return
-    await asyncio.sleep(5)  # Пауза
+    # # Устанавливаем чекбокс
+    # checkbox = page.locator("svg[viewBox='0 0 16 16']")
+    # if await checkbox.is_visible():
+    #     print("Чекбокс найден, устанавливаем")
+    #     await checkbox.click()
+    # else:
+    #     print("Ошибка: Чекбокс не найден")
+    #     return
+    # await asyncio.sleep(5)  # Пауза
 
-    # Нажимаем кнопку "SIGN IN"
-    sign_in_button = page.locator(".btn.comfirm-btn:has-text('SIGN IN')")
-    if await sign_in_button.is_visible():
-        print("Кнопка 'SIGN IN' найдена, нажимаем")
-        await sign_in_button.click()
-    else:
-        print("Ошибка: Кнопка 'SIGN IN' не найдена")
-        return
+    # # Нажимаем кнопку "SIGN IN"
+    # sign_in_button = page.locator(".btn.comfirm-btn:has-text('SIGN IN')")
+    # if await sign_in_button.is_visible():
+    #     print("Кнопка 'SIGN IN' найдена, нажимаем")
+    #     await sign_in_button.click()
+    # else:
+    #     print("Ошибка: Кнопка 'SIGN IN' не найдена")
+    #     return
 
-    # Пауза на 30 секунд
-    await asyncio.sleep(30)
-    print("Авторизация завершена, закрываем браузер")
+    # # Пауза на 30 секунд
+    # await asyncio.sleep(30)
+    # print("Авторизация завершена, закрываем браузер")
 
-    # Закрываем браузер
-    await browser.close()
+    # # Закрываем браузер
+    # await browser.close()
 
     # # Ожидhtml_content)
     # Клик по whatsapp_cont

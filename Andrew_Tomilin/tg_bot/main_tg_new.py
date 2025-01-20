@@ -17,7 +17,13 @@ load_dotenv(env_path)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DB_NAME = os.getenv("DB_NAME")
 TABLE_NAME = os.getenv("TABLE_NAME")
-LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY")
+
+# LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY")
+LOCAL_DIRECTORIES = os.getenv("LOCAL_DIRECTORIES")
+directories = (
+    [dir.strip() for dir in LOCAL_DIRECTORIES.split(",")] if LOCAL_DIRECTORIES else []
+)
+
 
 # Указываем пути к файлам и папкам
 current_directory = Path.cwd()
@@ -228,70 +234,84 @@ async def post_item_to_channel(item, channel_id):
         """
         Работа с изображением
         """
-        # Формируем и нормализуем путь к изображению
-        image_path = os.path.normpath(os.path.join(LOCAL_DIRECTORY, item["image_name"]))
-
-        logger.info(f"Путь к файлу: {image_path}")
-
-        # Проверяем существование файла
-        if not os.path.exists(image_path):
-            logger.error(f"Файл изображения не найден: {image_path}")
-            return
-        base_name = item["base_name"]
-        title = item["title"]
-        style_en = f'#{item["style_en"]}'
-        # logger.info(item["category"])
-        category = " ".join(
-            f"#{word.strip()}"
-            for word in re.split(r"[^\w]+", item["category"])
-            if word.strip()
-        )
-
-        tags = (
-            " ".join(
-                f"#{tag.strip().replace(' ', '_')}" for tag in item["tags"].split(",")
+        for local_directory in directories:
+            path = Path(local_directory)
+            if not path.exists():
+                logger.warning(
+                    f"Директория не существует: {local_directory}. Пропускаем."
+                )
+                continue
+            # Формируем и нормализуем путь к изображению
+            image_path = os.path.normpath(
+                os.path.join(local_directory, item["image_name"])
             )
-            if isinstance(item["tags"], str)
-            else ""
-        )
 
-        base_tags = "#3dsky #3ddd"
-        # Формируем подпись для поста
-        caption = f"{base_name}\n{title}\n{style_en}\n{category}\n{tags}\n{base_tags}"
+            logger.info(f"Путь к файлу: {image_path}")
 
-        # Публикуем фото в канал
-        photo = FSInputFile(image_path)  # Используем FSInputFile для локальных файлов
-        await bot.send_photo(chat_id=channel_id, photo=photo, caption=caption)
+            # Проверяем существование файла
+            if not os.path.exists(image_path):
+                logger.error(f"Файл изображения не найден: {image_path}")
+                return
+            base_name = item["base_name"]
+            title = item["title"]
+            style_en = f'#{item["style_en"]}'
+            # logger.info(item["category"])
+            category = " ".join(
+                f"#{word.strip()}"
+                for word in re.split(r"[^\w]+", item["category"])
+                if word.strip()
+            )
 
-        # Формируем и нормализуем путь к архиву
-        archive_path = os.path.normpath(
-            os.path.join(LOCAL_DIRECTORY, item["archive_name"])
-        )
-        """
-        Работа с архивом
-        """
-        # Формируем и нормализуем путь к архиву
-        archive_path = os.path.normpath(
-            os.path.join(LOCAL_DIRECTORY, item["archive_name"])
-        )
+            tags = (
+                " ".join(
+                    f"#{tag.strip().replace(' ', '_')}"
+                    for tag in item["tags"].split(",")
+                )
+                if isinstance(item["tags"], str)
+                else ""
+            )
 
-        # logger.info(f"Путь к файлу: {archive_path}")
+            base_tags = "#3dsky #3ddd"
+            # Формируем подпись для поста
+            caption = (
+                f"{base_name}\n{title}\n{style_en}\n{category}\n{tags}\n{base_tags}"
+            )
 
-        # Проверяем существование файла
-        if not os.path.exists(archive_path):
-            logger.error(f"Файл архива не найден: {archive_path}")
-            return
+            # Публикуем фото в канал
+            photo = FSInputFile(
+                image_path
+            )  # Используем FSInputFile для локальных файлов
+            await bot.send_photo(chat_id=channel_id, photo=photo, caption=caption)
 
-        # Публикуем архив в канал
-        archive = FSInputFile(
-            archive_path
-        )  # Используем FSInputFile для локальных файлов
-        await bot.send_document(chat_id=channel_id, document=archive)
+            # Формируем и нормализуем путь к архиву
+            archive_path = os.path.normpath(
+                os.path.join(local_directory, item["archive_name"])
+            )
+            """
+            Работа с архивом
+            """
+            # Формируем и нормализуем путь к архиву
+            archive_path = os.path.normpath(
+                os.path.join(local_directory, item["archive_name"])
+            )
 
-        # Отмечаем запись как опубликованную
-        await update_posting_telegram(base_name, True)
-        # item["posting_telegram"] = True
-        # logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
+            # logger.info(f"Путь к файлу: {archive_path}")
+
+            # Проверяем существование файла
+            if not os.path.exists(archive_path):
+                logger.error(f"Файл архива не найден: {archive_path}")
+                return
+
+            # Публикуем архив в канал
+            archive = FSInputFile(
+                archive_path
+            )  # Используем FSInputFile для локальных файлов
+            await bot.send_document(chat_id=channel_id, document=archive)
+
+            # Отмечаем запись как опубликованную
+            await update_posting_telegram(base_name, True)
+            # item["posting_telegram"] = True
+            # logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
 
     except Exception as e:
         logger.error(f"Ошибка при публикации записи {item['id']}: {e}")

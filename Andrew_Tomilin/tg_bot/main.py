@@ -15,7 +15,13 @@ from py7zr import FILTER_LZMA2, SevenZipFile
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
 # Загружаем конфигурацию из .env
 load_dotenv(env_path)
-LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY", "./data")
+
+LOCAL_DIRECTORIES = os.getenv("LOCAL_DIRECTORIES")
+directories = (
+    [dir.strip() for dir in LOCAL_DIRECTORIES.split(",")] if LOCAL_DIRECTORIES else []
+)
+
+# LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY", "./data")
 ARCHIVE_FORMAT = "7z"  # Зафиксировали формат, чтобы избежать ошибок
 DB_NAME = os.getenv("DB_NAME", "default.db")
 TABLE_NAME = os.getenv("TABLE_NAME", "default_table")
@@ -112,66 +118,79 @@ def process_all_files():
     # Получаем список base_name из базы данных, где local_file_search = 1
     processed_base_names = get_processed_base_names()
 
-    # Получаем список всех картинок
-    images = [
-        os.path.join(LOCAL_DIRECTORY, file)
-        for file in os.listdir(LOCAL_DIRECTORY)
-        if file.lower().endswith(image_extensions)
-    ]
-    if not images:
-        logger.error("Картинки не найдены.")
-        return
-
-    for image_path in images:
-        # Извлекаем имя файла без расширения
-        base_name = Path(image_path).stem
-        image_name = Path(image_path).name
-
-        # Пропускаем обработку, если base_name уже в обработанных
-        if base_name in processed_base_names:
-            logger.info(f"Картинка с base_name {base_name} уже обработана. Пропускаем.")
+    for local_directory in directories:
+        path = Path(local_directory)
+        if not path.exists():
+            logger.warning(f"Директория не существует: {local_directory}. Пропускаем.")
+            continue
+        # Получаем список всех картинок
+        images = [
+            os.path.join(local_directory, file)
+            for file in os.listdir(local_directory)
+            if file.lower().endswith(image_extensions)
+        ]
+        if not images:
+            logger.error("Картинки не найдены.")
             continue
 
-        # Проверяем существование архива
-        archive_path = next(
-            (
-                os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}")
-                for ext in archive_extensions
-                if os.path.exists(os.path.join(LOCAL_DIRECTORY, f"{base_name}{ext}"))
-            ),
-            None,
-        )
+        for image_path in images:
+            # Извлекаем имя файла без расширения
+            base_name = Path(image_path).stem
+            image_name = Path(image_path).name
 
-        # Обработка, если архив найден
-        if archive_path:
-            archive_name = Path(archive_path).name
-            size_less_archive = is_archive_size_valid(archive_path)
-            if size_less_archive:
-                process_file(base_name, image_name, archive_name)
-            else:
-                save_to_excel(
-                    base_name, image_name, archive_name, image_path, archive_path
+            # Пропускаем обработку, если base_name уже в обработанных
+            if base_name in processed_base_names:
+                logger.info(
+                    f"Картинка с base_name {base_name} уже обработана. Пропускаем."
                 )
-            continue
+                continue
 
-        # Если архива нет, проверяем наличие папки
-        folder_path = os.path.join(LOCAL_DIRECTORY, base_name)
-        if os.path.isdir(folder_path):
-            logger.info(f"Найдена папка для архивирования: {folder_path}")
-            archive_path = archive_directory(folder_path)
+            # Проверяем существование архива
+            archive_path = next(
+                (
+                    os.path.join(local_directory, f"{base_name}{ext}")
+                    for ext in archive_extensions
+                    if os.path.exists(
+                        os.path.join(local_directory, f"{base_name}{ext}")
+                    )
+                ),
+                None,
+            )
+
+            # Обработка, если архив найден
             if archive_path:
                 archive_name = Path(archive_path).name
-                if is_archive_size_valid(archive_path):
+                size_less_archive = is_archive_size_valid(archive_path)
+                if size_less_archive:
                     process_file(base_name, image_name, archive_name)
                 else:
                     save_to_excel(
                         base_name, image_name, archive_name, image_path, archive_path
                     )
                 continue
+
+            # Если архива нет, проверяем наличие папки
+            folder_path = os.path.join(local_directory, base_name)
+            if os.path.isdir(folder_path):
+                logger.info(f"Найдена папка для архивирования: {folder_path}")
+                archive_path = archive_directory(folder_path)
+                if archive_path:
+                    archive_name = Path(archive_path).name
+                    if is_archive_size_valid(archive_path):
+                        process_file(base_name, image_name, archive_name)
+                    else:
+                        save_to_excel(
+                            base_name,
+                            image_name,
+                            archive_name,
+                            image_path,
+                            archive_path,
+                        )
+                    continue
+                else:
+                    logger.error(f"Ошибка при архивировании папки: {folder_path}")
             else:
-                logger.error(f"Ошибка при архивировании папки: {folder_path}")
-        else:
-            logger.error(f"Папки и архива с именем {base_name} не найдена.")
+                logger.error(f"Папки и архива с именем {base_name} не найдена.")
 
 
 def process_file(base_name, image_name, archive_name):
