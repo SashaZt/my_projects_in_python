@@ -5,7 +5,13 @@ import os
 import aiosqlite
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.types import InputFile, KeyboardButton, Message, ReplyKeyboardMarkup
+from aiogram.types import (
+    FSInputFile,
+    InputFile,
+    KeyboardButton,
+    Message,
+    ReplyKeyboardMarkup,
+)
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
 
@@ -60,7 +66,7 @@ async def fetch_all_items():
     """
     async with aiosqlite.connect(DB_NAME) as db:
         query = f"""
-        SELECT id, base_name, image_name, archive_name, slug, style_en, tags, local_file_search, posting_telegram, title
+        SELECT id, base_name, image_name, archive_name, slug, style_en, tags, local_file_search, posting_telegram, title,
         FROM {TABLE_NAME}
         """
         async with db.execute(query) as cursor:
@@ -79,6 +85,7 @@ async def fetch_all_items():
                         "local_file_search": row[7],
                         "posting_telegram": row[8],
                         "title": row[9],
+                        "size_less_archive": row[10],
                     }
                     for row in rows
                 ]
@@ -270,6 +277,27 @@ async def post_item_to_channel(item, channel_id):
         photo = InputFile(image_path)
         await bot.send_photo(chat_id=channel_id, photo=photo, caption=caption)
 
+        # Формируем и нормализуем путь к архиву
+        archive_path = os.path.normpath(
+            os.path.join(LOCAL_DIRECTORY, item["archive_name"])
+        )
+
+        logger.info(f"Путь к файлу: {archive_path}")
+
+        # Проверяем существование файла
+        if not os.path.exists(archive_path):
+            logger.error(f"Файл архива не найден: {archive_path}")
+            return
+
+        # Публикуем архив в канал
+        archive = FSInputFile(
+            archive_path
+        )  # Используем FSInputFile для локальных файлов
+        await bot.send_document(chat_id=channel_id, document=archive)
+
+        # Отмечаем запись как опубликованную
+        item["posting_telegram"] = True
+        logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
         # Отмечаем запись как опубликованную
         item["posting_telegram"] = True
         await mark_as_posted(item["id"])  # Обновляем в базе данных

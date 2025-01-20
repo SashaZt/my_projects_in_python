@@ -72,6 +72,26 @@ def archive_directory(directory):
         return None
 
 
+def is_archive_size_valid(archive_path, max_size_mb=49):
+    """
+    Проверяет, соответствует ли размер архива заданному лимиту.
+
+    :param archive_path: Путь к архиву.
+    :param max_size_mb: Максимально допустимый размер архива в мегабайтах.
+    :return: True, если размер архива меньше или равен max_size_mb, иначе False.
+    """
+    try:
+        # Получаем размер файла в байтах
+        archive_size = os.path.getsize(archive_path)
+        # Конвертируем в мегабайты
+        archive_size_mb = archive_size / (1024 * 1024)
+        return archive_size_mb <= max_size_mb
+    except FileNotFoundError:
+        # Если файл не найден, возвращаем False
+        logger.error(f"Файл не найден: {archive_path}")
+        return False
+
+
 def process_all_files():
     """
     Проверяет все картинки в директории и их соответствующие архивы.
@@ -116,7 +136,9 @@ def process_all_files():
         # Обработка, если архив найден
         if archive_path:
             archive_name = Path(archive_path).name
-            process_file(base_name, image_name, archive_name)
+            size_less_archive = is_archive_size_valid(archive_path)
+            if size_less_archive:
+                process_file(base_name, image_name, archive_name)
             continue
 
         # Если архива нет, проверяем наличие папки
@@ -126,7 +148,8 @@ def process_all_files():
             archive_path = archive_directory(folder_path)
             if archive_path:
                 archive_name = Path(archive_path).name
-                process_file(base_name, image_name, archive_name)
+                if is_archive_size_valid(archive_path):
+                    process_file(base_name, image_name, archive_name)
             else:
                 logger.error(f"Ошибка при архивировании папки: {folder_path}")
         else:
@@ -283,7 +306,14 @@ def fetch_slug_from_3dsky(query):
 
 
 def update_local_file_search(
-    base_name, image_name, archive_name, slug, style_en, tags, title, category
+    base_name,
+    image_name,
+    archive_name,
+    slug,
+    style_en,
+    tags,
+    title,
+    category,
 ):
     """
     Обновляет запись в таблице: если запись с указанным base_name существует, обновляет её.
@@ -321,7 +351,7 @@ def update_local_file_search(
             cursor.execute(
                 f"""
                 UPDATE {TABLE_NAME}
-                SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, title = ?, category = ?, local_file_search = 1
+                SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, title = ?, category = ?, size_less_archive = 1, local_file_search = 1
                 WHERE id = ?
                 """,
                 (
@@ -345,8 +375,8 @@ def update_local_file_search(
             cursor.execute(
                 f"""
                 INSERT INTO {TABLE_NAME} 
-                (base_name, image_name, archive_name, slug, style_en, tags, title,category, local_file_search, posting_telegram)
-                VALUES (?, ?, ?, ?, ?, ?, ?,?, 1, 0)
+                (base_name, image_name, archive_name, slug, style_en, tags, title,category, local_file_search, posting_telegram,size_less_archive)
+                VALUES (?, ?, ?, ?, ?, ?, ?,?, 1, 0, 1)
                 """,
                 (
                     base_name,
@@ -430,6 +460,7 @@ def initialize_database():
             tags TEXT,
             local_file_search BOOLEAN DEFAULT 0,
             posting_telegram BOOLEAN DEFAULT 0
+            size_less_archive BOOLEAN DEFAULT 0
         )
         """
         )
@@ -458,7 +489,7 @@ def add_columns_to_table(image_name):
 
         # Добавляем колонку image_name
         cursor.execute(
-            f"ALTER TABLE {TABLE_NAME} ADD COLUMN {image_name} TEXT NOT NULL DEFAULT '';"
+            f"ALTER TABLE {TABLE_NAME} ADD COLUMN {image_name} BOOLEAN DEFAULT 0 ;"
         )
         conn.commit()
         logger.info(f"Колонки {image_name} в таблицу {TABLE_NAME}.")
@@ -471,5 +502,5 @@ def add_columns_to_table(image_name):
 
 if __name__ == "__main__":
     # initialize_database()
-    # add_columns_to_table("category")
+    # add_columns_to_table("size_less_archive")
     process_all_files()

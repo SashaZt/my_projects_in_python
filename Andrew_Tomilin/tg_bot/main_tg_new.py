@@ -2,17 +2,12 @@ import asyncio
 import json
 import os
 import re
+from pathlib import Path
 
 import aiosqlite
 from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.types import (
-    FSInputFile,
-    InputFile,
-    KeyboardButton,
-    Message,
-    ReplyKeyboardMarkup,
-)
+from aiogram.types import FSInputFile, KeyboardButton, Message, ReplyKeyboardMarkup
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
 
@@ -24,6 +19,11 @@ DB_NAME = os.getenv("DB_NAME")
 TABLE_NAME = os.getenv("TABLE_NAME")
 LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY")
 CHANNEL_ID_Models_Free = os.getenv("LOCAL_DIRECTORY")
+
+# Указываем пути к файлам и папкам
+current_directory = Path.cwd()
+temp_data_file = current_directory / "temp_data.json"
+
 # Создаём бота и диспетчер
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -66,9 +66,11 @@ async def fetch_all_items():
     """
     async with aiosqlite.connect(DB_NAME) as db:
         query = f"""
-        SELECT id, base_name, image_name, archive_name, slug, style_en, tags, local_file_search, posting_telegram, title,category
-        FROM {TABLE_NAME}
+            SELECT id, base_name, image_name, archive_name, slug, style_en, tags, local_file_search, posting_telegram, title, category
+            FROM {TABLE_NAME}
+            WHERE posting_telegram = 0
         """
+
         async with db.execute(query) as cursor:
             rows = await cursor.fetchall()
             if rows:
@@ -92,16 +94,18 @@ async def fetch_all_items():
             return []
 
 
-def save_to_json(data, filename="temp_data.json"):
+def save_to_json(data, filename):
     """
     Сохраняет данные в JSON-файл.
+    :param data: Данные для сохранения.
+    :param filename: Путь к файлу.
     """
     try:
         with open(filename, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
         logger.info(f"Данные успешно записаны в файл {filename}")
     except Exception as e:
-        logger.error(f"Ошибка при записи данных в файл: {e}")
+        logger.error(f"Ошибка при записи данных в файл {filename}: {e}")
 
 
 @dp.message(lambda message: message.text == "Загрузить данные")
@@ -116,15 +120,19 @@ async def load_data_handler(message: Message):
 
     try:
         # Получаем данные из базы данных
-        data = await fetch_all_items()
+        data_items = await fetch_all_items()
         # logger.info(data)
-        if not data:
-            logger.info("Нет записей для загрузки.")
-            return
+        if not data_items:
+            if temp_data_file.exists():
+                temp_data_file.unlink()  # Удаляем файл, если он существует
+                logger.info("Нет записей для загрузки.")
+                return
+        # Логируем количество загруженных записей
+        logger.info(f"Загружено {len(data_items)} записей.")
 
         # Сохраняем данные в файл
-        temp_file = "temp_data.json"
-        save_to_json(data, temp_file)
+        save_to_json(data_items, temp_data_file)
+        logger.info("Данные успешно сохранены в JSON.")
     except Exception as e:
         logger.error(f"Ошибка при загрузке данных: {e}")
 
@@ -136,26 +144,53 @@ async def universal_post_handler(message: Message):
     Определяет канал и публикует данные на основе выбора.
     """
     # Карта каналов и данных
+    # channel_map = {
+    #     "Пост Models FREE": {
+    #         "channel_id": os.getenv("CHANNEL_ID_MODELS_FREE"),
+    #         "filter": lambda item: item["style_en"] == "Modern"
+    #         and not item["posting_telegram"],
+    #     },
+    #     "Пост Models PRO": {
+    #         "channel_id": os.getenv("CHANNEL_ID_MODELS_PRO"),
+    #         "filter": lambda item: item["style_en"] == "Ethnic"
+    #         and not item["posting_telegram"],
+    #     },
+    #     "Пост Materials Free": {
+    #         "channel_id": os.getenv("CHANNEL_ID_MATERIALS_FREE"),
+    #         "filter": lambda item: "outdoor" in item["tags"].lower()
+    #         and not item["posting_telegram"],
+    #     },
+    #     "Пост Materials Pro": {
+    #         "channel_id": os.getenv("CHANNEL_ID_MATERIALS_PRO"),
+    #         "filter": lambda item: "garden" in item["tags"].lower()
+    #         and not item["posting_telegram"],
+    #     },
+    # }
+    # Карта каналов и данных
     channel_map = {
         "Пост Models FREE": {
             "channel_id": os.getenv("CHANNEL_ID_MODELS_FREE"),
-            "filter": lambda item: item["style_en"] == "Modern"
-            and not item["posting_telegram"],
+            "filter": lambda item: not item[
+                "posting_telegram"
+            ],  # Фильтруем только по posting_telegram
         },
         "Пост Models PRO": {
             "channel_id": os.getenv("CHANNEL_ID_MODELS_PRO"),
-            "filter": lambda item: item["style_en"] == "Ethnic"
-            and not item["posting_telegram"],
+            "filter": lambda item: not item[
+                "posting_telegram"
+            ],  # Фильтруем только по posting_telegram
         },
         "Пост Materials Free": {
             "channel_id": os.getenv("CHANNEL_ID_MATERIALS_FREE"),
-            "filter": lambda item: "outdoor" in item["tags"].lower()
-            and not item["posting_telegram"],
+            "filter": lambda item: not item[
+                "posting_telegram"
+            ],  # Фильтруем только по posting_telegram
         },
         "Пост Materials Pro": {
             "channel_id": os.getenv("CHANNEL_ID_MATERIALS_PRO"),
-            "filter": lambda item: "garden" in item["tags"].lower()
-            and not item["posting_telegram"],
+            "filter": lambda item: not item[
+                "posting_telegram"
+            ],  # Фильтруем только по posting_telegram
         },
     }
 
@@ -188,14 +223,13 @@ async def universal_post_handler(message: Message):
         await post_item_to_channel(item, channel_id)
 
     # Сохраняем обновления в JSON
-    save_json(data)
     await message.reply("Публикация завершена.")
 
 
-def fetch_json(filename="temp_data.json"):
+def fetch_json():
     """Считывает данные из JSON-файла."""
     try:
-        with open(filename, "r", encoding="utf-8") as file:
+        with open(temp_data_file, "r", encoding="utf-8") as file:
             data = json.load(file)
             logger.info("Данные успешно загружены из JSON.")
             return data
@@ -204,10 +238,10 @@ def fetch_json(filename="temp_data.json"):
         return []
 
 
-def save_json(data, filename="temp_data.json"):
+def save_json(data):
     """Сохраняет данные в JSON-файл."""
     try:
-        with open(filename, "w", encoding="utf-8") as file:
+        with open(temp_data_file, "w", encoding="utf-8") as file:
             json.dump(data, file, ensure_ascii=False, indent=4)
             logger.info("Данные успешно сохранены в JSON.")
     except Exception as e:
@@ -232,7 +266,7 @@ async def post_item_to_channel(item, channel_id):
         base_name = item["base_name"]
         title = item["title"]
         style_en = f'#{item["style_en"]}'
-        logger.info(item["category"])
+        # logger.info(item["category"])
         category = " ".join(
             f"#{word.strip()}"
             for word in re.split(r"[^\w]+", item["category"])
@@ -262,30 +296,54 @@ async def post_item_to_channel(item, channel_id):
         """
         Работа с архивом
         """
-        # # Формируем и нормализуем путь к архиву
-        # archive_path = os.path.normpath(
-        #     os.path.join(LOCAL_DIRECTORY, item["archive_name"])
-        # )
+        # Формируем и нормализуем путь к архиву
+        archive_path = os.path.normpath(
+            os.path.join(LOCAL_DIRECTORY, item["archive_name"])
+        )
 
         # logger.info(f"Путь к файлу: {archive_path}")
 
-        # # Проверяем существование файла
-        # if not os.path.exists(archive_path):
-        #     logger.error(f"Файл архива не найден: {archive_path}")
-        #     return
+        # Проверяем существование файла
+        if not os.path.exists(archive_path):
+            logger.error(f"Файл архива не найден: {archive_path}")
+            return
 
-        # # Публикуем архив в канал
-        # archive = FSInputFile(
-        #     archive_path
-        # )  # Используем FSInputFile для локальных файлов
-        # await bot.send_document(chat_id=channel_id, document=archive)
+        # Публикуем архив в канал
+        archive = FSInputFile(
+            archive_path
+        )  # Используем FSInputFile для локальных файлов
+        await bot.send_document(chat_id=channel_id, document=archive)
 
         # Отмечаем запись как опубликованную
-        item["posting_telegram"] = True
-        logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
+        await update_posting_telegram(base_name, True)
+        # item["posting_telegram"] = True
+        # logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
 
     except Exception as e:
         logger.error(f"Ошибка при публикации записи {item['id']}: {e}")
+
+
+async def update_posting_telegram(base_name: str, posting_telegram: bool):
+    """
+    Обновляет поле posting_telegram для строки с указанным base_name.
+
+    :param base_name: Значение base_name для поиска записи.
+    :param posting_telegram: Новое значение для поля posting_telegram.
+    """
+    try:
+        async with aiosqlite.connect(DB_NAME) as db:
+            query = f"""
+                UPDATE {TABLE_NAME}
+                SET posting_telegram = ?
+                WHERE base_name = ?
+            """
+            await db.execute(query, (posting_telegram, base_name))
+            await db.commit()
+            # logger.info(
+            #     f"Запись с base_name = {base_name} обновлена: posting_telegram = {posting_telegram}"
+            # )
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении записи: {e}")
 
 
 async def main():
