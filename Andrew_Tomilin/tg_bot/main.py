@@ -1,11 +1,15 @@
+import asyncio
 import os
 import shutil
 import sqlite3
 from pathlib import Path
 
+import openpyxl
 import requests
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
+from main_tg_new import main
+from openpyxl.utils import get_column_letter
 from py7zr import FILTER_LZMA2, SevenZipFile
 
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
@@ -15,6 +19,11 @@ LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY", "./data")
 ARCHIVE_FORMAT = "7z"  # Зафиксировали формат, чтобы избежать ошибок
 DB_NAME = os.getenv("DB_NAME", "default.db")
 TABLE_NAME = os.getenv("TABLE_NAME", "default_table")
+# Указываем пути к файлам и папкам
+current_directory = Path.cwd()
+output_xlsx_file = current_directory / "output.xlsx"
+
+
 cookies = {
     "besrv": "app56",
     "CookieConsent_en": "1%7C1766079412",
@@ -61,7 +70,7 @@ def archive_directory(directory):
         compression_filters = [
             {
                 "id": FILTER_LZMA2,  # Используем LZMA2 для .7z
-                "preset": 0,  # Максимальный уровень сжатия
+                "preset": 9,  # Максимальный уровень сжатия
             }
         ]
         with SevenZipFile(archive_path, "w", filters=compression_filters) as seven_zip:
@@ -139,6 +148,10 @@ def process_all_files():
             size_less_archive = is_archive_size_valid(archive_path)
             if size_less_archive:
                 process_file(base_name, image_name, archive_name)
+            else:
+                save_to_excel(
+                    base_name, image_name, archive_name, image_path, archive_path
+                )
             continue
 
         # Если архива нет, проверяем наличие папки
@@ -150,6 +163,11 @@ def process_all_files():
                 archive_name = Path(archive_path).name
                 if is_archive_size_valid(archive_path):
                     process_file(base_name, image_name, archive_name)
+                else:
+                    save_to_excel(
+                        base_name, image_name, archive_name, image_path, archive_path
+                    )
+                continue
             else:
                 logger.error(f"Ошибка при архивировании папки: {folder_path}")
         else:
@@ -185,12 +203,101 @@ def process_file(base_name, image_name, archive_name):
         logger.error(f"Ошибка обработки файла {base_name}: {e}")
 
 
+def process_file_to_excel(
+    base_name, image_name, archive_name, image_path, archive_path
+):
+    """
+    Обрабатывает файл: извлекает данные из 3dsky и записывает в excel.
+    """
+    try:
+        slug, title, category = fetch_slug_from_3dsky(base_name)
+        if not slug or not title or not category:
+            logger.warning(f"На сайте 3dsky.org нет данных для base_name: {base_name}")
+            return
+
+        style_en = fetch_styles_from_3dsky(slug)
+        tags = fetch_tags_from_3dsky(base_name)
+
+        if slug and style_en and tags:
+
+            all_data = {
+                "base_name": base_name,
+                "image_name": image_name,
+                "archive_name": archive_name,
+                "image_path": image_path,
+                "archive_path": archive_path,
+                "slug": slug,
+                "style_en": style_en,
+                "tags": tags,
+                "title": title,
+                "category": category,
+            }
+            return all_data
+
+    except Exception as e:
+        logger.error(f"Ошибка обработки файла {base_name}: {e}")
+
+
+def save_to_excel(
+    base_name,
+    image_name,
+    archive_name,
+    image_path,
+    archive_path,
+):
+    """
+    Сохраняет данные в Excel-файл.
+
+    :param base_name: Имя базы для записи.
+    :param image_name: Имя файла изображения.
+    :param archive_name: Имя архива.
+    :param filename: Имя файла Excel для сохранения.
+    """
+    try:
+        all_data = process_file_to_excel(
+            base_name, image_name, archive_name, image_path, archive_path
+        )
+        # Проверяем, что данные существуют
+        if not all_data:
+            logger.error("Данные для записи в Excel отсутствуют.")
+            return
+        # Создаём новую книгу или загружаем существующую
+        if output_xlsx_file.exists():
+            wb = openpyxl.load_workbook(output_xlsx_file)
+            sheet = wb.active
+        else:
+            wb = openpyxl.Workbook()
+            sheet = wb.active
+
+            # Создаём заголовки (только один раз)
+            headers_excel = list(all_data.keys())
+            for col_num, header in enumerate(headers_excel, 1):
+                sheet.cell(row=1, column=col_num, value=header)
+
+        # Определяем следующую строку для записи
+        next_row = sheet.max_row + 1
+
+        # Записываем данные
+        for col_num, (key, value) in enumerate(all_data.items(), 1):
+            # Преобразуем списки в строку
+            if isinstance(value, list):
+                value = ", ".join(value)
+            sheet.cell(row=next_row, column=col_num, value=value)
+
+        # Сохраняем файл
+        wb.save(output_xlsx_file)
+        logger.info(f"Данные успешно записаны в файл {output_xlsx_file}")
+
+    except Exception as e:
+        logger.error(f"Ошибка при записи в Excel: {e}")
+
+
 def fetch_tags_from_3dsky(query):
     """
-    Выполняет POST-запрос к API 3dsky.org и возвращает список title из data.
+    Выполняет POST-запрос к API 3dsky.org и возвращает список tag_cloud из data.
 
-    :param slug: Идентификатор модели (значение для 'slug' в запросе)
-    :return: Список значений title из data
+    :param tags: Идентификатор модели (значение для 'tags' в запросе)
+    :return: Список значений tags из data
     """
     json_data = {
         "query": query,
@@ -288,9 +395,11 @@ def fetch_slug_from_3dsky(query):
             if models:
                 model = models[0]  # Берем первую модель
                 slug = model.get("slug")
-                title = model.get("title")
+                title_en = model.get("title_en")
                 category = model.get("category", {}).get("title_en")
-                return slug, title, category
+                category_parent = model.get("category_parent", {}).get("title_en")
+                category = f"{category_parent}, {category}"
+                return slug, title_en, category
 
         else:
             logger.error(
@@ -459,7 +568,7 @@ def initialize_database():
             style_en TEXT,
             tags TEXT,
             local_file_search BOOLEAN DEFAULT 0,
-            posting_telegram BOOLEAN DEFAULT 0
+            posting_telegram BOOLEAN DEFAULT 0,
             size_less_archive BOOLEAN DEFAULT 0
         )
         """
@@ -500,7 +609,29 @@ def add_columns_to_table(image_name):
             conn.close()
 
 
+def main_loop():
+    while True:
+        print(
+            "\nВыберите действие:\n"
+            "1. Запустить сбор данных с 3dsky_org\n"
+            "2. Запустить телеграм бота\n"
+            "0. Выход"
+        )
+        choice = input("Введите номер действия: ")
+        if choice == "1":
+            initialize_database()
+            # add_columns_to_table("size_less_archive")
+            process_all_files()
+        elif choice == "2":
+            asyncio.run(main())
+        elif choice == "0":
+            break
+        else:
+            logger.info("Неверный выбор. Пожалуйста, попробуйте снова.")
+
+
 if __name__ == "__main__":
-    # initialize_database()
-    # add_columns_to_table("size_less_archive")
-    process_all_files()
+    main_loop()
+
+
+# if __name__ == "__main__":

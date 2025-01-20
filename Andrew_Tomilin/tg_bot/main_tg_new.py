@@ -26,9 +26,6 @@ temp_data_file = current_directory / "temp_data.json"
 # Создаём бота и диспетчер
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
-logger.info(BOT_TOKEN)
-logger.info(bot)
-logger.info(dp)
 
 # Обновлённые кнопки
 buttons = [
@@ -142,29 +139,7 @@ async def universal_post_handler(message: Message):
     Универсальный обработчик кнопок публикации.
     Определяет канал и публикует данные на основе выбора.
     """
-    # Карта каналов и данных
-    # channel_map = {
-    #     "Пост Models FREE": {
-    #         "channel_id": os.getenv("CHANNEL_ID_MODELS_FREE"),
-    #         "filter": lambda item: item["style_en"] == "Modern"
-    #         and not item["posting_telegram"],
-    #     },
-    #     "Пост Models PRO": {
-    #         "channel_id": os.getenv("CHANNEL_ID_MODELS_PRO"),
-    #         "filter": lambda item: item["style_en"] == "Ethnic"
-    #         and not item["posting_telegram"],
-    #     },
-    #     "Пост Materials Free": {
-    #         "channel_id": os.getenv("CHANNEL_ID_MATERIALS_FREE"),
-    #         "filter": lambda item: "outdoor" in item["tags"].lower()
-    #         and not item["posting_telegram"],
-    #     },
-    #     "Пост Materials Pro": {
-    #         "channel_id": os.getenv("CHANNEL_ID_MATERIALS_PRO"),
-    #         "filter": lambda item: "garden" in item["tags"].lower()
-    #         and not item["posting_telegram"],
-    #     },
-    # }
+
     # Карта каналов и данных
     channel_map = {
         "Пост Models FREE": {
