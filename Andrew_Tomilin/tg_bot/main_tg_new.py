@@ -18,7 +18,6 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 DB_NAME = os.getenv("DB_NAME")
 TABLE_NAME = os.getenv("TABLE_NAME")
 LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY")
-CHANNEL_ID_Models_Free = os.getenv("LOCAL_DIRECTORY")
 
 # Указываем пути к файлам и папкам
 current_directory = Path.cwd()
