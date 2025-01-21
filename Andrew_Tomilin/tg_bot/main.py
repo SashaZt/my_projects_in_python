@@ -173,9 +173,14 @@ def process_all_files():
             if archive_path:
                 archive_name = Path(archive_path).name
                 size_less_archive = is_archive_size_valid(archive_path)
-                logger.info(size_less_archive)
                 if size_less_archive <= 50:
-                    process_file(base_name, image_name, archive_name)
+                    process_file(
+                        base_name,
+                        image_name,
+                        archive_name,
+                        image_path,
+                        archive_path,
+                    )
                 else:
                     if is_record_in_table(base_name):
                         logger.info(
@@ -202,7 +207,13 @@ def process_all_files():
                     size_less_archive = is_archive_size_valid(archive_path)
                     logger.info(size_less_archive)
                     if size_less_archive <= 50:
-                        process_file(base_name, image_name, archive_name)
+                        process_file(
+                            base_name,
+                            image_name,
+                            archive_name,
+                            image_path,
+                            archive_path,
+                        )
                     else:
                         if is_record_in_table(base_name):
                             logger.info(
@@ -224,7 +235,13 @@ def process_all_files():
                 logger.error(f"Папки и архива с именем {base_name} не найдена.")
 
 
-def process_file(base_name, image_name, archive_name):
+def process_file(
+    base_name,
+    image_name,
+    archive_name,
+    image_path,
+    archive_path,
+):
     """
     Обрабатывает файл: извлекает данные из 3dsky и записывает в БД.
     """
@@ -236,7 +253,11 @@ def process_file(base_name, image_name, archive_name):
 
         style_en = fetch_styles_from_3dsky(slug)
         tags = fetch_tags_from_3dsky(base_name)
-
+        # logger.info(base_name)
+        # logger.info(category)
+        # logger.info(style_en)
+        # logger.info(tags)
+        # exit()
         if style_en:
             update_local_file_search(
                 base_name,
@@ -247,6 +268,8 @@ def process_file(base_name, image_name, archive_name):
                 tags,
                 title,
                 category,
+                image_path,
+                archive_path,
             )
             logger.info(f"Обработан файл с base_name: {base_name}")
     except Exception as e:
@@ -374,7 +397,12 @@ def fetch_tags_from_3dsky(query):
 
         if data.get("status") == 200 and "data" in data:
             tags = data["data"].get("tagsEn", [])
-            tags = " ".join(f"#{tag.strip()}" for tag in tags if tag)
+            tags = " ".join(
+                f"#{re.sub(r'_+', '_', re.sub(r'[^\w]', '_', sub_tag.strip()))}"
+                for tag in tags
+                if tag
+                for sub_tag in tag.split("/")
+            )
             return tags
         else:
             raise ValueError(
@@ -453,20 +481,14 @@ def fetch_slug_from_3dsky(query):
                 model = models[0]  # Берем первую модель
                 slug = model.get("slug")
                 title_en = model.get("title_en")
-                category = (
-                    model.get("category", {})
-                    .get("title_en")
-                    .replace(" + ", "_")
-                    .replace(" ", "_")
-                )
+                category = model.get("category", {}).get("title_en")
+                category = re.sub(r"[^\w]+", "_", category)
                 category = f"#{category}"
-                category_parent = (
-                    model.get("category_parent", {})
-                    .get("title_en")
-                    .replace(" + ", "_")
-                    .replace(" ", "_")
-                )
+
+                category_parent = model.get("category_parent", {}).get("title_en")
+                category_parent = re.sub(r"[^\w]+", "_", category_parent)
                 category_parent = f"#{category_parent}"
+
                 category = f"{category_parent} {category}"
                 return slug, title_en, category
 
@@ -543,6 +565,8 @@ def update_local_file_search(
     tags,
     title,
     category,
+    image_path,
+    archive_path,
 ):
     """
     Обновляет запись в таблице: если запись с указанным base_name существует, обновляет её.
@@ -580,7 +604,7 @@ def update_local_file_search(
             cursor.execute(
                 f"""
                 UPDATE {TABLE_NAME}
-                SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, title = ?, category = ?, size_less_archive = 1, local_file_search = 1
+                SET image_name = ?, archive_name = ?, slug = ?, style_en = ?, tags = ?, title = ?, category = ?, image_path = ?, archive_path = ?, size_less_archive = 1, local_file_search = 1
                 WHERE id = ?
                 """,
                 (
@@ -591,6 +615,8 @@ def update_local_file_search(
                     tags,
                     title,
                     category,
+                    image_path,
+                    archive_path,
                     record[0],
                 ),
             )
@@ -604,8 +630,8 @@ def update_local_file_search(
             cursor.execute(
                 f"""
                 INSERT INTO {TABLE_NAME} 
-                (base_name, image_name, archive_name, slug, style_en, tags, title,category, local_file_search, posting_telegram,size_less_archive)
-                VALUES (?, ?, ?, ?, ?, ?, ?,?, 1, 0, 1)
+                (base_name, image_name, archive_name, slug, style_en, tags, title,category,image_path,archive_path, local_file_search, posting_telegram,size_less_archive)
+                VALUES (?, ?, ?, ?, ?, ?, ?,?,?,?, 1, 0, 1)
                 """,
                 (
                     base_name,
@@ -616,6 +642,8 @@ def update_local_file_search(
                     tags,
                     title,
                     category,
+                    image_path,
+                    archive_path,
                 ),
             )
             conn.commit()
@@ -761,6 +789,8 @@ def initialize_database():
                 category TEXT NOT NULL,
                 image_name TEXT NOT NULL,
                 archive_name TEXT NOT NULL,
+                image_path TEXT NOT NULL,
+                archive_path TEXT NOT NULL,
                 slug TEXT,
                 style_en TEXT,
                 tags TEXT,
@@ -841,7 +871,7 @@ def main_loop():
         choice = input("Введите номер действия: ")
         if choice == "1":
 
-            # add_columns_to_table("size_less_archive")
+            # add_columns_to_table("archive_path")
             process_all_files()
         elif choice == "2":
             asyncio.run(main())
@@ -857,4 +887,6 @@ if __name__ == "__main__":
     main_loop()
 
 
-# if __name__ == "__main__":
+# # if __name__ == "__main__":
+# image_path
+# archive_path

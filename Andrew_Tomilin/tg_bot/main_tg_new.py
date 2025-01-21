@@ -18,8 +18,8 @@ load_dotenv(env_path)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DB_NAME = os.getenv("DB_NAME")
 TABLE_NAME = os.getenv("TABLE_NAME")
-TIME_A = os.getenv("TIME_A")
-TIME_B = os.getenv("TIME_B")
+TIME_A = int(os.getenv("TIME_A", 5))
+TIME_B = int(os.getenv("TIME_B", 10))
 
 # LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY")
 LOCAL_DIRECTORIES = os.getenv("LOCAL_DIRECTORIES")
@@ -71,7 +71,7 @@ async def fetch_all_items():
     """
     async with aiosqlite.connect(DB_NAME) as db:
         query = f"""
-            SELECT id, base_name, image_name, archive_name, slug, style_en, tags, local_file_search, posting_telegram, title, category
+            SELECT id, base_name, image_name, archive_name, slug, style_en, tags, local_file_search, posting_telegram, title, category,image_path,archive_path
             FROM {TABLE_NAME}
             WHERE posting_telegram = 0
         """
@@ -93,6 +93,8 @@ async def fetch_all_items():
                         "posting_telegram": row[8],
                         "title": row[9],
                         "category": row[10],
+                        "image_path": row[11],
+                        "archive_path": row[12],
                     }
                     for row in rows
                 ]
@@ -190,13 +192,13 @@ async def universal_post_handler(message: Message):
     logger.info(f"Публикация в канал {channel_id} начата...")
 
     # Загружаем данные из JSON
-    data = fetch_json()
-    if not data:
+    data_json = fetch_json()
+    if not data_json:
         await message.reply("Нет доступных записей для публикации.")
         return
 
     # Фильтруем данные
-    items_to_post = [item for item in data if data_filter(item)]
+    items_to_post = [item for item in data_json if data_filter(item)]
     if not items_to_post:
         await message.reply("Нет записей, соответствующих критериям публикации.")
         return
@@ -237,94 +239,81 @@ async def post_item_to_channel(item, channel_id):
         """
         Работа с изображением
         """
-        for local_directory in directories:
-            path = Path(local_directory)
-            if not path.exists():
-                logger.warning(
-                    f"Директория не существует: {local_directory}. Пропускаем."
-                )
-                continue
-            # Формируем и нормализуем путь к изображению
-            image_path = os.path.normpath(
-                os.path.join(local_directory, item["image_name"])
-            )
+        # Перемешиваем записи перед публикацией
+        # for local_directory in directories:
 
-            logger.info(f"Путь к файлу: {image_path}")
+        # path = Path(local_directory)
+        # if not path.exists():
+        #     logger.warning(
+        #         f"Директория не существует: {local_directory}. Пропускаем."
+        #     )
+        #     continue
+        # Формируем и нормализуем путь к изображению
+        # image_path = os.path.normpath(os.path.join(local_directory, item["image_name"]))
+        image_path = item["image_path"]
+        archive_path = item["archive_path"]
 
-            # Проверяем существование файла
-            if not os.path.exists(image_path):
-                logger.error(f"Файл изображения не найден: {image_path}")
-                return
-            base_name = item["base_name"]
-            title = item["title"]
-            style_en = item["style_en"]
-            category = item["category"]
-            tags = item["tags"]
-            # logger.info(item["category"])
-            # category = " ".join(
-            #     f"#{word.strip()}"
-            #     for word in re.split(r"[^\w]+", item["category"])
-            #     if word.strip()
-            # )
-            # category = " ".join(
-            #     f"#{word.strip()}"
-            #     for word in re.split(
-            #         r"[^\w]+",
-            #         re.sub(r"\._", "_", re.sub(r"[^\w]", "_", item["category"])),
-            #     )
-            #     if word.strip()
-            # )
-            # tags = (
-            #     " ".join(
-            #         f"#{tag.strip().replace(' ', '_')}"
-            #         for tag in item["tags"].split(",")
-            #     )
-            #     if isinstance(item["tags"], str)
-            #     else ""
-            # )
+        # Проверяем существование файла
+        if not os.path.exists(image_path):
+            logger.error(f"Файл изображения не найден: {image_path}")
+            return
+        base_name = item["base_name"]
+        title = item["title"]
+        style_en = item["style_en"]
+        category = item["category"]
+        tags = item["tags"]
+        base_tags = "#3dsky #3ddd"
+        # Логируем переменные перед созданием caption
+        logger.info(
+            f"base_name: {base_name}, title: {title}, style_en: {style_en}, category: {category}, tags: {tags}"
+        )
 
-            base_tags = "#3dsky #3ddd"
-            # Формируем подпись для поста
-            caption = (
-                f"{base_name}\n{title}\n{style_en}\n{category}\n{tags}\n{base_tags}"
-            )
+        # Проверяем типы значений и убираем потенциальные проблемы
+        if not isinstance(style_en, str):
+            style_en = str(style_en)
+        if not isinstance(category, str):
+            category = str(category)
+        if not isinstance(tags, str):
+            tags = str(tags)
 
-            # Публикуем фото в канал
-            photo = FSInputFile(
-                image_path
-            )  # Используем FSInputFile для локальных файлов
-            await bot.send_photo(chat_id=channel_id, photo=photo, caption=caption)
+        caption = f"{base_name}\n{title}\n{style_en}\n{category}\n{tags}\n{base_tags}"
+        # Формируем подпись для поста
+        caption = f"{base_name}\n{title}\n{style_en}\n{category}\n{tags}\n{base_tags}"
 
-            # Формируем и нормализуем путь к архиву
-            archive_path = os.path.normpath(
-                os.path.join(local_directory, item["archive_name"])
-            )
-            """
-            Работа с архивом
-            """
-            # Формируем и нормализуем путь к архиву
-            archive_path = os.path.normpath(
-                os.path.join(local_directory, item["archive_name"])
-            )
+        # Публикуем фото в канал
+        photo = FSInputFile(image_path)  # Используем FSInputFile для локальных файлов
+        await bot.send_photo(chat_id=channel_id, photo=photo, caption=caption)
 
-            # logger.info(f"Путь к файлу: {archive_path}")
+        # # Формируем и нормализуем путь к архиву
+        # archive_path = os.path.normpath(
+        #     os.path.join(local_directory, item["archive_name"])
+        # )
+        # """
+        # Работа с архивом
+        # """
+        # # Формируем и нормализуем путь к архиву
+        # archive_path = os.path.normpath(
+        #     os.path.join(local_directory, item["archive_name"])
+        # )
 
-            # Проверяем существование файла
-            if not os.path.exists(archive_path):
-                logger.error(f"Файл архива не найден: {archive_path}")
-                return
+        # logger.info(f"Путь к файлу: {archive_path}")
 
-            # Публикуем архив в канал
-            archive = FSInputFile(
-                archive_path
-            )  # Используем FSInputFile для локальных файлов
-            await bot.send_document(chat_id=channel_id, document=archive)
+        # Проверяем существование файла
+        if not os.path.exists(archive_path):
+            logger.error(f"Файл архива не найден: {archive_path}")
+            return
 
-            # Отмечаем запись как опубликованную
-            await update_posting_telegram(base_name, True)
-            # item["posting_telegram"] = True
-            # logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
-            await random_pause(TIME_A, TIME_B)
+        # Публикуем архив в канал
+        archive = FSInputFile(
+            archive_path
+        )  # Используем FSInputFile для локальных файлов
+        await bot.send_document(chat_id=channel_id, document=archive)
+
+        # Отмечаем запись как опубликованную
+        await update_posting_telegram(base_name, True)
+        # item["posting_telegram"] = True
+        # logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
+        await random_pause(TIME_A, TIME_B)
     except Exception as e:
         logger.error(f"Ошибка при публикации записи {item['id']}: {e}")
 
