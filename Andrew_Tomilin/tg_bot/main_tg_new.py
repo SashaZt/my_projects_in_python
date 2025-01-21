@@ -264,9 +264,9 @@ async def post_item_to_channel(item, channel_id):
         tags = item["tags"]
         base_tags = "#3dsky #3ddd"
         # Логируем переменные перед созданием caption
-        logger.info(
-            f"base_name: {base_name}, title: {title}, style_en: {style_en}, category: {category}, tags: {tags}"
-        )
+        # logger.info(
+        #     f"base_name: {base_name}, title: {title}, style_en: {style_en}, category: {category}, tags: {tags}"
+        # )
 
         # Проверяем типы значений и убираем потенциальные проблемы
         if not isinstance(style_en, str):
