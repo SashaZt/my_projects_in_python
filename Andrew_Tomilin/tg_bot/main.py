@@ -26,6 +26,8 @@ directories = (
 ARCHIVE_FORMAT = "7z"  # Зафиксировали формат, чтобы избежать ошибок
 DB_NAME = os.getenv("DB_NAME", "default.db")
 TABLE_NAME = os.getenv("TABLE_NAME", "default_table")
+TABLE_NAME50 = os.getenv("TABLE_NAME50", "default_table")
+
 # Указываем пути к файлам и папкам
 current_directory = Path.cwd()
 output_xlsx_file = current_directory / "output.xlsx"
@@ -88,7 +90,7 @@ def archive_directory(directory):
         return None
 
 
-def is_archive_size_valid(archive_path, max_size_mb=49):
+def is_archive_size_valid(archive_path):
     """
     Проверяет, соответствует ли размер архива заданному лимиту.
 
@@ -101,7 +103,7 @@ def is_archive_size_valid(archive_path, max_size_mb=49):
         archive_size = os.path.getsize(archive_path)
         # Конвертируем в мегабайты
         archive_size_mb = archive_size / (1024 * 1024)
-        return archive_size_mb <= max_size_mb
+        return int(archive_size_mb)
     except FileNotFoundError:
         # Если файл не найден, возвращаем False
         logger.error(f"Файл не найден: {archive_path}")
@@ -171,11 +173,22 @@ def process_all_files():
             if archive_path:
                 archive_name = Path(archive_path).name
                 size_less_archive = is_archive_size_valid(archive_path)
-                if size_less_archive:
+                logger.info(size_less_archive)
+                if size_less_archive <= 50:
                     process_file(base_name, image_name, archive_name)
                 else:
+                    if is_record_in_table(base_name):
+                        logger.info(
+                            f"Запись с base_name = {base_name} уже существует в таблице {TABLE_NAME50}. Пропускаем."
+                        )
+                        continue
                     save_to_excel(
-                        base_name, image_name, archive_name, image_path, archive_path
+                        base_name,
+                        image_name,
+                        archive_name,
+                        image_path,
+                        archive_path,
+                        size_less_archive,
                     )
                 continue
 
@@ -186,15 +199,23 @@ def process_all_files():
                 archive_path = archive_directory(folder_path)
                 if archive_path:
                     archive_name = Path(archive_path).name
-                    if is_archive_size_valid(archive_path):
+                    size_less_archive = is_archive_size_valid(archive_path)
+                    logger.info(size_less_archive)
+                    if size_less_archive <= 50:
                         process_file(base_name, image_name, archive_name)
                     else:
+                        if is_record_in_table(base_name):
+                            logger.info(
+                                f"Запись с base_name = {base_name} уже существует в таблице {TABLE_NAME50}. Пропускаем."
+                            )
+                            continue
                         save_to_excel(
                             base_name,
                             image_name,
                             archive_name,
                             image_path,
                             archive_path,
+                            size_less_archive,
                         )
                     continue
                 else:
@@ -216,7 +237,7 @@ def process_file(base_name, image_name, archive_name):
         style_en = fetch_styles_from_3dsky(slug)
         tags = fetch_tags_from_3dsky(base_name)
 
-        if slug and style_en and tags:
+        if style_en:
             update_local_file_search(
                 base_name,
                 image_name,
@@ -233,7 +254,7 @@ def process_file(base_name, image_name, archive_name):
 
 
 def process_file_to_excel(
-    base_name, image_name, archive_name, image_path, archive_path
+    base_name, image_name, archive_name, image_path, archive_path, size_less_archive
 ):
     """
     Обрабатывает файл: извлекает данные из 3dsky и записывает в excel.
@@ -246,8 +267,9 @@ def process_file_to_excel(
 
         style_en = fetch_styles_from_3dsky(slug)
         tags = fetch_tags_from_3dsky(base_name)
-
-        if slug and style_en and tags:
+        logger.info(style_en)
+        logger.info(tags)
+        if style_en:
 
             all_data = {
                 "base_name": base_name,
@@ -260,7 +282,9 @@ def process_file_to_excel(
                 "tags": tags,
                 "title": title,
                 "category": category,
+                "size_archive": size_less_archive,
             }
+
             return all_data
 
     except Exception as e:
@@ -268,11 +292,7 @@ def process_file_to_excel(
 
 
 def save_to_excel(
-    base_name,
-    image_name,
-    archive_name,
-    image_path,
-    archive_path,
+    base_name, image_name, archive_name, image_path, archive_path, size_less_archive
 ):
     """
     Сохраняет данные в Excel-файл.
@@ -284,38 +304,44 @@ def save_to_excel(
     """
     try:
         all_data = process_file_to_excel(
-            base_name, image_name, archive_name, image_path, archive_path
+            base_name,
+            image_name,
+            archive_name,
+            image_path,
+            archive_path,
+            size_less_archive,
         )
-        # Проверяем, что данные существуют
-        if not all_data:
-            logger.error("Данные для записи в Excel отсутствуют.")
-            return
-        # Создаём новую книгу или загружаем существующую
-        if output_xlsx_file.exists():
-            wb = openpyxl.load_workbook(output_xlsx_file)
-            sheet = wb.active
-        else:
-            wb = openpyxl.Workbook()
-            sheet = wb.active
+        save_to_files_over_50(all_data)
+        # # Проверяем, что данные существуют
+        # if not all_data:
+        #     logger.error("Данные для записи в Excel отсутствуют.")
+        #     return
+        # # Создаём новую книгу или загружаем существующую
+        # if output_xlsx_file.exists():
+        #     wb = openpyxl.load_workbook(output_xlsx_file)
+        #     sheet = wb.active
+        # else:
+        #     wb = openpyxl.Workbook()
+        #     sheet = wb.active
 
-            # Создаём заголовки (только один раз)
-            headers_excel = list(all_data.keys())
-            for col_num, header in enumerate(headers_excel, 1):
-                sheet.cell(row=1, column=col_num, value=header)
+        #     # Создаём заголовки (только один раз)
+        #     headers_excel = list(all_data.keys())
+        #     for col_num, header in enumerate(headers_excel, 1):
+        #         sheet.cell(row=1, column=col_num, value=header)
 
-        # Определяем следующую строку для записи
-        next_row = sheet.max_row + 1
+        # # Определяем следующую строку для записи
+        # next_row = sheet.max_row + 1
 
-        # Записываем данные
-        for col_num, (key, value) in enumerate(all_data.items(), 1):
-            # Преобразуем списки в строку
-            if isinstance(value, list):
-                value = ", ".join(value)
-            sheet.cell(row=next_row, column=col_num, value=value)
+        # # Записываем данные
+        # for col_num, (key, value) in enumerate(all_data.items(), 1):
+        #     # Преобразуем списки в строку
+        #     if isinstance(value, list):
+        #         value = ", ".join(value)
+        #     sheet.cell(row=next_row, column=col_num, value=value)
 
-        # Сохраняем файл
-        wb.save(output_xlsx_file)
-        logger.info(f"Данные успешно записаны в файл {output_xlsx_file}")
+        # # Сохраняем файл
+        # wb.save(output_xlsx_file)
+        # logger.info(f"Данные успешно записаны в файл {output_xlsx_file}")
 
     except Exception as e:
         logger.error(f"Ошибка при записи в Excel: {e}")
@@ -457,6 +483,57 @@ def fetch_slug_from_3dsky(query):
     return None, None, None
 
 
+def save_to_files_over_50(all_data):
+    """
+    Сохраняет данные в таблицу files_over_50 и устанавливает local_file_search = 1.
+
+    :param all_data: Словарь с данными для записи.
+    """
+    try:
+        # Подключение к базе данных
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        # SQL-запрос для вставки данных
+        query = f"""
+            INSERT INTO {TABLE_NAME50} 
+            (base_name, image_name, archive_name, image_path, archive_path, slug, 
+            style_en, tags, title, category, size_archive, local_file_search)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        # Значения для записи
+        values = (
+            all_data["base_name"],
+            all_data["image_name"],
+            all_data["archive_name"],
+            all_data["image_path"],
+            all_data["archive_path"],
+            all_data["slug"],
+            all_data["style_en"],
+            (
+                ",".join(all_data["tags"])
+                if isinstance(all_data["tags"], list)
+                else all_data["tags"]
+            ),
+            all_data["title"],
+            all_data["category"],
+            all_data["size_archive"],
+            1,  # Устанавливаем local_file_search = 1
+        )
+
+        # Выполнение запроса
+        cursor.execute(query, values)
+        conn.commit()
+        logger.info(
+            f"Данные для base_name = {all_data['base_name']} успешно записаны в таблицу {TABLE_NAME50}."
+        )
+    except sqlite3.Error as e:
+        logger.error(f"Ошибка при записи данных в таблицу {TABLE_NAME50}: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+
 def update_local_file_search(
     base_name,
     image_name,
@@ -551,6 +628,63 @@ def update_local_file_search(
             logger.info("Соединение с базой данных закрыто.")
 
 
+def export_table_to_excel():
+    """
+    Выгружает всю таблицу TABLE_NAME50 в Excel-файл.
+
+    :param filename: Имя Excel-файла для сохранения данных.
+    """
+    try:
+        # Подключение к базе данных
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        # Извлечение всех данных из таблицы
+        query = f"SELECT * FROM {TABLE_NAME50}"
+        cursor.execute(query)
+        rows = cursor.fetchall()
+
+        # Извлечение названий столбцов
+        columns_query = f"PRAGMA table_info({TABLE_NAME50})"
+        cursor.execute(columns_query)
+        columns = [col[1] for col in cursor.fetchall()]
+
+        # Создание или загрузка Excel-файла
+        if output_xlsx_file.exists():
+            wb = openpyxl.load_workbook(output_xlsx_file)
+        else:
+            wb = openpyxl.Workbook()
+
+        # Создаём активный лист
+        sheet = wb.active
+        sheet.title = TABLE_NAME50
+
+        # Запись заголовков в Excel
+        for col_num, column_name in enumerate(columns, start=1):
+            col_letter = get_column_letter(col_num)
+            sheet[f"{col_letter}1"] = column_name
+
+        # Запись строк данных
+        for row_num, row in enumerate(rows, start=2):
+            for col_num, value in enumerate(row, start=1):
+                col_letter = get_column_letter(col_num)
+                sheet[f"{col_letter}{row_num}"] = value
+
+        # Сохраняем Excel-файл
+        wb.save(output_xlsx_file)
+        logger.info(
+            f"Данные из таблицы '{TABLE_NAME50}' успешно экспортированы в файл '{output_xlsx_file}'."
+        )
+
+    except sqlite3.Error as e:
+        logger.error(f"Ошибка при работе с базой данных: {e}")
+    except Exception as e:
+        logger.error(f"Ошибка при записи в Excel: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+
 def get_processed_base_names():
     """
     Подключается к базе данных и извлекает все base_name, где local_file_search = 1.
@@ -580,45 +714,87 @@ def get_processed_base_names():
             conn.close()
 
 
+def is_record_in_table(base_name):
+    """
+    Проверяет, есть ли запись с указанным base_name и local_file_search = 1 в таблице TABLE_NAME50.
+
+    :param base_name: Значение base_name для проверки.
+    :return: True, если запись найдена, и local_file_search = 1, иначе False.
+    """
+    try:
+        conn = sqlite3.connect(DB_NAME)
+        cursor = conn.cursor()
+
+        # SQL-запрос для проверки наличия записи
+        query = f"""
+        SELECT COUNT(*)
+        FROM {TABLE_NAME50}
+        WHERE base_name = ? AND local_file_search = 1
+        """
+        cursor.execute(query, (base_name,))
+        count = cursor.fetchone()[0]
+        return count > 0  # Если запись существует, возвращаем True
+    except sqlite3.Error as e:
+        logger.error(f"Ошибка при проверке записи в таблице {TABLE_NAME50}: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+
 def initialize_database():
     """
-    Создаёт базу данных и таблицу, если они ещё не существуют.
-    Структура таблицы:
-        - id (INTEGER PRIMARY KEY AUTOINCREMENT)
-        - base_name (TEXT)
-        - slug (TEXT)
-        - style_en (TEXT)
-        - tags (TEXT)
-        - local_file_search (BOOLEAN, default False)
-        - posting_telegram (BOOLEAN, default False)
+    Создаёт базу данных и таблицы, если они ещё не существуют.
     """
     try:
         # Подключение к базе данных
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
 
-        # Создание таблицы, если она не существует
+        # Создание первой таблицы, если она не существует
         cursor.execute(
             f"""
-        CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            base_name TEXT NOT NULL,
-            title TEXT NOT NULL,
-            category TEXT NOT NULL,
-            image_name TEXT NOT NULL,
-            archive_name TEXT NOT NULL,
-            slug TEXT,
-            style_en TEXT,
-            tags TEXT,
-            local_file_search BOOLEAN DEFAULT 0,
-            posting_telegram BOOLEAN DEFAULT 0,
-            size_less_archive BOOLEAN DEFAULT 0
+            CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                base_name TEXT NOT NULL,
+                title TEXT NOT NULL,
+                category TEXT NOT NULL,
+                image_name TEXT NOT NULL,
+                archive_name TEXT NOT NULL,
+                slug TEXT,
+                style_en TEXT,
+                tags TEXT,
+                local_file_search BOOLEAN DEFAULT 0,
+                posting_telegram BOOLEAN DEFAULT 0,
+                size_less_archive BOOLEAN DEFAULT 0
+            )
+            """
         )
-        """
+
+        # Создание второй таблицы, если она не существует
+        cursor.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {TABLE_NAME50} (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                base_name TEXT NOT NULL,
+                image_name TEXT NOT NULL,
+                archive_name TEXT NOT NULL,
+                image_path TEXT NOT NULL,
+                archive_path TEXT NOT NULL,
+                slug TEXT,
+                style_en TEXT,
+                tags TEXT,
+                title TEXT,
+                category TEXT,
+                size_archive TEXT,
+                local_file_search BOOLEAN DEFAULT 0
+            )
+            """
         )
+
         conn.commit()
         logger.info(
-            f"База данных '{DB_NAME}' и таблица '{TABLE_NAME}' успешно инициализированы."
+            f"База данных '{DB_NAME}' и таблицы '{TABLE_NAME}', '{TABLE_NAME50}' успешно инициализированы."
         )
     except sqlite3.Error as e:
         logger.error(f"Ошибка при инициализации базы данных: {e}")
@@ -659,6 +835,7 @@ def main_loop():
             "\nВыберите действие:\n"
             "1. Запустить сбор данных с 3dsky_org\n"
             "2. Запустить телеграм бота\n"
+            "3. Выгурзить данные в ексель\n"
             "0. Выход"
         )
         choice = input("Введите номер действия: ")
@@ -668,6 +845,8 @@ def main_loop():
             process_all_files()
         elif choice == "2":
             asyncio.run(main())
+        elif choice == "3":
+            export_table_to_excel()
         elif choice == "0":
             break
         else:

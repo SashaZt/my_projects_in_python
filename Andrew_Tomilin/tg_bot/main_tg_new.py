@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import random
 import re
 from pathlib import Path
 
@@ -17,6 +18,8 @@ load_dotenv(env_path)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 DB_NAME = os.getenv("DB_NAME")
 TABLE_NAME = os.getenv("TABLE_NAME")
+TIME_A = os.getenv("TIME_A")
+TIME_B = os.getenv("TIME_B")
 
 # LOCAL_DIRECTORY = os.getenv("LOCAL_DIRECTORY")
 LOCAL_DIRECTORIES = os.getenv("LOCAL_DIRECTORIES")
@@ -321,7 +324,7 @@ async def post_item_to_channel(item, channel_id):
             await update_posting_telegram(base_name, True)
             # item["posting_telegram"] = True
             # logger.info(f"Запись {item['id']} опубликована в канале {channel_id}.")
-
+            await random_pause(TIME_A, TIME_B)
     except Exception as e:
         logger.error(f"Ошибка при публикации записи {item['id']}: {e}")
 
@@ -347,6 +350,18 @@ async def update_posting_telegram(base_name: str, posting_telegram: bool):
             # )
     except Exception as e:
         logger.error(f"Ошибка при обновлении записи: {e}")
+
+
+async def random_pause(time_a, time_b):
+    """
+    Асинхронная пауза на случайное время в диапазоне [time_a, time_b].
+
+    :param time_a: Нижняя граница времени паузы (в секундах).
+    :param time_b: Верхняя граница времени паузы (в секундах).
+    """
+    pause_time = random.uniform(time_a, time_b)  # Выбираем случайное число
+    logger.info(f"Пауза на {pause_time:.2f} секунд...")
+    await asyncio.sleep(pause_time)
 
 
 async def main():
