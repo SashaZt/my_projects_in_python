@@ -254,22 +254,31 @@ async def post_item_to_channel(item, channel_id):
                 return
             base_name = item["base_name"]
             title = item["title"]
-            style_en = f'#{item["style_en"]}'
+            style_en = item["style_en"]
+            category = item["category"]
+            tags = item["tags"]
             # logger.info(item["category"])
-            category = " ".join(
-                f"#{word.strip()}"
-                for word in re.split(r"[^\w]+", item["category"])
-                if word.strip()
-            )
-
-            tags = (
-                " ".join(
-                    f"#{tag.strip().replace(' ', '_')}"
-                    for tag in item["tags"].split(",")
-                )
-                if isinstance(item["tags"], str)
-                else ""
-            )
+            # category = " ".join(
+            #     f"#{word.strip()}"
+            #     for word in re.split(r"[^\w]+", item["category"])
+            #     if word.strip()
+            # )
+            # category = " ".join(
+            #     f"#{word.strip()}"
+            #     for word in re.split(
+            #         r"[^\w]+",
+            #         re.sub(r"\._", "_", re.sub(r"[^\w]", "_", item["category"])),
+            #     )
+            #     if word.strip()
+            # )
+            # tags = (
+            #     " ".join(
+            #         f"#{tag.strip().replace(' ', '_')}"
+            #         for tag in item["tags"].split(",")
+            #     )
+            #     if isinstance(item["tags"], str)
+            #     else ""
+            # )
 
             base_tags = "#3dsky #3ddd"
             # Формируем подпись для поста

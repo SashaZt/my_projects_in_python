@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import shutil
 import sqlite3
 from pathlib import Path
@@ -134,10 +135,19 @@ def process_all_files():
             continue
 
         for image_path in images:
+            # Регулярное выражение для проверки
+            pattern = r"^[^.]+\.[a-zA-Z0-9]{13}$"
+
             # Извлекаем имя файла без расширения
             base_name = Path(image_path).stem
             image_name = Path(image_path).name
 
+            # Проверяем соответствие шаблону
+            if not re.match(pattern, base_name):
+                logger.error(
+                    f"Имя файла '{base_name}' не соответствует шаблону. Пропускаем."
+                )
+                continue
             # Пропускаем обработку, если base_name уже в обработанных
             if base_name in processed_base_names:
                 logger.info(
@@ -338,6 +348,7 @@ def fetch_tags_from_3dsky(query):
 
         if data.get("status") == 200 and "data" in data:
             tags = data["data"].get("tagsEn", [])
+            tags = " ".join(f"#{tag.strip()}" for tag in tags if tag)
             return tags
         else:
             raise ValueError(
@@ -361,7 +372,7 @@ def fetch_styles_from_3dsky(slug):
     json_data = {
         "slug": slug,
     }
-    logger.info(slug)
+    # logger.info(slug)
     try:
         response = requests.post(
             "https://models.3dsky.org/api/models/show",
@@ -375,6 +386,7 @@ def fetch_styles_from_3dsky(slug):
 
         if data.get("success") and "data" in data:
             style_en = data["data"]["style_en"]
+            style_en = f"#{style_en}"
             return style_en
         else:
             raise ValueError(
@@ -415,9 +427,21 @@ def fetch_slug_from_3dsky(query):
                 model = models[0]  # Берем первую модель
                 slug = model.get("slug")
                 title_en = model.get("title_en")
-                category = model.get("category", {}).get("title_en")
-                category_parent = model.get("category_parent", {}).get("title_en")
-                category = f"{category_parent}, {category}"
+                category = (
+                    model.get("category", {})
+                    .get("title_en")
+                    .replace(" + ", "_")
+                    .replace(" ", "_")
+                )
+                category = f"#{category}"
+                category_parent = (
+                    model.get("category_parent", {})
+                    .get("title_en")
+                    .replace(" + ", "_")
+                    .replace(" ", "_")
+                )
+                category_parent = f"#{category_parent}"
+                category = f"{category_parent} {category}"
                 return slug, title_en, category
 
         else:
@@ -461,7 +485,7 @@ def update_local_file_search(
         cursor = conn.cursor()
 
         # Преобразуем список tags в строку
-        tags_str = ",".join(tags if tags else [])
+        # tags_str = ",".join(tags if tags else [])
 
         # Проверка существования записи с указанным base_name
         cursor.execute(
@@ -487,7 +511,7 @@ def update_local_file_search(
                     archive_name,
                     slug,
                     style_en,
-                    tags_str,
+                    tags,
                     title,
                     category,
                     record[0],
@@ -512,7 +536,7 @@ def update_local_file_search(
                     archive_name,
                     slug,
                     style_en,
-                    tags_str,
+                    tags,
                     title,
                     category,
                 ),
@@ -629,6 +653,7 @@ def add_columns_to_table(image_name):
 
 
 def main_loop():
+    initialize_database()
     while True:
         print(
             "\nВыберите действие:\n"
@@ -638,7 +663,7 @@ def main_loop():
         )
         choice = input("Введите номер действия: ")
         if choice == "1":
-            initialize_database()
+
             # add_columns_to_table("size_less_archive")
             process_all_files()
         elif choice == "2":
