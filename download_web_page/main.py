@@ -36,27 +36,43 @@ def load_proxies():
 
 
 def get_html():
+    cookies = {
+        "piguVisitorWallet": "452518733",
+        "TPSN": "UxtQ9Za-soF6xYUsqSogiA1on8rusRPp9d7FqyNq78YgG8dMzzew8V9V75OY0iGPpzZhylpRBsQIh-WWEC0gdOF0TOooGZdebuujlajphmFmoLNDomopUANCzXvTqVJ3",
+        "__cf_bm": "VI8tWQxc9g3CLR0og0KRUkfzOhVGH._K.RFbtTzc2z0-1737543806-1.0.1.1-95RMg8csxx0onkJWr3k1GF6Y1zECGIcqcKFotgd8K4GgpsDUfm7Esa9WLoz.2zMbdXwFRf6GmZULkTy_MgKyQpGKcZ3JFQQMYxg62LHmVbE",
+        "cf_clearance": "ORS57QQWbDl0TeUd7RCrt6keLxWfs5Ip3Gyxapjjp9o-1737543807-1.2.1.1-HEnGBmSvQ.gshl9lNcRk7FdtssSMu7fHS6IwpPG60CRtslK7hhNqbLfI.s9ioAThZZxpH9qTHhTkyQpnR9LMAWIq85HaPozptUP6fFdy9WlOc4L036QKnbisLO9V0H3pBxF0V1VVQtlR86D7UKYVQqlwpSBu5QuxMQJWCBakViFvQRK5Ld6M7WMWU4o2IvPGOWrI0nrjCsuOo.PH3MtxBjyepCsSfZosdv.cbWn8JNP0ajVfYTyb4NHTyUZxJeleZ5VCJVUPeYmuKMRwHtXwcjNHo5Z7L7fjCaCL99gRI2o",
+        "csrf_p_token": "600db.ZGU5M2JkMzIyZmI4YjljMg.AQEBUgRTUgUFAAQJB1wAAgcGXwIHVVULB1ZXAFcMVgI",
+        "CA_DT_V3": "1",
+        "CA_DT_V2": "1",
+    }
+
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
         "cache-control": "no-cache",
+        # 'cookie': 'piguVisitorWallet=452518733; TPSN=UxtQ9Za-soF6xYUsqSogiA1on8rusRPp9d7FqyNq78YgG8dMzzew8V9V75OY0iGPpzZhylpRBsQIh-WWEC0gdOF0TOooGZdebuujlajphmFmoLNDomopUANCzXvTqVJ3; __cf_bm=VI8tWQxc9g3CLR0og0KRUkfzOhVGH._K.RFbtTzc2z0-1737543806-1.0.1.1-95RMg8csxx0onkJWr3k1GF6Y1zECGIcqcKFotgd8K4GgpsDUfm7Esa9WLoz.2zMbdXwFRf6GmZULkTy_MgKyQpGKcZ3JFQQMYxg62LHmVbE; cf_clearance=ORS57QQWbDl0TeUd7RCrt6keLxWfs5Ip3Gyxapjjp9o-1737543807-1.2.1.1-HEnGBmSvQ.gshl9lNcRk7FdtssSMu7fHS6IwpPG60CRtslK7hhNqbLfI.s9ioAThZZxpH9qTHhTkyQpnR9LMAWIq85HaPozptUP6fFdy9WlOc4L036QKnbisLO9V0H3pBxF0V1VVQtlR86D7UKYVQqlwpSBu5QuxMQJWCBakViFvQRK5Ld6M7WMWU4o2IvPGOWrI0nrjCsuOo.PH3MtxBjyepCsSfZosdv.cbWn8JNP0ajVfYTyb4NHTyUZxJeleZ5VCJVUPeYmuKMRwHtXwcjNHo5Z7L7fjCaCL99gRI2o; csrf_p_token=600db.ZGU5M2JkMzIyZmI4YjljMg.AQEBUgRTUgUFAAQJB1wAAgcGXwIHVVULB1ZXAFcMVgI; CA_DT_V3=1; CA_DT_V2=1',
         "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "referer": "https://cosco.com.ua/product-sitemap.xml",
         "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
+        "sec-fetch-site": "none",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
+    params = {
+        "id": "14862980",
+    }
+
     response = requests.get(
-        "https://cosco.com.ua/penal-shhenyachyj-patrul-stakanchyk-zubna-shhitka-zubna-pasta/",
+        "https://pigu.lt/lt/technika-ir-elektronika/namu-technika/dulkiu-siurbliai/dulkiu-siurblys-philips-fc933009",
+        params=params,
+        cookies=cookies,
         headers=headers,
         timeout=30,
     )
@@ -64,7 +80,7 @@ def get_html():
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
-        with open("satu.html", "w", encoding="utf-8") as file:
+        with open("pigu_lt.html", "w", encoding="utf-8") as file:
             file.write(response.text)
     logger.info(response.status_code)
 
@@ -927,10 +943,9 @@ def pars_htmls():
 
 
 if __name__ == "__main__":
-    get_html()
-
-    # get_htmls()
+    # get_html()
     pars_htmls()
+    # get_htmls()
     # get_html()
     # get_contact_prom()
     # get_category_html()

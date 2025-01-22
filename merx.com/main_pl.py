@@ -636,6 +636,17 @@ async def scroll_to_bottom(page):
     await asyncio.sleep(1)
 
 
+def parse_quantities(quantities_text):
+    """Парсит текст с количествами в структурированный словарь."""
+    quantities = {}
+    pattern = r"(.*?):.*?([\d,]+) t"
+    for match in re.finditer(pattern, quantities_text):
+        key = match.group(1).strip()
+        value = int(match.group(2).replace(",", ""))
+        quantities[key] = value
+    return quantities
+
+
 async def run(playwright):
     # Указываем настройки прокси одной строкой
     # proxy_url = "http://scraperapi:5edddbdddb89aed6e9d529c4ff127e8f@proxy-server.scraperapi.com:8001"
@@ -670,36 +681,76 @@ async def run(playwright):
     await page.wait_for_load_state("networkidle")
     await asyncio.sleep(60)  # Пауза
     # Прокручиваем до самого низа
-    await scroll_to_bottom(page)
-    output_file = current_directory / "Page_01.html"
-    html_content = await page.content()
-    with open(output_file, "w", encoding="utf-8") as file:
-        file.write(html_content)
-    count = 1
-    while True:
-        try:
-            # Ждём появления элемента с таймаутом (например, 5 секунд)
-            await page.wait_for_selector(
-                "#ContentPlaceHolder1_lnkNextPage", timeout=5000
-            )
-            # await page.wait_for_load_state("networkidle")
-            await asyncio.sleep(5)
-            # Если элемент найден, кликаем
-            await page.click("#ContentPlaceHolder1_imgNextPage")
-            count += 1
-            output_file = current_directory / f"Page_0{count}.html"
-            html_content = await page.content()
-            with open(output_file, "w", encoding="utf-8") as file:
-                file.write(html_content)
 
-            print("Clicked on #ContentPlaceHolder1_imgNextPage")
-        except:
-            # Если элемент не найден, выходим из цикла
-            print(
-                "Element #ContentPlaceHolder1_imgNextPage no longer present. Stopping."
-            )
-            break
+    data = {}
+
+    # Извлечение div с классом HeaderAccordionPlusFormat
+    div_elements = await page.query_selector_all(
+        '//div[@class="HeaderAccordionPlusFormat"]'
+    )
+    for idx, div in enumerate(div_elements, start=1):
+        h2_element = await div.query_selector('//h2[@align="left"]')
+        h2_text = await h2_element.inner_text() if h2_element else ""
+        data[f"section_{idx}_header"] = h2_text
+
+    # Парсинг данных из таблицы с Estimated Quantities
+    td_element = await page.query_selector(
+        "//td/p[contains(text(), 'Estimated Quantities:')]"
+    )
+    if td_element:
+        quantities_text = await td_element.inner_text()
+        quantities = parse_quantities(quantities_text)
+        data["estimated_quantities"] = quantities
+
+    # Извлечение данных из Award Details
+    award_table = await page.query_selector("//tbody[tr/th[text()='Award Details']]")
+    if award_table:
+        award_rows = await award_table.query_selector_all("tr")
+        award_data = [await row.inner_text() for row in award_rows if row]
+        data["award_details"] = award_data
+
+    # Извлечение данных из Response Address
+    response_address_table = await page.query_selector(
+        "//tbody[tr/th[contains(text(),'Response Address:')]]"
+    )
+    if response_address_table:
+        response_rows = await response_address_table.query_selector_all("tr")
+        response_data = [await row.inner_text() for row in response_rows if row]
+        data["response_address"] = response_data
+
     await browser.close()
+    return data
+
+    # await scroll_to_bottom(page)
+    # output_file = current_directory / "Page_01.html"
+    # html_content = await page.content()
+    # with open(output_file, "w", encoding="utf-8") as file:
+    #     file.write(html_content)
+    # count = 1
+    # while True:
+    #     try:
+    #         # Ждём появления элемента с таймаутом (например, 5 секунд)
+    #         await page.wait_for_selector(
+    #             "#ContentPlaceHolder1_lnkNextPage", timeout=5000
+    #         )
+    #         # await page.wait_for_load_state("networkidle")
+    #         await asyncio.sleep(5)
+    #         # Если элемент найден, кликаем
+    #         await page.click("#ContentPlaceHolder1_imgNextPage")
+    #         count += 1
+    #         output_file = current_directory / f"Page_0{count}.html"
+    #         html_content = await page.content()
+    #         with open(output_file, "w", encoding="utf-8") as file:
+    #             file.write(html_content)
+
+    #         print("Clicked on #ContentPlaceHolder1_imgNextPage")
+    #     except:
+    #         # Если элемент не найден, выходим из цикла
+    #         print(
+    #             "Element #ContentPlaceHolder1_imgNextPage no longer present. Stopping."
+    #         )
+    #         break
+    # await browser.close()
 
     # for i in range(1, 22):
     #     await page.goto(url)
@@ -841,7 +892,8 @@ async def run(playwright):
 
 async def main():
     async with async_playwright() as playwright:
-        await run(playwright)
+        result = await run(playwright)
+        print(result)
 
 
 # Запуск основной функции
