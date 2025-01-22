@@ -109,6 +109,19 @@ class TelegramMessageModel(BaseModel):
     message: str
 
 
+# class TelegramMessageModel(BaseModel):
+#     sender_name: str
+#     sender_username: Optional[str]
+#     sender_id: int
+#     sender_phone: Optional[str]
+#     sender_type: str
+#     recipient_name: str
+#     recipient_username: Optional[str]
+#     recipient_id: int
+#     recipient_phone: Optional[str]
+#     message: str
+
+
 # Маршрут для создания контакта
 @router.post("/contact")
 async def create_or_update_contact(contact: ContactModel, db=Depends(get_db)):
@@ -830,43 +843,72 @@ async def create_or_update_role(role: dict = Body(...), db=Depends(get_db)):
         )
 
 
+# @router.post("/telegram/message")
+# async def save_telegram_message(message: TelegramMessageModel, db=Depends(get_db)):
+#     try:
+#         # Преобразуем данные модели в словарь
+#         message_data = message.dict()
+
+#         async with db.pool.acquire() as connection:
+#             async with connection.cursor() as cursor:
+#                 # SQL-запрос для вставки данных
+#                 sql = """
+#                 INSERT INTO telegram_messages (
+#                     sender_name, sender_username, sender_id, sender_phone, sender_type,
+#                     recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
+#                 )
+#                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+#                 """
+#                 values = (
+#                     message_data["sender_name"],
+#                     message_data["sender_username"],
+#                     message_data["sender_id"],
+#                     message_data["sender_phone"],
+#                     message_data["sender_type"],
+#                     message_data["recipient_name"],
+#                     message_data["recipient_username"],
+#                     message_data["recipient_id"],
+#                     message_data["recipient_phone"],
+#                     message_data["message"],
+#                 )
+#                 # Выполняем запрос
+#                 await cursor.execute(sql, values)
+#                 await connection.commit()
+
+#         return JSONResponse(
+#             status_code=200,
+#             content={"status": "success", "message": "Данные успешно сохранены"},
+#         )
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при сохранении сообщения: {e}")
+#         return JSONResponse(
+#             status_code=500,
+#             content={"status": "failure", "message": f"Ошибка при сохранении: {e}"},
+#         )
+
+
 @router.post("/telegram/message")
 async def save_telegram_message(message: TelegramMessageModel, db=Depends(get_db)):
-    try:
-        # Преобразуем данные модели в словарь
-        message_data = message.dict()
+    """
+    Сохраняет сообщение Telegram в базу данных через API.
 
-        async with db.pool.acquire() as connection:
-            async with connection.cursor() as cursor:
-                # SQL-запрос для вставки данных
-                sql = """
-                INSERT INTO telegram_messages (
-                    sender_name, sender_username, sender_id, sender_phone, sender_type,
-                    recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-                """
-                values = (
-                    message_data["sender_name"],
-                    message_data["sender_username"],
-                    message_data["sender_id"],
-                    message_data["sender_phone"],
-                    message_data["sender_type"],
-                    message_data["recipient_name"],
-                    message_data["recipient_username"],
-                    message_data["recipient_id"],
-                    message_data["recipient_phone"],
-                    message_data["message"],
-                )
-                # Выполняем запрос
-                await cursor.execute(sql, values)
-                await connection.commit()
+    :param message: Модель данных сообщения Telegram.
+    :param db: Объект DatabaseInitializer для взаимодействия с базой данных.
+    :return: JSON-ответ.
+    """
+    try:
+        message_data = message.model_dump()  # Используем model_dump вместо dict
+
+        logger.info(f"Получены данные для сохранения: {message_data}")
+
+        # Вызов функции вставки данных в базу
+        await db.insert_telegram_message_to_db(message_data)
 
         return JSONResponse(
             status_code=200,
             content={"status": "success", "message": "Данные успешно сохранены"},
         )
-
     except Exception as e:
         logger.error(f"Ошибка при сохранении сообщения: {e}")
         return JSONResponse(

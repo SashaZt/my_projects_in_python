@@ -1195,6 +1195,46 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при получении конфигурационных данных: {e}")
             return {}
 
+    async def insert_telegram_message_to_db(self, message_data: dict):
+        """
+        Сохраняет сообщение Telegram в базу данных.
+
+        :param message_data: Словарь с данными сообщения.
+        :return: None
+        """
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return
+
+        sql = """
+            INSERT INTO telegram_messages (
+                sender_name, sender_username, sender_id, sender_phone, sender_type,
+                recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+        """
+        values = (
+            message_data["sender_name"],
+            message_data["sender_username"],
+            message_data["sender_id"],
+            message_data["sender_phone"],
+            message_data["sender_type"],
+            message_data["recipient_name"],
+            message_data["recipient_username"],
+            message_data["recipient_id"],
+            message_data["recipient_phone"],
+            message_data["message"],
+        )
+
+        try:
+            async with self.pool.acquire() as connection:
+                async with connection.cursor() as cursor:
+                    await cursor.execute(sql, values)
+                    await connection.commit()
+                    logger.info("Сообщение успешно сохранено в базу данных.")
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении сообщения в базу данных: {e}")
+
 
 # Для тестирования модуля отдельно (можно удалить, если не нужно)
 if __name__ == "__main__":
