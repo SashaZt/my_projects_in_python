@@ -483,3 +483,40 @@ async def get_role_permissions(role: dict = Body(...), db=Depends(get_db)):
                 "message": f"Failed to retrieve permissions: {e}",
             },
         )
+
+
+@router.get("/telegram/message")
+async def get_telegram_messages(db=Depends(get_db)):
+    """
+    Получает все сообщения Telegram из базы данных.
+
+    :param db: Объект DatabaseInitializer для взаимодействия с базой данных.
+    :return: JSONResponse с результатом выполнения.
+    """
+    try:
+        # Получаем все сообщения из базы данных
+        messages = await db.get_all_telegram_messages()
+
+        if not messages:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "status": "success",
+                    "data": [],
+                    "message": "Сообщения отсутствуют",
+                },
+            )
+
+        return JSONResponse(
+            status_code=200,
+            content={"status": "success", "data": messages},
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при получении сообщений: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "failure",
+                "message": f"Ошибка при получении сообщений: {e}",
+            },
+        )

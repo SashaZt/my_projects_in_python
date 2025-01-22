@@ -2,6 +2,7 @@ import asyncio
 import os
 from asyncio import TimeoutError, wait_for
 from typing import Any, Dict, List, Optional
+from datetime import datetime
 
 import aiomysql
 from configuration.logger_setup import logger
@@ -1234,6 +1235,38 @@ class DatabaseInitializer:
                     logger.info("Сообщение успешно сохранено в базу данных.")
         except Exception as e:
             logger.error(f"Ошибка при сохранении сообщения в базу данных: {e}")
+
+    async def get_all_telegram_messages(self) -> List[dict]:
+        """
+        Получает все сообщения из таблицы telegram_messages.
+
+        :return: Список словарей с данными сообщений.
+        """
+        if self.pool is None:
+            logger.error("Пул соединений не инициализирован.")
+            return []
+
+        sql = """
+            SELECT sender_name, sender_username, sender_id, sender_phone, sender_type,
+                recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
+            FROM telegram_messages
+        """
+
+        try:
+            async with self.pool.acquire() as connection:
+                async with connection.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(sql)
+                    messages = await cursor.fetchall()
+
+                    # Преобразуем created_at из datetime в строку
+                    for message in messages:
+                        if isinstance(message["created_at"], datetime):
+                            message["created_at"] = message["created_at"].isoformat()
+
+                    return messages
+        except Exception as e:
+            logger.error(f"Ошибка при получении сообщений из базы данных: {e}")
+            return []
 
 
 # Для тестирования модуля отдельно (можно удалить, если не нужно)
