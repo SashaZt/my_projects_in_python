@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from app.core.database import engine
 from app.core.dependencies import get_db
 from app.api.post_routes import router as post_router
+from app.api.get_routes import router as get_routes
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import SSL_KEYFILE, SSL_CERTFILE
@@ -48,6 +49,7 @@ async def log_middleware(request: Request, call_next):
 
 # # Подключение маршрутов
 app.include_router(post_router)
+app.include_router(get_routes)
 
 if __name__ == "__main__":
     # alembic_cfg = Config("alembic.ini")

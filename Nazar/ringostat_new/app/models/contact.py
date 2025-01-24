@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy import Column, DateTime, Integer, String, Text
 from app.core.base import Base  # Import Base from the new base.py
+from sqlalchemy.orm import relationship
 
 
 class Contact(Base):
@@ -16,3 +17,8 @@ class Contact(Base):
     usersite = Column(String(255))
     comment = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Связь с таблицей additional_contacts
+    additional_contacts = relationship(
+        "AdditionalContact", back_populates="contact", cascade="all, delete-orphan"
+    )

@@ -1,8 +1,8 @@
 import asyncio
 import os
 from asyncio import TimeoutError, wait_for
-from typing import Any, Dict, List, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import aiomysql
 from configuration.logger_setup import logger
@@ -1196,77 +1196,77 @@ class DatabaseInitializer:
             logger.error(f"Ошибка при получении конфигурационных данных: {e}")
             return {}
 
-    async def insert_telegram_message_to_db(self, message_data: dict):
-        """
-        Сохраняет сообщение Telegram в базу данных.
+    # async def insert_telegram_message_to_db(self, message_data: dict):
+    #     """
+    #     Сохраняет сообщение Telegram в базу данных.
 
-        :param message_data: Словарь с данными сообщения.
-        :return: None
-        """
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return
+    #     :param message_data: Словарь с данными сообщения.
+    #     :return: None
+    #     """
+    #     if self.pool is None:
+    #         logger.error("Пул соединений не инициализирован.")
+    #         return
 
-        sql = """
-            INSERT INTO telegram_messages (
-                sender_name, sender_username, sender_id, sender_phone, sender_type,
-                recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
-        """
-        values = (
-            message_data["sender_name"],
-            message_data["sender_username"],
-            message_data["sender_id"],
-            message_data["sender_phone"],
-            message_data["sender_type"],
-            message_data["recipient_name"],
-            message_data["recipient_username"],
-            message_data["recipient_id"],
-            message_data["recipient_phone"],
-            message_data["message"],
-        )
+    #     sql = """
+    #         INSERT INTO telegram_messages (
+    #             sender_name, sender_username, sender_id, sender_phone, sender_type,
+    #             recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
+    #         )
+    #         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+    #     """
+    #     values = (
+    #         message_data["sender_name"],
+    #         message_data["sender_username"],
+    #         message_data["sender_id"],
+    #         message_data["sender_phone"],
+    #         message_data["sender_type"],
+    #         message_data["recipient_name"],
+    #         message_data["recipient_username"],
+    #         message_data["recipient_id"],
+    #         message_data["recipient_phone"],
+    #         message_data["message"],
+    #     )
 
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor() as cursor:
-                    await cursor.execute(sql, values)
-                    await connection.commit()
-                    logger.info("Сообщение успешно сохранено в базу данных.")
-        except Exception as e:
-            logger.error(f"Ошибка при сохранении сообщения в базу данных: {e}")
+    #     try:
+    #         async with self.pool.acquire() as connection:
+    #             async with connection.cursor() as cursor:
+    #                 await cursor.execute(sql, values)
+    #                 await connection.commit()
+    #                 logger.info("Сообщение успешно сохранено в базу данных.")
+    #     except Exception as e:
+    #         logger.error(f"Ошибка при сохранении сообщения в базу данных: {e}")
 
-    async def get_all_telegram_messages(self) -> List[dict]:
-        """
-        Получает все сообщения из таблицы telegram_messages.
+    # async def get_all_telegram_messages(self) -> List[dict]:
+    #     """
+    #     Получает все сообщения из таблицы telegram_messages.
 
-        :return: Список словарей с данными сообщений.
-        """
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return []
+    #     :return: Список словарей с данными сообщений.
+    #     """
+    #     if self.pool is None:
+    #         logger.error("Пул соединений не инициализирован.")
+    #         return []
 
-        sql = """
-            SELECT sender_name, sender_username, sender_id, sender_phone, sender_type,
-                recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
-            FROM telegram_messages
-        """
+    #     sql = """
+    #         SELECT sender_name, sender_username, sender_id, sender_phone, sender_type,
+    #             recipient_name, recipient_username, recipient_id, recipient_phone, message, created_at
+    #         FROM telegram_messages
+    #     """
 
-        try:
-            async with self.pool.acquire() as connection:
-                async with connection.cursor(aiomysql.DictCursor) as cursor:
-                    await cursor.execute(sql)
-                    messages = await cursor.fetchall()
+    #     try:
+    #         async with self.pool.acquire() as connection:
+    #             async with connection.cursor(aiomysql.DictCursor) as cursor:
+    #                 await cursor.execute(sql)
+    #                 messages = await cursor.fetchall()
 
-                    # Преобразуем created_at из datetime в строку
-                    for message in messages:
-                        if isinstance(message["created_at"], datetime):
-                            message["created_at"] = message["created_at"].isoformat()
+    #                 # Преобразуем created_at из datetime в строку
+    #                 for message in messages:
+    #                     if isinstance(message["created_at"], datetime):
+    #                         message["created_at"] = message["created_at"].isoformat()
 
-                    return messages
-        except Exception as e:
-            logger.error(f"Ошибка при получении сообщений из базы данных: {e}")
-            return []
+    #                 return messages
+    #     except Exception as e:
+    #         logger.error(f"Ошибка при получении сообщений из базы данных: {e}")
+    #         return []
 
 
 # Для тестирования модуля отдельно (можно удалить, если не нужно)
