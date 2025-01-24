@@ -36,63 +36,34 @@ def load_proxies():
 
 
 def get_html():
-    cookies = {
-        "__deba": "30wZANHiP70RicfB9jugwHeMtcWCnr9SF_KS3-Kj98LB1IlnV_X6IvioCPul-AAG__2N-G9z5_zeStS1JZSF-TSJTUEHeLCqHI7wQDliKL3OHHm_qoCVpJuFHpX8VWFKh28lda3_iYXrpK5b_jSZhA==",
-        "ak_bmsc": "D6AA95EF70EFBB63F0B6152E3F11E6E4~000000000000000000000000000000~YAAQpqwQAjeW23OUAQAACAFQjxo0rML54Pzu31S/BgDNii/haw9hi6Flzz1YmsYSAUa7C5WJhm3PxU/wSIdbDd2aCXpniLgk4egskoESml2w4RdBtTGUAdcwCDF3O19cWBEpM7K78hcW90nF8SPvHtrQ6w4Kmsx1eX7Ab4MDe9DWoubuIjCYgiGZjBiiQhQbKRLIqnJmu/uiNvdCs4ZMHqMDfU0NqCf4kU+R5rsdG24hmtTXorBeQFd3cFWYAZh7fVpgZ0uH4qkKYYbeAyyDevIz9xZAb4RL3jmjnuKFzj6irJDjO47qETyaJcQ8X4SCBx3D39EROOZH5bJyLhKKN1n/HWXezcLN8+aC3Rg6II4WIz2mWWgCswmUR6uyWYaMkdUgCjEiIg8=",
-        "__uzma": "97357116-b531-48ea-a787-9a1cdbc0d2a3",
-        "__uzmb": "1737571173",
-        "__uzme": "0889",
-        "__uzmc": "827291397251",
-        "__uzmd": "1737571181",
-        "__uzmf": "7f600038e61fac-f753-483f-8618-80f320552cd617375711736318102-b0cedbb1361f283d13",
-        "__ssds": "2",
-        "__ssuzjsr2": "a9be0cd8e",
-        "__uzmaj2": "f52997a6-1322-426e-8b54-c2c2eac61cf7",
-        "__uzmbj2": "1737571182",
-        "__uzmcj2": "570591087982",
-        "__uzmdj2": "1737571182",
-        "__uzmlj2": "vehRS1XWx7PXFnOlzGCI5IIYSSnwKONU8KPr5HqVjRw=",
-        "__uzmfj2": "7f600038e61fac-f753-483f-8618-80f320552cd617375711825230-1636da6df525610c10",
-        "ds2": "",
-        "s": "CgADuAEpnko7kMTQGaHR0cHM6Ly93d3cuZWJheS5jb20vYi9CYWdsZXNzLVZhY3V1bS1DbGVhbmVycy8yMDYxNC9ibl81NTEwMjg5ND9tYWc9MQcA+AAgZ5KO5DhhZDFmMmFkMTkyMGFhNzI4OGM2ZDc4NmZmY2VlNzk2O6KXsg**",
-        "ebay": "%5Ejs%3D1%5Esbf%3D%23000000%5E",
-        "ns1": "BAQAAAZRXz2gmAAaAANgAU2lycO9jNjl8NjAxXjE3MzQwODA0NzgzOTheXjFeM3wyfDV8NHw3fDEwfDQyfDQzfDExXl5eNF4zXjEyXjEyXjJeMV4xXjBeMV4wXjFeNjQ0MjQ1OTA3NQrAjPACDWt2l3sk5o34yZ3O63eN",
-        "dp1": "bpbf/%23e000a00000000000000000697270ef^bl/UA6b53a46f^",
-        "nonsession": "BAQAAAZRXz2gmAAaAADMABWlycO8xMDAwNQDKACBrU6RvOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYAywACZ5FEdzU29TzSNv03c79FmcGAevzKQN5k2UI*",
-        "bm_sv": "50BCB87E5C6EDC056A3E309B8032EB56~YAAQnqwQAlh/k4SUAQAAcPtXjxqfTeEgm8bGtFPqqGDtoVma02iar+Cm8o47eaqY9CVwmTOum3Ess7vWu23xIvKqqM3+hrXpbnZYRYvYJ1GIi7YFxUCYm9FDmu4OerfGS2TMNSaSMlInGeWEa8NGqR0pW2jG30BViHbO3vnGRW2hZk5l82EbLF1rm3a4T2XGZPtzlLTC7Y6Cp0g7qLIgNgHsTPexDCJSd/10u5LFKDuSpJWSxIH7q1lPvke1cDQ=~1",
-    }
-
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        # 'cookie': '__deba=30wZANHiP70RicfB9jugwHeMtcWCnr9SF_KS3-Kj98LB1IlnV_X6IvioCPul-AAG__2N-G9z5_zeStS1JZSF-TSJTUEHeLCqHI7wQDliKL3OHHm_qoCVpJuFHpX8VWFKh28lda3_iYXrpK5b_jSZhA==; ak_bmsc=D6AA95EF70EFBB63F0B6152E3F11E6E4~000000000000000000000000000000~YAAQpqwQAjeW23OUAQAACAFQjxo0rML54Pzu31S/BgDNii/haw9hi6Flzz1YmsYSAUa7C5WJhm3PxU/wSIdbDd2aCXpniLgk4egskoESml2w4RdBtTGUAdcwCDF3O19cWBEpM7K78hcW90nF8SPvHtrQ6w4Kmsx1eX7Ab4MDe9DWoubuIjCYgiGZjBiiQhQbKRLIqnJmu/uiNvdCs4ZMHqMDfU0NqCf4kU+R5rsdG24hmtTXorBeQFd3cFWYAZh7fVpgZ0uH4qkKYYbeAyyDevIz9xZAb4RL3jmjnuKFzj6irJDjO47qETyaJcQ8X4SCBx3D39EROOZH5bJyLhKKN1n/HWXezcLN8+aC3Rg6II4WIz2mWWgCswmUR6uyWYaMkdUgCjEiIg8=; __uzma=97357116-b531-48ea-a787-9a1cdbc0d2a3; __uzmb=1737571173; __uzme=0889; __uzmc=827291397251; __uzmd=1737571181; __uzmf=7f600038e61fac-f753-483f-8618-80f320552cd617375711736318102-b0cedbb1361f283d13; __ssds=2; __ssuzjsr2=a9be0cd8e; __uzmaj2=f52997a6-1322-426e-8b54-c2c2eac61cf7; __uzmbj2=1737571182; __uzmcj2=570591087982; __uzmdj2=1737571182; __uzmlj2=vehRS1XWx7PXFnOlzGCI5IIYSSnwKONU8KPr5HqVjRw=; __uzmfj2=7f600038e61fac-f753-483f-8618-80f320552cd617375711825230-1636da6df525610c10; ds2=; s=CgADuAEpnko7kMTQGaHR0cHM6Ly93d3cuZWJheS5jb20vYi9CYWdsZXNzLVZhY3V1bS1DbGVhbmVycy8yMDYxNC9ibl81NTEwMjg5ND9tYWc9MQcA+AAgZ5KO5DhhZDFmMmFkMTkyMGFhNzI4OGM2ZDc4NmZmY2VlNzk2O6KXsg**; ebay=%5Ejs%3D1%5Esbf%3D%23000000%5E; ns1=BAQAAAZRXz2gmAAaAANgAU2lycO9jNjl8NjAxXjE3MzQwODA0NzgzOTheXjFeM3wyfDV8NHw3fDEwfDQyfDQzfDExXl5eNF4zXjEyXjEyXjJeMV4xXjBeMV4wXjFeNjQ0MjQ1OTA3NQrAjPACDWt2l3sk5o34yZ3O63eN; dp1=bpbf/%23e000a00000000000000000697270ef^bl/UA6b53a46f^; nonsession=BAQAAAZRXz2gmAAaAADMABWlycO8xMDAwNQDKACBrU6RvOGFkMWYyYWQxOTIwYWE3Mjg4YzZkNzg2ZmZjZWU3OTYAywACZ5FEdzU29TzSNv03c79FmcGAevzKQN5k2UI*; bm_sv=50BCB87E5C6EDC056A3E309B8032EB56~YAAQnqwQAlh/k4SUAQAAcPtXjxqfTeEgm8bGtFPqqGDtoVma02iar+Cm8o47eaqY9CVwmTOum3Ess7vWu23xIvKqqM3+hrXpbnZYRYvYJ1GIi7YFxUCYm9FDmu4OerfGS2TMNSaSMlInGeWEa8NGqR0pW2jG30BViHbO3vnGRW2hZk5l82EbLF1rm3a4T2XGZPtzlLTC7Y6Cp0g7qLIgNgHsTPexDCJSd/10u5LFKDuSpJWSxIH7q1lPvke1cDQ=~1',
+        "cache-control": "no-cache",
+        # 'cookie': 'LNG=UA; LNG=UA; _csrf=c1e6328d4d1a00430f580954cd699bfcb582e349d7cdb35b0fc25fc69f79504fa%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%22sPIghgsE62pvjuIdspysobQGcw1EBt3j%22%3B%7D; device-referrer=https://edrpou.ubki.ua/ua/FO12726884; device-source=https://edrpou.ubki.ua/ua/FO14352035',
         "dnt": "1",
+        "pragma": "no-cache",
         "priority": "u=0, i",
+        "referer": "https://edrpou.ubki.ua/ua",
         "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        "sec-ch-ua-full-version": '"131.0.6778.265"',
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
         "sec-ch-ua-platform": '"Windows"',
-        "sec-ch-ua-platform-version": '"19.0.0"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "none",
+        "sec-fetch-site": "same-origin",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://www.ebay.com/itm/276582527279",
-        cookies=cookies,
-        headers=headers,
-        timeout=30,
+        "https://edrpou.ubki.ua/ua/FO14352035", headers=headers, timeout=30
     )
 
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
-        with open("ebay.html", "w", encoding="utf-8") as file:
+        with open("ubki.html", "w", encoding="utf-8") as file:
             file.write(response.text)
     logger.info(response.status_code)
 
