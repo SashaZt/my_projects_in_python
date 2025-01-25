@@ -36,7 +36,7 @@ async def validate_target(client, target):
         if target.isdigit():
             entity = await client.get_entity(int(target))
         else:
-            entity = await client.get_input_entity(target)
+            entity = await client.get_entity(target)
         logger.info(
             f"Цель найдена: {entity.id} ({entity.username or entity.first_name})"
         )
@@ -53,18 +53,15 @@ async def get_user_info(client, user):
     try:
         full_user = await client.get_entity(user)
         name = f"{getattr(full_user, 'first_name', '') or ''} {getattr(full_user, 'last_name', '') or ''}".strip()
-        username = getattr(full_user, "username", None)
+        username = f"@{full_user.username}" if full_user.username else None
         user_id = full_user.id
         phone = getattr(full_user, "phone", None)
-        # Определяем тип пользователя
-        user_type = "bot" if getattr(full_user, "bot", False) else "user"
 
         return {
             "name": name,
             "username": username,
-            "id": user_id,
-            "phone": phone,
-            "type": user_type,
+            "telegram_id": user_id,
+            "phone": phone
         }
     except Exception as e:
         logger.error(f"Ошибка при получении информации о пользователе: {e}")
@@ -81,75 +78,51 @@ def get_session_name():
 async def send_message(client):
     """Отправка сообщения через Telegram и получение информации об участниках."""
     while True:
-        try:
-            target = input(
-                "Введите ID или имя пользователя (например, @username): "
-            ).strip()
+        target = input(
+            "Введите ID или имя пользователя (например, @username): "
+        ).strip()
+        entity = await validate_target(client, target)
+        if not entity:
+            target = input("Цель не найдена. Введите @username: ").strip()
             entity = await validate_target(client, target)
             if not entity:
-                # Если цель не найдена, запрашиваем ввод @username
-                target = input("Цель не найдена. Введите @username: ").strip()
-                # Проверяем введенный @username
-                entity = await validate_target(client, target)
-                if not entity:
-                    logger.error(
-                        "Пользователь с данным @username не найден. Попробуйте снова."
-                    )
-                    continue  # Возвращаемся к началу цикла для нового ввода
+                logger.error("Пользователь с данным @username не найден. Попробуйте снова.")
+                continue
 
-            message = input("Введите текст сообщения: ").strip()
+        message = input("Введите текст сообщения: ").strip()
 
-            # Отправляем сообщение
-            sent_message = await client.send_message(entity, message)
+        # Отправляем сообщение
+        await client.send_message(entity, message)
 
-            # Получаем информацию об отправителе (текущем пользователе)
-            sender_info = await get_user_info(client, "me")
+        # Получаем информацию об отправителе и получателе
+        sender_info = await get_user_info(client, "me")
+        recipient_info = await get_user_info(client, entity)
 
-            # Получаем информацию о получателе
-            recipient_info = await get_user_info(client, entity)
+        # Формируем данные в нужном формате
+        all_data = {
+            "sender": sender_info,
+            "recipient": recipient_info,
+            "message": {"text": message}
+        }
 
-            # Формируем данные в нужном формате
-            all_data = {
-                "sender_name": sender_info["name"],
-                "sender_username": sender_info["username"],
-                "sender_id": sender_info["id"],
-                "sender_phone": sender_info["phone"],
-                "sender_type": sender_info["type"],
-                "recipient_name": recipient_info["name"],
-                "recipient_username": recipient_info["username"],
-                "recipient_id": recipient_info["id"],
-                "recipient_phone": recipient_info["phone"],
-                "recipient_type": recipient_info["type"],
-                "message": message,
-            }
+        # Отправляем данные на API и получаем ответ
+        response_data = await send_to_api(all_data)
+        if response_data:
+            logger.info(f"Данные успешно отправлены: {response_data}")
 
-            # Отправляем данные на API и получаем ответ
-            response_data = await send_to_api(all_data)
-
-            if response_data:
-                logger.info(f"Данные успешно отправлены: {response_data}")
-                # print("\nДанные сообщения успешно отправлены")
-
-            # Корректное завершение программы
+        # Спрашиваем, хочет ли пользователь продолжить или завершить работу
+        if input("Продолжить? (Y/n): ").lower() != "y":
             await client.disconnect()
             sys.exit(0)
-
-        except Exception as e:
-            logger.error(f"Ошибка при отправке сообщения: {e}")
-            # Предлагаем пользователю ввести данные снова
-            logger.info("Пожалуйста, попробуйте ввести данные снова.")
 
 
 async def main():
     """Основная функция."""
     phone_number, session_name = get_session_name()
-    client = TelegramClient(str(session_name), API_ID, API_HASH)
-
-    await client.start(phone=phone_number)
-    logger.info("Клиент запущен.")
-
-    # В main теперь только отправка сообщения
-    await send_message(client)
+    async with TelegramClient(str(session_name), API_ID, API_HASH) as client:
+        await client.start(phone=phone_number)
+        logger.info("Клиент запущен.")
+        await send_message(client)
 
 
 if __name__ == "__main__":

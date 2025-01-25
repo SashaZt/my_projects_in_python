@@ -10,7 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.sql import func
 from app.models.telegram_message import TelegramMessage
-from app.schemas.telegram_message import TelegramMessageCreate
+from app.models.telegram_users import TelegramUser
+
+# from app.schemas.telegram_message import TelegramMessageCreate
+from app.schemas.telegram import TelegramMessageSchema
 
 
 router = APIRouter()
@@ -145,40 +148,145 @@ async def post_filtered_contacts(
 
 
 @router.post("/telegram/message")
-async def save_telegram_message(
-    message: TelegramMessageCreate, db: AsyncSession = Depends(get_db)
+async def post_telegram_message(
+    message_data: TelegramMessageSchema, db: AsyncSession = Depends(get_db)
 ):
-    """
-    Сохраняет сообщение Telegram в базу данных.
+    # Проверка и, если нужно, создание отправителя
+    stmt = select(TelegramUser).filter(
+        TelegramUser.telegram_id == message_data.sender.telegram_id
+    )
+    result = await db.execute(stmt)
+    sender = result.scalar_one_or_none()
 
-    :param message: Данные сообщения Telegram.
-    :param db: Асинхронная сессия базы данных.
-    :return: JSON-ответ с результатом сохранения.
-    """
-    logger.info(f"Получены данные для сохранения: {message}")
+    if not sender:
+        sender = TelegramUser(
+            name=message_data.sender.name,
+            username=message_data.sender.username,
+            telegram_id=message_data.sender.telegram_id,
+            phone=message_data.sender.phone,
+        )
+        db.add(sender)
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Если произошла ошибка целостности данных, откатываем и продолжаем без создания пользователя
+            await db.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to create sender due to data integrity error",
+            )
+        else:
+            await db.refresh(sender)
 
+    # Аналогично для получателя
+    stmt = select(TelegramUser).filter(
+        TelegramUser.telegram_id == message_data.recipient.telegram_id
+    )
+    result = await db.execute(stmt)
+    recipient = result.scalar_one_or_none()
+
+    if not recipient:
+        recipient = TelegramUser(
+            name=message_data.recipient.name,
+            username=message_data.recipient.username,
+            telegram_id=message_data.recipient.telegram_id,
+            phone=message_data.recipient.phone,
+        )
+        db.add(recipient)
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to create recipient due to data integrity error",
+            )
+        else:
+            await db.refresh(recipient)
+
+    # Создание и добавление сообщения
     new_message = TelegramMessage(
-        sender_name=message.sender_name,
-        sender_username=message.sender_username,
-        sender_id=message.sender_id,
-        sender_phone=message.sender_phone,
-        sender_type=message.sender_type,
-        recipient_name=message.recipient_name,
-        recipient_username=message.recipient_username,
-        recipient_id=message.recipient_id,
-        recipient_phone=message.recipient_phone,
-        message=message.message,
+        sender_id=sender.id,
+        recipient_id=recipient.id,
+        message=message_data.message.text,
     )
 
-    try:
-        db.add(new_message)
-        await db.commit()
-        await db.refresh(new_message)
-        logger.info("Сообщение успешно сохранено в базу данных.")
-        return {"status": "success", "message": "Данные успешно сохранены"}
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Ошибка при сохранении сообщения: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Ошибка при сохранении сообщения: {str(e)}"
-        )
+    db.add(new_message)
+    await db.commit()
+    await db.refresh(new_message)
+
+    return {"message_id": new_message.id, "status": "Message sent successfully"}
+
+
+# @router.post("/telegram/message")
+# async def save_telegram_message(
+#     message: TelegramMessageCreate, db: AsyncSession = Depends(get_db)
+# ):
+#     """
+#     Сохраняет сообщение Telegram в базу данных, создавая или обновляя записи отправителя и получателя.
+
+#     :param message: Входные данные сообщения.
+#     :param db: Асинхронная сессия базы данных.
+#     :return: Сохранённое сообщение в формате JSON.
+#     """
+#     logger.info(f"Получены данные для сохранения: {message}")
+
+#     try:
+#         # Проверяем существование отправителя
+#         sender_query = await db.execute(
+#             select(TelegramUser).where(
+#                 TelegramUser.telegram_id == message.sender.telegram_id
+#             )
+#         )
+#         sender = sender_query.scalar_one_or_none()
+
+#         if not sender:
+#             sender = TelegramUser(
+#                 name=message.sender.name,
+#                 username=message.sender.username,
+#                 telegram_id=message.sender.telegram_id,
+#                 phone=message.sender.phone,
+#             )
+#             db.add(sender)
+#             logger.info(f"Создан новый отправитель: {sender}")
+
+#         # Проверяем существование получателя
+#         recipient_query = await db.execute(
+#             select(TelegramUser).where(
+#                 TelegramUser.telegram_id == message.recipient.telegram_id
+#             )
+#         )
+#         recipient = recipient_query.scalar_one_or_none()
+
+#         if not recipient:
+#             recipient = TelegramUser(
+#                 name=message.recipient.name,
+#                 username=message.recipient.username,
+#                 telegram_id=message.recipient.telegram_id,
+#                 phone=message.recipient.phone,
+#             )
+#             db.add(recipient)
+#             logger.info(f"Создан новый получатель: {recipient}")
+
+#         await db.flush()  # Обновляем объекты, чтобы получить их ID
+
+#         # Создаём сообщение
+#         new_message = TelegramMessage(
+#             sender_id=sender.id,
+#             recipient_id=recipient.id,
+#             message=message.message.text,
+#         )
+#         db.add(new_message)
+
+#         await db.commit()
+#         await db.refresh(new_message)
+#         logger.info("Сообщение успешно сохранено в базу данных.")
+#         return new_message
+
+
+#     except Exception as e:
+#         await db.rollback()
+#         logger.error(f"Ошибка при сохранении сообщения: {e}")
+#         raise HTTPException(
+#             status_code=500, detail=f"Ошибка при сохранении сообщения: {str(e)}"
+#         )

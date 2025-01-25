@@ -1,20 +1,30 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime
-from app.core.base import Base  # Убедитесь, что Base подключен корректно
+from sqlalchemy import Column, Integer, Text, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
+from datetime import datetime, timezone
+from app.core.base import Base
 
 
 class TelegramMessage(Base):
-    __tablename__ = "telegram_messages"
+    __tablename__ = "telegram_messages"  # Имя таблицы сообщений.
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    sender_name = Column(String(255))
-    sender_username = Column(String(255))
-    sender_id = Column(BigInteger)
-    sender_phone = Column(String(20))
-    sender_type = Column(String(50))
-    recipient_name = Column(String(255))
-    recipient_username = Column(String(255))
-    recipient_id = Column(BigInteger)
-    recipient_phone = Column(String(20))
-    message = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(
+        Integer, primary_key=True, autoincrement=True
+    )  # Уникальный идентификатор сообщения.
+    sender_id = Column(
+        Integer, ForeignKey("telegram_users.id"), nullable=False
+    )  # ID отправителя, внешний ключ.
+    recipient_id = Column(
+        Integer, ForeignKey("telegram_users.id"), nullable=False
+    )  # ID получателя, внешний ключ.
+    message = Column(Text, nullable=False)  # Текст сообщения.
+    created_at = Column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )  # Дата и время создания сообщения.
+
+    # Связи
+    sender = relationship(
+        "TelegramUser", foreign_keys=[sender_id], backref="messages_sent"
+    )
+    recipient = relationship(
+        "TelegramUser", foreign_keys=[recipient_id], backref="messages_received"
+    )
