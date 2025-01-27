@@ -870,7 +870,11 @@ def get_transcript_summary(transcript_id):
     if transcript_id is None:
         return None
     # GraphQL запрос для получения данных транскрипта
-    query = """
+    
+
+    
+    while True:
+        query = """
     query Transcript($transcriptId: String!) {
     transcript(id: $transcriptId) {
         id
@@ -885,21 +889,26 @@ def get_transcript_summary(transcript_id):
         gist
         short_summary
         }
-    }
-    }
-    """
+        }
+        }
+        """
 
-    # Переменные для GraphQL запроса
-    variables = {"transcriptId": transcript_id}
-
-    # Отправляем запрос
-    response = requests.post(
-        GRAPHQL_URL,
-        headers=headers_api,
-        json={"query": query, "variables": variables},
-        timeout=30,
-    )
-    while True:
+        # Переменные для GraphQL запроса
+        variables = {"transcriptId": transcript_id}
+        # Отправляем запрос
+        response = requests.post(
+            GRAPHQL_URL,
+            headers=headers_api,
+            json={"query": query, "variables": variables},
+            timeout=30,
+        )
+        # Отправляем запрос
+        response = requests.post(
+            GRAPHQL_URL,
+            headers=headers_api,
+            json={"query": query, "variables": variables},
+            timeout=30,
+        )
         if response.status_code == 200:
             data = response.json()
             if "data" in data and "transcript" in data["data"]:
@@ -907,7 +916,7 @@ def get_transcript_summary(transcript_id):
                 id_transcript = transcript["id"]
                 title_transcript = transcript["title"]
                 summary = transcript.get("summary", {})
-
+                logger.info(summary)
                 # Проверяем наличие и содержимое "overview"
                 if "overview" in summary and summary["overview"]:
                     return {

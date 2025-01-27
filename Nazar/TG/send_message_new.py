@@ -1,135 +1,144 @@
 import asyncio
-import sys
+import re
 from pathlib import Path
 
 import httpx
 from configuration.config import API_HASH, API_ID, API_URL, SESSION_PATH
 from configuration.logger_setup import logger
-from telethon import TelegramClient, events
-from telethon.errors import PeerIdInvalidError
-
-# Указываем путь к папке для сессий
-current_directory = Path.cwd()
-session_directory = current_directory / SESSION_PATH
-session_directory.mkdir(parents=True, exist_ok=True)
+from telethon import TelegramClient
 
 
-async def send_to_api(data):
-    """
-    Отправляет данные на API, игнорируя проверку SSL.
-    :param data: словарь с данными
-    :return: ответ от API
-    """
+async def send_to_api(data: dict, endpoint: str = "/telegram/message"):
     async with httpx.AsyncClient(verify=False) as client:
         try:
-            response = await client.post(API_URL, json=data)
+            url = f"{API_URL}{endpoint}"
+            # logger.info(f"URL: {url}")
+            response = await client.post(url, json=data)
             response.raise_for_status()
-            return response.json()
+            logger.info(f"Данные успешно отправлены: {response.json()}")
         except httpx.HTTPError as e:
             logger.error(f"Ошибка при отправке данных на API: {e}")
-            return None
 
 
-async def validate_target(client, target):
-    """Проверить, существует ли пользователь или группа."""
-    try:
-        if target.isdigit():
-            entity = await client.get_entity(int(target))
-        else:
-            entity = await client.get_entity(target)
-        logger.info(
-            f"Цель найдена: {entity.id} ({entity.username or entity.first_name})"
-        )
-        return entity
-    except PeerIdInvalidError:
-        logger.error(f"Цель не найдена: {target}")
-    except Exception as e:
-        logger.error(f"Ошибка при проверке цели: {e}")
-    return None
-
-
-async def get_user_info(client, user):
-    """Получить информацию о пользователе в нужном формате."""
-    try:
-        full_user = await client.get_entity(user)
-        name = f"{getattr(full_user, 'first_name', '') or ''} {getattr(full_user, 'last_name', '') or ''}".strip()
-        username = f"@{full_user.username}" if full_user.username else None
-        user_id = full_user.id
-        phone = getattr(full_user, "phone", None)
-
-        return {
-            "name": name,
-            "username": username,
-            "telegram_id": user_id,
-            "phone": phone,
-        }
-    except Exception as e:
-        logger.error(f"Ошибка при получении информации о пользователе: {e}")
-        return None
-
-
-def get_session_name():
-    """Получить имя сессии на основе ввода номера телефона."""
-    phone_number = input("Введите номер телефона (в формате +1234567890): ").strip()
-    session_name = session_directory / f"{phone_number}.session"
-    return phone_number, session_name
-
-
-async def send_message(client):
-    """Отправка сообщения через Telegram и обновление статусов."""
-    while True:
-        target = input(
-            "Введите ID или имя пользователя (например, @username): "
-        ).strip()
-        entity = await validate_target(client, target)
-        if not entity:
-            logger.error("Пользователь с данным @username не найден. Попробуйте снова.")
-            continue
-
-        message = input("Введите текст сообщения: ").strip()
-
-        # Отправляем сообщение
-        sent_message = await client.send_message(entity, message)
-
-        # Проверяем, является ли сообщение ответом на другое сообщение
-        is_reply = sent_message.reply_to_msg_id is not None
-        reply_to = sent_message.reply_to_msg_id if is_reply else None
-
-        # Получаем информацию об отправителе и получателе
-        sender_info = await get_user_info(client, "me")
-        recipient_info = await get_user_info(client, entity)
-
-        # Формируем данные сообщения
-        all_data = {
-            "sender": sender_info,
-            "recipient": recipient_info,
-            "message": {
-                "text": message,
-                "message_id": sent_message.id,
-                "is_reply": is_reply,
-                "reply_to": reply_to,
-                "read": False,  # Новое сообщение считается непрочитанным
-            },
-        }
-
-        # Отправляем данные на API
-        response_data = await send_to_api(all_data)
-        if response_data:
-            logger.info(f"Данные успешно отправлены: {response_data}")
-
-        # Спрашиваем, хочет ли пользователь продолжить или завершить работу
-        if input("Продолжить? (Y/n): ").lower() != "y":
-            await client.disconnect()
-            sys.exit(0)
+def validate_phone_number(phone_number: str) -> str:
+    if not re.match(r"^\+\d{10,15}$", phone_number):
+        raise ValueError("Номер телефона должен быть в формате +1234567890.")
+    return phone_number
 
 
 async def main():
-    """Основная функция."""
-    phone_number, session_name = get_session_name()
-    async with TelegramClient(str(session_name), API_ID, API_HASH) as client:
-        await client.start(phone=phone_number)
-        logger.info("Клиент запущен.")
-        await send_message(client)
+    # Показываем доступные сессии
+    session_path = Path(SESSION_PATH)
+    sessions = list(session_path.glob("*.session"))
+    if sessions:
+        print("Доступные сессии:")
+        for i, session in enumerate(sessions, 1):
+            print(f"{i}. {session.stem}")
+        choice = input("Выберите номер сессии или введите новый номер телефона: ")
+
+        try:
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(sessions):
+                phone_number = sessions[choice_idx].stem
+            else:
+                phone_number = input(
+                    "Введите номер телефона (в формате +1234567890): "
+                ).strip()
+                phone_number = validate_phone_number(phone_number)
+        except ValueError:
+            phone_number = validate_phone_number(choice.strip())
+    else:
+        print("Нет сохраненных сессий")
+        phone_number = input("Введите номер телефона (в формате +1234567890): ").strip()
+        phone_number = validate_phone_number(phone_number)
+
+    session_name = session_path / f"{phone_number}.session"
+    client = TelegramClient(str(session_name), API_ID, API_HASH)
+
+    try:
+        await client.start(phone=lambda: phone_number)
+        logger.info("Клиент запущен. Готов к отправке сообщений...")
+
+        print(
+            "\nДля отправки сообщения введите команду в формате: send ID_получателя текст_сообщения"
+        )
+        print("Для выхода введите: exit")
+
+        while True:
+            command = input("> ").strip()
+
+            if command.lower() == "exit":
+                break
+
+            if command.startswith("send "):
+                try:
+                    parts = command.split(" ", 2)
+                    if len(parts) < 3:
+                        print(
+                            "Ошибка: Используйте формат: send ID_получателя текст_сообщения"
+                        )
+                        continue
+
+                    _, recipient_id, message_text = parts
+
+                    try:
+                        recipient_id = int(recipient_id)
+                    except ValueError:
+                        print("Ошибка: ID получателя должен быть числом")
+                        continue
+
+                    if not message_text:
+                        print("Ошибка: введите текст сообщения")
+                        continue
+
+                    try:
+                        recipient = await client.get_entity(recipient_id)
+                        message = await client.send_message(recipient, message_text)
+
+                        me = await client.get_me()
+                        message_data = {
+                            "sender": {
+                                "name": f"{me.first_name or ''} {me.last_name or ''}".strip(),
+                                "username": f"@{me.username}" if me.username else None,
+                                "telegram_id": me.id,
+                                "phone": getattr(me, "phone", None),
+                            },
+                            "recipient": {
+                                "name": f"{recipient.first_name or ''} {recipient.last_name or ''}".strip(),
+                                "username": (
+                                    f"@{recipient.username}"
+                                    if recipient.username
+                                    else None
+                                ),
+                                "telegram_id": recipient.id,
+                                "phone": getattr(recipient, "phone", None),
+                            },
+                            "message": {
+                                "text": message_text,
+                                "message_id": message.id,
+                                "is_reply": False,
+                                "reply_to": None,
+                                "read": False,
+                                "direction": "outbox",
+                            },
+                        }
+
+                        await send_to_api(message_data)
+                        print("Сообщение отправлено")
+                    except ValueError as e:
+                        print(f"Ошибка: Пользователь не найден - {e}")
+                    except Exception as e:
+                        print(f"Ошибка при отправке: {e}")
+                except Exception as e:
+                    print(f"Ошибка: {e}")
+            else:
+                print(
+                    "Неизвестная команда. Используйте: send ID_получателя текст_сообщения"
+                )
+    except KeyboardInterrupt:
+        print("\nПрограмма остановлена пользователем")
+    finally:
+        await client.disconnect()
 
 
 if __name__ == "__main__":

@@ -11,9 +11,12 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.sql import func
 from app.models.telegram_message import TelegramMessage
 from app.models.telegram_users import TelegramUser
+from sqlalchemy import update
+from sqlalchemy import update, select, or_, and_
+
 
 # from app.schemas.telegram_message import TelegramMessageCreate
-from app.schemas.telegram import TelegramMessageSchema
+from app.schemas.telegram import TelegramMessageSchema, MessageReadSchema
 
 
 router = APIRouter()
@@ -151,7 +154,20 @@ async def post_filtered_contacts(
 async def post_telegram_message(
     message_data: TelegramMessageSchema, db: AsyncSession = Depends(get_db)
 ):
-    # Проверка и, если нужно, создание отправителя
+    # Проверка дубликатов message_id
+    stmt = select(TelegramMessage).filter(
+        TelegramMessage.message_id == message_data.message.message_id
+    )
+    result = await db.execute(stmt)
+    existing_message = result.scalar_one_or_none()
+
+    if existing_message:
+        return {
+            "message_id": existing_message.message_id,
+            "status": "Message already exists",
+        }
+
+    # Проверка и создание отправителя
     stmt = select(TelegramUser).filter(
         TelegramUser.telegram_id == message_data.sender.telegram_id
     )
@@ -166,19 +182,10 @@ async def post_telegram_message(
             phone=message_data.sender.phone,
         )
         db.add(sender)
-        try:
-            await db.commit()
-        except IntegrityError:
-            # Если произошла ошибка целостности данных, откатываем и продолжаем без создания пользователя
-            await db.rollback()
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to create sender due to data integrity error",
-            )
-        else:
-            await db.refresh(sender)
+        await db.commit()
+        await db.refresh(sender)
 
-    # Аналогично для получателя
+    # Проверка и создание получателя
     stmt = select(TelegramUser).filter(
         TelegramUser.telegram_id == message_data.recipient.telegram_id
     )
@@ -193,29 +200,133 @@ async def post_telegram_message(
             phone=message_data.recipient.phone,
         )
         db.add(recipient)
-        try:
-            await db.commit()
-        except IntegrityError:
-            await db.rollback()
-            raise HTTPException(
-                status_code=400,
-                detail="Failed to create recipient due to data integrity error",
-            )
-        else:
-            await db.refresh(recipient)
+        await db.commit()
+        await db.refresh(recipient)
+    logger.info(f"Incoming message data: {message_data.dict()}")  # Добавить это
 
-    # Создание и добавление сообщения
+    # Перед созданием сообщения
+    logger.info(f"Creating message with ID: {message_data.message.message_id}")
+
+    # Создание сообщения
     new_message = TelegramMessage(
+        message_id=message_data.message.message_id,
         sender_id=sender.id,
         recipient_id=recipient.id,
         message=message_data.message.text,
+        is_reply=message_data.message.is_reply,
+        reply_to=message_data.message.reply_to,
+        is_read=message_data.message.read,
+        direction=message_data.message.direction,  # Используем direction из сообщения
     )
-
+    logger.info(f"Created message object with ID: {new_message.message_id}")
     db.add(new_message)
     await db.commit()
     await db.refresh(new_message)
 
-    return {"message_id": new_message.id, "status": "Message sent successfully"}
+    return {"message_id": new_message.message_id, "status": "Message sent successfully"}
+
+
+@router.post("/telegram/message/read")
+async def update_message_read_status(
+    read_data: MessageReadSchema, db: AsyncSession = Depends(get_db)
+):
+    """
+    Обновляет статус сообщений на прочитанное.
+    """
+    try:
+        logger.info(f"Получены данные для обновления: {read_data.dict()}")
+
+        # Преобразуем telegram_id в внутренний id для отправителя
+        sender_query = select(TelegramUser.id).where(
+            TelegramUser.telegram_id == read_data.sender_id
+        )
+        recipient_query = select(TelegramUser.id).where(
+            TelegramUser.telegram_id == read_data.recipient_id
+        )
+
+        sender_result = await db.execute(sender_query)
+        sender_id = sender_result.scalar_one_or_none()
+
+        recipient_result = await db.execute(recipient_query)
+        recipient_id = recipient_result.scalar_one_or_none()
+
+        # Проверяем, что отправитель и получатель существуют
+        if sender_id is None or recipient_id is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Sender or recipient not found in the database",
+            )
+
+        # Логируем преобразованные ID
+        logger.info(
+            f"Преобразованные ID: sender_id={sender_id}, recipient_id={recipient_id}"
+        )
+
+        # Добавьте этот код перед update для диагностики
+        check_query = (
+            select(TelegramMessage)
+            .where(
+                or_(
+                    and_(
+                        TelegramMessage.sender_id == sender_id,
+                        TelegramMessage.recipient_id == recipient_id,
+                    ),
+                    and_(
+                        TelegramMessage.sender_id == recipient_id,
+                        TelegramMessage.recipient_id == sender_id,
+                    ),
+                )
+            )
+            .order_by(TelegramMessage.message_id)
+        )
+
+        messages = await db.execute(check_query)
+        messages = messages.scalars().all()
+
+        logger.info(f"Total messages in conversation: {len(messages)}")
+        logger.info("Message IDs distribution:")
+        id_counts = {}
+        for msg in messages:
+            if msg.message_id in id_counts:
+                id_counts[msg.message_id] += 1
+            else:
+                id_counts[msg.message_id] = 1
+
+        for msg_id, count in sorted(id_counts.items()):
+            if count > 1 or msg_id == 0:
+                logger.info(f"Message ID {msg_id}: {count} occurrences")
+
+        # Обновляем статус сообщений по message_id
+        stmt = (
+            update(TelegramMessage)
+            .where(
+                or_(
+                    and_(
+                        TelegramMessage.sender_id == sender_id,
+                        TelegramMessage.recipient_id == recipient_id,
+                    ),
+                    and_(
+                        TelegramMessage.sender_id == recipient_id,
+                        TelegramMessage.recipient_id == sender_id,
+                    ),
+                ),
+                TelegramMessage.message_id <= read_data.max_id,
+                TelegramMessage.message_id > 0,  # Добавить эту проверку
+            )
+            .values(is_read=True)
+        )
+        result = await db.execute(stmt)
+        logger.info(f"Количество обновленных сообщений: {result.rowcount}")
+
+        await db.commit()
+
+        return {"status": "Messages marked as read", "max_id": read_data.max_id}
+
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении статуса сообщений: {e}")
+        raise HTTPException(
+            status_code=500, detail="Failed to update message read status"
+        )
 
 
 # @router.post("/telegram/message")

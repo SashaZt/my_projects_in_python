@@ -6,6 +6,17 @@ import httpx
 from configuration.config import API_HASH, API_ID, API_URL, SESSION_PATH
 from configuration.logger_setup import logger
 from telethon import TelegramClient, events
+from telethon.sessions.sqlite import SQLiteSession
+
+
+class LockedSQLiteSession(SQLiteSession):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._lock = asyncio.Lock()
+
+    async def _update_session_table(self, *args, **kwargs):
+        async with self._lock:
+            await super()._update_session_table(*args, **kwargs)
 
 
 def validate_phone_number(phone_number: str) -> str:
@@ -21,10 +32,11 @@ def get_session_name() -> tuple[str, Path]:
     return phone_number, session_name
 
 
-async def send_to_api(data: dict, part_url):
+async def send_to_api(data: dict, endpoint: str = "/telegram/message"):
     async with httpx.AsyncClient(verify=False) as client:
         try:
-            url = f"{API_URL}{part_url}"
+            url = f"{API_URL}{endpoint}"
+            # logger.info(f"URL: {url}")
             response = await client.post(url, json=data)
             response.raise_for_status()
             logger.info(f"Данные успешно отправлены: {response.json()}")
@@ -32,33 +44,26 @@ async def send_to_api(data: dict, part_url):
             logger.error(f"Ошибка при отправке данных на API: {e}")
 
 
-def get_sender_type(sender) -> str:
-    if sender.bot:
-        return "bot"
-    elif sender.id < 0:
-        if sender.is_channel:
-            return "channel"
-        elif sender.is_group:
-            return "group"
-    return "user"
-
-
 phone_number, session_name = get_session_name()
-client = TelegramClient(str(session_name), API_ID, API_HASH)
+client = TelegramClient(LockedSQLiteSession(str(session_name)), API_ID, API_HASH)
 
 
 @client.on(events.NewMessage)
 async def handle_message(event):
-    """
-    Обрабатывает входящие сообщения.
-    """
     try:
+        chat = await event.get_chat()
+        me = await client.get_me()
         sender = await event.get_sender()
-        recipient = await client.get_me()
 
-        # Проверяем, является ли сообщение ответом
-        is_reply = event.is_reply
-        reply_to_msg_id = event.reply_to_msg_id if is_reply else None
+        # logger.info(f"Chat info: {chat}")
+        # logger.info(f"Sender: {sender}")
+        # logger.info(f"Me: {me}")
+
+        # Определяем получателя для личного чата
+        recipient = chat if sender.id == me.id else me
+
+        # Определяем направление сообщения
+        direction = "outbox" if sender.id == me.id else "inbox"
 
         all_data = {
             "sender": {
@@ -66,7 +71,6 @@ async def handle_message(event):
                 "username": f"@{sender.username}" if sender.username else None,
                 "telegram_id": sender.id,
                 "phone": getattr(sender, "phone", None),
-                # "type": get_sender_type(sender),
             },
             "recipient": {
                 "name": f"{recipient.first_name or ''} {recipient.last_name or ''}".strip(),
@@ -77,53 +81,47 @@ async def handle_message(event):
             "message": {
                 "text": event.text,
                 "message_id": event.id,
-                "is_reply": is_reply,
-                "reply_to": reply_to_msg_id,
-                "read": False,  # Сообщение считается непрочитанным по умолчанию
+                "is_reply": event.is_reply,
+                "reply_to": event.reply_to_msg_id if event.is_reply else None,
+                "read": False,
+                "direction": direction,
+                "created_at": event.date.isoformat(),
             },
         }
 
-        logger.info(all_data)
-        part_url = "/telegram/message"
-        await send_to_api(all_data, part_url)
+        logger.info(
+            f"Direction check - sender_id: {sender.id}, me_id: {me.id}, direction: {direction}"
+        )
+        logger.info(f"Отправляем данные: {all_data}")
+        await send_to_api(all_data)
 
     except Exception as e:
-        logger.error(f"Ошибка при обработке сообщения: {e}")
+        logger.error(f"Ошибка при обработке сообщения: {e}", exc_info=True)
 
 
 @client.on(events.MessageRead)
 async def handle_message_read(event):
-    """
-    Обрабатывает событие, когда сообщение становится прочитанным.
-    """
-    part_url = "/telegram/message/read"
     try:
-        logger.info(f"Событие MessageRead: {event.to_dict()}")
+        # logger.info(f"Событие MessageRead: {event.to_dict()}")
 
         if hasattr(event, "max_id") and event.max_id:
-            # Получаем текущего пользователя (отправителя)
-            recipient = await client.get_me()
-
-            # Формируем данные для API
-            read_status = {
+            me = await client.get_me()
+            read_data = {
+                "sender_id": me.id,
+                "recipient_id": me.id if event.chat_id == me.id else event.chat_id,
                 "max_id": event.max_id,
-                "read": True,
-                "sender_id": recipient.id,  # ID отправителя
-                "recipient_id": event.chat_id,  # ID чата или получателя
             }
 
-            logger.info(f"Все сообщения до ID {event.max_id} помечены как прочитанные.")
-            await send_to_api(read_status, part_url)
+            logger.info(f"Данные о прочтении: {read_data}")
+            await send_to_api(read_data, "/telegram/message/read")
         else:
-            logger.warning("Событие MessageRead не содержит max_id.")
+            logger.warning("Событие MessageRead не содержит max_id")
+
     except Exception as e:
         logger.error(f"Ошибка при обработке события прочтения: {e}")
 
 
 async def main():
-    """
-    Основная функция запуска клиента.
-    """
     await client.start(phone=lambda: phone_number)
     logger.info("Клиент запущен. Ожидаем сообщения...")
     await client.run_until_disconnected()

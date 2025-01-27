@@ -10,10 +10,21 @@ class UserSchema(BaseModel):
 
 
 class MessageSchema(BaseModel):
+    message_id: int
     text: str
+    is_reply: bool = False
+    reply_to: Optional[int] = None
+    read: bool = False
+    direction: str  # Добавляем это поле
 
 
 class TelegramMessageSchema(BaseModel):
     sender: UserSchema
     recipient: UserSchema
     message: MessageSchema
+
+
+class MessageReadSchema(BaseModel):
+    sender_id: int
+    recipient_id: int
+    max_id: int
