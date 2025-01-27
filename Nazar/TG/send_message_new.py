@@ -5,7 +5,7 @@ from pathlib import Path
 import httpx
 from configuration.config import API_HASH, API_ID, API_URL, SESSION_PATH
 from configuration.logger_setup import logger
-from telethon import TelegramClient, events, types
+from telethon import TelegramClient, events
 from telethon.errors import PeerIdInvalidError
 
 # Указываем путь к папке для сессий
@@ -22,8 +22,6 @@ async def send_to_api(data):
     """
     async with httpx.AsyncClient(verify=False) as client:
         try:
-            logger.info(API_URL)
-            logger.info(data)
             response = await client.post(API_URL, json=data)
             response.raise_for_status()
             return response.json()
@@ -77,48 +75,6 @@ def get_session_name():
     return phone_number, session_name
 
 
-# async def send_message(client):
-#     """Отправка сообщения через Telegram и получение информации об участниках."""
-#     while True:
-#         target = input(
-#             "Введите ID или имя пользователя (например, @username): "
-#         ).strip()
-#         entity = await validate_target(client, target)
-#         if not entity:
-#             target = input("Цель не найдена. Введите @username: ").strip()
-#             entity = await validate_target(client, target)
-#             if not entity:
-#                 logger.error(
-#                     "Пользователь с данным @username не найден. Попробуйте снова."
-#                 )
-#                 continue
-
-#         message = input("Введите текст сообщения: ").strip()
-
-#         # Отправляем сообщение
-#         await client.send_message(entity, message)
-
-#         # Получаем информацию об отправителе и получателе
-#         sender_info = await get_user_info(client, "me")
-#         recipient_info = await get_user_info(client, entity)
-
-#         # Формируем данные в нужном формате
-#         all_data = {
-#             "sender": sender_info,
-#             "recipient": recipient_info,
-#             "message": {"text": message},
-#         }
-
-#         # Отправляем данные на API и получаем ответ
-#         response_data = await send_to_api(all_data)
-#         if response_data:
-#             logger.info(f"Данные успешно отправлены: {response_data}")
-
-
-#         # Спрашиваем, хочет ли пользователь продолжить или завершить работу
-#         if input("Продолжить? (Y/n): ").lower() != "y":
-#             await client.disconnect()
-#             sys.exit(0)
 async def send_message(client):
     """Отправка сообщения через Telegram и обновление статусов."""
     while True:
@@ -135,6 +91,10 @@ async def send_message(client):
         # Отправляем сообщение
         sent_message = await client.send_message(entity, message)
 
+        # Проверяем, является ли сообщение ответом на другое сообщение
+        is_reply = sent_message.reply_to_msg_id is not None
+        reply_to = sent_message.reply_to_msg_id if is_reply else None
+
         # Получаем информацию об отправителе и получателе
         sender_info = await get_user_info(client, "me")
         recipient_info = await get_user_info(client, entity)
@@ -146,8 +106,8 @@ async def send_message(client):
             "message": {
                 "text": message,
                 "message_id": sent_message.id,
-                "is_reply": False,
-                "reply_to": None,
+                "is_reply": is_reply,
+                "reply_to": reply_to,
                 "read": False,  # Новое сообщение считается непрочитанным
             },
         }

@@ -10,7 +10,6 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from pathlib import Path
-from configuration.logger_setup import logger
 from aiohttp import BasicAuth
 from configuration.logger_setup import logger
 

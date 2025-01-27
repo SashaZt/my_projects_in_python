@@ -650,7 +650,7 @@ def upload_audio(file_link, file_name):
                     else:
                         logger.warning("Ожидание обработки аудио...")
                         # Ждем 10 секунд перед следующим запросом
-                        time.sleep(10)
+                        time.sleep(30)
                 else:
                     logger.error(
                         f"Ошибка при получении transcript_id: {
@@ -899,23 +899,53 @@ def get_transcript_summary(transcript_id):
         json={"query": query, "variables": variables},
         timeout=30,
     )
+    while True:
+        if response.status_code == 200:
+            data = response.json()
+            if "data" in data and "transcript" in data["data"]:
+                transcript = data["data"]["transcript"]
+                id_transcript = transcript["id"]
+                title_transcript = transcript["title"]
+                summary = transcript.get("summary", {})
 
-    # Обработка ответа
-    if response.status_code == 200:
-        data = response.json()
-        if "data" in data and "transcript" in data["data"]:
-            transcript = data["data"]["transcript"]
-            return {
-                "id": transcript["id"],
-                "title": transcript["title"],
-                "summary": transcript.get("summary", {}),
-            }
+                # Проверяем наличие и содержимое "overview"
+                if "overview" in summary and summary["overview"]:
+                    return {
+                        "id": id_transcript,
+                        "title": title_transcript,
+                        "summary": summary,
+                    }
+                else:
+                    logger.warning("Обзор отсутствует или пуст. Ожидание 30 секунд...")
+                    time.sleep(30)  # Ждём 30 секунд перед повторной проверкой
+                    continue  # Повторяем цикл, чтобы проверить снова
+            else:
+                logger.error("Ошибка: данные не найдены.")
+                logger.error(data)
+                return None
         else:
-            logger.error("Ошибка: данные не найдены.")
-            logger.error(data)
-    else:
-        logger.error(f"Ошибка запроса: {response.status_code}")
-        logger.error(response.text)
+            logger.error(f"Ошибка запроса: {response.status_code}")
+            logger.error(response.text)
+            return None
+    # # Обработка ответа
+    # if response.status_code == 200:
+    #     data = response.json()
+    #     if "data" in data and "transcript" in data["data"]:
+    #         transcript = data["data"]["transcript"]
+    #         id_transcript = transcript["id"]
+    #         title_transcript = transcript["title"]
+    #         summary = transcript.get("summary", {})
+    #         return {
+    #             "id": id_transcript,
+    #             "title":title_transcript,
+    #             "summary": summary,
+    #         }
+    #     else:
+    #         logger.error("Ошибка: данные не найдены.")
+    #         logger.error(data)
+    # else:
+    #     logger.error(f"Ошибка запроса: {response.status_code}")
+    #     logger.error(response.text)
 
 
 if __name__ == "__main__":
