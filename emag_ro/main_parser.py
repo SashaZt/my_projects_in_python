@@ -8,7 +8,7 @@ from configuration.logger_setup import logger
 
 def write_json():
     # Загрузка содержимого HTML файла
-    with open("pd_D603G9MBM.html", "r", encoding="utf-8") as file:
+    with open("pd_D0CMK5MBM.html", "r", encoding="utf-8") as file:
         content = file.read()
 
     # Создаем объект BeautifulSoup
@@ -386,7 +386,7 @@ def extract_images(soup):
 
 
 def process_html():
-    html_file = "Polizor.html"
+    html_file = "pd_D0CMK5MBM.html"
     # Чтение содержимого файла
     with open(html_file, "r", encoding="utf-8") as file:
         content = file.read()

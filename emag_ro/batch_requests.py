@@ -65,9 +65,44 @@ class Batch:
         semaphore = asyncio.Semaphore(max_concurrent_tasks)
         remaining_jobs = job_response.copy()  # Копируем, чтобы изменять список
 
+        # async def check_status(job):
+        #     """
+        #     Проверяет статус конкретного задания и сохраняет завершенные задания.
+
+        #     Args:
+        #         job (dict): Задание для проверки.
+
+        #     Returns:
+        #         dict or None: None, если задание завершено и данные сохранены.
+        #                     Возвращает job, если задание не завершено.
+        #     """
+        #     async with semaphore:
+        #         try:
+        #             # logger.info(f"Начало проверки статуса задания: {job['id']}")
+        #             async with session.get(job["statusUrl"]) as response:
+        #                 response.raise_for_status()
+        #                 job_status = await response.json()
+
+        #                 # Лог текущего статуса
+        #                 current_status = job_status.get("status", "unknown")
+        #                 # logger.info(f"Статус задания {job['id']}: {current_status}")
+
+        #                 if current_status == "finished":
+        #                     # Сохраняем результат
+        #                     await self.save_result_to_file(job_status)
+
+        #                     return None  # Задание завершено
+
+        #                 # Если статус не "finished", возвращаем задание для дальнейшей проверки
+        #                 return job
+
+        #         except Exception as e:
+        #             logger.error(f"Ошибка проверки статуса задания {job['id']}: {e}")
+        #             return job  # Возвращаем задание для повторной проверки
+
         async def check_status(job):
             """
-            Проверяет статус конкретного задания и сохраняет завершенные задания.
+            Проверяет статус задания и извлекает тело ответа.
 
             Args:
                 job (dict): Задание для проверки.
@@ -78,23 +113,49 @@ class Batch:
             """
             async with semaphore:
                 try:
-                    # logger.info(f"Начало проверки статуса задания: {job['id']}")
                     async with session.get(job["statusUrl"]) as response:
                         response.raise_for_status()
-                        job_status = await response.json()
 
-                        # Лог текущего статуса
+                        content_type = response.headers.get("content-type", "")
+                        response_body = (
+                            await response.text()
+                        )  # Извлекаем тело ответа как текст
+                        job_status = json.loads(response_body)
+                        # # Пытаемся разобрать как JSON, если возможно
+                        # if "application/json" in content_type:
+                        #     job_status = json.loads(response_body)
+                        # else:
+                        #     logger.warning(
+                        #         f"Неожиданный тип содержимого: {content_type}. Ответ: {response_body}"
+                        #     )
+                        #     # Пытаемся обработать тело вручную
+                        #     try:
+                        #         job_status = json.loads(response_body)
+                        #     except json.JSONDecodeError:
+                        #         logger.error(f"Ответ не является JSON: {response_body}")
+                        #         return job  # Возвращаем задание для повторной проверки
+
                         current_status = job_status.get("status", "unknown")
-                        # logger.info(f"Статус задания {job['id']}: {current_status}")
 
                         if current_status == "finished":
-                            # Сохраняем результат
                             await self.save_result_to_file(job_status)
-
                             return None  # Задание завершено
-
-                        # Если статус не "finished", возвращаем задание для дальнейшей проверки
-                        return job
+                        elif current_status == "running":
+                            # Увеличиваем интервал между проверками
+                            attempts = job_status.get("attempts", 0)
+                            if attempts >= 10:
+                                logger.warning(
+                                    f"Задание {job['id']} выполняется слишком долго. Увеличиваем интервал между проверками."
+                                )
+                                await asyncio.sleep(60)
+                            else:
+                                await asyncio.sleep(10)
+                            return job  # Возвращаем задание для повторной проверки
+                        else:
+                            logger.warning(
+                                f"Неожиданный статус для задания {job['id']}: {current_status}"
+                            )
+                            return job  # Возвращаем задание для повторной проверки
 
                 except Exception as e:
                     logger.error(f"Ошибка проверки статуса задания {job['id']}: {e}")

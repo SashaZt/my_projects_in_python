@@ -103,13 +103,33 @@ def find_wage_arrears(soup):
 
 
 def find_registration(soup):
-    registration_tag = soup.select_one(
-        "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(8) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_green"
-    )
-    if registration_tag is None:
-        return None  # Возвращаем None, если элемент не найден
-    registration = registration_tag.get_text(strip=True)
-    return registration
+    # selectors = [
+    #     "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(8) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_green",
+    #     "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(9) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_green",
+    #     "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(8) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_orange"
+    #     "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(9) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_orange"
+    # ]
+    # for selector in selectors:
+    #     title_div = soup.select_one(selector)
+    #     if title_div:
+    #         return title_div.text.strip()
+    selectors = [
+        "#edrpou_main_conatiner .dr_value_state.dr_green",
+        "#edrpou_main_conatiner .dr_value_state.dr_orange"
+    ]
+    
+    for selector in selectors:
+        title_divs = soup.select(selector)
+        if title_divs:
+            text = title_divs[0].text.strip()
+            print(text)
+            return text
+    
+    return None
+    # if registration_tag is None:
+    #     return None  # Возвращаем None, если элемент не найден
+    # registration = registration_tag.get_text(strip=True)
+    # return registration
 
 
 def process_html_file(file_path, combined_data):
@@ -221,9 +241,9 @@ def main():
 
     results = []
 
-    for html_file in list(html_directory.glob("*.html"))[:20]:
-        # for html_file in html_directory.glob("*.html"):
-        print(html_file)
+    # for html_file in list(html_directory.glob("*.html"))[:20]:
+    for html_file in html_directory.glob("*.html"):
+        # print(html_file)
         data = process_html_file(html_file, combined_data)
         if data:  # Проверяем, что данные не пустые
             results.append(data)
