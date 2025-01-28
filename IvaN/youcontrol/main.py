@@ -2,7 +2,7 @@ import requests
 import xml.etree.ElementTree as ET
 import pandas as pd
 from pathlib import Path
-import os
+import time
 import requests
 import pandas as pd
 from pathlib import Path
@@ -158,10 +158,9 @@ def download_and_save(url):
         return None
     html_content = download_html(url)
     if html_content:
-        
-        
         with open(file_path, "w", encoding="utf-8") as file:
             file.write(html_content)
+        time.sleep(5)
 
 def main_html():
     # Чтение файла matched_urls.csv

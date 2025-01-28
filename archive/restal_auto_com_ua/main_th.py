@@ -152,9 +152,6 @@ def main():
         for row in reader:
             urls.append(row["url"])
 
-    # Замените на свой User-Agent
-    headers = {"User-Agent": "Your User Agent String"}
-
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = []
         for url in urls:

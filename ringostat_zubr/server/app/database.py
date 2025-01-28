@@ -156,6 +156,26 @@ class DatabaseInitializer:
         except Exception as e:
             logger.error(f"Ошибка при инициализации базы данных: {e}")
 
+    # Добавляем новый метод для проверки существования transcript_id
+    async def check_transcript_exists(self, transcript_id: str) -> bool:
+        """Проверяет существование записи с указанным transcript_id."""
+        try:
+            async with self.pool.acquire() as connection:
+                async with connection.cursor() as cursor:
+                    query = """
+                    SELECT COUNT(*) 
+                    FROM calls_data 
+                    WHERE transcript_id = %s
+                    """
+                    await cursor.execute(query, (transcript_id,))
+                    result = await cursor.fetchone()
+                    exists = result is not None and result[0] > 0
+                    logger.debug(f"Проверка transcript_id={transcript_id}: result={result}, exists={exists}")
+                    return exists
+        except Exception as e:
+            logger.error(f"Ошибка при проверке transcript_id в БД: {e}")
+            return False
+            
     async def insert_call_data_zubr(self, call_data):
         if self.pool is None:
             logger.error("Пул соединений не инициализирован.")
@@ -217,49 +237,36 @@ class DatabaseInitializer:
             return False
     
 
-    async def insert_call_data(self, call_data):
-        """Вставка данных в таблицу calls_data."""
-        if self.pool is None:
-            logger.error("Пул соединений не инициализирован.")
-            return False
-
+    async def insert_call_data(self, data: dict) -> bool:
+        """Вставляет данные в таблицу calls_data."""
         try:
-            connection = await self.pool.acquire()
-            async with connection:
+            async with self.pool.acquire() as connection:
                 async with connection.cursor() as cursor:
-                    await cursor.execute(
-                        """
-                        INSERT INTO calls_data (
-                            date,
-                            phone,
-                            line,
-                            manager_name,
-                            call_text_ukr,
-                            overview,
-                            notes,
-                            mp3_link,
-                            file_name,
-                            transcript_id
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            call_data["date"],
-                            call_data["phone"],
-                            call_data["line"],
-                            call_data["manager_name"],
-                            call_data["call_text_ukr"],
-                            call_data["overview"],
-                            call_data["notes"],
-                            call_data["mp3_link"],
-                            call_data["file_name"],
-                            call_data["transcript_id"],
-                        ),
-                    )
-                    logger.info(f"Данные успешно добавлены в таблицу calls_data: {call_data}")
-            return True
+                    # Преобразуем формат даты
+                    date_str = data["date"].replace('_', ' ')
+                    
+                    query = """
+                    INSERT INTO calls_data (
+                        date, phone, line, manager_name, call_text_ukr,
+                        overview, notes, mp3_link, file_name, transcript_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    await cursor.execute(query, (
+                        date_str,
+                        data["phone"],
+                        data["line"],
+                        data["manager_name"],
+                        data["call_text_ukr"],
+                        data["overview"],
+                        data["notes"],
+                        data["mp3_link"],
+                        data["file_name"],
+                        data["transcript_id"]
+                    ))
+                    await connection.commit()
+                    return True
         except Exception as e:
-            logger.error(f"Ошибка при добавлении данных в таблицу calls_data: {e}")
+            logger.error(f"Ошибка при вставке данных в БД: {e}")
             return False
 
 # Для тестирования модуля отдельно (можно удалить, если не нужно)

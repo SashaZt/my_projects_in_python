@@ -414,7 +414,6 @@ def process_google_drive_mp3_files():
                 file_name = file_info["name"]
                 file_link = file_info["link"]
                 transcript_id = get_id_tr(file_name)
-
                 # Проверяем наличие transcript_id или file_name в существующих данных
                 if (
                     transcript_id in existing_transcripts
@@ -431,16 +430,13 @@ def process_google_drive_mp3_files():
                     # Если transcript_title совпадает с file_name и есть transcript_id
                     result_text = get_transcrip(transcript_id)
                     result_summary = get_transcript_summary(transcript_id)
-                    overview = result_summary.get("summary", {}).get("overview", None)
-                    shorthand_bullet = result_summary.get("summary", {}).get(
-                        "shorthand_bullet", None
-                    )
+                    logger.info(transcript_id)
+                    logger.info(result_text)
                 else:
                     transcript_id = upload_audio(file_link, file_name)
                     if transcript_id is None:
                         datas = parse_mp3_filename_sql(file_name)
                         invalid_data.append(datas)
-
                         logger.error(
                             f"Не удалось получить transcript_id для {file_name}. Удаляем файл из Google Drive."
                         )
@@ -448,7 +444,6 @@ def process_google_drive_mp3_files():
                         query = f"title = '{file_name}' and trashed = false"
                         try:
                             file_list = drive.ListFile({"q": query}).GetList()
-
                             if file_list:
                                 for file in file_list:
                                     try:
@@ -466,13 +461,16 @@ def process_google_drive_mp3_files():
                                 )
                         except Exception as e:
                             logger.error(f"Ошибка при поиске файла {file_name}: {e}")
-
+                        continue  # Добавляем continue здесь!
+                        
                     result_text = get_transcrip(transcript_id)
                     result_summary = get_transcript_summary(transcript_id)
-                    overview = result_summary.get("summary", {}).get("overview", None)
-                    shorthand_bullet = result_summary.get("summary", {}).get(
-                        "shorthand_bullet", None
-                    )
+                
+                
+                overview = result_summary.get("summary", {}).get("overview", None)
+                shorthand_bullet = result_summary.get("summary", {}).get(
+                    "shorthand_bullet", None
+                )
                 # if transcript_id is not None:
                 logger.debug(
                     f"Подготовка данных для записи: {file_name}, transcript_id: {transcript_id}"
@@ -487,9 +485,9 @@ def process_google_drive_mp3_files():
                 all_data["transcript_id"] = transcript_id
                 # Добавляем ссылку на MP3
                 all_data["Ссылка на MP3"] = file_link
-                
+                # Записываем в БД
                 write_add_call_data(all_data)
-                # Записываем данные в Google Sheets
+                # # Записываем данные в Google Sheets
                 write_dict_to_google_sheets(all_data)
 
             except Exception as e:
@@ -547,38 +545,90 @@ def connect_to_google_sheets(SHEET_ID, retries=3, delay=5):
                 raise
 
 
+# def get_id_tr(file_name):
+#     logger.info(f"Проверяем {file_name}")
+#     # GraphQL запрос для получения всех транскрипций
+#     query = """
+#     query {
+#     transcripts {
+#         id
+#         title
+#         # Здесь можно добавить другие поля, которые вам нужны
+#     }
+#     }
+#     """
+
+#     # Отправляем запрос на получение всех транскрипций
+#     response = requests.post(
+#         GRAPHQL_URL, headers=headers_api, json={"query": query}, timeout=60
+#     )
+
+#     if response.status_code == 200:
+#         result = response.json()
+#         if "data" in result and "transcripts" in result["data"]:
+#             for transcript in result["data"]["transcripts"]:
+#                 transcript_id = transcript["id"]
+#                 transcript_title = transcript["title"]
+#                 if file_name == transcript_title:
+#                     return transcript_id
+#         else:
+#             logger.error("Нет доступных транскрипций или ошибка в структуре ответа.")
+#     else:
+#         logger.error(f"Ошибка запроса: {response.status_code}")
+#         logger.error(response.text)
 def get_id_tr(file_name):
     logger.info(f"Проверяем {file_name}")
-    # GraphQL запрос для получения всех транскрипций
+    
+    # GraphQL запрос с сортировкой по дате
     query = """
-    query {
-    transcripts {
-        id
-        title
-        # Здесь можно добавить другие поля, которые вам нужны
-    }
+    query GetTranscript($title: String!) {
+        transcripts(title: $title) {
+            id
+            title
+            date
+        }
     }
     """
+    
+    variables = {
+        "title": file_name
+    }
 
-    # Отправляем запрос на получение всех транскрипций
-    response = requests.post(
-        GRAPHQL_URL, headers=headers_api, json={"query": query}, timeout=60
-    )
-
-    if response.status_code == 200:
+    try:
+        response = requests.post(
+            GRAPHQL_URL,
+            headers=headers_api,
+            json={
+                "query": query,
+                "variables": variables
+            },
+            timeout=60
+        )
+        
+        response.raise_for_status()
+        
         result = response.json()
         if "data" in result and "transcripts" in result["data"]:
-            for transcript in result["data"]["transcripts"]:
-                transcript_id = transcript["id"]
-                transcript_title = transcript["title"]
-                if file_name == transcript_title:
-                    return transcript_id
+            transcripts = result["data"]["transcripts"]
+            if transcripts:
+                # Сортируем по дате (самый новый первый) и берем первый
+                sorted_transcripts = sorted(transcripts, 
+                                         key=lambda x: x.get('date', 0), 
+                                         reverse=True)
+                latest_transcript = sorted_transcripts[0]
+                logger.info(f"Найдено {len(transcripts)} транскриптов для {file_name}. "
+                          f"Используется самый последний с ID: {latest_transcript['id']}")
+                return latest_transcript['id']
+            else:
+                logger.info(f"Транскрипт с названием {file_name} не найден")
+                return None
         else:
-            logger.error("Нет доступных транскрипций или ошибка в структуре ответа.")
-    else:
-        logger.error(f"Ошибка запроса: {response.status_code}")
-        logger.error(response.text)
-
+            logger.error("Ошибка в структуре ответа")
+            return None
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка запроса: {str(e)}")
+        return None
 
 def upload_audio(file_link, file_name):
     logger.info(f"Загружаем {file_name}")
@@ -681,51 +731,99 @@ def extract_error_message(response):
                 return error["message"]
     return None
 
+# Думаю что рабочий
+# def get_transcrip(transcript_id):
+#     logger.info(f"Получаем текст из {transcript_id}")
+#     if transcript_id is None:
+#         logger.info(f"Нету {transcript_id}")
+#         return None
+#     # GraphQL запрос для получения предложений
+#     query_transcript = """
+#     query {
+#     transcripts {
+#         id
+#         title
+#         sentences {
+#         text
+#         raw_text
+#         }
+#     }
+#     }
+#     """
+#     # Данные для запроса
+#     variables = {"transcriptId": transcript_id}
+#     # Отправка запроса
+#     response = requests.post(
+#         GRAPHQL_URL,
+#         headers=headers_api,
+#         json={"query": query_transcript, "variables": variables},
+#         timeout=60,
+#     )
 
+#     # Обработка ответа
+#     if response.status_code == 200:
+#         data = response.json()
+#         if "data" in data and "transcripts" in data["data"]:
+#             for transcript in data["data"]["transcripts"]:
+#                 transcript_id = transcript["id"]
+#                 # Сбор всех предложений в одну строку
+#                 full_text = " ".join(
+#                     sentence["text"] for sentence in transcript.get("sentences", [])
+#                 )
+#                 return full_text
+#             logger.error("Нет данных.")
+#     else:
+#         logger.error(f"Ошибка: {response.status_code}")
+#         logger.error(response.text)
 def get_transcrip(transcript_id):
     logger.info(f"Получаем текст из {transcript_id}")
     if transcript_id is None:
         logger.info(f"Нету {transcript_id}")
         return None
-    # GraphQL запрос для получения предложений
+
+    # Исправленный GraphQL запрос с использованием конкретного ID
     query_transcript = """
-    query {
-    transcripts {
-        id
-        title
-        sentences {
-        text
-        raw_text
+    query GetTranscriptText($transcriptId: String!) {
+        transcript(id: $transcriptId) {
+            sentences {
+                text
+                raw_text
+            }
         }
     }
-    }
     """
+    
     # Данные для запроса
     variables = {"transcriptId": transcript_id}
+    
     # Отправка запроса
     response = requests.post(
         GRAPHQL_URL,
         headers=headers_api,
-        json={"query": query_transcript, "variables": variables},
-        timeout=60,
+        json={
+            "query": query_transcript,
+            "variables": variables
+        },
+        timeout=60
     )
 
     # Обработка ответа
     if response.status_code == 200:
         data = response.json()
-        if "data" in data and "transcripts" in data["data"]:
-            for transcript in data["data"]["transcripts"]:
-                transcript_id = transcript["id"]
-                # Сбор всех предложений в одну строку
-                full_text = " ".join(
-                    sentence["text"] for sentence in transcript.get("sentences", [])
-                )
-                return full_text
-            logger.error("Нет данных.")
+        if "data" in data and "transcript" in data["data"]:
+            transcript = data["data"]["transcript"]
+            # Сбор всех предложений в одну строку
+            full_text = " ".join(
+                sentence["text"] for sentence in transcript.get("sentences", [])
+            )
+            return full_text
+        else:
+            logger.error("Нет данных в ответе API")
+            return None
     else:
-        logger.error(f"Ошибка: {response.status_code}")
+        logger.error(f"Ошибка API: {response.status_code}")
         logger.error(response.text)
-
+        return None
 
 def parse_mp3_filename(filename):
     """

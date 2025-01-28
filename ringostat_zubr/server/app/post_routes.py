@@ -105,11 +105,51 @@ async def ringostat_post(request: Request, db=Depends(get_db)):
         )
 
 
+# @router.post("/add_call_data")
+# async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(get_db)):
+#     """Маршрут для добавления данных в таблицу calls_data."""
+#     try:
+#         # Очистка текстовых полей
+#         cleaned_data = {
+#             "date": call_data.date,
+#             "phone": call_data.phone,
+#             "line": call_data.line,
+#             "manager_name": clean_text(call_data.manager_name),
+#             "call_text_ukr": clean_text(call_data.call_text_ukr),
+#             "overview": clean_text(call_data.overview),
+#             "notes": clean_text(call_data.notes),
+#             "mp3_link": call_data.mp3_link,
+#             "file_name": call_data.file_name,
+#             "transcript_id": call_data.transcript_id,
+#         }
+
+#         # Вставка данных в базу
+#         success = await db.insert_call_data(cleaned_data)
+#         if not success:
+#             logger.error(f"Ошибка записи данных в БД: {cleaned_data}")
+#             raise HTTPException(status_code=500, detail="Ошибка записи данных в БД")
+
+#         logger.info(f"Данные успешно добавлены: {cleaned_data}")
+#         return {"message": "Данные успешно добавлены"}
+
+#     except HTTPException as http_err:
+#         logger.error(f"HTTP ошибка: {http_err.detail}")
+#         raise
+#     except Exception as e:
+#         logger.error(f"Неизвестная ошибка в маршруте /add_call_data: {e}")
+#         raise HTTPException(status_code=500, detail="Ошибка обработки запроса")
+
 @router.post("/add_call_data")
 async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(get_db)):
     """Маршрут для добавления данных в таблицу calls_data."""
     try:
-        # Очистка текстовых полей
+        # Сначала проверяем существование transcript_id в базе
+        exists = await db.check_transcript_exists(call_data.transcript_id)
+        if exists:
+            logger.info(f"Запись с transcript_id {call_data.transcript_id} уже существует в БД. Пропускаем.")
+            return {"message": "Запись уже существует в БД"}
+
+        # Если записи нет, продолжаем обработку
         cleaned_data = {
             "date": call_data.date,
             "phone": call_data.phone,
