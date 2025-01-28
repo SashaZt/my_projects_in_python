@@ -45,6 +45,7 @@ class CallData(BaseModel):
     mp3_link: str
     file_name: str
     transcript_id: str
+    # Функция очистки текста
 
 
 def clean_text(text):
@@ -106,7 +107,7 @@ async def ringostat_post(request: Request, db=Depends(get_db)):
 
 
 @router.post("/add_call_data")
-async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(get_db)):
+async def add_call_data(call_data: CallData):
     """Маршрут для добавления данных в таблицу calls_data."""
     try:
         # Очистка текстовых полей
@@ -123,18 +124,12 @@ async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(g
             "transcript_id": call_data.transcript_id,
         }
 
-        # Вставка данных в базу
         success = await db.insert_call_data(cleaned_data)
         if not success:
-            logger.error(f"Ошибка записи данных в БД: {cleaned_data}")
             raise HTTPException(status_code=500, detail="Ошибка записи данных в БД")
 
-        logger.info(f"Данные успешно добавлены: {cleaned_data}")
         return {"message": "Данные успешно добавлены"}
 
-    except HTTPException as http_err:
-        logger.error(f"HTTP ошибка: {http_err.detail}")
-        raise
     except Exception as e:
-        logger.error(f"Неизвестная ошибка в маршруте /add_call_data: {e}")
+        logger.error(f"Ошибка в маршруте /add_call_data: {e}")
         raise HTTPException(status_code=500, detail="Ошибка обработки запроса")

@@ -55,6 +55,7 @@ def download_data_to_file():
     if call_recording_directory:
         shutil.rmtree(call_recording_directory)
     url = f"https://{IP}/get_all_data"
+    logger.info(url)
     try:
         # logger.info("Sending GET request to the server")
         response = requests.get(url, timeout=30, verify=False)
@@ -917,7 +918,7 @@ def get_transcript_summary(transcript_id):
                 id_transcript = transcript["id"]
                 title_transcript = transcript["title"]
                 summary = transcript.get("summary", {})
-                # logger.info(summary)
+                logger.info(summary)
                 # Проверяем наличие и содержимое "overview"
                 if "overview" in summary and summary["overview"]:
                     return {
@@ -937,44 +938,31 @@ def get_transcript_summary(transcript_id):
             logger.error(f"Ошибка запроса: {response.status_code}")
             logger.error(response.text)
             return None
-def convert_keys_to_english(data):
-    """Преобразует ключи словаря с русского на английский для модели CallData."""
-    key_mapping = {
-        "Дата": "date",
-        "Телефон": "phone",
-        "Линия": "line",
-        "Имя менеджера": "manager_name",
-        "Текст звонка Укр": "call_text_ukr",
-        "Overview": "overview",
-        "Notes": "notes",
-        "Ссылка на MP3": "mp3_link",
-        "Имя файла": "file_name",
-        "transcript_id": "transcript_id",
-    }
-    return {key_mapping[k]: v for k, v in data.items() if k in key_mapping}
 def write_add_call_data(call_data):
     """Отправляет данные на маршрут /add_call_data и сохраняет результат в result.json."""
+
     url = f"https://{IP}/add_call_data"
-
-    # Преобразуем ключи перед отправкой
-    call_data = convert_keys_to_english(call_data)
-
     try:
+        # Отправка POST-запроса с данными
         response = requests.post(
             url,
             json=call_data,
-            headers={"Content-Type": "application/json"},
-            timeout=30,
-            verify=False,
+            headers={"Content-Type": "application/json"}
         )
 
+        # Проверка ответа
         if response.status_code == 200:
             result = response.json()
-            logger.info(f"Данные успешно отправлены")
+            print("Данные успешно отправлены:", result)
+
+            # Сохранение ответа в result.json
+            with open("result.json", "w", encoding="utf-8") as f:
+                json.dump(result, f, ensure_ascii=False, indent=4)
+
         else:
-            logger.error(f"Ошибка отправки данных: {response.status_code} - {response.text}")
+            print(f"Ошибка отправки данных: {response.status_code} - {response.text}")
     except requests.exceptions.RequestException as e:
-        logger.error(f"Ошибка подключения: {e}")
+        print(f"Ошибка подключения: {e}")
 
 
 if __name__ == "__main__":
