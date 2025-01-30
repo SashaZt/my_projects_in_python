@@ -5,6 +5,11 @@ from pathlib import Path
 import pandas as pd
 from bs4 import BeautifulSoup
 
+# Установка директорий для логов и данных
+current_directory = Path.cwd()
+html_directory = current_directory / "html"
+html_directory.mkdir(parents=True, exist_ok=True)
+
 
 def find_title(soup):
     selectors = [
@@ -44,7 +49,8 @@ def find_tax_debt(soup):
     debt_div = soup.find(
         "div",
         class_="dr_value_subtitle",
-        string=lambda text: text and text.startswith("Податковий борг станом на"),
+        string=lambda text: text and text.startswith(
+            "Податковий борг станом на"),
     )
     if debt_div:
         date = debt_div.text.split("на")[1].strip()
@@ -117,19 +123,80 @@ def find_registration(soup):
         "#edrpou_main_conatiner .dr_value_state.dr_green",
         "#edrpou_main_conatiner .dr_value_state.dr_orange"
     ]
-    
+
     for selector in selectors:
         title_divs = soup.select(selector)
         if title_divs:
             text = title_divs[0].text.strip()
-            print(text)
+            # print(text)
             return text
-    
+
     return None
     # if registration_tag is None:
     #     return None  # Возвращаем None, если элемент не найден
     # registration = registration_tag.get_text(strip=True)
     # return registration
+
+
+def get_registration_date(soup):
+    date_element = soup.find('div', string='Дата реєстрації')
+    if date_element:
+        date_value = date_element.find_next('div', class_='dr_value')
+        return date_value.text.strip() if date_value else None
+    return None
+
+
+def get_authorized_person(soup):
+    person_element = soup.find('div', string='Уповноважені особи')
+    if person_element:
+        name_span = person_element.find_next('span')
+        return name_span.text.strip() if name_span else None
+    return None
+
+
+def get_inn(soup):
+    person_element = soup.find('div', string='Індивідуальний податковий номер')
+    if person_element:
+        name_span = person_element.find_next('div')
+        return name_span.text.strip() if name_span else None
+    return None
+
+
+def get_founder(soup):
+    founder_element = soup.find(
+        'div', class_='dr_value_subtitle', id='anchor_zasovniki')
+    if founder_element:
+        founder_value = founder_element.find_next('div', class_='dr_value')
+        return founder_value.text.strip() if founder_value else None
+    return None
+
+
+def get_statutory_fund(soup):
+    # Ищем сначала div с классом dr_value_small
+    fund_elements = soup.find_all('div', class_='dr_value_small')
+
+    for element in fund_elements:
+        # Проверяем, есть ли нужный текст в элементе
+        if 'Розмір внеску до статутного фонду:' in element.text:
+            # Находим тег b внутри этого элемента
+            b_tag = element.find('b')
+            if b_tag:
+                # Извлекаем текст до (100%)
+                amount = b_tag.text.split('(')[0].strip()
+                # Убираем лишние пробелы
+                return ' '.join(amount.split())
+    return None
+
+
+def get_mini_title(soup):
+    title = soup.find('h1', class_='dr_title_3')
+    if title:
+        # Разбиваем текст по ЄДРПОУ и берем первую часть
+        company_name = title.text.split('ЄДРПОУ')[0]
+        # Очищаем от неразрывных пробелов и лишних пробелов по краям
+        company_name = company_name.replace('\xa0', ' ').strip()
+        return company_name
+    return None
 
 
 def process_html_file(file_path, combined_data):
@@ -147,10 +214,22 @@ def process_html_file(file_path, combined_data):
     arrears_date, arrears_status = find_wage_arrears(soup)
     title = find_title(soup)
     registration = find_registration(soup)
+    registration_date = get_registration_date(soup)  # '13.11.1996'
+    authorized_person = get_authorized_person(
+        soup)  # 'ЧЕРЕВАТИЙ СЕРГІЙ ВОЛОДИМИРОВИЧ'
+    # 'МІНІСТЕРСТВО КУЛЬТУРИ ТА ІНФОРМАЦІЙНОЇ ПОЛІТИКИ УКРАЇНИ'
+    founder = get_founder(soup)
+    statutory_fund = get_statutory_fund(soup)  # '4 879 059,81 грн'
+    bankruptcy_info = get_bankruptcy_info(soup)
+    year, assets, liabilities, employees, profit, income = get_financial_info(
+        soup)
+    inn = get_inn(soup)
+    title_mini = get_mini_title(soup)
     if title is None:
         return None
-    return {
+    all_data = {
         "title": title,
+        "title_mini": title_mini,
         "registration": registration,
         "data_registr": find_data_registr(soup),
         "record_number": find_record_number(soup),
@@ -162,7 +241,61 @@ def process_html_file(file_path, combined_data):
         "additional_codes": additional_codes,
         "edrpo": edrpo,
         "address": address,
+        "registration_date": registration_date,
+        "authorized_person": authorized_person,
+        "founder": founder,
+        "statutory_fund": statutory_fund,
+        "bankruptcy_info": bankruptcy_info,
+        "year": year,
+        "assets": assets,
+        "liabilities": liabilities,
+        "employees": employees,
+        "profit": profit,
+        "income": income,
+        "inn": inn,
+
     }
+    return all_data
+
+
+def get_bankruptcy_info(soup):
+    # Находим элемент с текстом "Процедура банкрутства"
+    bankruptcy_element = soup.find('div', string='Процедура банкрутства')
+    if bankruptcy_element:
+        # Находим следующий div с классом dr_value_state
+        bankruptcy_info = bankruptcy_element.find_next(
+            'div', class_='dr_value_state')
+        if bankruptcy_info:
+            # Извлекаем текст и очищаем от лишних пробелов
+            return bankruptcy_info.text.strip()
+    return None
+
+
+def get_financial_info(soup):
+    try:
+        # Находим все div с классом dr_value_subtitle и их соответствующие значения
+        values = {}
+        for subtitle in soup.find_all('div', class_='dr_value_subtitle'):
+            subtitle_text = subtitle.text.strip()
+            if subtitle_text in ['Рік', 'Активи', "Зобов’язання", 'Кількість співробітників', 'Чистий прибуток', 'Дохід']:
+                value = subtitle.find_next('div', class_='dr_value')
+                if value:
+                    values[subtitle_text] = value.text.strip().replace('\xa0', ' ').replace(
+                        '                                                            ', '').replace('                            ', '')
+
+        # Извлекаем значения в нужном порядке
+        year = values.get('Рік')
+        assets = values.get('Активи')
+        liabilities = values.get("Зобов’язання")
+        employees = values.get('Кількість співробітників')
+        profit = values.get('Чистий прибуток')
+        income = values.get('Дохід')
+
+        return year, assets, liabilities, employees, profit, income
+
+    except Exception as e:
+        print(f"Ошибка при извлечении финансовой информации: {e}")
+        return None, None, None, None, None, None
 
 
 def extract_kved_codes(soup):
@@ -182,7 +315,8 @@ def extract_kved_codes(soup):
             "div", string=lambda text: text and "Код КВЕД" in text
         )
         if main_kved_div:
-            main_code = main_kved_div.text.split("Код КВЕД")[1].strip().split()[0]
+            main_code = main_kved_div.text.split(
+                "Код КВЕД")[1].strip().split()[0]
         else:
             main_code = None
     else:
@@ -195,7 +329,8 @@ def extract_kved_codes(soup):
         class_="dr_value dr_margin_value",
         string=lambda text: text and text[0].isdigit(),
     ):
-        code = div.text.split()[0]  # Предполагаем, что код идет первым в строке
+        # Предполагаем, что код идет первым в строке
+        code = div.text.split()[0]
         if (
             code != main_code
         ):  # Чтобы не дублировать основной код, если он совпадает с дополнительным
@@ -241,8 +376,8 @@ def main():
 
     results = []
 
-    # for html_file in list(html_directory.glob("*.html"))[:20]:
-    for html_file in html_directory.glob("*.html"):
+    for html_file in list(html_directory.glob("*.html"))[:100]:
+        # for html_file in html_directory.glob("*.html"):
         # print(html_file)
         data = process_html_file(html_file, combined_data)
         if data:  # Проверяем, что данные не пустые

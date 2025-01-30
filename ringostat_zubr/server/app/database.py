@@ -148,7 +148,9 @@ class DatabaseInitializer:
                             notes TEXT,
                             mp3_link VARCHAR(255),
                             file_name VARCHAR(255),
-                            transcript_id VARCHAR(255)
+                            transcript_id VARCHAR(255),
+                            comment_order BOOLEAN DEFAULT FALSE
+
                         )
                         """
                     )

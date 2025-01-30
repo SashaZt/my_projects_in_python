@@ -1,11 +1,9 @@
 import json
 import os
 import shutil
-import time
 import wave
-from datetime import datetime  # Убедитесь, что импорт правильный
 from pathlib import Path
-
+from datetime import datetime, timedelta
 import gspread
 import httplib2
 import lameenc
@@ -15,7 +13,7 @@ from dotenv import load_dotenv
 from oauth2client.service_account import ServiceAccountCredentials
 from pydrive2.auth import GoogleAuth, ServiceAccountCredentials
 from pydrive2.drive import GoogleDrive
-
+import time
 # Загрузка переменных из .env
 # logger.info("Loading environment variables from .env file")
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
@@ -25,6 +23,7 @@ FOLDER_ID = os.getenv("FOLDER_ID")
 SHEET_ID = os.getenv("SHEET_ID")
 API_KEY = os.getenv("API_KEY")
 GRAPHQL_URL = os.getenv("GRAPHQL_URL")
+SALESDRIVE_API = os.getenv("SALESDRIVE_API")
 
 # Заголовки для запроса
 headers_api = {
@@ -369,12 +368,21 @@ def get_new_files_from_drive(mp3_files, processed_files):
     processed_file_names = {entry["file_name"] for entry in processed_files}
     return [file for file in mp3_files if file["name"] not in processed_file_names]
 
+def clean_text(text):
+   # Заменяем \n на пробел
+   text = text.replace('\n', ' ')
+   
+   # Заменяем множественные пробелы на один пробел
+   text = ' '.join(text.split())
+   
+   return text.strip()
 
 def process_google_drive_mp3_files():
     """
     Получает MP3 файлы из Google Drive, транскрибирует их и записывает результаты в Google Sheets.
     """
     try:
+        
 
         # Подключение к Google Sheets
         sheet = connect_to_google_sheets(SHEET_ID)
@@ -407,7 +415,7 @@ def process_google_drive_mp3_files():
 
         invalid_data = []
 
-        logger.info(f"Найдено {len(new_files)} новых файлов для обработки.")
+        # logger.info(f"Найдено {len(new_files)} новых файлов для обработки.")
         for file_info in new_files:
             try:
 
@@ -430,8 +438,8 @@ def process_google_drive_mp3_files():
                     # Если transcript_title совпадает с file_name и есть transcript_id
                     result_text = get_transcrip(transcript_id)
                     result_summary = get_transcript_summary(transcript_id)
-                    logger.info(transcript_id)
-                    logger.info(result_text)
+                    # logger.info(transcript_id)
+                    # logger.info(result_text)
                 else:
                     transcript_id = upload_audio(file_link, file_name)
                     if transcript_id is None:
@@ -478,13 +486,21 @@ def process_google_drive_mp3_files():
 
                 # Формируем данные для записи
                 all_data = parse_mp3_filename(file_name)
+                logger.info(shorthand_bullet)
+                notes = clean_text(shorthand_bullet) if shorthand_bullet is not None else None
+
 
                 all_data["Текст звонка Укр"] = result_text
                 all_data["Overview"] = overview
-                all_data["Notes"] = shorthand_bullet
+                all_data["Notes"] = notes
                 all_data["transcript_id"] = transcript_id
                 # Добавляем ссылку на MP3
                 all_data["Ссылка на MP3"] = file_link
+                
+                logger.debug(f"result_summary: {result_summary}")
+                logger.debug(f"shorthand_bullet: {shorthand_bullet}")
+                logger.debug(f"all_data: {all_data}")
+                
                 # Записываем в БД
                 write_add_call_data(all_data)
                 # # Записываем данные в Google Sheets
@@ -616,11 +632,11 @@ def get_id_tr(file_name):
                                          key=lambda x: x.get('date', 0), 
                                          reverse=True)
                 latest_transcript = sorted_transcripts[0]
-                logger.info(f"Найдено {len(transcripts)} транскриптов для {file_name}. "
-                          f"Используется самый последний с ID: {latest_transcript['id']}")
+                # logger.info(f"Найдено {len(transcripts)} транскриптов для {file_name}. "
+                #           f"Используется самый последний с ID: {latest_transcript['id']}")
                 return latest_transcript['id']
             else:
-                logger.info(f"Транскрипт с названием {file_name} не найден")
+                # logger.info(f"Транскрипт с названием {file_name} не найден")
                 return None
         else:
             logger.error("Ошибка в структуре ответа")
@@ -631,7 +647,7 @@ def get_id_tr(file_name):
         return None
 
 def upload_audio(file_link, file_name):
-    logger.info(f"Загружаем {file_name}")
+    # logger.info(f"Загружаем {file_name}")
     # GraphQL запрос для загрузки аудио
     upload_query = """
     mutation UploadAudio($input: AudioUploadInput!) {
@@ -776,54 +792,69 @@ def extract_error_message(response):
 #         logger.error(f"Ошибка: {response.status_code}")
 #         logger.error(response.text)
 def get_transcrip(transcript_id):
-    logger.info(f"Получаем текст из {transcript_id}")
-    if transcript_id is None:
-        logger.info(f"Нету {transcript_id}")
-        return None
+   MAX_RETRIES = 10
+   DELAY_SECONDS = 30
+   
+   logger.info(f"Получаем текст из {transcript_id}")
+   if transcript_id is None:
+       logger.info(f"Нету {transcript_id}")
+       return None
 
-    # Исправленный GraphQL запрос с использованием конкретного ID
-    query_transcript = """
-    query GetTranscriptText($transcriptId: String!) {
-        transcript(id: $transcriptId) {
-            sentences {
-                text
-                raw_text
-            }
-        }
-    }
-    """
-    
-    # Данные для запроса
-    variables = {"transcriptId": transcript_id}
-    
-    # Отправка запроса
-    response = requests.post(
-        GRAPHQL_URL,
-        headers=headers_api,
-        json={
-            "query": query_transcript,
-            "variables": variables
-        },
-        timeout=60
-    )
+   # GraphQL запрос
+   query_transcript = """
+   query GetTranscriptText($transcriptId: String!) {
+       transcript(id: $transcriptId) {
+           sentences {
+               text
+               raw_text
+           }
+       }
+   }
+   """
+   
+   variables = {"transcriptId": transcript_id}
+   retry_count = 0
+   
+   while retry_count < MAX_RETRIES:
+       # Отправка запроса
+       try:
+           response = requests.post(
+               GRAPHQL_URL,
+               headers=headers_api,
+               json={
+                   "query": query_transcript,
+                   "variables": variables
+               },
+               timeout=60
+           )
 
-    # Обработка ответа
-    if response.status_code == 200:
-        data = response.json()
-        if "data" in data and "transcript" in data["data"]:
-            transcript = data["data"]["transcript"]
-            # Сбор всех предложений в одну строку
-            full_text = " ".join(
-                sentence["text"] for sentence in transcript.get("sentences", [])
-            )
-            return full_text
-        else:
-            logger.error("Нет данных в ответе API")
-            return None
-    else:
-        logger.error(f"Ошибка API: {response.status_code}")
-        logger.error(response.text)
-        return None
+           # Обработка ответа
+           if response.status_code == 200:
+               data = response.json()
+               if "data" in data and "transcript" in data["data"]:
+                   transcript = data["data"]["transcript"]
+                   # Сбор всех предложений в одну строку
+                   full_text = " ".join(
+                       sentence["text"] for sentence in transcript.get("sentences", [])
+                   )
+                   if full_text:
+                        logger.info(full_text)
+                        return full_text
+           
+           # Если дошли сюда, значит результат пустой или некорректный
+           retry_count += 1
+           logger.warning(f"Попытка {retry_count} из {MAX_RETRIES} не удалась. Ожидание {DELAY_SECONDS} секунд...")
+           time.sleep(DELAY_SECONDS)
+           
+       except Exception as e:
+           logger.error(f"Ошибка при выполнении запроса: {e}")
+           retry_count += 1
+           if retry_count < MAX_RETRIES:
+               logger.warning(f"Попытка {retry_count} из {MAX_RETRIES} не удалась. Ожидание {DELAY_SECONDS} секунд...")
+               time.sleep(DELAY_SECONDS)
+           
+   logger.error(f"Не удалось получить данные после {MAX_RETRIES} попыток")
+   return None
 
 def parse_mp3_filename(filename):
     """
@@ -1074,8 +1105,120 @@ def write_add_call_data(call_data):
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка подключения: {e}")
 
+def fetch_comment_orders(date_from=None, date_to=None):
+    try:
+        # Если даты не указаны, используем последние 24 часа
+        if not date_from or not date_to:
+            date_to = datetime.now()
+            date_from = date_to - timedelta(days=1)
+            date_to = date_to.replace(hour=23, minute=59, second=59)
+            date_from = date_from.replace(hour=0, minute=0, second=0)
+        
+        # Форматируем даты для URL
+        date_from_str = date_from.strftime("%Y-%m-%d %H:%M:%S")
+        date_to_str = date_to.strftime("%Y-%m-%d %H:%M:%S")
+        
+        url = f"https://{IP}/comment_orders"
+        params = {
+            "date_from": date_from_str,
+            "date_to": date_to_str
+        }
+        
+        logger.info(f"Отправляем запрос на URL: {url} с параметрами: {params}")
+        
+        response = requests.get(url, params=params, verify=False)
+        logger.info(f"Получен ответ со статусом: {response.status_code}")
+        
+        if response.status_code == 200:
+            data = response.json()
+            return data["data"]
+        else:
+            error_data = response.json()
+            raise Exception(f"API request failed: {error_data.get('message', 'Unknown error')}")
+                    
+    except Exception as e:
+        logger.error(f"Error fetching comment orders: {e}")
+        raise
+
+def get_salesdrive_orders(date_from=None, date_to=None):
+   try:
+       # Если даты не указаны, используем последние 24 часа
+       if not date_from or not date_to:
+           date_to = datetime.now()
+           date_from = date_to - timedelta(days=1)
+           date_to = date_to.replace(hour=23, minute=59, second=59)
+           date_from = date_from.replace(hour=0, minute=0, second=0)
+           
+       # Форматируем даты
+       date_from_str = date_from.strftime("%Y-%m-%d %H:%M:%S")
+       date_to_str = date_to.strftime("%Y-%m-%d %H:%M:%S")
+
+       url = "https://zubr.salesdrive.me/api/order/list/"
+       headers = {
+           "Form-Api-Key": SALESDRIVE_API
+       }
+       params = {
+           "filter[orderTime][from]": date_from_str,
+           "filter[orderTime][to]": date_to_str,
+           "page": 1,
+           "limit": 100
+       }
+
+       logger.info(f"Отправляем запрос на URL: {url} с параметрами: {params}")
+       
+       response = requests.get(
+           url, 
+           headers=headers, 
+           params=params, 
+           timeout=(10, 30)  # (connect timeout, read timeout)
+       )
+       
+       logger.info(f"Получен ответ со статусом: {response.status_code}")
+       
+       if response.status_code == 200:
+           data = response.json()
+           processed_data = process_data(data)
+           return processed_data
+       else:
+           raise Exception(f"API request failed with status code: {response.status_code}")
+                   
+   except requests.exceptions.Timeout:
+       logger.error("Timeout при запросе к API")
+       raise
+   except Exception as e:
+       logger.error(f"Ошибка при получении данных: {e}")
+       raise
+
+def extract_user_name(user_id, user_options):
+   filtered_user = list(filter(lambda x: x["value"] == user_id, user_options))
+   return filtered_user[0]["text"] if filtered_user else None
+
+def process_data(data):
+   result = []
+   user_options = data["meta"]["fields"]["userId"]["options"]
+
+   for item in data["data"]:
+       try:
+           entry = {
+               "id_data": item["id"],
+               "phone_contact": (
+                   item["contacts"][0]["phone"][0] if item["contacts"] else None
+               ),
+               "user_name": extract_user_name(item["userId"], user_options),
+           }
+           result.append(entry)
+       except (KeyError, IndexError) as e:
+           logger.error(f"Ошибка обработки записи: {e}")
+           continue
+
+   return result
 
 if __name__ == "__main__":
+    # records = fetch_comment_orders()
+    # logger.info(f"Получены записи из БД: {records}")
+    # records = get_salesdrive_orders()
+    # logger.info(f"Получены записи из salesdrive: {records}")
+    
     start_time = datetime.now()  # Здесь используется datetime из модуля
     logger.info(f"Скрипт запущен в {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     fetch_all_data()
