@@ -83,6 +83,42 @@ def parsin_xml():
     url_data.to_csv("urls.csv", index=False)
 
 
+def xml_temp():
+    import xml.etree.ElementTree as ET
+
+    import pandas as pd
+
+    # Загрузка XML-файла
+    xml_file = "index.xml"  # Укажите путь к вашему XML-файлу
+
+    tree = ET.parse(xml_file)
+    root = tree.getroot()
+
+    # Найти секцию offers
+    offers_section = root.find(".//offers")
+
+    # Проверяем, что offers_section найден
+    if offers_section is not None:
+        # Извлекаем URL-адреса
+        urls = [
+            offer.find("url").text
+            for offer in offers_section.findall("offer")
+            if offer.find("url") is not None
+        ]
+
+        # Создаем DataFrame
+        df = pd.DataFrame(urls, columns=["url"])
+
+        # Сохраняем в CSV-файл
+        csv_filename = "urls.csv"
+        df.to_csv(csv_filename, index=False)
+
+        print(f"Сохранено в {csv_filename}")
+    else:
+        print("Ошибка: Секция <offers> не найдена в XML.")
+
+
 if __name__ == "__main__":
-    download_xml()
+    # download_xml()
     # parsin_xml()
+    xml_temp()

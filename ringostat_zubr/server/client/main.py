@@ -488,7 +488,7 @@ def process_google_drive_mp3_files():
 
                 # Формируем данные для записи
                 all_data = parse_mp3_filename(file_name)
-                logger.info(shorthand_bullet)
+                # logger.info(shorthand_bullet)
                 notes = clean_text(shorthand_bullet) if shorthand_bullet is not None else None
 
 
@@ -499,9 +499,9 @@ def process_google_drive_mp3_files():
                 # Добавляем ссылку на MP3
                 all_data["Ссылка на MP3"] = file_link
                 
-                logger.debug(f"result_summary: {result_summary}")
-                logger.debug(f"shorthand_bullet: {shorthand_bullet}")
-                logger.debug(f"all_data: {all_data}")
+                # logger.debug(f"result_summary: {result_summary}")
+                # logger.debug(f"shorthand_bullet: {shorthand_bullet}")
+                # logger.debug(f"all_data: {all_data}")
                 
                 # Записываем в БД
                 write_add_call_data(all_data)
