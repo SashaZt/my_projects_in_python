@@ -14,6 +14,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 from pydrive2.auth import GoogleAuth, ServiceAccountCredentials
 from pydrive2.drive import GoogleDrive
 import time
+from typing import List  # Добавляем импорт
+
 # Загрузка переменных из .env
 # logger.info("Loading environment variables from .env file")
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
@@ -838,7 +840,7 @@ def get_transcrip(transcript_id):
                        sentence["text"] for sentence in transcript.get("sentences", [])
                    )
                    if full_text:
-                        logger.info(full_text)
+                        # logger.info(full_text)
                         return full_text
            
            # Если дошли сюда, значит результат пустой или некорректный
@@ -1124,7 +1126,7 @@ def fetch_comment_orders(date_from=None, date_to=None):
             "date_to": date_to_str
         }
         
-        logger.info(f"Отправляем запрос на URL: {url} с параметрами: {params}")
+        # logger.info(f"Отправляем запрос на URL: {url} с параметрами: {params}")
         
         response = requests.get(url, params=params, verify=False)
         logger.info(f"Получен ответ со статусом: {response.status_code}")
@@ -1212,17 +1214,175 @@ def process_data(data):
            continue
 
    return result
+def find_matching_records(records_bd, records_salesdrive):
+    formatted_records = []  # Список для хранения всех совпадений
+    matched_ids = (
+        []
+    )  # Список для хранения id из records_bd, по которым найдены совпадения
+
+    for bd_record in records_bd:
+        phone_bd = bd_record["phone"]
+        phone_bd_no_prefix = phone_bd[2:] if phone_bd.startswith("38") else phone_bd
+        manager_name_bd = bd_record["manager_name"]
+
+        # Будем хранить все совпадения для текущей записи
+        matches = []
+
+        # Поиск совпадений по полному номеру
+        for sd_record in records_salesdrive:
+            if (
+                sd_record["phone_contact"] == phone_bd
+                and sd_record["user_name"] == manager_name_bd
+            ):
+                matches.append(sd_record)
+
+        # Поиск совпадений без префикса 38, если не нашли по полному номеру
+        if not matches:
+            for sd_record in records_salesdrive:
+                if (
+                    sd_record["phone_contact"] == phone_bd_no_prefix
+                    and sd_record["user_name"] == manager_name_bd
+                ):
+                    matches.append(sd_record)
+
+        # Если нашли совпадения, берем запись с максимальным id_data
+        if matches:
+            # Сортируем по id_data в убывающем порядке и берем первый элемент
+            best_match = max(matches, key=lambda x: x["id_data"])
+
+            formatted_record = {
+                "id": best_match["id_data"],
+                "data": {"comment": bd_record["notes"]},
+            }
+            formatted_records.append(formatted_record)
+            matched_ids.append(bd_record["id"])  # Добавляем id в список найденных
+
+    return formatted_records, matched_ids
+
+def update_order_comments(orders_data):
+    """
+    Обновляет комментарии для списка заявок
+
+    Args:
+        orders_data (list): Список словарей с данными заявок
+
+    Returns:
+        list: Список результатов обновления для каждой заявки
+    """
+    results = []
+
+    try:
+        url = "https://zubr.salesdrive.me/api/order/update/"
+        headers = {
+            "Form-Api-Key": SALESDRIVE_API,
+            "Content-Type": "application/json",
+        }
+
+        for order_data in orders_data:
+            try:
+                logger.info(
+                    f"Отправляем запрос на обновление заявки {order_data['id']}"
+                )
+
+                response = requests.post(
+                    url,
+                    headers=headers,
+                    json=order_data,
+                    timeout=(10, 30),  # (connect timeout, read timeout)
+                )
+
+                logger.info(f"Получен ответ со статусом: {response.status_code}")
+
+                if response.status_code == 200:
+                    results.append(
+                        {
+                            "id": order_data["id"],
+                            "status": "success",
+                            "response": response.json(),
+                        }
+                    )
+                else:
+                    results.append(
+                        {
+                            "id": order_data["id"],
+                            "status": "error",
+                            "error": f"API request failed with status code: {response.status_code}",
+                        }
+                    )
+
+            except requests.exceptions.Timeout:
+                logger.error(f"Timeout при запросе к API для заявки {order_data['id']}")
+                results.append(
+                    {
+                        "id": order_data["id"],
+                        "status": "error",
+                        "error": "Timeout error",
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Ошибка при обновлении заявки {order_data['id']}: {e}")
+                results.append(
+                    {"id": order_data["id"], "status": "error", "error": str(e)}
+                )
+
+    except Exception as e:
+        logger.error(f"Критическая ошибка при обновлении заявок: {e}")
+        raise
+
+    return results
+def update_comment_orders(order_ids: List[int]) -> dict:
+    """
+    Отправляет POST запрос для обновления статуса comment_order.
+
+    Args:
+        order_ids: список ID записей для обновления
+
+    Returns:
+        dict: ответ от сервера
+    """
+    try:
+        
+        url = f"https://{IP}/comment_orders"
+        headers = {
+            "Content-Type": "application/json",
+            "accept": "application/json"
+        }
+        data = {"ids": order_ids}
+
+        # Отправляем запрос
+        response = requests.post(
+            url,
+            headers=headers,
+            json=data,
+            verify=False  # Эквивалент --insecure в curl
+        )
+
+        # Проверяем статус ответа
+        response.raise_for_status()
+        
+        return response.json()
+
+    except requests.exceptions.RequestException as e:
+        print(f"Ошибка при отправке запроса: {e}")
+        return {"status": "error", "message": str(e)}
 
 if __name__ == "__main__":
-    # records = fetch_comment_orders()
-    # logger.info(f"Получены записи из БД: {records}")
-    # records = get_salesdrive_orders()
-    # logger.info(f"Получены записи из salesdrive: {records}")
     
     start_time = datetime.now()  # Здесь используется datetime из модуля
     logger.info(f"Скрипт запущен в {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     fetch_all_data()
     process_google_drive_mp3_files()
+    
+    records_bd = fetch_comment_orders()
+    # logger.info(records_bd)
+    records_salesdrive = get_salesdrive_orders()
+
+    
+    orders_data, ids_to_update = find_matching_records(records_bd, records_salesdrive)
+    update_order_comments(orders_data)
+    result = update_comment_orders(ids_to_update)
+    logger.info(result)
+
     # Логирование паузы
     pause_duration = 1800
     logger.info(f"Остановка для {pause_duration} секунд")

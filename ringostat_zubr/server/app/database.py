@@ -1,10 +1,11 @@
 import asyncio
 import os
 from asyncio import TimeoutError, wait_for
-
+from typing import List  # Добавляем импорт
 import aiomysql
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
+import traceback  # Добавляем импорт
 
 # Указать путь к .env файлу
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
@@ -270,7 +271,77 @@ class DatabaseInitializer:
         except Exception as e:
             logger.error(f"Ошибка при вставке данных в БД: {e}")
             return False
+    async def update_comment_orders_status(self, order_ids: List[int]) -> dict:
+        """
+        Обновляет статус comment_order для списка ID.
+        """
+        try:
+            ids_str = ",".join(map(str, order_ids))
+            logger.info(f"Начало обновления для ID: {order_ids}")
+            logger.info(f"SQL строка ID: {ids_str}")
+            
+            update_query = """
+                UPDATE calls_data 
+                SET comment_order = TRUE 
+                WHERE id IN ({})
+            """.format(ids_str)
+            logger.info(f"UPDATE запрос: {update_query}")
 
+            check_query = """
+                SELECT id FROM calls_data 
+                WHERE id IN ({}) 
+                AND comment_order = TRUE
+            """.format(ids_str)
+            logger.info(f"CHECK запрос: {check_query}")
+
+            async with self.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    # Выполняем UPDATE
+                    logger.info("Выполняем UPDATE запрос...")
+                    update_result = await cursor.execute(update_query)
+                    logger.info(f"Результат UPDATE: {update_result}")
+                    
+                    await conn.commit()
+                    logger.info("Выполнен COMMIT")
+                    
+                    # Проверяем обновленные записи
+                    logger.info("Выполняем проверочный SELECT...")
+                    await cursor.execute(check_query)
+                    rows = await cursor.fetchall()
+                    logger.info(f"Получены строки: {rows}")
+                    
+                    # Изменяем обработку результата
+                    if not rows:
+                        return {
+                            "status": "warning",
+                            "message": "Записи не найдены после обновления",
+                            "updated_ids": [],
+                            "error_ids": order_ids
+                        }
+                    
+                    updated_ids = [row['id'] for row in rows]
+                    error_ids = list(set(order_ids) - set(updated_ids))
+
+                    success_response = {
+                        "status": "success",
+                        "message": f"Обновлено {len(updated_ids)} из {len(order_ids)} записей",
+                        "updated_ids": updated_ids,
+                        "error_ids": error_ids
+                    }
+                    logger.info(f"Готовим успешный ответ: {success_response}")
+                    return success_response
+
+        except Exception as e:
+            error_msg = f"Ошибка при обновлении записей: {str(e)}"
+            logger.error(error_msg)
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return {
+                "status": "error",
+                "message": str(e),
+                "updated_ids": [],
+                "error_ids": order_ids
+            }
+            
 # Для тестирования модуля отдельно (можно удалить, если не нужно)
 if __name__ == "__main__":
 

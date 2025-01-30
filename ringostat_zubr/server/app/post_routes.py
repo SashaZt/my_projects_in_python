@@ -1,7 +1,9 @@
 import json
 import re
 from typing import List
-
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException
+from database import DatabaseInitializer
 from configuration.logger_setup import logger  # Настройка логирования
 
 # Импорт класса для работы с базой данных
@@ -105,40 +107,6 @@ async def ringostat_post(request: Request, db=Depends(get_db)):
         )
 
 
-# @router.post("/add_call_data")
-# async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(get_db)):
-#     """Маршрут для добавления данных в таблицу calls_data."""
-#     try:
-#         # Очистка текстовых полей
-#         cleaned_data = {
-#             "date": call_data.date,
-#             "phone": call_data.phone,
-#             "line": call_data.line,
-#             "manager_name": clean_text(call_data.manager_name),
-#             "call_text_ukr": clean_text(call_data.call_text_ukr),
-#             "overview": clean_text(call_data.overview),
-#             "notes": clean_text(call_data.notes),
-#             "mp3_link": call_data.mp3_link,
-#             "file_name": call_data.file_name,
-#             "transcript_id": call_data.transcript_id,
-#         }
-
-#         # Вставка данных в базу
-#         success = await db.insert_call_data(cleaned_data)
-#         if not success:
-#             logger.error(f"Ошибка записи данных в БД: {cleaned_data}")
-#             raise HTTPException(status_code=500, detail="Ошибка записи данных в БД")
-
-#         logger.info(f"Данные успешно добавлены: {cleaned_data}")
-#         return {"message": "Данные успешно добавлены"}
-
-#     except HTTPException as http_err:
-#         logger.error(f"HTTP ошибка: {http_err.detail}")
-#         raise
-#     except Exception as e:
-#         logger.error(f"Неизвестная ошибка в маршруте /add_call_data: {e}")
-#         raise HTTPException(status_code=500, detail="Ошибка обработки запроса")
-
 @router.post("/add_call_data")
 async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(get_db)):
     """Маршрут для добавления данных в таблицу calls_data."""
@@ -178,3 +146,41 @@ async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(g
     except Exception as e:
         logger.error(f"Неизвестная ошибка в маршруте /add_call_data: {e}")
         raise HTTPException(status_code=500, detail="Ошибка обработки запроса")
+
+# Модель для входящих данных
+class OrderIds(BaseModel):
+    ids: List[int]
+
+# Модель для ответа
+class UpdateResponse(BaseModel):
+    status: str
+    message: str
+    updated_ids: List[int]
+    error_ids: List[int] = []
+
+
+
+@router.post("/comment_orders", response_model=UpdateResponse)
+async def comment_orders(order_data: OrderIds, db: DatabaseInitializer = Depends(get_db)):
+    """Обновляет статус comment_order для списка ID."""
+    try:
+        # Проверяем, что список не пустой
+        if not order_data.ids:
+            return UpdateResponse(
+                status="success",
+                message="Список ID пуст - нет записей для обновления",
+                updated_ids=[],
+                error_ids=[]
+            )
+            
+        result = await db.update_comment_orders_status(order_data.ids)
+        return UpdateResponse(**result)
+        
+    except Exception as e:
+        logger.error(f"Ошибка в маршруте comment_orders: {e}")
+        return UpdateResponse(
+            status="error",
+            message=f"Ошибка при обновлении: {str(e)}",
+            updated_ids=[],
+            error_ids=order_data.ids
+        )
