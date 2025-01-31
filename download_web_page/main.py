@@ -1,22 +1,16 @@
-import asyncio
 import csv
 import json
-import os
 import random
 import re
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
-import aiohttp
 import pandas as pd
 import requests
-import urllib3
-import usaddress
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
-from requests.adapters import HTTPAdapter
-from tqdm import tqdm
-from urllib3.poolmanager import PoolManager
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -942,9 +936,11 @@ def pars_htmls():
     # print(f"Данные успешно сохранены в файл: {output_file}")
 
 
+
+
 if __name__ == "__main__":
-    get_html()
-    # pars_htmls()
+    main_realoem()
+    # scap_realoem()
     # get_htmls()
     # get_html()
     # get_contact_prom()
