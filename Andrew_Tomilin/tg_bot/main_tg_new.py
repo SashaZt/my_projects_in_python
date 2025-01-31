@@ -239,17 +239,6 @@ async def post_item_to_channel(item, channel_id):
         """
         Работа с изображением
         """
-        # Перемешиваем записи перед публикацией
-        # for local_directory in directories:
-
-        # path = Path(local_directory)
-        # if not path.exists():
-        #     logger.warning(
-        #         f"Директория не существует: {local_directory}. Пропускаем."
-        #     )
-        #     continue
-        # Формируем и нормализуем путь к изображению
-        # image_path = os.path.normpath(os.path.join(local_directory, item["image_name"]))
         image_path = item["image_path"]
         archive_path = item["archive_path"]
 
@@ -263,11 +252,6 @@ async def post_item_to_channel(item, channel_id):
         category = item["category"]
         tags = item["tags"]
         base_tags = "#3dsky #3ddd"
-        # Логируем переменные перед созданием caption
-        # logger.info(
-        #     f"base_name: {base_name}, title: {title}, style_en: {style_en}, category: {category}, tags: {tags}"
-        # )
-
         # Проверяем типы значений и убираем потенциальные проблемы
         if not isinstance(style_en, str):
             style_en = str(style_en)
@@ -283,20 +267,6 @@ async def post_item_to_channel(item, channel_id):
         # Публикуем фото в канал
         photo = FSInputFile(image_path)  # Используем FSInputFile для локальных файлов
         await bot.send_photo(chat_id=channel_id, photo=photo, caption=caption)
-
-        # # Формируем и нормализуем путь к архиву
-        # archive_path = os.path.normpath(
-        #     os.path.join(local_directory, item["archive_name"])
-        # )
-        # """
-        # Работа с архивом
-        # """
-        # # Формируем и нормализуем путь к архиву
-        # archive_path = os.path.normpath(
-        #     os.path.join(local_directory, item["archive_name"])
-        # )
-
-        # logger.info(f"Путь к файлу: {archive_path}")
 
         # Проверяем существование файла
         if not os.path.exists(archive_path):
