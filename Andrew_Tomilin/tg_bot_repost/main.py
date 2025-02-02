@@ -3,11 +3,12 @@ import os
 from datetime import datetime  # Нужно добавить этот импорт
 from datetime import timezone  # Добавляем импорт timezone
 
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher, F, methods
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage  # Добавляем импорт
+from aiogram.methods import GetUpdates
 from aiogram.types import BotCommand, CallbackQuery, InlineKeyboardButton, Message
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from configuration.logger_setup import logger
@@ -26,6 +27,7 @@ from sqlalchemy import (  # Добавляем импорт func
 )
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from telethon import TelegramClient
 
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(env_path)
@@ -40,6 +42,11 @@ DB_NAME = os.getenv("DB_NAME")
 TABLE_NAME = os.getenv("TABLE_NAME")
 TIME_A = int(os.getenv("TIME_A", 5))
 TIME_B = int(os.getenv("TIME_B", 10))
+
+# В начале файла добавьте
+API_ID = os.getenv("API_ID")
+API_HASH = os.getenv("API_HASH")
+client = TelegramClient("bot_session", API_ID, API_HASH)
 
 # Добавим проверку
 if not all(
@@ -143,43 +150,47 @@ async def handle_repost(callback: CallbackQuery, state: FSMContext):
 @dp.message(lambda message: message.text.isdigit())
 async def process_count(message: Message, state: FSMContext):
     count = int(message.text)
-    if count <= 0:
-        await message.answer("Количество должно быть больше 0")
-        return
-    if count > 100:  # Ограничение на количество
-        await message.answer("Максимальное количество для пересылки - 100 сообщений")
+    if count <= 0 or count > 100:
+        await message.answer("Количество должно быть от 1 до 100")
         return
 
     current_state = await state.get_state()
-
     if current_state == RepostStates.waiting_count_models:
-        category = "models"
-        from_chat = CHANNEL_ID_MODELS_PRO
-        to_chat = CHANNEL_ID_MODELS_FREE
+        category, from_chat, to_chat = (
+            "models",
+            CHANNEL_ID_MODELS_PRO,
+            CHANNEL_ID_MODELS_FREE,
+        )
     elif current_state == RepostStates.waiting_count_materials:
-        category = "materials"
-        from_chat = CHANNEL_ID_MATERIALS_PRO
-        to_chat = CHANNEL_ID_MATERIALS_FREE
+        category, from_chat, to_chat = (
+            "materials",
+            CHANNEL_ID_MATERIALS_PRO,
+            CHANNEL_ID_MATERIALS_FREE,
+        )
     else:
         return
 
-    # # Получаем параметры для пересылки
-    # if category == "models":
-    #     from_chat = CHANNEL_ID_MODELS_PRO
-    #     to_chat = CHANNEL_ID_MODELS_FREE
-    # else:
-    #     from_chat = CHANNEL_ID_MATERIALS_PRO
-    #     to_chat = CHANNEL_ID_MATERIALS_FREE
-
-    # Получаем сообщения для пересылки
     async with SessionLocal() as session:
+        # Сначала получаем диапазон message_id для категории
+        min_max_query = select(
+            func.min(RepostMessage.message_id).label("min_id"),
+            func.max(RepostMessage.message_id).label("max_id"),
+        ).where(RepostMessage.category == category)
+        result = await session.execute(min_max_query)
+        min_id, max_id = result.first()
+
+        # Теперь выбираем сообщения в нужном диапазоне
         query = (
             select(RepostMessage)
-            .where(RepostMessage.category == category, RepostMessage.repost == False)
+            .where(
+                RepostMessage.category == category,
+                RepostMessage.repost == False,
+                RepostMessage.message_id >= min_id,
+                RepostMessage.message_id <= max_id,
+            )
             .order_by(RepostMessage.message_id.asc())
             .limit(count)
         )
-
         messages = (await session.execute(query)).scalars().all()
 
         if not messages:
@@ -189,33 +200,23 @@ async def process_count(message: Message, state: FSMContext):
             await state.clear()
             return
 
+        status_message = await message.answer("Начинаем пересылку...")
         success_count = 0
+
         for msg in messages:
             try:
-                await bot.forward_message(
+                await bot.copy_message(
                     chat_id=to_chat, from_chat_id=from_chat, message_id=msg.message_id
                 )
-
-                # Обновляем статус
                 msg.repost = True
                 msg.reposted_at = datetime.now(timezone.utc)
                 success_count += 1
-
-                if success_count % 10 == 0:
-                    await message.answer(
-                        f"Переслано {success_count} из {len(messages)}"
-                    )
-
             except Exception as e:
                 logger.error(f"Ошибка при пересылке сообщения {msg.message_id}: {e}")
+                continue
 
         await session.commit()
-
-        # Отправляем итоговый отчет
-        await message.answer(
-            f"Пересылка завершена!\n"
-            f"Успешно переслано: {success_count} из {len(messages)}"
-        )
+        await status_message.edit_text(f"Переслано {success_count} из {len(messages)}")
 
     await state.clear()
 
@@ -227,51 +228,50 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
 
 
-# 🔹 Получаем ID всех сообщений из группы
 async def fetch_all_messages(chat_id: int, category: str):
     async with SessionLocal() as session:
         try:
-            # Проверяем текущее состояние
-            min_id, max_id, total_count = await check_database_state(category)
-
-            # Получаем последнее сообщение в канале
-            last_message = await bot.send_message(chat_id=chat_id, text=".")
-            last_message_id = last_message.message_id
+            last_msg = await bot.send_message(chat_id=chat_id, text=".")
+            last_message_id = last_msg.message_id
             await bot.delete_message(chat_id=chat_id, message_id=last_message_id)
 
-            if max_id and max_id >= last_message_id:
-                logger.info(f"Нет новых сообщений для категории {category}")
-                return
+            msg_id = last_message_id
+            batch = []
 
-            # Добавляем только новые сообщения
-            start_id = (max_id or 0) + 1
-            new_messages = []
-
-            for msg_id in range(start_id, last_message_id + 1):
-                new_messages.append(
-                    {
-                        "message_id": msg_id,
-                        "category": category,
-                        "created_at": datetime.now(timezone.utc),
-                        "repost": False,
-                    }
-                )
-
-                if len(new_messages) >= 100:
-                    await session.execute(
-                        RepostMessage.__table__.insert(), new_messages
+            while msg_id > 0:
+                try:
+                    message = await bot.forward_message(
+                        chat_id=chat_id,
+                        from_chat_id=chat_id,
+                        message_id=msg_id,
+                        disable_notification=True,
                     )
+                    if message:
+                        batch.append(
+                            {
+                                "message_id": msg_id,
+                                "category": category,
+                                "created_at": datetime.now(timezone.utc),
+                                "repost": False,
+                            }
+                        )
+                        await bot.delete_message(
+                            chat_id=chat_id, message_id=message.message_id
+                        )
+                except:
+                    pass
+
+                msg_id -= 1
+                if len(batch) >= 100:
+                    await session.execute(RepostMessage.__table__.insert(), batch)
                     await session.commit()
-                    logger.info(f"Добавлено {len(new_messages)} новых сообщений")
-                    new_messages = []
+                    logger.info(f"Добавлено {len(batch)} сообщений для {category}")
+                    batch = []
 
-            if new_messages:
-                await session.execute(RepostMessage.__table__.insert(), new_messages)
+            if batch:
+                await session.execute(RepostMessage.__table__.insert(), batch)
                 await session.commit()
-                logger.info(f"Добавлено {len(new_messages)} новых сообщений")
-
-            # Проверяем финальное состояние
-            await check_database_state(category)
+                logger.info(f"Добавлено {len(batch)} сообщений для {category}")
 
         except Exception as e:
             logger.error(f"Ошибка при получении сообщений: {e}")
@@ -444,17 +444,19 @@ async def on_shutdown():
 
 async def main():
     logger.info("Starting bot...")
-    logger.info(f"Models Pro Channel ID: {CHANNEL_ID_MODELS_PRO}")
-    logger.info(f"Models Free Channel ID: {CHANNEL_ID_MODELS_FREE}")
-    logger.info(f"Materials Pro Channel ID: {CHANNEL_ID_MATERIALS_PRO}")
-    logger.info(f"Materials Free Channel ID: {CHANNEL_ID_MATERIALS_FREE}")
-
     try:
+        await client.start(bot_token=BOT_TOKEN_REPOST)  # Запускаем клиент
         await init_db()
-        await set_commands()  # Добавляем эту строку
+        await set_commands()
         await sync_messages()
+        await check_database_state("models")
+        await check_database_state("materials")
         logger.info("Bot is ready to work!")
-        await dp.start_polling(bot)
+
+        try:
+            await dp.start_polling(bot)
+        finally:
+            await client.disconnect()  # Отключаем клиент при завершении
     except Exception as e:
         logger.error(f"Ошибка в main: {e}")
         raise

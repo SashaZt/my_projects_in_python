@@ -22,8 +22,8 @@ def main_realoem(code, max_retries=10):
         "q": code,
     }
     proxies = {
-        "http": "http://scraperapi:d415ddc01cf23948eff76e4447f69372@proxy-server.scraperapi.com:8001",
-        "https": "http://scraperapi:d415ddc01cf23948eff76e4447f69372@proxy-server.scraperapi.com:8001",
+        "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+        "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
     }
     try:
         retries = 0
@@ -39,6 +39,10 @@ def main_realoem(code, max_retries=10):
                 # Сохранение HTML-страницы целиком
                 with open("realoem.html", "w", encoding="utf-8") as file:
                     file.write(response.text)
+                # Использование:
+                if find_error(response.text):  # Если ошибка найдена, пропускаем
+                    logger.error(f'Такого кода {code} нету')
+                    break
                 list_urls = scap_realoem(response.text)
                 list_urls = process_urls(list_urls)
                 process_parts_urls(list_urls)
@@ -71,7 +75,9 @@ def main_realoem(code, max_retries=10):
             time.sleep(wait_time)
         else:
             logger.error(f"All {max_retries} attempts failed")
-
+def find_error(content):
+    soup = BeautifulSoup(content, "lxml")
+    return bool(soup.find("div", {"class": "error vs2"}))  # Возвращает True, если найден элемент
 
 def scap_realoem(content):
     extracted_data = []
@@ -88,8 +94,8 @@ def scap_realoem(content):
 
 def process_urls(urls, max_retries=10):
     proxies = {
-        "http": "http://scraperapi:d415ddc01cf23948eff76e4447f69372@proxy-server.scraperapi.com:8001",
-        "https": "http://scraperapi:d415ddc01cf23948eff76e4447f69372@proxy-server.scraperapi.com:8001",
+        "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+        "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
     }
     results = []
     for url in urls:
@@ -138,8 +144,7 @@ def process_urls(urls, max_retries=10):
                 # Добавляем задержку между запросами
                 time.sleep(random.uniform(1, 3))
         except (requests.exceptions.RequestException, requests.exceptions.ReadTimeout) as retry_e:
-            logger.error(f"Request error on attempt {
-                         retries + 1}: {str(retry_e)}")
+            logger.error(f"Request error on attempt {retries + 1}: {str(retry_e)}")
             retries += 1
             if retries < max_retries:
                 wait_time = 5 * retries  # Увеличиваем время ожидания с каждой попыткой
@@ -172,8 +177,8 @@ def create_filename_from_url(url):
 def process_parts_urls(nested_urls, max_retries=10):
     results = []
     proxies = {
-        "http": "http://scraperapi:d415ddc01cf23948eff76e4447f69372@proxy-server.scraperapi.com:8001",
-        "https": "http://scraperapi:d415ddc01cf23948eff76e4447f69372@proxy-server.scraperapi.com:8001",
+        "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+        "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
     }
     urls = [url for sublist in nested_urls for url in sublist]
     for url in urls:
@@ -389,8 +394,8 @@ def scrap():
 def download_and_save_image(image_url, max_retries=10):
     retries = 0
     proxies = {
-        "http": "http://scraperapi:d415ddc01cf23948eff76e4447f69372@proxy-server.scraperapi.com:8001",
-        "https": "http://scraperapi:d415ddc01cf23948eff76e4447f69372@proxy-server.scraperapi.com:8001",
+        "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+        "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
     }
     while retries < max_retries:
         try:
@@ -407,7 +412,7 @@ def download_and_save_image(image_url, max_retries=10):
             response = requests.get(
                 image_url,
                 proxies=proxies,
-                timeout=30,
+                timeout=100,
                 verify=False,
             )
             
@@ -455,16 +460,12 @@ def save_to_excel(all_data):
 
 if __name__ == "__main__":
     numbers = [
-        51717333522,
-        51747343805,
-        51747343806,
-        51748059855,
-        51748059856,
-        51117319767,
-        51117319777,
-        51117336511,
-        51117319778
+        51747255413,
+        51767183752,
+        51237242548,
+        51714529627,
+        51749465187
     ]
-    # for code in numbers:
-    #     main_realoem(code)
+    for code in numbers:
+        main_realoem(code)
     scrap()
