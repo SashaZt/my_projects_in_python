@@ -1,473 +1,387 @@
 import asyncio
 import os
-from datetime import datetime  # Нужно добавить этот импорт
-from datetime import timezone  # Добавляем импорт timezone
+import random
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
-from aiogram import Bot, Dispatcher, F, methods
+import aiosqlite
+from aiogram import F  # ✅ Правильный импорт для callback_data
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.storage.memory import MemoryStorage  # Добавляем импорт
-from aiogram.methods import GetUpdates
-from aiogram.types import BotCommand, CallbackQuery, InlineKeyboardButton, Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from configuration.logger_setup import logger
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from dotenv import load_dotenv
-from sqlalchemy import DateTime  # И этот тоже для колонки created_at
-from sqlalchemy import (  # Добавляем импорт func
+from loguru import logger
+from sqlalchemy import (
     Boolean,
     Column,
+    DateTime,
     Index,
     Integer,
     String,
     UniqueConstraint,
-    func,
     select,
+    text,
     update,
 )
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
-from telethon import TelegramClient
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
+from telethon.sync import TelegramClient
 
-env_path = os.path.join(os.getcwd(), "configuration", ".env")
-load_dotenv(env_path)
-# 🔹 Настройки бота и каналов
-CHANNEL_ID_MODELS_PRO = int(os.getenv("CHANNEL_ID_MODELS_PRO"))  # Преобразуем в int
-CHANNEL_ID_MODELS_FREE = int(os.getenv("CHANNEL_ID_MODELS_FREE"))
+current_directory = Path.cwd()
+configuration_directory = current_directory / "configuration"
+log_directory = current_directory / "log"
+log_directory.mkdir(parents=True, exist_ok=True)
+
+log_file_path = log_directory / "log_message.log"
+env_file_path = configuration_directory / ".env"
+load_dotenv(env_file_path)
+# 🔹 Укажи данные из my.telegram.org
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN_REPOST = os.getenv("BOT_TOKEN_REPOST")
+SESSION_PATH = os.getenv("SESSION_PATH")
 CHANNEL_ID_MATERIALS_PRO = int(os.getenv("CHANNEL_ID_MATERIALS_PRO"))
 CHANNEL_ID_MATERIALS_FREE = int(os.getenv("CHANNEL_ID_MATERIALS_FREE"))
-BOT_TOKEN_REPOST = os.getenv("BOT_TOKEN_REPOST")
+CHANNEL_ID_MODELS_PRO = int(os.getenv("CHANNEL_ID_MODELS_PRO"))
+CHANNEL_ID_MODELS_FREE = int(os.getenv("CHANNEL_ID_MODELS_FREE"))
+TIME_A = int(os.getenv("TIME_A"))
+TIME_B = int(os.getenv("TIME_B"))
 
+session_directory = current_directory / SESSION_PATH
+session_directory.mkdir(parents=True, exist_ok=True)
 DB_NAME = os.getenv("DB_NAME")
-TABLE_NAME = os.getenv("TABLE_NAME")
-TIME_A = int(os.getenv("TIME_A", 5))
-TIME_B = int(os.getenv("TIME_B", 10))
 
-# В начале файла добавьте
-API_ID = os.getenv("API_ID")
-API_HASH = os.getenv("API_HASH")
-client = TelegramClient("bot_session", API_ID, API_HASH)
-
-# Добавим проверку
-if not all(
-    [
-        CHANNEL_ID_MODELS_PRO,
-        CHANNEL_ID_MODELS_FREE,
-        CHANNEL_ID_MATERIALS_PRO,
-        CHANNEL_ID_MATERIALS_FREE,
-    ]
-):
-    raise ValueError("Один или несколько ID каналов не установлены в .env файле")
-
-bot = Bot(token=BOT_TOKEN_REPOST)
-
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
-
-os.makedirs(os.path.dirname(DB_NAME), exist_ok=True)
-# 🔹 Настройки БД (асинхронный SQLite)
 DATABASE_URL = f"sqlite+aiosqlite:///{os.path.abspath(DB_NAME)}"
 engine = create_async_engine(DATABASE_URL, echo=True)
-SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+async_session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 
-# Создаем класс состояний
-class RepostStates(StatesGroup):
-    waiting_count_models = State()
-    waiting_count_materials = State()
+bot = Bot(token=BOT_TOKEN_REPOST)
+dp = Dispatcher()
+## 🔹 Удаляем все стандартные обработчики Loguru (избегаем дублирования)
+logger.remove()
+
+# 🔹 Логирование в файл
+logger.add(
+    log_file_path,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {line} | {message}",
+    level="DEBUG",
+    encoding="utf-8",
+    rotation="10 MB",
+    retention="7 days",
+)
+
+# 🔹 Логирование в консоль (цветной вывод)
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{line}</cyan> | <cyan>{message}</cyan>",
+    level="DEBUG",
+    enqueue=True,
+)
 
 
-# 🔹 Модель базы данных
+# 🔹 Определение базы данных
 class Base(DeclarativeBase):
     pass
 
 
 class RepostMessage(Base):
-    __tablename__ = TABLE_NAME
+    __tablename__ = "repost_messages"
 
     __table_args__ = (
         Index("idx_category_repost", "category", "repost"),
-        # Составной уникальный индекс
         UniqueConstraint("message_id", "category", name="uix_message_category"),
     )
 
     id = Column(Integer, primary_key=True)
-    message_id = Column(Integer, nullable=False)  # Убрали unique=True
+    message_id = Column(Integer, nullable=False)
     category = Column(String, nullable=False)
     repost = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     reposted_at = Column(DateTime, nullable=True)
 
 
-# Создаем клавиатуру с выбором действий
-def get_main_keyboard():
-    builder = InlineKeyboardBuilder()
-    builder.add(
-        InlineKeyboardButton(text="Models Pro → Free", callback_data="repost_models")
-    )
-    builder.add(
-        InlineKeyboardButton(
-            text="Materials Pro → Free", callback_data="repost_materials"
-        )
-    )
-    return builder.as_markup()
-
-
-async def set_commands():
-    commands = [
-        BotCommand(command="menu", description="Открыть меню пересылки"),
-        BotCommand(command="cancel", description="Отменить текущую операцию"),
-        BotCommand(command="send_all", description="Переслать все новые сообщения"),
-    ]
-    await bot.set_my_commands(commands)
-
-
-# Команда для показа меню
-@dp.message(Command("menu"))
-async def show_menu(message: Message):
-    await message.answer(
-        "Выберите тип контента для пересылки:", reply_markup=get_main_keyboard()
-    )
-
-
-# Обработчик нажатий на кнопки
-@dp.callback_query(F.data.startswith("repost_"))
-async def handle_repost(callback: CallbackQuery, state: FSMContext):
-    category = callback.data.replace("repost_", "")
-
-    if category == "models":
-        await state.set_state(RepostStates.waiting_count_models)
-    else:
-        await state.set_state(RepostStates.waiting_count_materials)
-
-    await callback.message.answer(
-        f"Укажите количество сообщений для пересылки из {category.title()}:"
-    )
-    await callback.answer()
-
-
-# Обработчик ответа с количеством
-@dp.message(lambda message: message.text.isdigit())
-async def process_count(message: Message, state: FSMContext):
-    count = int(message.text)
-    if count <= 0 or count > 100:
-        await message.answer("Количество должно быть от 1 до 100")
-        return
-
-    current_state = await state.get_state()
-    if current_state == RepostStates.waiting_count_models:
-        category, from_chat, to_chat = (
-            "models",
-            CHANNEL_ID_MODELS_PRO,
-            CHANNEL_ID_MODELS_FREE,
-        )
-    elif current_state == RepostStates.waiting_count_materials:
-        category, from_chat, to_chat = (
-            "materials",
-            CHANNEL_ID_MATERIALS_PRO,
-            CHANNEL_ID_MATERIALS_FREE,
-        )
-    else:
-        return
-
-    async with SessionLocal() as session:
-        # Сначала получаем диапазон message_id для категории
-        min_max_query = select(
-            func.min(RepostMessage.message_id).label("min_id"),
-            func.max(RepostMessage.message_id).label("max_id"),
-        ).where(RepostMessage.category == category)
-        result = await session.execute(min_max_query)
-        min_id, max_id = result.first()
-
-        # Теперь выбираем сообщения в нужном диапазоне
-        query = (
-            select(RepostMessage)
-            .where(
-                RepostMessage.category == category,
-                RepostMessage.repost == False,
-                RepostMessage.message_id >= min_id,
-                RepostMessage.message_id <= max_id,
-            )
-            .order_by(RepostMessage.message_id.asc())
-            .limit(count)
-        )
-        messages = (await session.execute(query)).scalars().all()
-
-        if not messages:
-            await message.answer(
-                f"Нет новых сообщений для пересылки в категории {category}"
-            )
-            await state.clear()
-            return
-
-        status_message = await message.answer("Начинаем пересылку...")
-        success_count = 0
-
-        for msg in messages:
-            try:
-                await bot.copy_message(
-                    chat_id=to_chat, from_chat_id=from_chat, message_id=msg.message_id
-                )
-                msg.repost = True
-                msg.reposted_at = datetime.now(timezone.utc)
-                success_count += 1
-            except Exception as e:
-                logger.error(f"Ошибка при пересылке сообщения {msg.message_id}: {e}")
-                continue
-
-        await session.commit()
-        await status_message.edit_text(f"Переслано {success_count} из {len(messages)}")
-
-    await state.clear()
-
-
 # 🔹 Создание таблицы (при первом запуске)
 async def init_db():
-
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 
-async def fetch_all_messages(chat_id: int, category: str):
-    async with SessionLocal() as session:
-        try:
-            last_msg = await bot.send_message(chat_id=chat_id, text=".")
-            last_message_id = last_msg.message_id
-            await bot.delete_message(chat_id=chat_id, message_id=last_message_id)
-
-            msg_id = last_message_id
-            batch = []
-
-            while msg_id > 0:
-                try:
-                    message = await bot.forward_message(
-                        chat_id=chat_id,
-                        from_chat_id=chat_id,
-                        message_id=msg_id,
-                        disable_notification=True,
-                    )
-                    if message:
-                        batch.append(
-                            {
-                                "message_id": msg_id,
-                                "category": category,
-                                "created_at": datetime.now(timezone.utc),
-                                "repost": False,
-                            }
-                        )
-                        await bot.delete_message(
-                            chat_id=chat_id, message_id=message.message_id
-                        )
-                except:
-                    pass
-
-                msg_id -= 1
-                if len(batch) >= 100:
-                    await session.execute(RepostMessage.__table__.insert(), batch)
-                    await session.commit()
-                    logger.info(f"Добавлено {len(batch)} сообщений для {category}")
-                    batch = []
-
-            if batch:
-                await session.execute(RepostMessage.__table__.insert(), batch)
-                await session.commit()
-                logger.info(f"Добавлено {len(batch)} сообщений для {category}")
-
-        except Exception as e:
-            logger.error(f"Ошибка при получении сообщений: {e}")
-            await session.rollback()
-            raise
+def validate_phone_number(phone_number: str) -> str:
+    """Проверяет корректность номера телефона."""
+    if not re.match(r"^\+\d{10,15}$", phone_number):
+        raise ValueError("❌ Номер телефона должен быть в формате +1234567890.")
+    return phone_number
 
 
-# 🔹 Фиксируем новые сообщения при старте бота
-async def sync_messages():
-    try:
-        # await clean_and_fetch_messages(CHANNEL_ID_MODELS_PRO, "models")
-        await fetch_all_messages(CHANNEL_ID_MODELS_PRO, "models")
-        await fetch_all_messages(CHANNEL_ID_MATERIALS_PRO, "materials")
-    except Exception as e:
-        logger.error(f"Ошибка при синхронизации сообщений: {e}")
-        raise
+def get_session_name():
+    """Получает имя сессии: выбираем существующую или вводим новый номер."""
+    sessions = list(session_directory.glob("*.session"))
 
+    if sessions:
+        logger.info("📌 Доступные сессии:")
+        for i, session in enumerate(sessions, 1):
+            logger.info(f"{i}. {session.stem}")
 
-# 🔹 Фиксируем новые сообщения при старте бота
-async def send_batch(category: str, from_chat: int, to_chat: int):
-    async with SessionLocal() as session:
-        result = await session.execute(
-            select(RepostMessage)
-            .where(RepostMessage.category == category, RepostMessage.repost == False)
-            .limit(100)
-        )
-        messages = result.scalars().all()
-
-        if not messages:
-            return f"✅ Все {category} сообщения уже пересланы!"
+        choice = input(
+            " Выберите номер сессии или введите новый номер телефона: "
+        ).strip()
 
         try:
-            message_ids = [msg.message_id for msg in messages]
-            await bot.copy_messages(
-                chat_id=to_chat, from_chat_id=from_chat, message_ids=message_ids
-            )
+            # Если введено число, выбираем существующую сессию
+            choice_idx = int(choice) - 1
+            if 0 <= choice_idx < len(sessions):
+                phone_number = sessions[choice_idx].stem
+            else:
+                phone_number = input(
+                    "📞 Введите новый номер телефона (в формате +1234567890): "
+                ).strip()
+                phone_number = validate_phone_number(phone_number)
+        except ValueError:
+            # Если ввели не число, проверяем номер телефона
+            phone_number = validate_phone_number(choice)
+    else:
+        logger.error("\n❌ Нет сохраненных сессий.")
+        phone_number = input(
+            "📞 Введите номер телефона (в формате +1234567890): "
+        ).strip()
+        phone_number = validate_phone_number(phone_number)
 
-            # Обновляем статус пересылки
-            for msg in messages:
-                await session.execute(
-                    update(RepostMessage)
-                    .where(RepostMessage.message_id == msg.message_id)
-                    .values(repost=True, reposted_at=datetime.now(timezone.utc))
+    session_name = session_directory / f"{phone_number}.session"
+    logger.info(f"✅ Используется сессия: {session_name}")
+    return phone_number, str(session_name)  # Преобразуем Path в строку
+
+
+phone_number, session_name = get_session_name()  # Получаем номер телефона и имя сессии
+
+
+async def fetch_and_save_messages():
+
+    async with TelegramClient(session_name, API_ID, API_HASH) as client:
+        await client.start(phone_number)
+
+        async with async_session() as session:
+            batch_size = 500  # Количество сообщений на одну вставку
+            categories = [
+                ("materials_pro", CHANNEL_ID_MATERIALS_PRO),
+                ("models_pro", CHANNEL_ID_MODELS_PRO),
+            ]
+
+            for category, channel_id in categories:
+                # 🔹 1. Получаем последнее сообщение в БД
+                result = await session.execute(
+                    text(
+                        "SELECT MAX(message_id) FROM repost_messages WHERE category = :category"
+                    ),
+                    {"category": category},
                 )
-            await session.commit()
+                last_message_id = (
+                    result.scalar() or 0
+                )  # Если в БД нет сообщений, начинаем с 0
 
-            return f"📨 Переслано {len(messages)} сообщений из {category}!"
+                logger.info(
+                    f"📌 Последнее сообщение в БД для {category}: {last_message_id}"
+                )
 
-        except Exception as e:
-            logger.error(f"⚠ Ошибка пересылки для категории {category}: {e}")
-            await session.rollback()
-            return f"❌ Ошибка при пересылке сообщений {category}: {str(e)}"
+                entity = await client.get_entity(channel_id)
+                logger.info(f"✅ Канал найден: {entity.id} ({category})")
+
+                messages_to_insert = []
+
+                # 🔹 2. Загружаем только новые сообщения
+                async for message in client.iter_messages(
+                    entity, reverse=True, min_id=last_message_id, limit=50000
+                ):
+                    messages_to_insert.append(
+                        {
+                            "message_id": message.id,
+                            "category": category,
+                            "repost": False,
+                            "created_at": datetime.now(timezone.utc),
+                        }
+                    )
+
+                    if len(messages_to_insert) >= batch_size:
+                        await session.execute(
+                            text(
+                                """
+                                INSERT INTO repost_messages (message_id, category, repost, created_at)
+                                VALUES (:message_id, :category, :repost, :created_at)
+                                ON CONFLICT(message_id, category) DO NOTHING
+                                """
+                            ),
+                            messages_to_insert,
+                        )
+                        await session.commit()
+                        logger.info(
+                            f"✅ {batch_size} новых сообщений записано ({category})..."
+                        )
+                        messages_to_insert = []
+
+                if messages_to_insert:
+                    await session.execute(
+                        text(
+                            """
+                            INSERT INTO repost_messages (message_id, category, repost, created_at)
+                            VALUES (:message_id, :category, :repost, :created_at)
+                            ON CONFLICT(message_id, category) DO NOTHING
+                            """
+                        ),
+                        messages_to_insert,
+                    )
+                    await session.commit()
+                    logger.info(
+                        f"✅ Последние {len(messages_to_insert)} новых сообщений записано ({category})..."
+                    )
+
+            logger.info("✅ Все новые сообщения успешно записаны в базу данных")
 
 
-# 🔹 Команда для старта рассылки
-@dp.message(Command("send_all"))
-async def send_all_messages(message: Message):
-    result_models = await send_batch(
-        "models", CHANNEL_ID_MODELS_PRO, CHANNEL_ID_MODELS_FREE
+# 🔹 Главное меню
+async def main_menu():
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📩 Переслать Materials Pro → Free",
+                    callback_data="send_materials",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📩 Переслать Models Pro → Free", callback_data="send_models"
+                )
+            ],
+        ]
     )
-    result_materials = await send_batch(
-        "materials", CHANNEL_ID_MATERIALS_PRO, CHANNEL_ID_MATERIALS_FREE
+    return keyboard
+
+
+# 🔹 Обработчик команды /start
+@dp.message(Command("start"))
+async def start_handler(message: types.Message):
+    await message.answer("⏳ Обновляем список сообщений...")
+
+    await fetch_and_save_messages()  # Обновляем список ID
+
+    keyboard = await main_menu()
+    await message.answer(
+        "✅ Данные обновлены! Выберите действие:", reply_markup=keyboard
     )
 
-    await message.answer(f"{result_models}\n{result_materials}")
+
+# 🔹 Запрос количества сообщений перед пересылкой
+@dp.callback_query(F.data.in_(["send_materials", "send_models"]))
+async def ask_for_limit(callback_query: CallbackQuery):
+    """Запрашивает у пользователя количество сообщений для пересылки."""
+    await callback_query.answer()
+    category = (
+        "materials_pro" if callback_query.data == "send_materials" else "models_pro"
+    )
+
+    # Сохраняем категорию в `callback_query.message`
+    await callback_query.message.answer(
+        f"📩 Сколько сообщений переслать из {category.replace('_', ' ')}? (Введите число)"
+    )
+
+    # Устанавливаем состояние ожидания ввода
+    dp.callback_query_data = {"category": category}
 
 
-@dp.message(Command("cancel"))
-@dp.message(F.text.lower() == "отмена")
-async def cancel_handler(message: Message, state: FSMContext):
-    current_state = await state.get_state()
-    if current_state is None:
+# 🔹 Обработчик ввода количества сообщений
+@dp.message(F.text.regexp(r"^\d+$"))  # Разрешаем ввод только чисел
+async def process_limit_input(message: types.Message):
+    """Принимает число от пользователя и запускает пересылку сообщений."""
+    limit = int(message.text)
+
+    if limit <= 0:
+        await message.answer("❌ Введите число больше 0.")
         return
 
-    await state.clear()
-    await message.answer("Операция отменена.")
+    category = dp.callback_query_data.get(
+        "category", "materials_pro"
+    )  # Получаем сохранённую категорию
+    await message.answer(
+        f"⏳ Начинаем пересылку {limit} сообщений из {category.replace('_', ' ')}..."
+    )
+
+    # Запускаем пересылку сообщений с указанным количеством
+    await get_and_forward_messages(category, limit)
+
+    await message.answer(f"✅ Переслано {limit} сообщений!")
 
 
-async def check_database_state(category: str):
-    async with SessionLocal() as session:
-        # Получаем максимальный и минимальный ID
-        min_id = await session.scalar(
+# 🔹 Функция получения сообщений из БД
+async def fetch_pending_messages(category: str, limit: int = 10):
+    async with async_session() as session:
+        result = await session.execute(
             select(RepostMessage.message_id)
-            .where(RepostMessage.category == category)
-            .order_by(RepostMessage.message_id.asc())
-            .limit(1)
+            .where(RepostMessage.category == category, RepostMessage.repost == False)
+            .limit(limit)
         )
+        return result.scalars().all()
 
-        max_id = await session.scalar(
-            select(RepostMessage.message_id)
-            .where(RepostMessage.category == category)
-            .order_by(RepostMessage.message_id.desc())
-            .limit(1)
+
+# 🔹 Обновление статуса сообщений в БД
+async def update_reposted_messages(message_ids):
+    async with async_session() as session:
+        await session.execute(
+            update(RepostMessage)
+            .where(RepostMessage.message_id.in_(message_ids))
+            .values(repost=True, reposted_at=datetime.now(timezone.utc))
         )
-
-        # Считаем общее количество записей
-        total_count = await session.scalar(
-            select(func.count(RepostMessage.id)).where(
-                RepostMessage.category == category
-            )
-        )
-
-        logger.info(
-            f"Состояние БД для категории {category}:\n"
-            f"Минимальный ID: {min_id}\n"
-            f"Максимальный ID: {max_id}\n"
-            f"Всего записей: {total_count}"
-        )
-
-        return min_id, max_id, total_count
+        await session.commit()
 
 
-# async def clean_and_fetch_messages(chat_id: int, category: str):
-#     async with SessionLocal() as session:
-#         try:
-#             # Удаляем все записи для данной категории
-#             await session.execute(
-#                 delete(RepostMessage).where(RepostMessage.category == category)
-#             )
-#             await session.commit()
-#             logger.info(f"Удалены все записи для категории {category}")
+# 🔹 Пересылка сообщений
+async def get_and_forward_messages(category: str, limit: int):
+    """Пересылает указанное количество сообщений."""
+    message_ids = await fetch_pending_messages(category, limit)
 
-#             # Получаем последнее сообщение в канале
-#             last_message = await bot.send_message(chat_id=chat_id, text=".")
-#             last_message_id = last_message.message_id
-#             await bot.delete_message(chat_id=chat_id, message_id=last_message_id)
+    if not message_ids:
+        return
 
-#             # Добавляем новые сообщения
-#             total_saved = 0
-#             batch = []
+    to_channel = (
+        CHANNEL_ID_MATERIALS_FREE
+        if category == "materials_pro"
+        else CHANNEL_ID_MODELS_FREE
+    )
+    from_channel = (
+        CHANNEL_ID_MATERIALS_PRO
+        if category == "materials_pro"
+        else CHANNEL_ID_MODELS_PRO
+    )
+    async with TelegramClient(session_name, API_ID, API_HASH) as client:
+        await client.start(phone_number)
+        success_ids = []
+        for msg_id in message_ids:
+            try:
+                await client.forward_messages(
+                    to_channel, msg_id, from_peer=from_channel
+                )
+                success_ids.append(msg_id)
+                # 🔹 Добавляем случайную паузу
+                delay = random.uniform(TIME_A, TIME_B)  # Генерируем случайную задержку
+                logger.info(
+                    f"⏳ Ожидание {delay:.2f} секунд перед следующим сообщением..."
+                )
+                await asyncio.sleep(delay)  # Асинхронная пауза
+            except Exception as e:
+                logger.error(f"❌ Ошибка при пересылке {msg_id}: {e}")
 
-#             for msg_id in range(1, last_message_id + 1):
-#                 batch.append(
-#                     {
-#                         "message_id": msg_id,
-#                         "category": category,
-#                         "created_at": datetime.now(timezone.utc),
-#                         "repost": False,
-#                     }
-#                 )
-
-#                 if len(batch) >= 100:
-#                     await session.execute(RepostMessage.__table__.insert(), batch)
-#                     await session.commit()
-#                     total_saved += len(batch)
-#                     logger.info(f"Сохранено {total_saved} сообщений для {category}")
-#                     batch = []
-
-#             # Сохраняем оставшиеся
-#             if batch:
-#                 await session.execute(RepostMessage.__table__.insert(), batch)
-#                 await session.commit()
-#                 total_saved += len(batch)
-
-#             logger.info(
-#                 f"Завершено сохранение {total_saved} сообщений для категории {category}. "
-#                 f"Диапазон ID: 1 - {last_message_id}"
-#             )
-
-#         except Exception as e:
-#             logger.error(f"Ошибка: {e}")
-#             await session.rollback()
-#             raise
-
-
-async def on_shutdown():
-    logger.info("Shutting down...")
-    await bot.session.close()
+    if success_ids:
+        await update_reposted_messages(success_ids)
 
 
 async def main():
-    logger.info("Starting bot...")
-    try:
-        await client.start(bot_token=BOT_TOKEN_REPOST)  # Запускаем клиент
-        await init_db()
-        await set_commands()
-        await sync_messages()
-        await check_database_state("models")
-        await check_database_state("materials")
-        logger.info("Bot is ready to work!")
-
-        try:
-            await dp.start_polling(bot)
-        finally:
-            await client.disconnect()  # Отключаем клиент при завершении
-    except Exception as e:
-        logger.error(f"Ошибка в main: {e}")
-        raise
+    logger.info("✅ Бот запущен!")
+    await dp.start_polling(bot)  # Запускаем бота
 
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
     except Exception as e:
-        logger.error(f"Bot stopped due to error: {e}")
-    finally:
-        asyncio.run(on_shutdown())
+        logger.error(f"❌ Критическая ошибка: {e}")
