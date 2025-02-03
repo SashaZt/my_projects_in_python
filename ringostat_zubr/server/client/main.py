@@ -1362,8 +1362,17 @@ def find_all_matching_records(records_bd, records_salesdrive):
 
         matched = False
         for sd_record in records_salesdrive:
+            user_name = sd_record.get("user_name")
+            # Если у записи из Salesdrive нет имени, пропускаем её
+            if user_name is None:
+                logger.warning(
+                    "Пропускаем запись Salesdrive id_data=%s, так как user_name отсутствует",
+                    sd_record.get("id_data")
+                )
+                continue
+
             normalized_phone_sd = normalize_phone(sd_record["phone_contact"])
-            normalized_name_sd = normalize_name(sd_record["user_name"])
+            normalized_name_sd = normalize_name(user_name)
 
             # Если нормализованные номера совпадают и имя совпадает (либо напрямую, либо после перестановки):
             if normalized_phone_bd == normalized_phone_sd and (
@@ -1379,7 +1388,7 @@ def find_all_matching_records(records_bd, records_salesdrive):
                     }
                     sd_matches[sd_id] = formatted_record
                 matched = True
-                break  # Для каждой BD записи берем только первое совпадение в Salesdrive
+                break  # Для каждой BD записи выбираем только первое совпадение в Salesdrive
         if matched:
             bd_ids.append(bd_record["id"])
 
