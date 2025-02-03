@@ -1,9 +1,13 @@
 import json
 import os
 import shutil
+import time
+import unicodedata
 import wave
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
+from typing import List  # Добавляем импорт
+
 import gspread
 import httplib2
 import lameenc
@@ -13,8 +17,6 @@ from dotenv import load_dotenv
 from oauth2client.service_account import ServiceAccountCredentials
 from pydrive2.auth import GoogleAuth, ServiceAccountCredentials
 from pydrive2.drive import GoogleDrive
-import time
-from typing import List  # Добавляем импорт
 
 # Загрузка переменных из .env
 # logger.info("Loading environment variables from .env file")
@@ -63,7 +65,7 @@ def download_data_to_file():
         if response.status_code == 200:
             # logger.info("Data fetched successfully")
             data = response.json().get("data", [])
-            logger.info("Данные с сервера получены")
+            # logger.info("Данные с сервера получены")
             return data
             # Сохраняем данные в файл result.json
         else:
@@ -119,14 +121,14 @@ def fetch_all_data():
     """Загружает данные из файла result.json и применяет фильтры, выводя результат в интерфейсе"""
     # data = load_data_from_file()
     # Создаём объект Google Drive
-    logger.info("Пауза в 10 сек перед запуском")
+    # logger.info("Пауза в 10 сек перед запуском")
     time.sleep(10)
     drive = create_drive_instance()
     all_recordings = []
     calls = download_data_to_file()
     # Удалем из БД файлы которые не нужны
     if invalid_json.exists():
-        logger.info(f"Файл есть {invalid_json}")
+        # logger.info(f"Файл есть {invalid_json}")
         json_invalid = load_data_from_file(invalid_json)
         deleting_data_in_database(json_invalid)
     for call in calls:
@@ -225,9 +227,9 @@ def get_mp3_files_from_google_drive(drive):
     try:
         for attempt in range(3):  # 3 попытки
             try:
-                logger.info(f"Попытка {attempt + 1} выполнения запроса к Google Drive")
+                # logger.info(f"Попытка {attempt + 1} выполнения запроса к Google Drive")
                 file_list = drive.ListFile({"q": query}).GetList()
-                logger.info("Успешное выполнение запроса к Google Drive")
+                # logger.info("Успешное выполнение запроса к Google Drive")
                 return [
                     {
                         "name": file["title"],
@@ -295,7 +297,9 @@ def task_download_and_convert_to_mp3(datas):
                     # Удаление оригинального WAV файла
                     os.remove(wav_file_path)
                 else:
-                    logger.error(f"Failed to download: {call_recording_url} (status code: {response.status_code})")
+                    logger.error(
+                        f"Failed to download: {call_recording_url} (status code: {response.status_code})"
+                    )
 
             except Exception as e:
                 logger.error(f"An error occurred: {e}\n")
@@ -370,21 +374,22 @@ def get_new_files_from_drive(mp3_files, processed_files):
     processed_file_names = {entry["file_name"] for entry in processed_files}
     return [file for file in mp3_files if file["name"] not in processed_file_names]
 
+
 def clean_text(text):
-   # Заменяем \n на пробел
-   text = text.replace('\n', ' ')
-   
-   # Заменяем множественные пробелы на один пробел
-   text = ' '.join(text.split())
-   
-   return text.strip()
+    # Заменяем \n на пробел
+    text = text.replace("\n", " ")
+
+    # Заменяем множественные пробелы на один пробел
+    text = " ".join(text.split())
+
+    return text.strip()
+
 
 def process_google_drive_mp3_files():
     """
     Получает MP3 файлы из Google Drive, транскрибирует их и записывает результаты в Google Sheets.
     """
     try:
-        
 
         # Подключение к Google Sheets
         sheet = connect_to_google_sheets(SHEET_ID)
@@ -424,6 +429,7 @@ def process_google_drive_mp3_files():
                 file_name = file_info["name"]
                 file_link = file_info["link"]
                 transcript_id = get_id_tr(file_name)
+                logger.info(transcript_id)
                 # Проверяем наличие transcript_id или file_name в существующих данных
                 if (
                     transcript_id in existing_transcripts
@@ -440,8 +446,8 @@ def process_google_drive_mp3_files():
                     # Если transcript_title совпадает с file_name и есть transcript_id
                     result_text = get_transcrip(transcript_id)
                     result_summary = get_transcript_summary(transcript_id)
-                    # logger.info(transcript_id)
-                    # logger.info(result_text)
+                    logger.info(transcript_id)
+                    logger.info(result_text)
                 else:
                     transcript_id = upload_audio(file_link, file_name)
                     if transcript_id is None:
@@ -472,15 +478,15 @@ def process_google_drive_mp3_files():
                         except Exception as e:
                             logger.error(f"Ошибка при поиске файла {file_name}: {e}")
                         continue  # Добавляем continue здесь!
-                        
+
                     result_text = get_transcrip(transcript_id)
                     result_summary = get_transcript_summary(transcript_id)
-                
-                
+
                 overview = result_summary.get("summary", {}).get("overview", None)
                 shorthand_bullet = result_summary.get("summary", {}).get(
                     "shorthand_bullet", None
                 )
+
                 # if transcript_id is not None:
                 logger.debug(
                     f"Подготовка данных для записи: {file_name}, transcript_id: {transcript_id}"
@@ -488,9 +494,15 @@ def process_google_drive_mp3_files():
 
                 # Формируем данные для записи
                 all_data = parse_mp3_filename(file_name)
-                # logger.info(shorthand_bullet)
-                notes = clean_text(shorthand_bullet) if shorthand_bullet is not None else None
 
+                notes = (
+                    clean_text(shorthand_bullet)
+                    if shorthand_bullet is not None
+                    else None
+                )
+                logger.info(shorthand_bullet)
+                logger.info(shorthand_bullet)
+                logger.info(notes)
 
                 all_data["Текст звонка Укр"] = result_text
                 all_data["Overview"] = overview
@@ -498,11 +510,11 @@ def process_google_drive_mp3_files():
                 all_data["transcript_id"] = transcript_id
                 # Добавляем ссылку на MP3
                 all_data["Ссылка на MP3"] = file_link
-                
-                # logger.debug(f"result_summary: {result_summary}")
-                # logger.debug(f"shorthand_bullet: {shorthand_bullet}")
-                # logger.debug(f"all_data: {all_data}")
-                
+
+                logger.debug(f"result_summary: {result_summary}")
+                logger.debug(f"shorthand_bullet: {shorthand_bullet}")
+                logger.debug(f"all_data: {all_data}")
+
                 # Записываем в БД
                 write_add_call_data(all_data)
                 # # Записываем данные в Google Sheets
@@ -518,7 +530,7 @@ def process_google_drive_mp3_files():
             json.dump(invalid_data, f, ensure_ascii=False, indent=4)
 
         save_processed_files(processed_files)
-        logger.info(f"Обновлённый кэш сохранён в {PROCESSED_FILES_CACHE}.")
+        # logger.info(f"Обновлённый кэш сохранён в {PROCESSED_FILES_CACHE}.")
 
     except Exception as e:
         logger.error(f"Ошибка при обработке Google Drive: {e}")
@@ -552,7 +564,7 @@ def connect_to_google_sheets(SHEET_ID, retries=3, delay=5):
             client = gspread.Client(auth=credentials)
             client.session = http  # Устанавливаем HTTP-клиент для gspread
             sheet = client.open_by_key(SHEET_ID).sheet1
-            logger.info("Успешное подключение к Google Sheets")
+            # logger.info("Успешное подключение к Google Sheets")
             return sheet
         except Exception as e:
             logger.warning(f"Попытка {attempt + 1} не удалась: {e}")
@@ -581,6 +593,7 @@ def connect_to_google_sheets(SHEET_ID, retries=3, delay=5):
 #         GRAPHQL_URL, headers=headers_api, json={"query": query}, timeout=60
 #     )
 
+
 #     if response.status_code == 200:
 #         result = response.json()
 #         if "data" in result and "transcripts" in result["data"]:
@@ -596,7 +609,7 @@ def connect_to_google_sheets(SHEET_ID, retries=3, delay=5):
 #         logger.error(response.text)
 def get_id_tr(file_name):
     logger.info(f"Проверяем {file_name}")
-    
+
     # GraphQL запрос с сортировкой по дате
     query = """
     query GetTranscript($title: String!) {
@@ -607,46 +620,42 @@ def get_id_tr(file_name):
         }
     }
     """
-    
-    variables = {
-        "title": file_name
-    }
+
+    variables = {"title": file_name}
 
     try:
         response = requests.post(
             GRAPHQL_URL,
             headers=headers_api,
-            json={
-                "query": query,
-                "variables": variables
-            },
-            timeout=60
+            json={"query": query, "variables": variables},
+            timeout=60,
         )
-        
+
         response.raise_for_status()
-        
+
         result = response.json()
         if "data" in result and "transcripts" in result["data"]:
             transcripts = result["data"]["transcripts"]
             if transcripts:
                 # Сортируем по дате (самый новый первый) и берем первый
-                sorted_transcripts = sorted(transcripts, 
-                                         key=lambda x: x.get('date', 0), 
-                                         reverse=True)
+                sorted_transcripts = sorted(
+                    transcripts, key=lambda x: x.get("date", 0), reverse=True
+                )
                 latest_transcript = sorted_transcripts[0]
                 # logger.info(f"Найдено {len(transcripts)} транскриптов для {file_name}. "
                 #           f"Используется самый последний с ID: {latest_transcript['id']}")
-                return latest_transcript['id']
+                return latest_transcript["id"]
             else:
                 # logger.info(f"Транскрипт с названием {file_name} не найден")
                 return None
         else:
             logger.error("Ошибка в структуре ответа")
             return None
-            
+
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка запроса: {str(e)}")
         return None
+
 
 def upload_audio(file_link, file_name):
     # logger.info(f"Загружаем {file_name}")
@@ -749,6 +758,7 @@ def extract_error_message(response):
                 return error["message"]
     return None
 
+
 # Думаю что рабочий
 # def get_transcrip(transcript_id):
 #     logger.info(f"Получаем текст из {transcript_id}")
@@ -778,6 +788,7 @@ def extract_error_message(response):
 #         timeout=60,
 #     )
 
+
 #     # Обработка ответа
 #     if response.status_code == 200:
 #         data = response.json()
@@ -794,16 +805,16 @@ def extract_error_message(response):
 #         logger.error(f"Ошибка: {response.status_code}")
 #         logger.error(response.text)
 def get_transcrip(transcript_id):
-   MAX_RETRIES = 10
-   DELAY_SECONDS = 30
-   
-   logger.info(f"Получаем текст из {transcript_id}")
-   if transcript_id is None:
-       logger.info(f"Нету {transcript_id}")
-       return None
+    MAX_RETRIES = 10
+    DELAY_SECONDS = 30
 
-   # GraphQL запрос
-   query_transcript = """
+    logger.info(f"Получаем текст из {transcript_id}")
+    if transcript_id is None:
+        logger.info(f"Нету {transcript_id}")
+        return None
+
+    # GraphQL запрос
+    query_transcript = """
    query GetTranscriptText($transcriptId: String!) {
        transcript(id: $transcriptId) {
            sentences {
@@ -813,50 +824,52 @@ def get_transcrip(transcript_id):
        }
    }
    """
-   
-   variables = {"transcriptId": transcript_id}
-   retry_count = 0
-   
-   while retry_count < MAX_RETRIES:
-       # Отправка запроса
-       try:
-           response = requests.post(
-               GRAPHQL_URL,
-               headers=headers_api,
-               json={
-                   "query": query_transcript,
-                   "variables": variables
-               },
-               timeout=60
-           )
 
-           # Обработка ответа
-           if response.status_code == 200:
-               data = response.json()
-               if "data" in data and "transcript" in data["data"]:
-                   transcript = data["data"]["transcript"]
-                   # Сбор всех предложений в одну строку
-                   full_text = " ".join(
-                       sentence["text"] for sentence in transcript.get("sentences", [])
-                   )
-                   if full_text:
-                        # logger.info(full_text)
+    variables = {"transcriptId": transcript_id}
+    retry_count = 0
+
+    while retry_count < MAX_RETRIES:
+        # Отправка запроса
+        try:
+            response = requests.post(
+                GRAPHQL_URL,
+                headers=headers_api,
+                json={"query": query_transcript, "variables": variables},
+                timeout=60,
+            )
+
+            # Обработка ответа
+            if response.status_code == 200:
+                data = response.json()
+                if "data" in data and "transcript" in data["data"]:
+                    transcript = data["data"]["transcript"]
+                    # Сбор всех предложений в одну строку
+                    full_text = " ".join(
+                        sentence["text"] for sentence in transcript.get("sentences", [])
+                    )
+                    if full_text:
+                        logger.info(f"Полный текст получен {full_text}")
                         return full_text
-           
-           # Если дошли сюда, значит результат пустой или некорректный
-           retry_count += 1
-           logger.warning(f"Попытка {retry_count} из {MAX_RETRIES} не удалась. Ожидание {DELAY_SECONDS} секунд...")
-           time.sleep(DELAY_SECONDS)
-           
-       except Exception as e:
-           logger.error(f"Ошибка при выполнении запроса: {e}")
-           retry_count += 1
-           if retry_count < MAX_RETRIES:
-               logger.warning(f"Попытка {retry_count} из {MAX_RETRIES} не удалась. Ожидание {DELAY_SECONDS} секунд...")
-               time.sleep(DELAY_SECONDS)
-           
-   logger.error(f"Не удалось получить данные после {MAX_RETRIES} попыток")
-   return None
+
+            # Если дошли сюда, значит результат пустой или некорректный
+            retry_count += 1
+            logger.warning(
+                f"Попытка {retry_count} из {MAX_RETRIES} не удалась. Ожидание {DELAY_SECONDS} секунд..."
+            )
+            time.sleep(DELAY_SECONDS)
+
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении запроса: {e}")
+            retry_count += 1
+            if retry_count < MAX_RETRIES:
+                logger.warning(
+                    f"Попытка {retry_count} из {MAX_RETRIES} не удалась. Ожидание {DELAY_SECONDS} секунд..."
+                )
+                time.sleep(DELAY_SECONDS)
+
+    logger.error(f"Не удалось получить данные после {MAX_RETRIES} попыток")
+    return None
+
 
 def parse_mp3_filename(filename):
     """
@@ -977,7 +990,11 @@ def deleting_data_in_database(data):
     try:
         # Отправляем DELETE-запрос
         response = requests.delete(
-            url, headers=headers_database, data=json.dumps(data), verify=False, timeout=30
+            url,
+            headers=headers_database,
+            data=json.dumps(data),
+            verify=False,
+            timeout=30,
         )  # verify=False отключает проверку SSL
 
         # Проверяем статус ответа
@@ -1002,9 +1019,7 @@ def get_transcript_summary(transcript_id):
     if transcript_id is None:
         return None
     # GraphQL запрос для получения данных транскрипта
-    
 
-    
     while True:
         query = """
     query Transcript($transcriptId: String!) {
@@ -1068,6 +1083,8 @@ def get_transcript_summary(transcript_id):
             logger.error(f"Ошибка запроса: {response.status_code}")
             logger.error(response.text)
             return None
+
+
 def convert_keys_to_english(data):
     """Преобразует ключи словаря с русского на английский для модели CallData."""
     key_mapping = {
@@ -1083,6 +1100,8 @@ def convert_keys_to_english(data):
         "transcript_id": "transcript_id",
     }
     return {key_mapping[k]: v for k, v in data.items() if k in key_mapping}
+
+
 def write_add_call_data(call_data):
     """Отправляет данные на маршрут /add_call_data и сохраняет результат в result.json."""
     url = f"https://{IP}/add_call_data"
@@ -1103,9 +1122,12 @@ def write_add_call_data(call_data):
             result = response.json()
             logger.info(f"Данные успешно отправлены")
         else:
-            logger.error(f"Ошибка отправки данных: {response.status_code} - {response.text}")
+            logger.error(
+                f"Ошибка отправки данных: {response.status_code} - {response.text}"
+            )
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка подключения: {e}")
+
 
 def fetch_comment_orders(date_from=None, date_to=None):
     try:
@@ -1115,149 +1137,255 @@ def fetch_comment_orders(date_from=None, date_to=None):
             date_from = date_to - timedelta(days=1)
             date_to = date_to.replace(hour=23, minute=59, second=59)
             date_from = date_from.replace(hour=0, minute=0, second=0)
-        
+
         # Форматируем даты для URL
         date_from_str = date_from.strftime("%Y-%m-%d %H:%M:%S")
         date_to_str = date_to.strftime("%Y-%m-%d %H:%M:%S")
-        
+
         url = f"https://{IP}/comment_orders"
-        params = {
-            "date_from": date_from_str,
-            "date_to": date_to_str
-        }
-        
+        params = {"date_from": date_from_str, "date_to": date_to_str}
+
         # logger.info(f"Отправляем запрос на URL: {url} с параметрами: {params}")
-        
-        response = requests.get(url, params=params, verify=False)
-        logger.info(f"Получен ответ со статусом: {response.status_code}")
-        
+
+        response = requests.get(url, params=params, timeout=30, verify=False)
+        # logger.info(f"Получен ответ со статусом: {response.status_code}")
+
         if response.status_code == 200:
             data = response.json()
             return data["data"]
         else:
             error_data = response.json()
-            raise Exception(f"API request failed: {error_data.get('message', 'Unknown error')}")
-                    
+            raise Exception(
+                f"API request failed: {error_data.get('message', 'Unknown error')}"
+            )
+
     except Exception as e:
         logger.error(f"Error fetching comment orders: {e}")
         raise
 
+
 def get_salesdrive_orders(date_from=None, date_to=None):
-   try:
-       # Если даты не указаны, используем последние 24 часа
-       if not date_from or not date_to:
-           date_to = datetime.now()
-           date_from = date_to - timedelta(days=1)
-           date_to = date_to.replace(hour=23, minute=59, second=59)
-           date_from = date_from.replace(hour=0, minute=0, second=0)
-           
-       # Форматируем даты
-       date_from_str = date_from.strftime("%Y-%m-%d %H:%M:%S")
-       date_to_str = date_to.strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        # Если даты не указаны, используем последние 24 часа
+        if not date_from or not date_to:
+            date_to = datetime.now()
+            date_from = date_to - timedelta(days=1)
+            date_to = date_to.replace(hour=23, minute=59, second=59)
+            date_from = date_from.replace(hour=0, minute=0, second=0)
 
-       url = "https://zubr.salesdrive.me/api/order/list/"
-       headers = {
-           "Form-Api-Key": SALESDRIVE_API
-       }
-       params = {
-           "filter[orderTime][from]": date_from_str,
-           "filter[orderTime][to]": date_to_str,
-           "page": 1,
-           "limit": 100
-       }
+        # Форматируем даты
+        date_from_str = date_from.strftime("%Y-%m-%d %H:%M:%S")
+        date_to_str = date_to.strftime("%Y-%m-%d %H:%M:%S")
 
-       logger.info(f"Отправляем запрос на URL: {url} с параметрами: {params}")
-       
-       response = requests.get(
-           url, 
-           headers=headers, 
-           params=params, 
-           timeout=(10, 30)  # (connect timeout, read timeout)
-       )
-       
-       logger.info(f"Получен ответ со статусом: {response.status_code}")
-       
-       if response.status_code == 200:
-           data = response.json()
-           processed_data = process_data(data)
-           return processed_data
-       else:
-           raise Exception(f"API request failed with status code: {response.status_code}")
-                   
-   except requests.exceptions.Timeout:
-       logger.error("Timeout при запросе к API")
-       raise
-   except Exception as e:
-       logger.error(f"Ошибка при получении данных: {e}")
-       raise
+        url = "https://zubr.salesdrive.me/api/order/list/"
+        headers = {"Form-Api-Key": SALESDRIVE_API}
+        params = {
+            "filter[orderTime][from]": date_from_str,
+            "filter[orderTime][to]": date_to_str,
+            "page": 1,
+            "limit": 100,
+        }
+
+        #    logger.info(f"Отправляем запрос на URL: {url} с параметрами: {params}")
+
+        response = requests.get(
+            url,
+            headers=headers,
+            params=params,
+            timeout=(10, 30),  # (connect timeout, read timeout)
+        )
+
+        #    logger.info(f"Получен ответ со статусом: {response.status_code}")
+
+        if response.status_code == 200:
+            data = response.json()
+            processed_data = process_data(data)
+            return processed_data
+        else:
+            raise Exception(
+                f"API request failed with status code: {response.status_code}"
+            )
+
+    except requests.exceptions.Timeout:
+        logger.error("Timeout при запросе к API")
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при получении данных: {e}")
+        raise
+
 
 def extract_user_name(user_id, user_options):
-   filtered_user = list(filter(lambda x: x["value"] == user_id, user_options))
-   return filtered_user[0]["text"] if filtered_user else None
+    filtered_user = list(filter(lambda x: x["value"] == user_id, user_options))
+    return filtered_user[0]["text"] if filtered_user else None
+
 
 def process_data(data):
-   result = []
-   user_options = data["meta"]["fields"]["userId"]["options"]
+    result = []
+    user_options = data["meta"]["fields"]["userId"]["options"]
 
-   for item in data["data"]:
-       try:
-           entry = {
-               "id_data": item["id"],
-               "phone_contact": (
-                   item["contacts"][0]["phone"][0] if item["contacts"] else None
-               ),
-               "user_name": extract_user_name(item["userId"], user_options),
-           }
-           result.append(entry)
-       except (KeyError, IndexError) as e:
-           logger.error(f"Ошибка обработки записи: {e}")
-           continue
+    for item in data["data"]:
+        try:
+            entry = {
+                "id_data": item["id"],
+                "phone_contact": (
+                    item["contacts"][0]["phone"][0] if item["contacts"] else None
+                ),
+                "user_name": extract_user_name(item["userId"], user_options),
+                "orderTime":item["orderTime"]
+            }
+            result.append(entry)
+        except (KeyError, IndexError) as e:
+            logger.error(f"Ошибка обработки записи: {e}")
+            continue
 
-   return result
-def find_matching_records(records_bd, records_salesdrive):
-    formatted_records = []  # Список для хранения всех совпадений
-    matched_ids = (
-        []
-    )  # Список для хранения id из records_bd, по которым найдены совпадения
+    return result
+
+
+# def find_matching_records(records_bd, records_salesdrive):
+#     formatted_records = []  # Список для хранения всех совпадений
+#     matched_ids = (
+#         []
+#     )  # Список для хранения id из records_bd, по которым найдены совпадения
+
+#     for bd_record in records_bd:
+#         phone_bd = bd_record["phone"]
+#         phone_bd_no_prefix = phone_bd[2:] if phone_bd.startswith("38") else phone_bd
+#         manager_name_bd = bd_record["manager_name"]
+
+#         # Будем хранить все совпадения для текущей записи
+#         matches = []
+
+#         # Поиск совпадений по полному номеру
+#         for sd_record in records_salesdrive:
+#             if (
+#                 sd_record["phone_contact"] == phone_bd
+#                 and sd_record["user_name"] == manager_name_bd
+#             ):
+#                 matches.append(sd_record)
+
+#         # Поиск совпадений без префикса 38, если не нашли по полному номеру
+#         if not matches:
+#             for sd_record in records_salesdrive:
+#                 if (
+#                     sd_record["phone_contact"] == phone_bd_no_prefix
+#                     and sd_record["user_name"] == manager_name_bd
+#                 ):
+#                     matches.append(sd_record)
+
+#         # # Если нашли совпадения, берем запись с максимальным id_data
+#         # if matches:
+#         #     # Сортируем по id_data в убывающем порядке и берем первый элемент
+#         #     best_match = max(matches, key=lambda x: x["id_data"])
+
+#         #     formatted_record = {
+#         #         "id": best_match["id_data"],
+#         #         "data": {"comment": bd_record["notes"]},
+#         #     }
+#         #     formatted_records.append(formatted_record)
+#         #     matched_ids.append(bd_record["id"])  # Добавляем id в список найденных
+#         # Если нашли совпадения, берем запись с минимальным id_data
+#         if matches:
+#             # Сортируем по id_data в возрастающем порядке и берем первый элемент
+#             best_match = min(matches, key=lambda x: x["id_data"])
+
+#             formatted_record = {
+#                 "id": best_match["id_data"],
+#                 "data": {"comment": bd_record["notes"]},
+#             }
+#             formatted_records.append(formatted_record)
+#             matched_ids.append(bd_record["id"])  # Добавляем id в список найденных
+
+
+#     return formatted_records, matched_ids
+def normalize_phone(phone):
+    """
+    Удаляем все нецифровые символы и, если номер начинается с "38",
+    возвращаем его без первых двух символов.
+    Например, "380681003392" -> "0681003392".
+    """
+    digits = "".join(filter(str.isdigit, phone))
+    if digits.startswith("38") and len(digits) >= 10:
+        return digits[2:]
+    return digits
+
+
+def normalize_name(name):
+    """
+    Приводим имя к нормальной форме:
+      - Нормализация Unicode (NFKC)
+      - Приведение к нижнему регистру
+    """
+    norm = unicodedata.normalize("NFKC", name).strip().lower()
+    # Если в имени может встречаться латинская "c" вместо кириллической "с", заменим её.
+    norm = norm.replace("cухотерин", "сухотерин")
+    return norm
+
+
+def swap_name(name):
+    """
+    Если имя состоит ровно из двух слов, меняем их местами.
+    Например: "Cухотерин Виталий" -> "Виталий Cухотерин"
+    """
+    parts = name.split()
+    if len(parts) == 2:
+        swapped = f"{parts[1]} {parts[0]}"
+        # logger.debug(f"Меняем местами имя: '{name}' -> '{swapped}'")
+        return swapped
+    else:
+        logger.debug(f"Имя '{name}' не состоит из двух слов, оставляем без изменений.")
+        return name
+
+
+def find_all_matching_records(records_bd, records_salesdrive):
+    """
+    Перебирает все записи из records_bd и для каждой ищет первое совпадение в records_salesdrive.
+    Если совпадение найдено, сохраняет (для Salesdrive) только уникальную заявку (по id из Salesdrive)
+    и добавляет id записи BD в список bd_ids.
+    
+    Args:
+        records_bd (list): Список заявок из BD.
+        records_salesdrive (list): Список заявок из Salesdrive.
+    
+    Returns:
+        tuple: (orders_data, bd_ids)
+            orders_data: список словарей для обновления в Salesdrive (уникальные заявки);
+            bd_ids: список id заявок из BD, для которых найдены совпадения.
+    """
+    sd_matches = {}  # Ключ: id заявки из Salesdrive, значение: форматированная запись для обновления
+    bd_ids = []      # Список id из BD
 
     for bd_record in records_bd:
-        phone_bd = bd_record["phone"]
-        phone_bd_no_prefix = phone_bd[2:] if phone_bd.startswith("38") else phone_bd
-        manager_name_bd = bd_record["manager_name"]
+        normalized_phone_bd = normalize_phone(bd_record["phone"])
+        normalized_name_bd = normalize_name(bd_record["manager_name"])
+        swapped_name_bd = swap_name(bd_record["manager_name"])
+        normalized_swapped_bd = normalize_name(swapped_name_bd)
 
-        # Будем хранить все совпадения для текущей записи
-        matches = []
-
-        # Поиск совпадений по полному номеру
+        matched = False
         for sd_record in records_salesdrive:
-            if (
-                sd_record["phone_contact"] == phone_bd
-                and sd_record["user_name"] == manager_name_bd
+            normalized_phone_sd = normalize_phone(sd_record["phone_contact"])
+            normalized_name_sd = normalize_name(sd_record["user_name"])
+
+            # Если нормализованные номера совпадают и имя совпадает (либо напрямую, либо после перестановки):
+            if normalized_phone_bd == normalized_phone_sd and (
+                normalized_name_bd == normalized_name_sd or normalized_swapped_bd == normalized_name_sd
             ):
-                matches.append(sd_record)
+                sd_id = sd_record["id_data"]
+                # Если для этой заявки из Salesdrive ещё не добавлено обновление,
+                # сохраняем форматированную запись, взятую из первой найденной BD-записи
+                if sd_id not in sd_matches:
+                    formatted_record = {
+                        "id": sd_id,
+                        "data": {"comment": bd_record["notes"]}
+                    }
+                    sd_matches[sd_id] = formatted_record
+                matched = True
+                break  # Для каждой BD записи берем только первое совпадение в Salesdrive
+        if matched:
+            bd_ids.append(bd_record["id"])
 
-        # Поиск совпадений без префикса 38, если не нашли по полному номеру
-        if not matches:
-            for sd_record in records_salesdrive:
-                if (
-                    sd_record["phone_contact"] == phone_bd_no_prefix
-                    and sd_record["user_name"] == manager_name_bd
-                ):
-                    matches.append(sd_record)
+    orders_data = list(sd_matches.values())
+    return orders_data, bd_ids
 
-        # Если нашли совпадения, берем запись с максимальным id_data
-        if matches:
-            # Сортируем по id_data в убывающем порядке и берем первый элемент
-            best_match = max(matches, key=lambda x: x["id_data"])
-
-            formatted_record = {
-                "id": best_match["id_data"],
-                "data": {"comment": bd_record["notes"]},
-            }
-            formatted_records.append(formatted_record)
-            matched_ids.append(bd_record["id"])  # Добавляем id в список найденных
-
-    return formatted_records, matched_ids
 
 def update_order_comments(orders_data):
     """
@@ -1280,9 +1408,9 @@ def update_order_comments(orders_data):
 
         for order_data in orders_data:
             try:
-                logger.info(
-                    f"Отправляем запрос на обновление заявки {order_data['id']}"
-                )
+                # logger.info(
+                #     f"Отправляем запрос на обновление заявки {order_data['id']}"
+                # )
 
                 response = requests.post(
                     url,
@@ -1291,7 +1419,7 @@ def update_order_comments(orders_data):
                     timeout=(10, 30),  # (connect timeout, read timeout)
                 )
 
-                logger.info(f"Получен ответ со статусом: {response.status_code}")
+                logger.info(f"Обновляем заявку в salesdrive {order_data["id"]}")
 
                 if response.status_code == 200:
                     results.append(
@@ -1330,6 +1458,8 @@ def update_order_comments(orders_data):
         raise
 
     return results
+
+
 def update_comment_orders(order_ids: List[int]) -> dict:
     """
     Отправляет POST запрос для обновления статуса comment_order.
@@ -1341,12 +1471,9 @@ def update_comment_orders(order_ids: List[int]) -> dict:
         dict: ответ от сервера
     """
     try:
-        
+
         url = f"https://{IP}/comment_orders"
-        headers = {
-            "Content-Type": "application/json",
-            "accept": "application/json"
-        }
+        headers = {"Content-Type": "application/json", "accept": "application/json"}
         data = {"ids": order_ids}
 
         # Отправляем запрос
@@ -1354,35 +1481,48 @@ def update_comment_orders(order_ids: List[int]) -> dict:
             url,
             headers=headers,
             json=data,
-            verify=False  # Эквивалент --insecure в curl
+            timeout=30,
+            verify=False,  # Эквивалент --insecure в curl
         )
 
         # Проверяем статус ответа
         response.raise_for_status()
-        
+
         return response.json()
 
     except requests.exceptions.RequestException as e:
         print(f"Ошибка при отправке запроса: {e}")
         return {"status": "error", "message": str(e)}
 
-if __name__ == "__main__":
-    
-    start_time = datetime.now()  # Здесь используется datetime из модуля
-    logger.info(f"Скрипт запущен в {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
-    fetch_all_data()
-    process_google_drive_mp3_files()
-    
-    records_bd = fetch_comment_orders()
-    # logger.info(records_bd)
-    records_salesdrive = get_salesdrive_orders()
 
+def work_salesdrive():
+    records_bd = fetch_comment_orders()
+    records_salesdrive = get_salesdrive_orders()
+    # logger.info(records_bd)
+    # logger.info(records_salesdrive)
+    # Получаем списки совпадений (всех найденных пар)
+    orders_data, ids_to_update = find_all_matching_records(records_bd, records_salesdrive)
     
-    orders_data, ids_to_update = find_matching_records(records_bd, records_salesdrive)
+    # Если совпадений нет (список пуст), выходим из функции
+    if not orders_data or not ids_to_update:
+        logger.info("Нет совпадений – записи для обновления отсутствуют.")
+        return
+    
     update_order_comments(orders_data)
     result = update_comment_orders(ids_to_update)
-    logger.info(result)
+    logger.info(f"Результат обновления: {result}")
 
+
+
+if __name__ == "__main__":
+
+    start_time = datetime.now()  # Здесь используется datetime из модуля
+    logger.info(f"Скрипт запущен в {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    fetch_all_data()
+    process_google_drive_mp3_files()
+
+    work_salesdrive()
     # Логирование паузы
     pause_duration = 1800
     logger.info(f"Остановка для {pause_duration} секунд")
