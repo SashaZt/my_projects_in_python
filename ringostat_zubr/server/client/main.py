@@ -7,7 +7,11 @@ import wave
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List  # Добавляем импорт
-
+import os
+import asyncio
+from openai import AsyncOpenAI
+from configuration.logger_setup import logger
+from dotenv import load_dotenv
 import gspread
 import httplib2
 import lameenc
@@ -19,7 +23,6 @@ from pydrive2.auth import GoogleAuth, ServiceAccountCredentials
 from pydrive2.drive import GoogleDrive
 
 # Загрузка переменных из .env
-# logger.info("Loading environment variables from .env file")
 env_path = os.path.join(os.getcwd(), "configuration", ".env")
 load_dotenv(env_path)
 IP = os.getenv("IP")
@@ -28,7 +31,7 @@ SHEET_ID = os.getenv("SHEET_ID")
 API_KEY = os.getenv("API_KEY")
 GRAPHQL_URL = os.getenv("GRAPHQL_URL")
 SALESDRIVE_API = os.getenv("SALESDRIVE_API")
-
+client_gpt = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Заголовки для запроса
 headers_api = {
     "Authorization": f"Bearer {API_KEY}",
@@ -187,35 +190,6 @@ def create_drive_instance():
         raise e
 
 
-# def get_mp3_files_from_google_drive(drive):
-#     """
-#     Получает список MP3 файлов из указанной папки на Google Drive.
-
-#     :param FOLDER_ID: ID папки на Google Drive
-#     :param drive: Объект GoogleDrive
-#     :return: Список словарей с информацией о файлах (имя и ссылка на загрузку)
-#     """
-#     try:
-#         query = f"'{
-#             FOLDER_ID}' in parents and mimeType='audio/mpeg' and trashed=false"
-#         file_list = drive.ListFile({"q": query}).GetList()
-
-#         mp3_files = []
-#         for file in file_list:
-#             mp3_files.append(
-#                 {
-#                     "name": file["title"],
-#                     "id": file["id"],
-#                     "link": file["webContentLink"],
-#                 }
-#             )
-
-#         return mp3_files
-
-
-#     except Exception as e:
-#         logger.error(f"Ошибка при получении файлов из Google Drive: {e}")
-#         return []
 def get_mp3_files_from_google_drive(drive):
     """
     Получает список MP3 файлов из указанной папки на Google Drive.
@@ -395,7 +369,8 @@ def process_google_drive_mp3_files():
         sheet = connect_to_google_sheets(SHEET_ID)
 
         existing_rows = sheet.get_all_values()
-
+        value_promt = get_promt_value()
+        # logger.info(value_promt)
         # Преобразуем данные в список словарей, анализируя последнюю колонку
         existing_files = [
             {"transcript_id": row[-1], "Имя файла": row[-2]}
@@ -442,7 +417,7 @@ def process_google_drive_mp3_files():
                     logger.info("-" * 100)
                     logger.info(f"переходим к result_summary")
                     result_summary = get_transcript_summary(transcript_id)
-                    logger.info(f"result_summary -> {result_summary}")
+                    # logger.info(f"result_summary -> {result_summary}")
                     # Проверка: если result_summary или его ключ summary равен None, пропускаем файл
                     if result_summary is None or result_summary.get("summary") is None:
                         logger.error(f"Не удалось получить данные транскрипта для {file_name}. Пропускаем файл.")
@@ -492,7 +467,13 @@ def process_google_drive_mp3_files():
                         datas = parse_mp3_filename_sql(file_name)
                         invalid_data.append(datas)
                         continue
-                
+                logger.info("Заходим в функцию result_gpt")
+                # Запускаем асинхронную функцию через asyncio.run()
+                try:
+                    result_gpt = asyncio.run(question_gpt(value_promt, result_text))
+                except Exception as e:
+                    logger.error(e)
+
                 # Теперь можно безопасно получать overview и shorthand_bullet
                 overview = result_summary.get("summary", {}).get("overview", None)
                 shorthand_bullet = result_summary.get("summary", {}).get("shorthand_bullet", None)
@@ -512,6 +493,7 @@ def process_google_drive_mp3_files():
                 all_data["Overview"] = overview
                 all_data["Notes"] = notes
                 all_data["transcript_id"] = transcript_id
+                all_data["result_gpt"] = result_gpt
                 # Добавляем ссылку на MP3
                 all_data["Ссылка на MP3"] = file_link
 
@@ -905,6 +887,7 @@ def parse_mp3_filename(filename):
             "Текст звонка Укр": "",
             "Overview": "",
             "Notes": "",
+            "Result_GpT": "",
             "Ссылка на MP3": "",
             "Имя файла": filename,  # Имя файла как отдельное поле
             "transcript_id": "",  # Имя файла как отдельное поле
@@ -957,7 +940,6 @@ def write_dict_to_google_sheets(data_dict):
     try:
         # Подключение к Google Sheets
         sheet = connect_to_google_sheets(SHEET_ID)
-        # logger.info(f"Подключение к Google Sheets выполнено: {SHEET_ID}")
 
         # Получаем заголовки из первого ряда таблицы
         existing_headers = sheet.row_values(1)
@@ -976,7 +958,6 @@ def write_dict_to_google_sheets(data_dict):
 
         # Записываем данные в следующую свободную строку
         sheet.insert_row(row, next_free_row)
-        # logger.info(f"Добавлены данные: {row} в строку {next_free_row}")
 
     except Exception as e:
         logger.error(f"Ошибка при записи в Google Sheets: {e}")
@@ -1003,7 +984,7 @@ def deleting_data_in_database(data):
 
         # Проверяем статус ответа
         if response.status_code == 200:
-            logger.info(f"Успех: {response.json()}")
+            # logger.info(f"Успех: {response.json()}")
             invalid_json.unlink()
             shutil.rmtree(call_recording_directory)
         else:
@@ -1114,6 +1095,7 @@ def convert_keys_to_english(data):
         "Текст звонка Укр": "call_text_ukr",
         "Overview": "overview",
         "Notes": "notes",
+        "result_gpt": "result_gpt",
         "Ссылка на MP3": "mp3_link",
         "Имя файла": "file_name",
         "transcript_id": "transcript_id",
@@ -1522,7 +1504,7 @@ def update_comment_orders(order_ids: List[int]) -> dict:
         print(f"Ошибка при отправке запроса: {e}")
         return {"status": "error", "message": str(e)}
 
-
+# Работа с CRM
 def work_salesdrive():
     records_bd = fetch_comment_orders()
     records_salesdrive = get_salesdrive_orders()
@@ -1540,8 +1522,39 @@ def work_salesdrive():
     result = update_comment_orders(ids_to_update)
     logger.info(f"Результат обновления: {result}")
 
+def get_promt_value():
+    """
+    Подключается к Google Sheets по указанному SHEET_ID, открывает лист с именем 'promt'
+    и возвращает значение ячейки A1.
+    
+    :param SHEET_ID: ID таблицы Google Sheets
+    :return: Значение ячейки A1 листа 'promt'
+    """
+    # Используем существующую функцию для подключения (она возвращает лист sheet1)
+    default_sheet = connect_to_google_sheets(SHEET_ID)
+    
+    # Получаем объект Spreadsheet из возвращённого листа
+    spreadsheet = default_sheet.spreadsheet
+    
+    # Получаем лист с именем "promt"
+    promt_sheet = spreadsheet.worksheet("promt")
+    
+    # Читаем значение ячейки A1
+    a1_value = promt_sheet.acell("A1").value
+    
+    return a1_value
 
-
+async def question_gpt(value_promt, result_text):
+    question = f"{value_promt}\n\n{result_text}"
+    response = await client_gpt.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": question}
+        ]
+    )
+    message = response.choices[0].message.content
+    return message
 if __name__ == "__main__":
 
     start_time = datetime.now()  # Здесь используется datetime из модуля

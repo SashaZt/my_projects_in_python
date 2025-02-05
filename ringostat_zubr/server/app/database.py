@@ -147,6 +147,7 @@ class DatabaseInitializer:
                             call_text_ukr TEXT,
                             overview TEXT,
                             notes TEXT,
+                            result_gpt TEXT,
                             mp3_link VARCHAR(255),
                             file_name VARCHAR(255),
                             transcript_id VARCHAR(255),
@@ -251,8 +252,8 @@ class DatabaseInitializer:
                     query = """
                     INSERT INTO calls_data (
                         date, phone, line, manager_name, call_text_ukr,
-                        overview, notes, mp3_link, file_name, transcript_id
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        overview, notes, result_gpt, mp3_link, file_name, transcript_id
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
                     await cursor.execute(query, (
                         date_str,
@@ -262,6 +263,7 @@ class DatabaseInitializer:
                         data["call_text_ukr"],
                         data["overview"],
                         data["notes"],
+                        data["result_gpt"],
                         data["mp3_link"],
                         data["file_name"],
                         data["transcript_id"]

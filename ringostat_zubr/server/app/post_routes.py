@@ -44,6 +44,7 @@ class CallData(BaseModel):
     call_text_ukr: str
     overview: str
     notes: str
+    result_gpt: str
     mp3_link: str
     file_name: str
     transcript_id: str
@@ -53,6 +54,8 @@ def clean_text(text):
     """Удаляет неподходящие символы из текста."""
     return re.sub(r"[^\w\s.,!?@()-]", "", text)
 
+def format_score(text):
+   return re.sub(r'\((\d+)/(\d+)\)', r'(\1 из \2)', text)
 
 @router.post("/ringostat_zubr")
 async def ringostat_post(request: Request, db=Depends(get_db)):
@@ -126,6 +129,7 @@ async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(g
             "call_text_ukr": clean_text(call_data.call_text_ukr),
             "overview": clean_text(call_data.overview),
             "notes": clean_text(call_data.notes),
+            "result_gpt": format_score(call_data.result_gpt),
             "mp3_link": call_data.mp3_link,
             "file_name": call_data.file_name,
             "transcript_id": call_data.transcript_id,
