@@ -191,12 +191,16 @@ def get_statutory_fund(soup):
 def get_mini_title(soup):
     title = soup.find('h1', class_='dr_title_3')
     if title:
-        # Разбиваем текст по ЄДРПОУ и берем первую часть
-        company_name = title.text.split('ЄДРПОУ')[0]
-        # Очищаем от неразрывных пробелов и лишних пробелов по краям
-        company_name = company_name.replace('\xa0', ' ').strip()
-        return company_name
-    return None
+        # Получаем весь текст и разбиваем его на части
+        full_text = title.text.replace('\xa0', ' ').strip()
+        parts = full_text.split('ЄДРПОУ')
+
+        if len(parts) == 2:
+            company_name = parts[0].strip()
+            edrpou = parts[1].strip()
+            return company_name, edrpou
+
+    return None, None
 
 
 def process_html_file(file_path, combined_data):
@@ -224,7 +228,9 @@ def process_html_file(file_path, combined_data):
     year, assets, liabilities, employees, profit, income = get_financial_info(
         soup)
     inn = get_inn(soup)
-    title_mini = get_mini_title(soup)
+    title_mini,edrpo_new  = get_mini_title(soup)
+    if edrpo is None:
+        edrpo = edrpo_new
     if title is None:
         return None
     all_data = {
@@ -258,16 +264,62 @@ def process_html_file(file_path, combined_data):
     return all_data
 
 
+# def get_bankruptcy_info(soup):
+#     # Находим элемент с текстом "Процедура банкрутства"
+#     bankruptcy_element = soup.find('div', string='Процедура банкрутства')
+#     if bankruptcy_element:
+#         # Находим следующий div с классом dr_value_state
+#         bankruptcy_info = bankruptcy_element.find_next(
+#             'div', class_='dr_value_state')
+#         if bankruptcy_info:
+#             # Извлекаем текст и очищаем от лишних пробелов
+#             return bankruptcy_info.text.strip()
+#     return None
+
 def get_bankruptcy_info(soup):
-    # Находим элемент с текстом "Процедура банкрутства"
-    bankruptcy_element = soup.find('div', string='Процедура банкрутства')
-    if bankruptcy_element:
-        # Находим следующий div с классом dr_value_state
-        bankruptcy_info = bankruptcy_element.find_next(
-            'div', class_='dr_value_state')
-        if bankruptcy_info:
-            # Извлекаем текст и очищаем от лишних пробелов
-            return bankruptcy_info.text.strip()
+    # Находим элемент с заголовком "Процедура банкрутства"
+    bankruptcy_element = soup.find(
+        'div', class_='dr_value_title', string='Процедура банкрутства')
+    if not bankruptcy_element:
+        return None
+
+    # Проверяем наличие информации о банкротстве
+    bankruptcy_info = bankruptcy_element.find_next(
+        'div', class_='dr_value_state')
+    if bankruptcy_info:
+        return bankruptcy_info.text.strip()
+
+    # Если нет простого статуса, ищем детальную информацию
+    detailed_info = []
+
+    # Ищем дату начала
+    date_element = bankruptcy_element.find_next('div', class_='dr_value_subtitle',
+                                                style=lambda x: x and 'display: flex' in x)
+    if date_element:
+        detailed_info.append(date_element.text.strip())
+
+    # Ищем описание
+    description = bankruptcy_element.find_next(
+        'div', class_='dr_value_subtitle_2')
+    if description:
+        detailed_info.append(description.text.strip())
+
+    # Ищем информацию о деле
+    case_info = bankruptcy_element.find_next('div', string='Справа:')
+    if case_info:
+        detailed_info.append('Справа:')
+        case_number = case_info.find_next('div', class_='dr_value')
+        if case_number:
+            detailed_info.append(case_number.text.strip())
+            # Ищем дату дела
+            case_date = case_number.find_next('div')
+            if case_date:
+                detailed_info.append(case_date.text.strip())
+
+    # Если нашли детальную информацию, возвращаем её
+    if detailed_info:
+        return '\n'.join(detailed_info)
+
     return None
 
 
@@ -376,8 +428,8 @@ def main():
 
     results = []
 
-    for html_file in list(html_directory.glob("*.html"))[:100]:
-        # for html_file in html_directory.glob("*.html"):
+    # for html_file in list(html_directory.glob("*.html"))[:500]:
+    for html_file in html_directory.glob("*.html"):
         # print(html_file)
         data = process_html_file(html_file, combined_data)
         if data:  # Проверяем, что данные не пустые

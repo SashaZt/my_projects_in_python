@@ -394,11 +394,6 @@ def process_google_drive_mp3_files():
         # Подключение к Google Sheets
         sheet = connect_to_google_sheets(SHEET_ID)
 
-        # # # Получаем уже существующие записи из первой колонки
-        # existing_rows = sheet.get_all_values()  # Получаем все строки
-        # existing_files = {
-        #     row[-1] for row in existing_rows[1:] if row
-        # }  # Имена файлов в последней колонке
         existing_rows = sheet.get_all_values()
 
         # Преобразуем данные в список словарей, анализируя последнюю колонку
@@ -429,7 +424,6 @@ def process_google_drive_mp3_files():
                 file_name = file_info["name"]
                 file_link = file_info["link"]
                 transcript_id = get_id_tr(file_name)
-                logger.info(transcript_id)
                 # Проверяем наличие transcript_id или file_name в существующих данных
                 if (
                     transcript_id in existing_transcripts
@@ -445,11 +439,21 @@ def process_google_drive_mp3_files():
                 if transcript_id:
                     # Если transcript_title совпадает с file_name и есть transcript_id
                     result_text = get_transcrip(transcript_id)
+                    logger.info("-" * 100)
+                    logger.info(f"переходим к result_summary")
                     result_summary = get_transcript_summary(transcript_id)
-                    logger.info(transcript_id)
-                    logger.info(result_text)
+                    logger.info(f"result_summary -> {result_summary}")
+                    # Проверка: если result_summary или его ключ summary равен None, пропускаем файл
+                    if result_summary is None or result_summary.get("summary") is None:
+                        logger.error(f"Не удалось получить данные транскрипта для {file_name}. Пропускаем файл.")
+                        datas = parse_mp3_filename_sql(file_name)
+                        invalid_data.append(datas)
+                        continue
+                    
                 else:
+                    logger.info("Запускаем upload_audio")
                     transcript_id = upload_audio(file_link, file_name)
+                    logger.info(f"Получили {transcript_id}")
                     if transcript_id is None:
                         datas = parse_mp3_filename_sql(file_name)
                         invalid_data.append(datas)
@@ -478,19 +482,23 @@ def process_google_drive_mp3_files():
                         except Exception as e:
                             logger.error(f"Ошибка при поиске файла {file_name}: {e}")
                         continue  # Добавляем continue здесь!
-
-                    result_text = get_transcrip(transcript_id)
+                    logger.info("-" * 100)
+                    logger.info("Запускаем result_summary")
                     result_summary = get_transcript_summary(transcript_id)
-
+                    logger.info(f"result_summary -> {result_summary}")
+                    # Проверка: если result_summary или его ключ summary равен None, пропускаем файл
+                    if result_summary is None or result_summary.get("summary") is None:
+                        logger.error(f"Не удалось получить данные транскрипта для {file_name}. Пропускаем файл.")
+                        datas = parse_mp3_filename_sql(file_name)
+                        invalid_data.append(datas)
+                        continue
+                
+                # Теперь можно безопасно получать overview и shorthand_bullet
                 overview = result_summary.get("summary", {}).get("overview", None)
-                shorthand_bullet = result_summary.get("summary", {}).get(
-                    "shorthand_bullet", None
-                )
-
-                # if transcript_id is not None:
-                logger.debug(
-                    f"Подготовка данных для записи: {file_name}, transcript_id: {transcript_id}"
-                )
+                shorthand_bullet = result_summary.get("summary", {}).get("shorthand_bullet", None)
+                # logger.debug(
+                #     f"Подготовка данных для записи: {file_name}, transcript_id: {transcript_id}"
+                # )
 
                 # Формируем данные для записи
                 all_data = parse_mp3_filename(file_name)
@@ -500,10 +508,6 @@ def process_google_drive_mp3_files():
                     if shorthand_bullet is not None
                     else None
                 )
-                logger.info(shorthand_bullet)
-                logger.info(shorthand_bullet)
-                logger.info(notes)
-
                 all_data["Текст звонка Укр"] = result_text
                 all_data["Overview"] = overview
                 all_data["Notes"] = notes
@@ -511,9 +515,9 @@ def process_google_drive_mp3_files():
                 # Добавляем ссылку на MP3
                 all_data["Ссылка на MP3"] = file_link
 
-                logger.debug(f"result_summary: {result_summary}")
-                logger.debug(f"shorthand_bullet: {shorthand_bullet}")
-                logger.debug(f"all_data: {all_data}")
+                # logger.debug(f"result_summary: {result_summary}")
+                # logger.debug(f"shorthand_bullet: {shorthand_bullet}")
+                # logger.debug(f"all_data: {all_data}")
 
                 # Записываем в БД
                 write_add_call_data(all_data)
@@ -848,7 +852,7 @@ def get_transcrip(transcript_id):
                         sentence["text"] for sentence in transcript.get("sentences", [])
                     )
                     if full_text:
-                        logger.info(f"Полный текст получен {full_text}")
+                        # logger.info(f"Полный текст получен {full_text}")
                         return full_text
 
             # Если дошли сюда, значит результат пустой или некорректный
@@ -1012,77 +1016,92 @@ def deleting_data_in_database(data):
 def get_transcript_summary(transcript_id):
     """
     Получает данные транскрипта (Summary: keywords, action_items, overview и т.д.).
-
+    
     :param transcript_id: ID транскрипции
-    :return: Словарь с данными Summary
+    :return: Словарь с данными Summary (возвращается только после успешного получения данных)
     """
     if transcript_id is None:
         return None
-    # GraphQL запрос для получения данных транскрипта
 
-    while True:
-        query = """
+    query = """
     query Transcript($transcriptId: String!) {
-    transcript(id: $transcriptId) {
+      transcript(id: $transcriptId) {
         id
         title
         summary {
-        keywords
-        action_items
-        outline
-        shorthand_bullet
-        overview
-        bullet_gist
-        gist
-        short_summary
+          keywords
+          action_items
+          outline
+          shorthand_bullet
+          overview
+          bullet_gist
+          gist
+          short_summary
         }
-        }
-        }
-        """
+      }
+    }
+    """
+    variables = {"transcriptId": transcript_id}
 
-        # Переменные для GraphQL запроса
-        variables = {"transcriptId": transcript_id}
-        # Отправляем запрос
-        response = requests.post(
-            GRAPHQL_URL,
-            headers=headers_api,
-            json={"query": query, "variables": variables},
-            timeout=30,
-        )
-        # Отправляем запрос
-        response = requests.post(
-            GRAPHQL_URL,
-            headers=headers_api,
-            json={"query": query, "variables": variables},
-            timeout=30,
-        )
-        if response.status_code == 200:
-            data = response.json()
-            if "data" in data and "transcript" in data["data"]:
-                transcript = data["data"]["transcript"]
-                id_transcript = transcript["id"]
-                title_transcript = transcript["title"]
-                summary = transcript.get("summary", {})
-                # logger.info(summary)
-                # Проверяем наличие и содержимое "overview"
-                if "overview" in summary and summary["overview"]:
-                    return {
-                        "id": id_transcript,
-                        "title": title_transcript,
-                        "summary": summary,
-                    }
-                else:
-                    logger.warning("Обзор отсутствует или пуст. Ожидание 30 секунд...")
-                    time.sleep(30)  # Ждём 30 секунд перед повторной проверкой
-                    continue  # Повторяем цикл, чтобы проверить снова
-            else:
-                logger.error("Ошибка: данные не найдены.")
-                logger.error(data)
-                return None
-        else:
+    while True:
+        try:
+            
+            response = requests.post(
+                GRAPHQL_URL,
+                headers=headers_api,
+                json={"query": query, "variables": variables},
+                timeout=30,
+            )
+            logger.info(response.status_code)
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении запроса: {e}")
+            time.sleep(30)
+            continue
+
+        if response.status_code != 200:
             logger.error(f"Ошибка запроса: {response.status_code}")
             logger.error(response.text)
-            return None
+            time.sleep(30)
+            continue
+
+        try:
+            data = response.json()
+            # logger.info(data)
+        except Exception as e:
+            logger.error(f"Ошибка при разборе JSON: {e}")
+            time.sleep(30)
+            continue
+
+        data_field = data.get("data")
+        if not data_field or not isinstance(data_field, dict) or "transcript" not in data_field:
+            logger.error("Ошибка: данные не найдены.")
+            logger.error(data)
+            time.sleep(30)
+            continue
+
+        transcript = data_field["transcript"]
+        if transcript is None:
+            logger.warning("Транскрипт отсутствует, повтор запроса через 30 секунд...")
+            time.sleep(30)
+            continue
+
+        id_transcript = transcript.get("id")
+        title_transcript = transcript.get("title")
+        summary = transcript.get("summary", {})
+
+        # Проверяем наличие и содержимое "overview"
+        if "overview" in summary and summary["overview"]:
+            all_data = {
+                "id": id_transcript,
+                "title": title_transcript,
+                "summary": summary,
+            }
+            return all_data
+        else:
+            logger.warning("Обзор отсутствует или пуст. Ожидание 30 секунд...")
+            time.sleep(30)
+            continue
+
 
 
 def convert_keys_to_english(data):
@@ -1120,7 +1139,7 @@ def write_add_call_data(call_data):
 
         if response.status_code == 200:
             result = response.json()
-            logger.info(f"Данные успешно отправлены")
+            # logger.info(f"Данные успешно отправлены")
         else:
             logger.error(
                 f"Ошибка отправки данных: {response.status_code} - {response.text}"

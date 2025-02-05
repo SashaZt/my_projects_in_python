@@ -21,7 +21,7 @@ services:
       context: ./mysql
       dockerfile: Dockerfile
     ports:
-      - "3306:3306"
+      - "33306:33306"
     volumes:
       - ./mysql/database:/var/lib/mysql # Для данных базы данных
       - ./mysql/configuration/my.cnf:/etc/mysql/my.cnf  # Подключение пользовательского my.cnf

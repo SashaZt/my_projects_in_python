@@ -56,12 +56,10 @@ load_dotenv(env_path)
 client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Асинхронный вызов
-async def main(text_content):
+async def main(text_content_conversation, text_content_question):
     question = (
-            "Я даю тебе тексты  75 телефонных разговоров между менеджером и клиентом. Твоя задача — найти и выписать все вопросы, которые задавали клиенты."
-            "Если какой-то вопрос повторяется в разных формулировках, объедини их в один пункт по смыслу."
-            "Затем сформируй список из TOP-15 самых частых или наиболее важных вопросов. Если вопросов меньше 15 — укажи те, что есть."
-            f"\n\n{text_content}"
+            f"{text_content_question}"
+            f"\n\n{text_content_conversation}"
         )
     response = await client.chat.completions.create(
         model="gpt-4o-mini",
@@ -95,7 +93,9 @@ def write_to_file(file_name, content):
     with open(file_name, "w", encoding="utf-8") as file:
         file.write(content)
 if __name__ == "__main__":
-    file_path = "conversations.txt"  # Укажите путь к вашему .txt файлу
-    text_content = read_file(file_path)  # Чтение текста из файла
+    file_path_conversation = "conversations.txt"  # Укажите путь к вашему .txt файлу
+    file_path_question = "question.txt"  # Укажите путь к вашему .txt файлу
+    text_content_conversation = read_file(file_path_conversation)  # Чтение текста из файла
+    text_content_question = read_file(file_path_question)  # Чтение текста из файла
     # Запуск асинхронного вызова
-    asyncio.run(main(text_content))
+    asyncio.run(main(text_content_conversation, text_content_question))
