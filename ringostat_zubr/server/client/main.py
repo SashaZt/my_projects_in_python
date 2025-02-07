@@ -468,9 +468,8 @@ def process_google_drive_mp3_files():
                         invalid_data.append(datas)
                         continue
                 logger.info("Заходим в функцию result_gpt")
-                # Запускаем асинхронную функцию через asyncio.run()
                 try:
-                    result_gpt = asyncio.run(question_gpt(value_promt, result_text))
+                    call_analysis,sum_points_criterion,recommendations,sum_points,final_assessment = asyncio.run(question_gpt(value_promt, result_text))
                 except Exception as e:
                     logger.error(e)
 
@@ -493,7 +492,11 @@ def process_google_drive_mp3_files():
                 all_data["Overview"] = overview
                 all_data["Notes"] = notes
                 all_data["transcript_id"] = transcript_id
-                all_data["result_gpt"] = result_gpt
+                all_data["call_analysis"] = call_analysis
+                all_data["sum_points_criterion"] = sum_points_criterion
+                all_data["recommendations"] = recommendations
+                all_data["sum_points"] = sum_points
+                all_data["final_assessment"] = final_assessment
                 # Добавляем ссылку на MP3
                 all_data["Ссылка на MP3"] = file_link
 
@@ -887,7 +890,11 @@ def parse_mp3_filename(filename):
             "Текст звонка Укр": "",
             "Overview": "",
             "Notes": "",
-            "Result_GpT": "",
+            "call_analysis": "",
+            "sum_points_criterion": "",
+            "recommendations": "",
+            "sum_points": "",
+            "final_assessment": "",
             "Ссылка на MP3": "",
             "Имя файла": filename,  # Имя файла как отдельное поле
             "transcript_id": "",  # Имя файла как отдельное поле
@@ -1095,7 +1102,11 @@ def convert_keys_to_english(data):
         "Текст звонка Укр": "call_text_ukr",
         "Overview": "overview",
         "Notes": "notes",
-        "result_gpt": "result_gpt",
+        "call_analysis": "call_analysis",
+        "sum_points_criterion": "sum_points_criterion",
+        "recommendations": "recommendations",
+        "sum_points": "sum_points",
+        "final_assessment": "final_assessment",
         "Ссылка на MP3": "mp3_link",
         "Имя файла": "file_name",
         "transcript_id": "transcript_id",
@@ -1109,7 +1120,7 @@ def write_add_call_data(call_data):
 
     # Преобразуем ключи перед отправкой
     call_data = convert_keys_to_english(call_data)
-
+    logger.info(call_data)
     try:
         response = requests.post(
             url,
@@ -1554,7 +1565,41 @@ async def question_gpt(value_promt, result_text):
         ]
     )
     message = response.choices[0].message.content
-    return message
+    # Разделение ответа по ключевым заголовкам
+    sections = {
+        "Анализ звонка": "",
+        "Сумма баллов по каждому критерию": "",
+        "Рекомендации": "",
+        "Сумма баллов числовое значение, только одно число": "",
+        "Финальная оценка числовое значение, только одно число": ""
+    }
+
+    current_section = None
+    for line in message.splitlines():
+        line = line.strip()
+        if line.startswith("###"):
+            header = line.replace("###", "").strip()
+            if header in sections:
+                current_section = header
+        elif current_section:
+            sections[current_section] += line + "\n"
+
+    # Извлечение переменных из разделов
+    call_analysis = sections["Анализ звонка"].strip()
+    sum_points_criterion = sections["Сумма баллов по каждому критерию"].strip()
+    recommendations = sections["Рекомендации"].strip()
+    sum_points = sections["Сумма баллов числовое значение, только одно число"].strip()
+    final_assessment = sections["Финальная оценка числовое значение, только одно число"].strip()
+    
+    logger.info(call_analysis)
+    logger.info(sum_points_criterion)
+    logger.info(recommendations)
+    logger.info(sum_points)
+    logger.info(final_assessment)
+    logger.info(message)
+    return call_analysis,sum_points_criterion,recommendations,sum_points,final_assessment
+    
+
 if __name__ == "__main__":
 
     start_time = datetime.now()  # Здесь используется datetime из модуля

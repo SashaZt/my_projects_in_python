@@ -48,7 +48,7 @@ CHANNEL_ID_MODELS_PRO = int(os.getenv("CHANNEL_ID_MODELS_PRO"))
 CHANNEL_ID_MODELS_FREE = int(os.getenv("CHANNEL_ID_MODELS_FREE"))
 TIME_A = int(os.getenv("TIME_A"))
 TIME_B = int(os.getenv("TIME_B"))
-
+password = os.getenv("TELEGRAM_PASSWORD")
 session_directory = current_directory / SESSION_PATH
 session_directory.mkdir(parents=True, exist_ok=True)
 DB_NAME = os.getenv("DB_NAME")
@@ -160,7 +160,7 @@ phone_number, session_name = get_session_name()  # Получаем номер �
 async def fetch_and_save_messages():
 
     async with TelegramClient(session_name, API_ID, API_HASH) as client:
-        await client.start(phone_number)
+        await client.start(phone=phone_number, password=password)
 
         async with async_session() as session:
             batch_size = 500  # Количество сообщений на одну вставку
@@ -354,7 +354,7 @@ async def get_and_forward_messages(category: str, limit: int):
         else CHANNEL_ID_MODELS_PRO
     )
     async with TelegramClient(session_name, API_ID, API_HASH) as client:
-        await client.start(phone_number)
+        await client.start(phone=phone_number, password=password)
         success_ids = []
         for msg_id in message_ids:
             try:

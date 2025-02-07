@@ -22,34 +22,40 @@ def download_xml():
     save_path = "sitemap_0.xml"
 
     cookies = {
-        "euconsent-v2": "CQJAbUAQJAbUAAjABCENBRFgAP_AAEPAACgAIzBV5CpMDWFAMHBRYNMgGYAW10ARIEQAABCBAyABCAGA8IAA0QECMAQAAAACAAIAoBABAAAAAABEAEAAIAAAAABEAAAAAAAIIAAAAAEQQAAAAAgAAAAAEAAIAAABAAQAkAAAAYKABEAAAIAgCAAAAAABAAAAAAMACAAIAAAAAAIAAAAAAAIAAAAAAEEAARAyyAYAAgABQAFwAtgD7AJSAa8A_oC6AGCAMhAZYAMEgQgAIAAWABUADgAIIAZABoAEQAJgAVQA3gB-AEJAIYAiQBLACaAGGAMoAc8A-wD9AIoARoAkQBcwDFAG0ANwAcQBQ4C8wGrgOCAeOBCEdAjAAWABUADgAIIAZABoAEQAJgAVQAuABiADeAH6AQwBEgCWAE0AMMAZQA0QBzwD7AP2AigCLAEiALmAYoA2gBuADiAIvATIAocBeYDLAGmgNXAeOQgGAALACqAFwAMQAbwBzgEUAJSAXMAxQBtAHjkoB4ACAAFgAcACIAEwAKoAXAAxQCGAIkAfgBcwDFAIvAXmBCEpAdAAWABUADgAIIAZABoAEQAJgAUgAqgBiAD9AIYAiQBlADRAHPAPwA_QCLAEiALmAYoA2gBuAEXgKHAXmAywBwQDxwIQlQAQACgAtgAA.YAAAAAAAAAAA",
-        "consentUUID": "6cb56b4f-3f34-435d-b1d3-c1977cb47e33_38",
-        "consentDate": "2024-12-02T11:46:43.209Z",
+        "PHPSESSID": "0309lmjt9k88ckkqd4k0bksgmp",
+        "uuid": "4d17aa7a1301e4505acf4687bb9b6db8",
+        "sbjs_migrations": "1418474375998%3D1",
+        "sbjs_current_add": "fd%3D2025-02-06%2020%3A07%3A02%7C%7C%7Cep%3Dhttps%3A%2F%2Fbsspart.com%2F%7C%7C%7Crf%3D%28none%29",
+        "sbjs_first_add": "fd%3D2025-02-06%2020%3A07%3A02%7C%7C%7Cep%3Dhttps%3A%2F%2Fbsspart.com%2F%7C%7C%7Crf%3D%28none%29",
+        "sbjs_current": "typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29",
+        "sbjs_first": "typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29",
+        "sbjs_udata": "vst%3D2%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F132.0.0.0%20Safari%2F537.36",
+        "sbjs_session": "pgs%3D3%7C%7C%7Ccpg%3Dhttps%3A%2F%2Fbsspart.com%2Fbmw%2F",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
         "cache-control": "max-age=0",
+        # 'cookie': 'PHPSESSID=0309lmjt9k88ckkqd4k0bksgmp; uuid=4d17aa7a1301e4505acf4687bb9b6db8; sbjs_migrations=1418474375998%3D1; sbjs_current_add=fd%3D2025-02-06%2020%3A07%3A02%7C%7C%7Cep%3Dhttps%3A%2F%2Fbsspart.com%2F%7C%7C%7Crf%3D%28none%29; sbjs_first_add=fd%3D2025-02-06%2020%3A07%3A02%7C%7C%7Cep%3Dhttps%3A%2F%2Fbsspart.com%2F%7C%7C%7Crf%3D%28none%29; sbjs_current=typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29; sbjs_first=typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29; sbjs_udata=vst%3D2%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F132.0.0.0%20Safari%2F537.36; sbjs_session=pgs%3D3%7C%7C%7Ccpg%3Dhttps%3A%2F%2Fbsspart.com%2Fbmw%2F',
         "dnt": "1",
         "priority": "u=0, i",
-        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "cross-site",
+        "sec-fetch-site": "none",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://ramiz.pl/xml?key=94255d59993348493376710e55697842&lang=pl&curr=pln",
-        # cookies=cookies,
+        "https://bsspart.com/content/export/bsspart.com/catalog-sitemap.xml",
+        cookies=cookies,
         headers=headers,
-        proxies=proxies_dict,
-        timeout=200,
+        timeout=30,
     )
 
     # Проверка успешности запроса
@@ -63,23 +69,19 @@ def download_xml():
 
 
 def parsin_xml():
-    # Чтение файла sitemap.xml
-    with open("sitemap_1.xml", "r", encoding="utf-8") as file:
+    with open("sitemap_0.xml", "r", encoding="utf-8") as file:
         xml_content = file.read()
 
-    # Разбор XML содержимого
     root = ET.fromstring(xml_content)
-
-    # Пространство имен XML, используется для правильного извлечения данных
     namespace = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
 
-    # Извлечение всех URL из тегов <loc>
-    urls = [url.text.strip() for url in root.findall(".//ns:loc", namespace)]
+    urls = [
+        url.text.strip()
+        for url in root.findall(".//ns:loc", namespace)
+        if not url.text.strip().startswith("https://bsspart.com/ru/")
+    ]
 
-    # Создание DataFrame с URL
     url_data = pd.DataFrame(urls, columns=["url"])
-
-    # Запись URL в CSV файл
     url_data.to_csv("urls.csv", index=False)
 
 
@@ -120,5 +122,5 @@ def xml_temp():
 
 if __name__ == "__main__":
     # download_xml()
-    # parsin_xml()
-    xml_temp()
+    parsin_xml()
+    # xml_temp()

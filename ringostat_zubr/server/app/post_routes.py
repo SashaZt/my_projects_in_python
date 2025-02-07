@@ -44,7 +44,11 @@ class CallData(BaseModel):
     call_text_ukr: str
     overview: str
     notes: str
-    result_gpt: str
+    call_analysis: str
+    sum_points_criterion: str
+    recommendations: str
+    sum_points: str
+    final_assessment: str
     mp3_link: str
     file_name: str
     transcript_id: str
@@ -129,7 +133,11 @@ async def add_call_data(call_data: CallData, db: DatabaseInitializer = Depends(g
             "call_text_ukr": clean_text(call_data.call_text_ukr),
             "overview": clean_text(call_data.overview),
             "notes": clean_text(call_data.notes),
-            "result_gpt": format_score(call_data.result_gpt),
+            "call_analysis": format_score(call_data.call_analysis),
+            "sum_points_criterion": format_score(call_data.sum_points_criterion),
+            "recommendations": format_score(call_data.recommendations),
+            "sum_points": format_score(call_data.sum_points),
+            "final_assessment": format_score(call_data.final_assessment),
             "mp3_link": call_data.mp3_link,
             "file_name": call_data.file_name,
             "transcript_id": call_data.transcript_id,

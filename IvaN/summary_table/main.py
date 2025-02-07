@@ -52,6 +52,7 @@ def define_models(Base):
 
     class LoadingKyrgyzstan(Base):
         __tablename__ = "loading_kyrgyzstan"
+        __table_args__ = {'extend_existing': True}  # Добавляем этот параметр
         id = Column(Integer, primary_key=True, autoincrement=True)
         naimenovanie = Column(Text)
         dr_nazva = Column(Text)
@@ -65,7 +66,8 @@ def define_models(Base):
         data_registratsii = Column(Text)
         data_pervonachalnoi_registratsii = Column(Text)
         sovladeltcy = Column(Text)
-        inn = Column(String(255), index=True)
+        inn = Column(Text)
+        # inn = Column(String(255), index=True)
         registratsionnyi_nomer = Column(Text)
         kod_statistiki = Column(Text)
         region_registratsii = Column(Text)
@@ -75,12 +77,14 @@ def define_models(Base):
 
     class OsooKg(Base):
         __tablename__ = "osoo_kg"
+        __table_args__ = {'extend_existing': True}  # Добавляем этот параметр
         id = Column(Integer, primary_key=True, autoincrement=True)
         nazvanie = Column(Text)
         status = Column(Text)
-        inn = Column(
-            String(20), index=True
-        )  # оставляем String для INN, так как это фиксированный формат
+        inn = Column(Text)
+        # inn = Column(
+        #     String(20), index=True
+        # )  # оставляем String для INN, так как это фиксированный формат
         vid_deyatelnosti = Column(Text)
         direktor = Column(Text)
         dop_info1 = Column(Text)
@@ -99,12 +103,14 @@ def define_models(Base):
 
     class OutputHtml(Base):
         __tablename__ = "output_html"
+        __table_args__ = {'extend_existing': True}  # Добавляем этот параметр
         id = Column(Integer, primary_key=True, autoincrement=True)
         bik = Column(Text)
         bank = Column(Text)
         data_registratsii = Column(Text)
         dolzhnost = Column(Text)
-        inn = Column(String(20), index=True)  # оставляем String для INN
+        inn = Column(Text)
+        # inn = Column(String(20), index=True)  # оставляем String для INN
         naimenovanie_organizatsii = Column(Text)
         naselennyi_punkt = Column(Text)
         organizatsionno_pravovaya_forma = Column(Text)
@@ -119,8 +125,10 @@ def define_models(Base):
 
     class Consolidated(Base):
         __tablename__ = "consolidated"
+        __table_args__ = {'extend_existing': True}  # Добавляем этот параметр
         id = Column(Integer, primary_key=True, autoincrement=True)
-        inn = Column(String(20), unique=True)  # оставляем String для INN
+        inn = Column(Text)  # оставляем String для INN
+        # inn = Column(String(20), unique=True)  # оставляем String для INN
 
         # Поля из osoo_kg
         osoo_nazvanie = Column(Text)
@@ -211,7 +219,7 @@ def normalize_value(value):
 
 def import_loading_kyrgyzstan_data(session, LoadingKyrgyzstan, csv_path):
     """Import data into LoadingKyrgyzstan table"""
-    loading_df = pd.read_csv(csv_path, sep=";", low_memory=False)
+    loading_df = pd.read_csv(csv_path, sep=";", dtype={"INN": str}, low_memory=False)
     # Заменяем nan на None
     loading_df = loading_df.replace({pd.NA: None, pd.NaT: None})
     loading_df = loading_df.where(pd.notna(loading_df), None)
@@ -258,7 +266,8 @@ def import_loading_kyrgyzstan_data(session, LoadingKyrgyzstan, csv_path):
 
 def import_osoo_kg_data(session, OsooKg, csv_path):
     """Import data into OsooKg table"""
-    osoo_df = pd.read_csv(csv_path, sep=";", low_memory=False)
+    osoo_df = pd.read_csv(csv_path, sep=";", dtype={"INN": str}, low_memory=False)
+
     # Заменяем nan на None
     osoo_df = osoo_df.replace({pd.NA: None, pd.NaT: None})
     osoo_df = osoo_df.where(pd.notna(osoo_df), None)
@@ -302,7 +311,7 @@ def import_osoo_kg_data(session, OsooKg, csv_path):
 
 def import_output_html_data(session, OutputHtml, csv_path):
     """Import data into OutputHtml table"""
-    output_df = pd.read_csv(csv_path, sep=";", low_memory=False)
+    output_df = pd.read_csv(csv_path, sep=";", dtype={"INN": str}, low_memory=False)
     # Заменяем nan на None
     output_df = output_df.replace({pd.NA: None, pd.NaT: None})
     output_df = output_df.where(pd.notna(output_df), None)
@@ -344,198 +353,273 @@ def import_output_html_data(session, OutputHtml, csv_path):
     print("OutputHtml data imported successfully")
 
 
-def create_consolidated_data(
-    session, OsooKg, LoadingKyrgyzstan, OutputHtml, Consolidated
-):
-    # """Create consolidated data from all tables"""
-    # # Получаем все уникальные INN из всех таблиц
-    # osoo_inns = set(row[0] for row in session.query(OsooKg.inn).all())
-    # loading_inns = set(row[0] for row in session.query(LoadingKyrgyzstan.inn).all())
-    # output_inns = set(row[0] for row in session.query(OutputHtml.inn).all())
+# def create_consolidated_data(
+#     session, OsooKg, LoadingKyrgyzstan, OutputHtml, Consolidated
+# ):
+#     """Create consolidated data from all tables"""
+#     # Получаем все уникальные INN из всех таблиц
+#     osoo_inns = set(row[0] for row in session.query(OsooKg.inn).all())
+#     loading_inns = set(row[0] for row in session.query(LoadingKyrgyzstan.inn).all())
+#     output_inns = set(row[0] for row in session.query(OutputHtml.inn).all())
 
-    # # Объединяем все INN
-    # all_inns = osoo_inns.union(loading_inns).union(output_inns)
-    # print(f"Всего уникальных INN: {len(all_inns)}")
-    # print(f"INN в OsooKg: {len(osoo_inns)}")
-    # print(f"INN в LoadingKyrgyzstan: {len(loading_inns)}")
-    # print(f"INN в OutputHtml: {len(output_inns)}")
+#     # Объединяем все INN
+#     all_inns = osoo_inns.union(loading_inns).union(output_inns)
+#     print(f"Всего уникальных INN: {len(all_inns)}")
+#     print(f"INN в OsooKg: {len(osoo_inns)}")
+#     print(f"INN в LoadingKyrgyzstan: {len(loading_inns)}")
+#     print(f"INN в OutputHtml: {len(output_inns)}")
 
-    # for inn_val in all_inns:
-    #     # Проверяем существование записи
-    #     consolidated = session.query(Consolidated).filter(Consolidated.inn == inn_val).first()
+#     for inn_val in all_inns:
+#         # Проверяем существование записи
+#         consolidated = session.query(Consolidated).filter(Consolidated.inn == inn_val).first()
 
-    #     # Если записи нет - создаем новую
-    #     if not consolidated:
-    #         consolidated = Consolidated(inn=inn_val)
-    #         session.add(consolidated)
+#         # Если записи нет - создаем новую
+#         if not consolidated:
+#             consolidated = Consolidated(inn=inn_val)
+#             session.add(consolidated)
 
-    #     # Получаем и добавляем данные из OsooKg
-    #     osoo = session.query(OsooKg).filter(OsooKg.inn == inn_val).first()
-    #     if osoo:
-    #         if consolidated.osoo_nazvanie is None:
-    #             consolidated.osoo_nazvanie = osoo.nazvanie
-    #         if consolidated.osoo_status is None:
-    #             consolidated.osoo_status = osoo.status
-    #         if consolidated.osoo_vid_deyatelnosti is None:
-    #             consolidated.osoo_vid_deyatelnosti = osoo.vid_deyatelnosti
-    #         if consolidated.osoo_direktor is None:
-    #             consolidated.osoo_direktor = osoo.direktor
-    #         if consolidated.dop_info1 is None:
-    #             consolidated.dop_info1 = osoo.dop_info1
-    #         if consolidated.dop_info2 is None:
-    #             consolidated.dop_info2 = osoo.dop_info2
-    #         if consolidated.dop_info3 is None:
-    #             consolidated.dop_info3 = osoo.dop_info3
-    #         if consolidated.dop_info4 is None:
-    #             consolidated.dop_info4 = osoo.dop_info4
-    #         if consolidated.dop_info5 is None:
-    #             consolidated.dop_info5 = osoo.dop_info5
-    #         if consolidated.poslednee_obnovlenie is None:
-    #             consolidated.poslednee_obnovlenie = osoo.poslednee_obnovlenie
-    #         if consolidated.forma is None:
-    #             consolidated.forma = osoo.forma
-    #         if consolidated.forma_sobstvennosti is None:
-    #             consolidated.forma_sobstvennosti = osoo.forma_sobstvennosti
-    #         if consolidated.kolichestvo_uchastnikov is None:
-    #             consolidated.kolichestvo_uchastnikov = osoo.kolichestvo_uchastnikov
-    #         if consolidated.osoo_registratsionnyi_nomer is None:
-    #             consolidated.osoo_registratsionnyi_nomer = osoo.registratsionnyi_nomer
-    #         if consolidated.okpo is None:
-    #             consolidated.okpo = osoo.okpo
-    #         if consolidated.osoo_adres is None:
-    #             consolidated.osoo_adres = osoo.adres
-    #         if consolidated.osoo_telefon is None:
-    #             consolidated.osoo_telefon = osoo.telefon
+#         # Получаем и добавляем данные из OsooKg
+#         osoo = session.query(OsooKg).filter(OsooKg.inn == inn_val).first()
+#         if osoo:
+#             if consolidated.osoo_nazvanie is None:
+#                 consolidated.osoo_nazvanie = osoo.nazvanie
+#             if consolidated.osoo_status is None:
+#                 consolidated.osoo_status = osoo.status
+#             if consolidated.osoo_vid_deyatelnosti is None:
+#                 consolidated.osoo_vid_deyatelnosti = osoo.vid_deyatelnosti
+#             if consolidated.osoo_direktor is None:
+#                 consolidated.osoo_direktor = osoo.direktor
+#             if consolidated.dop_info1 is None:
+#                 consolidated.dop_info1 = osoo.dop_info1
+#             if consolidated.dop_info2 is None:
+#                 consolidated.dop_info2 = osoo.dop_info2
+#             if consolidated.dop_info3 is None:
+#                 consolidated.dop_info3 = osoo.dop_info3
+#             if consolidated.dop_info4 is None:
+#                 consolidated.dop_info4 = osoo.dop_info4
+#             if consolidated.dop_info5 is None:
+#                 consolidated.dop_info5 = osoo.dop_info5
+#             if consolidated.poslednee_obnovlenie is None:
+#                 consolidated.poslednee_obnovlenie = osoo.poslednee_obnovlenie
+#             if consolidated.forma is None:
+#                 consolidated.forma = osoo.forma
+#             if consolidated.forma_sobstvennosti is None:
+#                 consolidated.forma_sobstvennosti = osoo.forma_sobstvennosti
+#             if consolidated.kolichestvo_uchastnikov is None:
+#                 consolidated.kolichestvo_uchastnikov = osoo.kolichestvo_uchastnikov
+#             if consolidated.osoo_registratsionnyi_nomer is None:
+#                 consolidated.osoo_registratsionnyi_nomer = osoo.registratsionnyi_nomer
+#             if consolidated.okpo is None:
+#                 consolidated.okpo = osoo.okpo
+#             if consolidated.osoo_adres is None:
+#                 consolidated.osoo_adres = osoo.adres
+#             if consolidated.osoo_telefon is None:
+#                 consolidated.osoo_telefon = osoo.telefon
 
-    #     # Получаем и добавляем данные из LoadingKyrgyzstan
-    #     loading = session.query(LoadingKyrgyzstan).filter(LoadingKyrgyzstan.inn == inn_val).first()
-    #     if loading:
-    #         if consolidated.loading_naimenovanie is None:
-    #             consolidated.loading_naimenovanie = loading.naimenovanie
-    #         if consolidated.dr_nazva is None:
-    #             consolidated.dr_nazva = loading.dr_nazva
-    #         if consolidated.naimenovanie_polnoe is None:
-    #             consolidated.naimenovanie_polnoe = loading.naimenovanie_polnoe
-    #         if consolidated.loading_rukovodstvo is None:
-    #             consolidated.loading_rukovodstvo = loading.rukovodstvo
-    #         if consolidated.loading_rukovodstvo_dolzhnost is None:
-    #             consolidated.loading_rukovodstvo_dolzhnost = loading.rukovodstvo_dolzhnost
-    #         if consolidated.loading_elektronnyi_adres is None:
-    #             consolidated.loading_elektronnyi_adres = loading.elektronnyi_adres
-    #         if consolidated.loading_sait is None:
-    #             consolidated.loading_sait = loading.sait
-    #         if consolidated.loading_data_registratsii is None:
-    #             consolidated.loading_data_registratsii = loading.data_registratsii
-    #         if consolidated.data_pervonachalnoi_registratsii is None:
-    #             consolidated.data_pervonachalnoi_registratsii = loading.data_pervonachalnoi_registratsii
-    #         if consolidated.sovladeltcy is None:
-    #             consolidated.sovladeltcy = loading.sovladeltcy
-    #         if consolidated.kod_statistiki is None:
-    #             consolidated.kod_statistiki = loading.kod_statistiki
-    #         if consolidated.region_registratsii is None:
-    #             consolidated.region_registratsii = loading.region_registratsii
-    #         if consolidated.vid_deyatelnosti_otrasl is None:
-    #             consolidated.vid_deyatelnosti_otrasl = loading.vid_deyatelnosti_otrasl
-    #         if consolidated.loading_org_pravovaya_forma is None:
-    #             consolidated.loading_org_pravovaya_forma = loading.organizatsionno_pravovaya_forma
-    #         if consolidated.srednespisochnaia_chislennost_rabotnikov is None:
-    #             consolidated.srednespisochnaia_chislennost_rabotnikov = loading.srednespisochnaia_chislennost_rabotnikov
+#         # Получаем и добавляем данные из LoadingKyrgyzstan
+#         loading = session.query(LoadingKyrgyzstan).filter(LoadingKyrgyzstan.inn == inn_val).first()
+#         if loading:
+#             if consolidated.loading_naimenovanie is None:
+#                 consolidated.loading_naimenovanie = loading.naimenovanie
+#             if consolidated.dr_nazva is None:
+#                 consolidated.dr_nazva = loading.dr_nazva
+#             if consolidated.naimenovanie_polnoe is None:
+#                 consolidated.naimenovanie_polnoe = loading.naimenovanie_polnoe
+#             if consolidated.loading_rukovodstvo is None:
+#                 consolidated.loading_rukovodstvo = loading.rukovodstvo
+#             if consolidated.loading_rukovodstvo_dolzhnost is None:
+#                 consolidated.loading_rukovodstvo_dolzhnost = loading.rukovodstvo_dolzhnost
+#             if consolidated.loading_elektronnyi_adres is None:
+#                 consolidated.loading_elektronnyi_adres = loading.elektronnyi_adres
+#             if consolidated.loading_sait is None:
+#                 consolidated.loading_sait = loading.sait
+#             if consolidated.loading_data_registratsii is None:
+#                 consolidated.loading_data_registratsii = loading.data_registratsii
+#             if consolidated.data_pervonachalnoi_registratsii is None:
+#                 consolidated.data_pervonachalnoi_registratsii = loading.data_pervonachalnoi_registratsii
+#             if consolidated.sovladeltcy is None:
+#                 consolidated.sovladeltcy = loading.sovladeltcy
+#             if consolidated.kod_statistiki is None:
+#                 consolidated.kod_statistiki = loading.kod_statistiki
+#             if consolidated.region_registratsii is None:
+#                 consolidated.region_registratsii = loading.region_registratsii
+#             if consolidated.vid_deyatelnosti_otrasl is None:
+#                 consolidated.vid_deyatelnosti_otrasl = loading.vid_deyatelnosti_otrasl
+#             if consolidated.loading_org_pravovaya_forma is None:
+#                 consolidated.loading_org_pravovaya_forma = loading.organizatsionno_pravovaya_forma
+#             if consolidated.srednespisochnaia_chislennost_rabotnikov is None:
+#                 consolidated.srednespisochnaia_chislennost_rabotnikov = loading.srednespisochnaia_chislennost_rabotnikov
 
-    #     # Получаем и добавляем данные из OutputHtml
-    #     output = session.query(OutputHtml).filter(OutputHtml.inn == inn_val).first()
-    #     if output:
-    #         if consolidated.bik is None:
-    #             consolidated.bik = output.bik
-    #         if consolidated.bank is None:
-    #             consolidated.bank = output.bank
-    #         if consolidated.html_data_registratsii is None:
-    #             consolidated.html_data_registratsii = output.data_registratsii
-    #         if consolidated.html_dolzhnost is None:
-    #             consolidated.html_dolzhnost = output.dolzhnost
-    #         if consolidated.naimenovanie_organizatsii is None:
-    #             consolidated.naimenovanie_organizatsii = output.naimenovanie_organizatsii
-    #         if consolidated.naselennyi_punkt is None:
-    #             consolidated.naselennyi_punkt = output.naselennyi_punkt
-    #         if consolidated.html_org_pravovaya_forma is None:
-    #             consolidated.html_org_pravovaya_forma = output.organizatsionno_pravovaya_forma
-    #         if consolidated.official_info is None:
-    #             consolidated.official_info = output.official_info
-    #         if consolidated.rschet is None:
-    #             consolidated.rschet = output.rschet
-    #         if consolidated.rabochii_telefon is None:
-    #             consolidated.rabochii_telefon = output.rabochii_telefon
-    #         if consolidated.rol is None:
-    #             consolidated.rol = output.rol
-    #         if consolidated.html_status is None:
-    #             consolidated.html_status = output.status
-    #         if consolidated.fio_polzovatelya is None:
-    #             consolidated.fio_polzovatelya = output.fio_polzovatelya
-    #         if consolidated.factual_address is None:
-    #             consolidated.factual_address = output.factual_address
-    #         if consolidated.elektronnaia_pochta is None:
-    #             consolidated.elektronnaia_pochta = output.elektronnaia_pochta
+#         # Получаем и добавляем данные из OutputHtml
+#         output = session.query(OutputHtml).filter(OutputHtml.inn == inn_val).first()
+#         if output:
+#             if consolidated.bik is None:
+#                 consolidated.bik = output.bik
+#             if consolidated.bank is None:
+#                 consolidated.bank = output.bank
+#             if consolidated.html_data_registratsii is None:
+#                 consolidated.html_data_registratsii = output.data_registratsii
+#             if consolidated.html_dolzhnost is None:
+#                 consolidated.html_dolzhnost = output.dolzhnost
+#             if consolidated.naimenovanie_organizatsii is None:
+#                 consolidated.naimenovanie_organizatsii = output.naimenovanie_organizatsii
+#             if consolidated.naselennyi_punkt is None:
+#                 consolidated.naselennyi_punkt = output.naselennyi_punkt
+#             if consolidated.html_org_pravovaya_forma is None:
+#                 consolidated.html_org_pravovaya_forma = output.organizatsionno_pravovaya_forma
+#             if consolidated.official_info is None:
+#                 consolidated.official_info = output.official_info
+#             if consolidated.rschet is None:
+#                 consolidated.rschet = output.rschet
+#             if consolidated.rabochii_telefon is None:
+#                 consolidated.rabochii_telefon = output.rabochii_telefon
+#             if consolidated.rol is None:
+#                 consolidated.rol = output.rol
+#             if consolidated.html_status is None:
+#                 consolidated.html_status = output.status
+#             if consolidated.fio_polzovatelya is None:
+#                 consolidated.fio_polzovatelya = output.fio_polzovatelya
+#             if consolidated.factual_address is None:
+#                 consolidated.factual_address = output.factual_address
+#             if consolidated.elektronnaia_pochta is None:
+#                 consolidated.elektronnaia_pochta = output.elektronnaia_pochta
 
-    #     # Сохраняем изменения каждые 1000 записей
-    #     if len(all_inns) % 1000 == 0:
-    #         session.commit()
-    #         print(f"Обработано {len(all_inns)} записей")
+#         # Сохраняем изменения каждые 1000 записей
+#         if len(all_inns) % 1000 == 0:
+#             session.commit()
+#             print(f"Обработано {len(all_inns)} записей")
 
-    # # Сохраняем оставшиеся изменения
-    # session.commit()
+#     # Сохраняем оставшиеся изменения
+#     session.commit()
 
-    # Объединяем дублирующиеся записи
-    merge_duplicate_inns(session, Consolidated)
+#     # Объединяем дублирующиеся записи
+#     # merge_duplicate_inns(session, Consolidated)
 
-    print("Консолидированные данные успешно созданы")
+#     print("Консолидированные данные успешно созданы")
 
+# def create_consolidated_data(session, OsooKg, LoadingKyrgyzstan, OutputHtml, Consolidated):
+#     osoo_inns = set(row[0] for row in session.query(OsooKg.inn).all())
+#     loading_inns = set(row[0] for row in session.query(LoadingKyrgyzstan.inn).all())
+#     output_inns = set(row[0] for row in session.query(OutputHtml.inn).all())
+    
+#     all_inns = osoo_inns.union(loading_inns).union(output_inns)
+#     batch_size = 1000
+#     counter = 0
+    
+#     for inn_val in all_inns:
+#         counter += 1
+#         consolidated = session.query(Consolidated).filter(Consolidated.inn == inn_val).first()
+        
+#         if not consolidated:
+#             consolidated = Consolidated(inn=inn_val)
+#             session.add(consolidated)
+            
+#         if osoo := session.query(OsooKg).filter(OsooKg.inn == inn_val).first():
+#             for field in OsooKg.__table__.columns:
+#                 if field.name != 'id' and field.name != 'inn':
+#                     setattr(consolidated, f'osoo_{field.name}', getattr(osoo, field.name))
+                    
+#         if loading := session.query(LoadingKyrgyzstan).filter(LoadingKyrgyzstan.inn == inn_val).first():
+#             for field in LoadingKyrgyzstan.__table__.columns:
+#                 if field.name != 'id' and field.name != 'inn':
+#                     setattr(consolidated, f'loading_{field.name}', getattr(loading, field.name))
+                    
+#         if output := session.query(OutputHtml).filter(OutputHtml.inn == inn_val).first():
+#             for field in OutputHtml.__table__.columns:
+#                 if field.name != 'id' and field.name != 'inn':
+#                     setattr(consolidated, f'html_{field.name}', getattr(output, field.name))
 
-def merge_duplicate_inns(session, Consolidated):
-    """
-    Объединяет записи с одинаковыми INN в таблице Consolidated
-    """
-    print("Начинаем поиск и объединение дублирующихся INN...")
+#         if counter % batch_size == 0:
+#             session.commit()
+#             print(f"Processed {counter} records")
+            
+#     session.commit()
+def create_consolidated_data(session, OsooKg, LoadingKyrgyzstan, OutputHtml, Consolidated):
+    # Получаем уже существующие INN из consolidated
+    existing_inns = set(row[0] for row in session.query(Consolidated.inn).all())
+    
+    # Получаем новые INN из исходных таблиц
+    osoo_inns = set(row[0] for row in session.query(OsooKg.inn).all()) - existing_inns
+    loading_inns = set(row[0] for row in session.query(LoadingKyrgyzstan.inn).all()) - existing_inns 
+    output_inns = set(row[0] for row in session.query(OutputHtml.inn).all()) - existing_inns
 
-    # Находим все INN, которые встречаются более одного раза
-    duplicate_inns = (
-        session.query(Consolidated.inn)
-        .group_by(Consolidated.inn)
-        .having(func.count(Consolidated.inn) > 1)
-        .all()
-    )
+    all_inns = osoo_inns.union(loading_inns).union(output_inns)
+    batch_size = 1000
+    counter = 0
+    
+    for inn_val in all_inns:
+        counter += 1
+        consolidated = Consolidated(inn=inn_val)
+        session.add(consolidated)
+            
+        if osoo := session.query(OsooKg).filter(OsooKg.inn == inn_val).first():
+            for field in OsooKg.__table__.columns:
+                if field.name != 'id' and field.name != 'inn':
+                    setattr(consolidated, f'osoo_{field.name}', getattr(osoo, field.name))
+                    
+        if loading := session.query(LoadingKyrgyzstan).filter(LoadingKyrgyzstan.inn == inn_val).first():
+            for field in LoadingKyrgyzstan.__table__.columns:
+                if field.name != 'id' and field.name != 'inn':
+                    setattr(consolidated, f'loading_{field.name}', getattr(loading, field.name))
+                    
+        if output := session.query(OutputHtml).filter(OutputHtml.inn == inn_val).first():
+            for field in OutputHtml.__table__.columns:
+                if field.name != 'id' and field.name != 'inn':
+                    setattr(consolidated, f'html_{field.name}', getattr(output, field.name))
 
-    print(f"Найдено {len(duplicate_inns)} INN с дублирующимися записями")
+        if counter % batch_size == 0:
+            session.commit()
+            print(f"Processed {counter} records")
+            
+    session.commit()
 
-    for (inn,) in duplicate_inns:
-        # Получаем все записи для текущего INN
-        records = session.query(Consolidated).filter(Consolidated.inn == inn).all()
-        if len(records) <= 1:
-            continue
+# def merge_duplicate_inns(session, Consolidated):
+#     """
+#     Объединяет записи с одинаковыми INN в таблице Consolidated
+#     """
+#     print("Начинаем поиск и объединение дублирующихся INN...")
 
-        # Берем первую запись как основную
-        base_record = records[0]
+#     # Находим все INN, которые встречаются более одного раза
+#     duplicate_inns = (
+#         session.query(Consolidated.inn)
+#         .group_by(Consolidated.inn)
+#         .having(func.count(Consolidated.inn) > 1)
+#         .all()
+#     )
 
-        # Объединяем данные из остальных записей
-        for record in records[1:]:
-            # Проходим по всем атрибутам записи
-            for attr in dir(record):
-                # Пропускаем служебные атрибуты и методы
-                if attr.startswith("_") or callable(getattr(record, attr)):
-                    continue
+#     print(f"Найдено {len(duplicate_inns)} INN с дублирующимися записями")
 
-                # Получаем значение атрибута
-                value = getattr(record, attr)
+#     for (inn,) in duplicate_inns:
+#         # Получаем все записи для текущего INN
+#         records = session.query(Consolidated).filter(Consolidated.inn == inn).all()
+#         if len(records) <= 1:
+#             continue
 
-                # Если в базовой записи значение пустое, а в текущей есть - копируем
-                if value is not None and getattr(base_record, attr) is None:
-                    setattr(base_record, attr, value)
+#         # Берем первую запись как основную
+#         base_record = records[0]
 
-            # Удаляем дополнительную запись
-            session.delete(record)
+#         # Объединяем данные из остальных записей
+#         for record in records[1:]:
+#             # Проходим по всем атрибутам записи
+#             for attr in dir(record):
+#                 # Пропускаем служебные атрибуты и методы
+#                 if attr.startswith("_") or callable(getattr(record, attr)):
+#                     continue
 
-        # Сохраняем изменения
-        session.commit()
+#                 # Получаем значение атрибута
+#                 value = getattr(record, attr)
 
-    print("Объединение дублирующихся записей завершено")
+#                 # Если в базовой записи значение пустое, а в текущей есть - копируем
+#                 if value is not None and getattr(base_record, attr) is None:
+#                     setattr(base_record, attr, value)
+
+#             # Удаляем дополнительную запись
+#             session.delete(record)
+
+#         # Сохраняем изменения
+#         session.commit()
+
+#     print("Объединение дублирующихся записей завершено")
 
 
 def clear_table(session, table_class):
@@ -565,9 +649,6 @@ def export_consolidated_to_excel(session, Consolidated, output_file="consolidate
         Consolidated: модель таблицы Consolidated.
         output_file: путь к выходному файлу Excel.
     """
-    import pandas as pd
-    from sqlalchemy import text
-
     try:
         # Загружаем данные из Consolidated через ORM
         logger.info("Загрузка данных из Consolidated...")
@@ -906,7 +987,6 @@ def main():
 
         # Создаем подключение к базе данных
         # Определяем модели таблиц
-        # LoadingKyrgyzstan, OsooKg, OutputHtml, Consolidated = define_models(Base)
 
         # # Удаляем существующие таблицы
         # drop_tables(engine)
@@ -926,7 +1006,7 @@ def main():
         #     clear_table(session, OutputHtml)
         #     clear_table(session, Consolidated)
 
-        # # Импортируем данные
+        # Импортируем данные
         # print("\nНачинаем импорт данных...")
         # import_loading_kyrgyzstan_data(session, LoadingKyrgyzstan, "Loading Kyrgyzstan.csv")
         # import_osoo_kg_data(session, OsooKg, "osoo_kg.csv")
@@ -1094,6 +1174,6 @@ def get_csv():
     print("Файл успешно обработан и сохранён как filtered_data.csv")
 
 if __name__ == "__main__":
-    backup_database()
-    # main()
+    # backup_database()
+    main()
     # get_csv()

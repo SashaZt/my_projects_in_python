@@ -31,41 +31,38 @@ def load_proxies():
 
 def get_html():
     cookies = {
-        "lurl": "8b2f917b175e2095510e4a345d44d5677638189a846a7792241ddad7a435d94da%3A2%3A%7Bi%3A0%3Bs%3A4%3A%22lurl%22%3Bi%3A1%3Bs%3A61%3A%22http%3A%2F%2Fyoucontrol.com.ua%2Fru%2Fcatalog%2Fcompany_details%2F00032945%2F%22%3B%7D",
-        "catalog-register-banner": "1",
-        "spm1": "c4fa386f23d7a166a29d233e48304b4f",
-        "utrt": "2df7b9d058477bfb4a34eaa816bd87beddb0d1f68cc7a3c843038a665b9202e8a%3A2%3A%7Bi%3A0%3Bs%3A4%3A%22utrt%22%3Bi%3A1%3Bi%3A11780115%3B%7D",
-        "_csrf-frontend": "963c6d68d9bec8f5164308401be997f85c97786661c3c6f76e11e3ed0a1ff0f7a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22HFKQ8c-sSiC2G6eC3OzIxCyfZZahW8is%22%3B%7D",
+        "layout": "d",
+        "ks.tg": "47",
+        "k_stat": "a6864b24-87cc-4ce5-94ea-db68e661c075",
+        "kaspi.storefront.cookie.city": "750000000",
     }
 
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        # 'cookie': 'lurl=8b2f917b175e2095510e4a345d44d5677638189a846a7792241ddad7a435d94da%3A2%3A%7Bi%3A0%3Bs%3A4%3A%22lurl%22%3Bi%3A1%3Bs%3A61%3A%22http%3A%2F%2Fyoucontrol.com.ua%2Fru%2Fcatalog%2Fcompany_details%2F00032945%2F%22%3B%7D; catalog-register-banner=1; spm1=c4fa386f23d7a166a29d233e48304b4f; utrt=2df7b9d058477bfb4a34eaa816bd87beddb0d1f68cc7a3c843038a665b9202e8a%3A2%3A%7Bi%3A0%3Bs%3A4%3A%22utrt%22%3Bi%3A1%3Bi%3A11780115%3B%7D; _csrf-frontend=963c6d68d9bec8f5164308401be997f85c97786661c3c6f76e11e3ed0a1ff0f7a%3A2%3A%7Bi%3A0%3Bs%3A14%3A%22_csrf-frontend%22%3Bi%3A1%3Bs%3A32%3A%22HFKQ8c-sSiC2G6eC3OzIxCyfZZahW8is%22%3B%7D',
-        "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "referer": "https://youcontrol.com.ua/ru/catalog/company_details/00032945/",
-        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        "sec-ch-ua-arch": '"x86"',
-        "sec-ch-ua-bitness": '"64"',
-        "sec-ch-ua-full-version": '"131.0.6778.265"',
-        "sec-ch-ua-full-version-list": '"Google Chrome";v="131.0.6778.265", "Chromium";v="131.0.6778.265", "Not_A Brand";v="24.0.0.0"',
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        # 'Cookie': 'layout=d; ks.tg=47; k_stat=a6864b24-87cc-4ce5-94ea-db68e661c075; kaspi.storefront.cookie.city=750000000',
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+        "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
         "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
         "sec-ch-ua-platform": '"Windows"',
-        "sec-ch-ua-platform-version": '"19.0.0"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    }
+
+    params = {
+        "merchantId": "2111002",
     }
 
     response = requests.get(
-        "https://youcontrol.com.ua/catalog/company_details/37630597/",
+        "https://kaspi.kz/shop/info/merchant/2111002/address-tab/",
+        params=params,
         cookies=cookies,
         headers=headers,
         timeout=30,
@@ -74,7 +71,7 @@ def get_html():
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
-        with open("youcontrol.html", "w", encoding="utf-8") as file:
+        with open("kaspi.html", "w", encoding="utf-8") as file:
             file.write(response.text)
     logger.info(response.status_code)
 
@@ -936,11 +933,9 @@ def pars_htmls():
     # print(f"Данные успешно сохранены в файл: {output_file}")
 
 
-
-
 if __name__ == "__main__":
-    main_realoem()
-    # scap_realoem()
+    # main_realoem()
+    scap_realoem()
     # get_htmls()
     # get_html()
     # get_contact_prom()
