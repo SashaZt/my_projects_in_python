@@ -85,18 +85,3 @@ def get_json():
         time.sleep(10)
     else:
         logger.error(response.status_code)
-
-
-# def extract_user_name(user_id, user_options):
-#     filtered_user = list(filter(lambda x: x["value"] == user_id, user_options))
-#     return filtered_user[0]["text"] if filtered_user else None
-
-
-def process_data():
-    for json_file in json_directory.glob("*.json"):
-        with open(json_file, "r", encoding="utf-8") as file:
-            data = json.load(file)
-
-
-if __name__ == "__main__":
-    get_json()

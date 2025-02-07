@@ -933,9 +933,37 @@ def pars_htmls():
     # print(f"Данные успешно сохранены в файл: {output_file}")
 
 
+def scrap_html():
+    # Открываем HTML-файл
+    with open(
+        "Телефоны и гаджеты в Абай (Караганд.обл) - купить в Магазине на Kaspi.kz.html",
+        "r",
+        encoding="utf-8",
+    ) as file:
+        html_content = file.read()
+
+    # Используем регулярное выражение для поиска данных allMerchants
+    pattern = re.compile(r'\{"id":"(:allMerchants:[^"]+)",.*?\}', re.DOTALL)
+    matches = pattern.findall(html_content)
+
+    # Создаем список словарей с найденными данными
+    all_merchants = []
+    for match in matches:
+        merchant_pattern = re.compile(
+            r'\{"id":"' + re.escape(match) + r'",.*?\}', re.DOTALL
+        )
+        merchant_data = merchant_pattern.search(html_content)
+        if merchant_data:
+            all_merchants.append(json.loads(merchant_data.group(0)))
+
+    # Выводим результаты
+    for merchant in all_merchants:
+        print(merchant["id"].replace(":allMerchants:", ""))
+
+
 if __name__ == "__main__":
+    scrap_html()
     # main_realoem()
-    scap_realoem()
     # get_htmls()
     # get_html()
     # get_contact_prom()

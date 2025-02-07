@@ -69,5 +69,6 @@
     },
     // Miscellaneous settings - Прочие настройки
     "files.autoSave": "afterDelay",
-    "diffEditor.wordWrap": "inherit"
+    "diffEditor.wordWrap": "inherit",
+    "postman.settings.dotenv-detection-notification-visibility": false
 }
