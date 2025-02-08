@@ -48,7 +48,7 @@ CHANNEL_ID_MODELS_PRO = int(os.getenv("CHANNEL_ID_MODELS_PRO"))
 CHANNEL_ID_MODELS_FREE = int(os.getenv("CHANNEL_ID_MODELS_FREE"))
 TIME_A = int(os.getenv("TIME_A"))
 TIME_B = int(os.getenv("TIME_B"))
-password = os.getenv("TELEGRAM_PASSWORD")
+# password = os.getenv("TELEGRAM_PASSWORD")
 session_directory = current_directory / SESSION_PATH
 session_directory.mkdir(parents=True, exist_ok=True)
 DB_NAME = os.getenv("DB_NAME")
@@ -150,11 +150,20 @@ def get_session_name():
         phone_number = validate_phone_number(phone_number)
 
     session_name = session_directory / f"{phone_number}.session"
+    # Берем пароль из переменной окружения. Если пароль не установлен, можно запросить его:
+    password = os.getenv("TELEGRAM_PASSWORD")
+    if not password:
+        logger.warning(
+            "Пароль не задан в переменной окружения TELEGRAM_PASSWORD. Введите пароль вручную:"
+        )
+        password = input("Введите пароль: ").strip()
     logger.info(f"✅ Используется сессия: {session_name}")
-    return phone_number, str(session_name)  # Преобразуем Path в строку
+    return phone_number, str(session_name), password  # Преобразуем Path в строку
 
 
-phone_number, session_name = get_session_name()  # Получаем номер телефона и имя сессии
+phone_number, session_name, password = (
+    get_session_name()
+)  # Получаем номер телефона и имя сессии
 
 
 async def fetch_and_save_messages():
