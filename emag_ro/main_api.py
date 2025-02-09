@@ -155,44 +155,59 @@ def product_offer_save():
     valid_ean = generate_valid_ean13()
     # Данные о товаре
     # Данные для загрузки товара
-    # Данные товара согласно документации
+    # Массив с данными о товаре для отправки в API
     product_data = [
         {
-            "id": 17006903216,
-            "category_id": 2768,
-            "part_number": "A8-1106-A7085",
-            "name": "3,5-calowa konsola D22 HD Large Screen - przenośna gra zręcznościowa",
-            "brand": "No brand",
-            "description": '<section class="section"><div class="item item-6">Przenośna konsola do gier D22 HD z dużym ekranem 3,5 cala</div></section>',
-            "url": "https://your-shop.com/A8-1106-A7085",
-            "status": 1,
-            "sale_price": 153.0,
-            "vat_id": 4003,
-            "warranty": 24,
-            "images": [
+            "id": 17006903216,  # Уникальный идентификатор товара, целое число между 1 и 16777215
+            "category_id": 2768,  # ID категории в eMAG, в данном случае "Manicure and pedicure machines"
+            "part_number": "A8-1106-A7085",  # Уникальный артикул производителя, строка 1-25 символов
+            "name": "3,5-calowa konsola D22 HD Large Screen - przenośna gra zręcznościowa",  # Название товара, строка 1-255 символов
+            "brand": "No brand",  # Бренд товара, строка 1-255 символов
+            "description": '<section class="section"><div class="item item-6">Przenośna konsola do gier D22 HD z dużym ekranem 3,5 cala</div></section>',  # HTML-описание товара
+            "url": "https://your-shop.com/A8-1106-A7085",  # URL товара на вашем сайте, строка 1-1024 символов
+            "status": 1,  # Статус товара: 1 = активен, 0 = неактивен, 2 = end of life
+            "sale_price": 153.0,  # Цена продажи без НДС, десятичное число >0, до 4 знаков после запятой
+            "vat_id": 4003,  # ID ставки НДС из справочника /vat/read
+            "warranty": 24,  # Гарантия в месяцах, целое число 0-255
+            "images": [  # Массив изображений товара
                 {
-                    "display_type": 1,
-                    "url": "https://a.allegroimg.com/original/11f445/fb5c4b654145925c3858619e016e/3-5-calowa-konsola-D22-HD-Large-Screen-prze",
+                    "display_type": 1,  # 1 = главное изображение
+                    "url": "https://...",  # URL изображения, строка 1-1024 символов, макс 6000x6000px, 8Mb
+                },
+                {
+                    "display_type": 0,  # 0 = дополнительное изображение
+                    "url": "https://...",
                 },
                 {
                     "display_type": 0,
-                    "url": "https://a.allegroimg.com/original/111315/be5dd0644ce4bc2ccbd5bcff81fc/3-5-calowa-konsola-D22-HD-Large-Screen-prze-Producent-bez-marki",
-                },
-                {
-                    "display_type": 0,
-                    "url": "https://a.allegroimg.com/original/11d23b/e9a4161e4849b21332d3add892e7/3-5-calowa-konsola-D22-HD-Large-Screen-prze-Kod-producenta-A8-1106-A7085",
+                    "url": "https://...",
                 },
             ],
-            "stock": [{"warehouse_id": 1, "value": 199}],
-            "characteristics": [
-                {"id": 9623, "value": "Maini"},  # Значение для Zona corporala (руки)
+            "stock": [  # Массив данных о наличии товара
                 {
-                    "id": 5704,
-                    "value": "Freza electrica",  # Значение для Tip produs (электрическая фреза)
+                    "warehouse_id": 1,  # ID склада (1 для единственного склада)
+                    "value": 199,  # Количество товара, целое число 0-65535
+                }
+            ],
+            "characteristics": [  # Массив характеристик товара согласно категории
+                {
+                    "id": 9623,  # ID характеристики "Zona corporala"
+                    "value": "Maini",  # Значение характеристики "руки"
+                },
+                {
+                    "id": 5704,  # ID характеристики "Tip produs"
+                    "value": "Freza electrica",  # Значение "электрическая фреза"
                 },
             ],
-            "ean": [valid_ean],  # Добавлен уникальный EAN код
-            "handling_time": [{"warehouse_id": 1, "value": 1}],
+            "ean": [
+                valid_ean
+            ],  # Массив с EAN кодами (штрихкодами), сгенерированный валидный EAN-13
+            "handling_time": [  # Массив времени обработки заказа
+                {
+                    "warehouse_id": 1,  # ID склада
+                    "value": 1,  # Время обработки в днях, 0 = отправка в тот же день
+                }
+            ],
         }
     ]
 

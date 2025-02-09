@@ -1,43 +1,21 @@
-import json
-import sys
-from pathlib import Path
-import pandas as pd
-import requests
-from loguru import logger
 import csv
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import csv
-from pathlib import Path
-import time
-import requests
-from requests.exceptions import RequestException
-import json
 import hashlib
 import json
 import os
-import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
 import re
-from sqlalchemy.orm import Session
-import pandas as pd
-from sqlalchemy import select, join
+import sys
+import time
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
+
 import pandas as pd
 import requests
 from loguru import logger
-from sqlalchemy import create_engine, Column, String, Integer, Float, DateTime
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
-from sqlalchemy.orm import DeclarativeBase
-import time
-import json
-from pathlib import Path
-from datetime import datetime
-import logging
-from collections import defaultdict
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import create_engine, String, Integer
-import json
+from requests.exceptions import RequestException
+from sqlalchemy import Column, DateTime, Float, Integer, String, create_engine, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 current_directory = Path.cwd()
 json_category_directory = current_directory / "json_category"
@@ -98,13 +76,16 @@ logger.add(
     level="DEBUG",
     enqueue=True,
 )
+
+
 class Base(DeclarativeBase):
     pass
 
+
 # Определяем модель для таблицы
 class Merchant(Base):
-    __tablename__ = 'merchants'
-    __table_args__ = {'extend_existing': True}  # Добавляем этот параметр
+    __tablename__ = "merchants"
+    __table_args__ = {"extend_existing": True}  # Добавляем этот параметр
     id = Column(Integer, primary_key=True, autoincrement=True)
     uid = Column(String(50), unique=True, nullable=False)
     name = Column(String(255), nullable=False)
@@ -112,12 +93,14 @@ class Merchant(Base):
     create_date = Column(DateTime)
     sales_count = Column(Integer)
     rating = Column(Float)
-    
+
     def __repr__(self):
         return f"<Merchant(uid={self.uid}, name={self.name})>"
+
+
 class Review(Base):
-    __tablename__ = 'reviews'
-    __table_args__ = {'extend_existing': True}  # Добавляем этот параметр
+    __tablename__ = "reviews"
+    __table_args__ = {"extend_existing": True}  # Добавляем этот параметр
     id: Mapped[int] = mapped_column(primary_key=True)
     uid: Mapped[str] = mapped_column(String(100), nullable=False)
     year_2025: Mapped[int] = mapped_column(Integer, nullable=True)
@@ -127,9 +110,11 @@ class Review(Base):
     year_2021: Mapped[int] = mapped_column(Integer, nullable=True)
     year_2020: Mapped[int] = mapped_column(Integer, nullable=True)
     year_2019: Mapped[int] = mapped_column(Integer, nullable=True)
-    
+
     def __repr__(self):
         return f"<Review(uid={self.uid})>"
+
+
 def create_db_connection(
     user="python_mysql", password="python_mysql", host="localhost", db="kaspi_kz"
 ):
@@ -137,33 +122,37 @@ def create_db_connection(
     engine = create_engine(f"mysql+pymysql://{user}:{password}@{host}/{db}", echo=True)
     return engine
 
+
 def init_db(engine):
     """Инициализация базы данных"""
     Base.metadata.create_all(engine)
+
 
 def save_merchant_data(engine, merchant_data):
     """Сохранение данных о продавце в базу данных"""
     # Создаем сессию
     Session = sessionmaker(bind=engine)
     session = Session()
-    
+
     try:
         # Преобразуем строку даты в объект datetime
-        create_date = datetime.strptime(merchant_data['create'], '%Y-%m-%dT%H:%M:%S.%f')
-        
+        create_date = datetime.strptime(merchant_data["create"], "%Y-%m-%dT%H:%M:%S.%f")
+
         # Создаем новый объект Merchant
         merchant = Merchant(
-            uid=merchant_data['uid'],
-            name=merchant_data['name'],
-            phone=merchant_data['phone'],
+            uid=merchant_data["uid"],
+            name=merchant_data["name"],
+            phone=merchant_data["phone"],
             create_date=create_date,
-            sales_count=merchant_data['salesCount'],
-            rating=merchant_data['rating']
+            sales_count=merchant_data["salesCount"],
+            rating=merchant_data["rating"],
         )
-        
+
         # Проверяем, существует ли уже продавец с таким uid
-        existing_merchant = session.query(Merchant).filter_by(uid=merchant_data['uid']).first()
-        
+        existing_merchant = (
+            session.query(Merchant).filter_by(uid=merchant_data["uid"]).first()
+        )
+
         if existing_merchant:
             # Обновляем существующую запись
             existing_merchant.name = merchant.name
@@ -174,11 +163,11 @@ def save_merchant_data(engine, merchant_data):
         else:
             # Добавляем новую запись
             session.add(merchant)
-        
+
         # Сохраняем изменения
         session.commit()
         print(f"Successfully saved/updated merchant with UID: {merchant_data['uid']}")
-        
+
     except Exception as e:
         print(f"Error saving merchant data: {e}")
         session.rollback()
@@ -450,18 +439,20 @@ def scrap_html():
 
     # Записать DataFrame в CSV файл
     df.to_csv(output_id_csv_file, index=False)
+
+
 def scrap_html_id():
     engine = create_db_connection()
     init_db(engine)
-    
+
     all_data = []
     for html_file in html_id_directory.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             content = file.read()
 
-        pattern = r'BACKEND\.components\.merchant = ({.*?});?\s*</script>'
+        pattern = r"BACKEND\.components\.merchant = ({.*?});?\s*</script>"
         match = re.search(pattern, content, re.DOTALL)
-        
+
         if match:
             json_str = match.group(1).strip()
             try:
@@ -472,90 +463,94 @@ def scrap_html_id():
                     "phone": merchant_data.get("phone"),
                     "create": merchant_data.get("create"),
                     "salesCount": merchant_data.get("salesCount"),
-                    "rating": merchant_data.get("rating")
+                    "rating": merchant_data.get("rating"),
                 }
                 # Сохраняем данные в БД
                 save_merchant_data(engine, data)
-                
+
                 all_data.append(data)
                 logger.info(data)
             except Exception as e:
                 logger.error(f"Error processing merchant data: {e}")
-                
+
     return all_data
+
 
 def get_json_comment(merchant):
 
     cookies = {
-        'ks.tg': '47',
-        'k_stat': 'a6864b24-87cc-4ce5-94ea-db68e661c075',
-        'current-action-name': 'Index',
-        'kaspi.storefront.cookie.city': '750000000',
+        "ks.tg": "47",
+        "k_stat": "a6864b24-87cc-4ce5-94ea-db68e661c075",
+        "current-action-name": "Index",
+        "kaspi.storefront.cookie.city": "750000000",
     }
 
     headers = {
-        'Accept': 'application/json, text/*',
-        'Accept-Language': 'ru,en;q=0.9,uk;q=0.8',
-        'Connection': 'keep-alive',
+        "Accept": "application/json, text/*",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Connection": "keep-alive",
         # 'Cookie': 'ks.tg=47; k_stat=a6864b24-87cc-4ce5-94ea-db68e661c075; current-action-name=Index; kaspi.storefront.cookie.city=750000000',
-        'DNT': '1',
-        'Referer': 'https://kaspi.kz/shop/info/merchant/1274021/address-tab/',
-        'Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors',
-        'Sec-Fetch-Site': 'same-origin',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
-        'X-KS-City': '750000000',
-        'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
+        "DNT": "1",
+        "Referer": "https://kaspi.kz/shop/info/merchant/1274021/address-tab/",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+        "X-KS-City": "750000000",
+        "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
     }
     try:
         for page in range(0, 3):
             json_file_path = json_comment_directory / f"0{page}_{merchant}.json"
-            
+
             # Пропускаем существующие файлы
             if json_file_path.exists():
                 logger.info(f"File already exists: {json_file_path}")
                 continue
-                
+
             params = {
-                'limit': '1000',
-                'page': page,
-                'filter': 'COMMENT',
-                'sort': 'DATE',
-                'withAgg': 'false',
-                'days': '2000',
+                "limit": "1000",
+                "page": page,
+                "filter": "COMMENT",
+                "sort": "DATE",
+                "withAgg": "false",
+                "days": "2000",
             }
-            
+
             try:
                 response = requests.get(
-                    f'https://kaspi.kz/yml/review-view/api/v1/reviews/merchant/{merchant}',
+                    f"https://kaspi.kz/yml/review-view/api/v1/reviews/merchant/{merchant}",
                     params=params,
                     cookies=cookies,
                     headers=headers,
-                    timeout=30
+                    timeout=30,
                 )
                 response.raise_for_status()  # Проверяем статус ответа
-                
+
                 # Сохраняем JSON
                 with open(json_file_path, "w", encoding="utf-8") as json_file:
                     json.dump(response.json(), json_file, ensure_ascii=False, indent=4)
-                
+
                 logger.info(f"Successfully saved {json_file_path}")
-                
+
                 # Добавляем небольшую задержку между запросами
                 time.sleep(1)
-                
+
             except RequestException as e:
-                logger.error(f"Error fetching data for merchant {merchant}, page {page}: {e}")
+                logger.error(
+                    f"Error fetching data for merchant {merchant}, page {page}: {e}"
+                )
                 continue
-                
+
         return f"Completed processing merchant {merchant}"
-        
+
     except Exception as e:
         logger.error(f"Unexpected error processing merchant {merchant}: {e}")
         return f"Failed processing merchant {merchant}: {str(e)}"
-        
+
+
 def main_comment():
     # Читаем IDs из CSV
     ids = []
@@ -570,8 +565,10 @@ def main_comment():
     # Запускаем обработку в пуле потоков
     with ThreadPoolExecutor(max_workers=50) as executor:
         # Создаем словарь для отслеживания задач
-        future_to_merchant = {executor.submit(get_json_comment, merchant): merchant for merchant in ids}
-        
+        future_to_merchant = {
+            executor.submit(get_json_comment, merchant): merchant for merchant in ids
+        }
+
         # Обрабатываем результаты по мере их завершения
         for future in as_completed(future_to_merchant):
             merchant = future_to_merchant[future]
@@ -580,105 +577,110 @@ def main_comment():
                 logger.info(result)
             except Exception as e:
                 logger.error(f"Error processing merchant {merchant}: {e}")
+
+
 def process_reviews_by_year():
     all_stats = []
     # Группируем файлы по merchant_uid
     merchant_files = {}
-    
+
     try:
         # Получаем все JSON файлы
         json_files = list(Path(json_comment_directory).glob("[0-9]*_*.json"))
-        
+
         # Группируем файлы по merchant_uid
         for json_file in json_files:
-            merchant_uid = json_file.stem.split('_')[1]
+            merchant_uid = json_file.stem.split("_")[1]
             if merchant_uid not in merchant_files:
                 merchant_files[merchant_uid] = []
             merchant_files[merchant_uid].append(json_file)
-        
+
         # Обрабатываем файлы каждого мерчанта
         for merchant_uid, files in merchant_files.items():
             stats = defaultdict(int)
-            
+
             for json_file in files:
                 try:
-                    with open(json_file, 'r', encoding='utf-8') as f:
+                    with open(json_file, "r", encoding="utf-8") as f:
                         data = json.load(f)
-                    
+
                     # Обрабатываем каждый отзыв
-                    for review in data.get('data', []):
+                    for review in data.get("data", []):
                         try:
-                            date_str = review.get('date')
+                            date_str = review.get("date")
                             if date_str:
-                                date_obj = datetime.strptime(date_str, '%d.%m.%Y')
+                                date_obj = datetime.strptime(date_str, "%d.%m.%Y")
                                 year = date_obj.year
                                 stats[str(year)] += 1
                         except ValueError as e:
-                            logger.error(f"Error parsing date in review: {date_str}, Error: {e}")
+                            logger.error(
+                                f"Error parsing date in review: {date_str}, Error: {e}"
+                            )
                             continue
-                            
+
                 except json.JSONDecodeError as e:
                     logger.error(f"Error decoding JSON file {json_file}: {e}")
                     continue
                 except Exception as e:
                     logger.error(f"Error processing file {json_file}: {e}")
                     continue
-            
+
             # Формируем результат для текущего мерчанта
-            result = {
-                "uid": merchant_uid
-            }
+            result = {"uid": merchant_uid}
             # Добавляем статистику по годам в порядке убывания
             for year in sorted(stats.keys(), reverse=True):
                 result[year] = str(stats[year])
-            
+
             all_stats.append(result)
             logger.info(f"Processed merchant: {merchant_uid}")
-        
+
         return all_stats
-        
+
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return None
 
+
 def save_stats_to_json(stats, output_file):
     if stats:
         try:
-            with open(output_file, 'w', encoding='utf-8') as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(stats, f, ensure_ascii=False, indent=2)
             logger.info(f"Statistics saved to {output_file}")
         except Exception as e:
             logger.error(f"Error saving statistics to file: {e}")
+
+
 def import_reviews_from_json(json_file):
     engine = create_db_connection()
     init_db(engine)
     """Импорт данных из JSON файла в базу данных"""
     from sqlalchemy.orm import Session
-    
+
     # Читаем JSON файл
-    with open(json_file, 'r', encoding='utf-8') as f:
+    with open(json_file, "r", encoding="utf-8") as f:
         reviews_data = json.load(f)
-    
+
     # Создаем сессию
     session = Session(engine)
-    
+
     try:
         for review_data in reviews_data:
             # Создаем объект Review
             review = Review(
-                uid=review_data['uid'],
-                year_2025=int(review_data.get('2025', 0)),
-                year_2024=int(review_data.get('2024', 0)),
-                year_2023=int(review_data.get('2023', 0)),
-                year_2022=int(review_data.get('2022', 0)),
-                year_2021=int(review_data.get('2021', 0)),
-                year_2020=int(review_data.get('2020', 0)),
-                year_2019=int(review_data.get('2019', 0))
+                uid=review_data["uid"],
+                year_2025=int(review_data.get("2025", 0)),
+                year_2024=int(review_data.get("2024", 0)),
+                year_2023=int(review_data.get("2023", 0)),
+                year_2022=int(review_data.get("2022", 0)),
+                year_2021=int(review_data.get("2021", 0)),
+                year_2020=int(review_data.get("2020", 0)),
+                year_2019=int(review_data.get("2019", 0)),
             )
-            
+
             # Проверяем существование записи
             existing_review = session.query(Review).filter_by(uid=review.uid).first()
-            
+
             if existing_review:
                 # Обновляем существующую запись
                 existing_review.year_2025 = review.year_2025
@@ -691,17 +693,19 @@ def import_reviews_from_json(json_file):
             else:
                 # Добавляем новую запись
                 session.add(review)
-            
+
         # Сохраняем изменения
         session.commit()
         print("Data successfully imported")
-        
+
     except Exception as e:
         print(f"Error importing data: {e}")
         session.rollback()
     finally:
         session.close()
-def export_to_excel(engine, output_file='merchants_reviews.xlsx'):
+
+
+def export_to_excel(engine, output_file="merchants_reviews.xlsx"):
     try:
         # Создаем запрос для объединения таблиц
         query = select(
@@ -717,7 +721,7 @@ def export_to_excel(engine, output_file='merchants_reviews.xlsx'):
             Review.year_2022,
             Review.year_2021,
             Review.year_2020,
-            Review.year_2019
+            Review.year_2019,
         ).join(Review, Merchant.uid == Review.uid)
 
         # Выполняем запрос и получаем данные
@@ -725,43 +729,59 @@ def export_to_excel(engine, output_file='merchants_reviews.xlsx'):
             results = session.execute(query).all()
 
         # Преобразуем результаты в DataFrame
-        df = pd.DataFrame(results, columns=[
-            'UID', 'Название', 'Телефон', 'Дата создания', 
-            'Количество продаж', 'Рейтинг',
-            'Отзывы 2025', 'Отзывы 2024', 'Отзывы 2023',
-            'Отзывы 2022', 'Отзывы 2021', 'Отзывы 2020', 'Отзывы 2019'
-        ])
+        df = pd.DataFrame(
+            results,
+            columns=[
+                "UID",
+                "Название",
+                "Телефон",
+                "Дата создания",
+                "Количество продаж",
+                "Рейтинг",
+                "Отзывы 2025",
+                "Отзывы 2024",
+                "Отзывы 2023",
+                "Отзывы 2022",
+                "Отзывы 2021",
+                "Отзывы 2020",
+                "Отзывы 2019",
+            ],
+        )
 
         # Форматируем дату
-        df['Дата создания'] = pd.to_datetime(df['Дата создания']).dt.strftime('%d.%m.%Y')
+        df["Дата создания"] = pd.to_datetime(df["Дата создания"]).dt.strftime(
+            "%d.%m.%Y"
+        )
 
         # Создаем writer для Excel с engine='xlsxwriter'
-        with pd.ExcelWriter(output_file, engine='xlsxwriter') as writer:
+        with pd.ExcelWriter(output_file, engine="xlsxwriter") as writer:
             # Записываем DataFrame в Excel
-            df.to_excel(writer, sheet_name='Статистика', index=False)
+            df.to_excel(writer, sheet_name="Статистика", index=False)
 
             # Получаем объект workbook и worksheet
             workbook = writer.book
-            worksheet = writer.sheets['Статистика']
+            worksheet = writer.sheets["Статистика"]
 
             # Форматирование
-            header_format = workbook.add_format({
-                'bold': True,
-                'text_wrap': True,
-                'valign': 'top',
-                'align': 'center',
-                'border': 1,
-                'bg_color': '#D9E1F2'
-            })
+            header_format = workbook.add_format(
+                {
+                    "bold": True,
+                    "text_wrap": True,
+                    "valign": "top",
+                    "align": "center",
+                    "border": 1,
+                    "bg_color": "#D9E1F2",
+                }
+            )
 
             # Устанавливаем ширину столбцов
-            worksheet.set_column('A:A', 15)  # UID
-            worksheet.set_column('B:B', 30)  # Название
-            worksheet.set_column('C:C', 15)  # Телефон
-            worksheet.set_column('D:D', 15)  # Дата создания
-            worksheet.set_column('E:E', 15)  # Количество продаж
-            worksheet.set_column('F:F', 10)  # Рейтинг
-            worksheet.set_column('G:M', 12)  # Отзывы по годам
+            worksheet.set_column("A:A", 15)  # UID
+            worksheet.set_column("B:B", 30)  # Название
+            worksheet.set_column("C:C", 15)  # Телефон
+            worksheet.set_column("D:D", 15)  # Дата создания
+            worksheet.set_column("E:E", 15)  # Количество продаж
+            worksheet.set_column("F:F", 10)  # Рейтинг
+            worksheet.set_column("G:M", 12)  # Отзывы по годам
 
             # Применяем форматирование к заголовкам
             for col_num, value in enumerate(df.columns.values):
@@ -769,14 +789,15 @@ def export_to_excel(engine, output_file='merchants_reviews.xlsx'):
 
         logger.info(f"Данные успешно экспортированы в {output_file}")
         print(f"Файл успешно создан: {output_file}")
-        
+
         return True
 
     except Exception as e:
         logger.error(f"Ошибка при экспорте данных: {e}")
         print(f"Ошибка при создании файла: {e}")
         return False
-    
+
+
 if __name__ == "__main__":
     # Скачиваем все категории
     # get_json_category()
@@ -799,6 +820,6 @@ if __name__ == "__main__":
     # import_reviews_from_json(json_file)
     # Создаем подключение к БД
     engine = create_db_connection()
-    
+
     # Экспортируем данные
-    export_to_excel(engine, 'merchants_reviews_export.xlsx')
+    export_to_excel(engine, "merchants_reviews_export.xlsx")

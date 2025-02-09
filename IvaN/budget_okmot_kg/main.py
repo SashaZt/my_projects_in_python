@@ -1,17 +1,11 @@
-import asyncio
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from openpyxl import Workbook
 
 import pandas as pd
 import requests
 from configuration.logger_setup import logger
-import requests
-import json
-import logging
-from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor
-import pandas as pd
+from openpyxl import Workbook
 
 # Указываем пути к файлам и папкам
 current_directory = Path.cwd()
