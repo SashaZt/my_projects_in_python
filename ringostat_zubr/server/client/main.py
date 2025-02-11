@@ -954,7 +954,11 @@ def write_dict_to_google_sheets(data_dict):
         # Если таблица пуста, добавляем заголовки
         if not existing_headers:
             existing_headers = list(data_dict.keys())
-            sheet.append_row(existing_headers)
+            sheet.update(
+                'A1',
+                [existing_headers],
+                value_input_option='USER_ENTERED'
+            )
 
         # Убедимся, что ключи словаря совпадают с заголовками таблицы
         row = [data_dict.get(header, "") for header in existing_headers]
@@ -964,7 +968,12 @@ def write_dict_to_google_sheets(data_dict):
         next_free_row = len(all_rows) + 1  # Следующая свободная строка
 
         # Записываем данные в следующую свободную строку
-        sheet.insert_row(row, next_free_row)
+        range_name = f'A{next_free_row}'  # Определяем диапазон для вставки
+        sheet.update(
+            range_name,
+            [row],  # Данные должны быть в виде списка списков
+            value_input_option='USER_ENTERED'
+        )
 
     except Exception as e:
         logger.error(f"Ошибка при записи в Google Sheets: {e}")
@@ -1588,8 +1597,21 @@ async def question_gpt(value_promt, result_text):
     call_analysis = sections["Анализ звонка"].strip()
     sum_points_criterion = sections["Сумма баллов по каждому критерию"].strip()
     recommendations = sections["Рекомендации"].strip()
-    sum_points = sections["Сумма баллов числовое значение, только одно число"].strip()
-    final_assessment = sections["Финальная оценка числовое значение, только одно число"].strip()
+    # Определение возможных ключей для проверки
+    sum_points_keys = [
+        "Сумма баллов числовое значение, только одно число",
+        "Сумма баллов"
+    ]
+
+    final_assessment_keys = [
+        "Финальная оценка числовое значение, только одно число",
+        "Финальная оценка"
+    ]
+    
+    
+    # Извлечение значений
+    sum_points = get_value(sections, sum_points_keys).replace("*", "")
+    final_assessment = get_value(sections, final_assessment_keys).replace(".", ",").replace("*", "")
     
     logger.info(call_analysis)
     logger.info(sum_points_criterion)
@@ -1599,7 +1621,12 @@ async def question_gpt(value_promt, result_text):
     logger.info(message)
     return call_analysis,sum_points_criterion,recommendations,sum_points,final_assessment
     
-
+# Функция для извлечения значения по возможным ключам
+def get_value(sections, keys):
+    for key in keys:
+        if key in sections:
+            return sections[key].strip()
+    return None  # Возвращает None, если ключ не найден
 if __name__ == "__main__":
 
     start_time = datetime.now()  # Здесь используется datetime из модуля
