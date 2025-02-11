@@ -146,6 +146,7 @@ def parse_xml(file_path):
             "Quantity": prod_amount,
         }
         items.append(result)
+    
     # Сортировка по полю "Quantity" от большего к меньшему
     sorted_items = sorted(items, key=lambda x: x["Quantity"], reverse=True)
     update_sheet_with_data(sheet, sorted_items)
@@ -246,4 +247,3 @@ if __name__ == "__main__":
     # Извлечение данных из XML
     extracted_data = parse_xml(xml_file_path)
     # Сохранение данных в CSV
-    # save_to_csv(extracted_data, csv_file_path)

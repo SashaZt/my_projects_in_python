@@ -8,25 +8,6 @@ import sys
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-import asyncio
-import csv
-import hashlib
-import json
-import os
-import shutil
-import sys
-import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-
-import openpyxl
-import pandas as pd
-import requests
-from bs4 import BeautifulSoup
-from loguru import logger
-from openpyxl import Workbook
-from openpyxl.drawing.image import Image
-from PIL import Image
 
 import openpyxl
 import pandas as pd
@@ -188,6 +169,8 @@ def main_th():
         for future in as_completed(futures):
             # Здесь вы можете обрабатывать результаты по мере их завершения
             results.append(future.result())
+
+
 def extract_product(soup):
     product_script = soup.find(
         "script",
@@ -205,6 +188,8 @@ def extract_product(soup):
             return None
     else:
         return None
+
+
 def extract_breadcrumb_list(soup):
     breadcrumb_script = soup.find(
         "script",
@@ -223,6 +208,8 @@ def extract_breadcrumb_list(soup):
             return None
     else:
         return None
+
+
 def extract_data_breadcrumb(json_data):
     brand_product = ""
     category_product = ""
@@ -238,6 +225,7 @@ def extract_data_breadcrumb(json_data):
 
     # return brand_product, category_product, breadcrumb
     return brand_product, category_product
+
 
 def pars_htmls():
     logger.info("Собираем данные со страниц html")
@@ -286,10 +274,13 @@ def pars_htmls():
             json.dump(all_data, json_file, ensure_ascii=False, indent=4)
     # else:
     #     logger.warning("Данные не были извлечены из ни одного файла.")
+
+
 def read_json_files():
     with open(output_json_file, "r", encoding="utf-8") as json_file:
         data = json.load(json_file)
     return data
+
 
 async def download_images(df):
     for _, row in df.iterrows():
@@ -298,7 +289,6 @@ async def download_images(df):
             img_hash = hashlib.md5(url.encode()).hexdigest()
             jpg_path = img_directory / f"{img_hash}.jpg"
             webp_path = img_directory / f"{img_hash}.webp"
-
 
             if not os.path.exists(jpg_path):
                 try:
@@ -317,6 +307,7 @@ async def download_images(df):
         for _, row in df.iterrows()
         if row["product_image"]
     }
+
 
 async def parsing_page():
     logger.info("Формирую отчет в xlsx")
@@ -350,6 +341,7 @@ async def parsing_page():
 
     wb.save(output_xlsx_file)
     logger.info(f"Файл сохранен в {output_xlsx_file}")
+
 
 def main_loop():
     while True:

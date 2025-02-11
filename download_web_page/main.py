@@ -31,38 +31,37 @@ def load_proxies():
 
 def get_html():
     cookies = {
-        "layout": "d",
-        "ks.tg": "47",
-        "k_stat": "a6864b24-87cc-4ce5-94ea-db68e661c075",
-        "kaspi.storefront.cookie.city": "750000000",
+        "secure_customer_sig": "",
+        "localization": "UA",
+        "cart_currency": "EUR",
+        "_shopify_y": "E717B01C-0604-4E6E-b4a4-a2cf8e0db410",
+        "_tracking_consent": "%7B%22con%22%3A%7B%22CMP%22%3A%7B%22a%22%3A%22%22%2C%22m%22%3A%22%22%2C%22p%22%3A%22%22%2C%22s%22%3A%22%22%7D%7D%2C%22v%22%3A%222.1%22%2C%22region%22%3A%22UA18%22%2C%22reg%22%3A%22%22%2C%22purposes%22%3A%7B%22a%22%3Atrue%2C%22p%22%3Atrue%2C%22m%22%3Atrue%2C%22t%22%3Atrue%7D%2C%22display_banner%22%3Afalse%2C%22sale_of_data_region%22%3Afalse%2C%22consent_id%22%3A%222B8B1ACA-52ad-4A74-a4ca-f851092e7cd7%22%7D",
+        "_orig_referrer": "",
+        "_landing_page": "%2F",
+        "locale_bar_accepted": "1",
     }
 
     headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        # 'Cookie': 'layout=d; ks.tg=47; k_stat=a6864b24-87cc-4ce5-94ea-db68e661c075; kaspi.storefront.cookie.city=750000000',
-        "DNT": "1",
-        "Pragma": "no-cache",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
+        # 'cookie': 'secure_customer_sig=; localization=UA; cart_currency=EUR; _shopify_y=E717B01C-0604-4E6E-b4a4-a2cf8e0db410; _tracking_consent=%7B%22con%22%3A%7B%22CMP%22%3A%7B%22a%22%3A%22%22%2C%22m%22%3A%22%22%2C%22p%22%3A%22%22%2C%22s%22%3A%22%22%7D%7D%2C%22v%22%3A%222.1%22%2C%22region%22%3A%22UA18%22%2C%22reg%22%3A%22%22%2C%22purposes%22%3A%7B%22a%22%3Atrue%2C%22p%22%3Atrue%2C%22m%22%3Atrue%2C%22t%22%3Atrue%7D%2C%22display_banner%22%3Afalse%2C%22sale_of_data_region%22%3Afalse%2C%22consent_id%22%3A%222B8B1ACA-52ad-4A74-a4ca-f851092e7cd7%22%7D; _orig_referrer=; _landing_page=%2F; locale_bar_accepted=1',
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
         "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
-    }
-
-    params = {
-        "merchantId": "2111002",
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://kaspi.kz/shop/info/merchant/2111002/address-tab/",
-        params=params,
+        "https://nordicsport.com/products/master-800",
         cookies=cookies,
         headers=headers,
         timeout=30,
@@ -71,7 +70,7 @@ def get_html():
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
-        with open("kaspi.html", "w", encoding="utf-8") as file:
+        with open("nordicsport.html", "w", encoding="utf-8") as file:
             file.write(response.text)
     logger.info(response.status_code)
 
@@ -962,10 +961,10 @@ def scrap_html():
 
 
 if __name__ == "__main__":
-    scrap_html()
+    # scrap_html()
     # main_realoem()
     # get_htmls()
-    # get_html()
+    get_html()
     # get_contact_prom()
     # get_category_html()
     # get_session_html()
