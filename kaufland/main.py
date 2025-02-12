@@ -52,5 +52,5 @@ def get_json_product(id_product):
 
 
 if __name__ == "__main__":
-    id_product = "345284991"
+    id_product = "512063298"
     get_json_product(id_product)

@@ -74,15 +74,20 @@ headers = {
 
 def fetch_product_links(page_number):
     url = f"{BASE_URL}page/{page_number}/"
-    attempts = 10
+    attempts = 20
     for attempt in range(attempts):
         try:
+            proxies = {
+                "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+                "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+            }
             response = requests.get(url, cookies=cookies, headers=headers, timeout=60)
             if response.status_code == 200:
                 soup = BeautifulSoup(response.content, "lxml")
 
                 # Поиск ссылок на товары
                 product_links = link_product(soup)
+                logger.info(f"products on page {page_number}")
                 return product_links
             else:
                 logger.warning(
@@ -139,15 +144,14 @@ def fetch_product_details(product_url):
         return None
 
 
-# Сбор всех ссылок на товары
-all_product_links = []
-
-
 def collect_links():
+    # Сбор всех ссылок на товары
+    all_product_links = []
     with ThreadPoolExecutor(max_workers=20) as executor:
         results = executor.map(fetch_product_links, range(1, TOTAL_PAGES + 1))
         for links in results:
             all_product_links.extend(links)
+    return all_product_links
 
 
 def save_urls_product(output_csv_file, all_product_links):
@@ -155,24 +159,24 @@ def save_urls_product(output_csv_file, all_product_links):
     url_data.to_csv(output_csv_file, index=False)
 
 
-save_urls_product(output_csv_file, all_product_links)
-# Сбор информации о товарах
-product_details = []
+# # Сбор информации о товарах
+# product_details = []
 
 
-def collect_details():
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        results = executor.map(fetch_product_details, all_product_links)
-        for detail in results:
-            if detail:
-                product_details.append(detail)
+# def collect_details():
+#     with ThreadPoolExecutor(max_workers=20) as executor:
+#         results = executor.map(fetch_product_details, all_product_links)
+#         for detail in results:
+#             if detail:
+#                 product_details.append(detail)
 
 
 if __name__ == "__main__":
     start_time = time.time()
     logger.info("Сбор ссылок на товары...")
-    collect_links()
+    all_product_links = collect_links()
     logger.info(f"Найдено {len(all_product_links)} товаров.")
+    save_urls_product(output_csv_file, all_product_links)
 
     # logger.info("Сбор информации о товарах...")
     # collect_details()
