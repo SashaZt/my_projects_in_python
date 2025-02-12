@@ -131,7 +131,7 @@ def create_draft(product_data):
 
 
 # Функция для создания черновика
-def updates_draft(product_data):
+def updates_draft(extId, product_data):
 
     # Проверка на наличие обязательных полей
     required_fields = ["id", "name", "part_number", "brand"]
@@ -145,8 +145,8 @@ def updates_draft(product_data):
         }
 
     try:
-        response = session.post(
-            f"{api_url_draft}/api/v1/draft", headers=headers, json=product_data
+        response = session.put(
+            f"{api_url_draft}/api/v1/draft/extId", headers=headers, json=product_data
         )
 
         if response.status_code == 200:
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         # Для привязки к существующему товару
         "part_number_key": "ES0NKBBBD",  # Опциональное. String. Используется для привязки оффера к существующему товару
         # Языковые настройки
-        "source_language": "ro_RO",  # Опциональное. String. Язык контента (ro_RO, bg_BG, hu_HU и др.)
+        "source_language": "pl_PL",  # Опциональное. String. Язык контента (ro_RO, bg_BG, hu_HU и др.)
         # Основная информация о товаре
         "name": "Aspirator vertical, Roidmi, X20S, Alb/Negru, Fara fir, 2 in 1, Functie mop, Putere 435W, Rezervor 0,4 l, Baterie 2500 mAh, Filtrare in 6 etape, Accesorii incluse",  # Обязательное. String 1-255 символов. Название товара
         "part_number": "md788hc/d",  # Обязательное. String 1-25 символов. Уникальный идентификатор производителя
@@ -321,6 +321,7 @@ if __name__ == "__main__":
     }
 
     # get_draft()
+    updates_draft("95117032", product_data)
     # # Создание черновика
-    response = create_draft(product_data)
-    logger.info(response)
+    # response = create_draft(product_data)
+    # logger.info(response)
