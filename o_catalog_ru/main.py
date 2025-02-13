@@ -1,7 +1,13 @@
+import asyncio
+import csv
+import hashlib
 import json
+import os
+import re
+import shutil
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import pandas as pd
@@ -22,6 +28,7 @@ img_directory.mkdir(parents=True, exist_ok=True)
 output_json_file = data_directory / "output.json"
 output_xlsx_file = data_directory / "output.xlsx"
 output_csv_file = data_directory / "output.csv"
+output_csv_file_img = data_directory / "output_img.csv"
 output_xml_file = data_directory / "output.xml"
 log_file_path = log_directory / "log_message.log"
 
@@ -154,9 +161,9 @@ def collect_links():
     return all_product_links
 
 
-def save_urls_product(output_csv_file, all_product_links):
+def save_urls_product(csv_file, all_product_links):
     url_data = pd.DataFrame(all_product_links, columns=["url"])
-    url_data.to_csv(output_csv_file, index=False)
+    url_data.to_csv(csv_file, index=False)
 
 
 # # Сбор информации о товарах
@@ -169,26 +176,116 @@ def save_urls_product(output_csv_file, all_product_links):
 #         for detail in results:
 #             if detail:
 #                 product_details.append(detail)
+def main_th():
+    urls = []
+    with open(output_csv_file, newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            urls.append(row["url"])
+
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        futures = []
+        for url in urls:
+            output_html_file = (
+                html_directory / f"html_{hashlib.md5(url.encode()).hexdigest()}.html"
+            )
+
+            if not os.path.exists(output_html_file):
+                futures.append(executor.submit(get_html, url, output_html_file))
+            else:
+                print(f"Файл для {url} уже существует, пропускаем.")
+
+        results = []
+        for future in as_completed(futures):
+            # Здесь вы можете обрабатывать результаты по мере их завершения
+            results.append(future.result())
+
+
+def fetch(url):
+    response = requests.get(url, headers=headers, timeout=30)
+    response.raise_for_status()
+    return response.text
+
+
+def get_html(url, html_file):
+    src = fetch(url)
+    with open(html_file, "w", encoding="utf-8") as file:
+        file.write(src)
+    logger.info(html_file)
+
+
+def extract_image_filename(image_url):
+    match = re.search(r"/(\d{4})/(\d{2})/([^/]+)\.png$", image_url)
+    if match:
+        return f"{match.group(1)}_{match.group(2)}_{match.group(3)}"
+    return "unknown_filename"
+
+
+async def parsing_page():
+    all_data = []
+    all_img_urls = []
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            # Прочитать содержимое файла
+            content = file.read()
+            # Создать объект BeautifulSoup
+            soup = BeautifulSoup(content, "lxml")
+            name_tag = soup.find("h1", attrs={"class": "product_title entry-title"})
+            name = name_tag.text.strip() if name_tag else None
+            img_tag = soup.find("meta", attrs={"property": "og:image"})
+            image_url = img_tag.get("content") if img_tag else None
+            image_filename = extract_image_filename(image_url)
+            description = None
+            description_tag = soup.find("div", attrs={"id": "tab-description"})
+            if description_tag:
+                text_parts = description_tag.text.split("Данная деталь", 1)
+                description = (
+                    "Данная деталь" + text_parts[1].strip()
+                    if len(text_parts) > 1
+                    else None
+                )
+            else:
+                description = None
+
+            data_product = {
+                "name": name,
+                "description": description,
+                "image_filename": image_filename,
+            }
+            all_data.append(data_product)
+            all_img_urls.append(image_url)
+    save_urls_product(output_csv_file_img, all_img_urls)
+    # logger.info(all_data)
+    # with open(output_json_file, "w", encoding="utf-8") as json_file:
+    #     json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+    # Создаем DataFrame
+
+    df = pd.DataFrame(all_data)
+
+    # Сохраняем в Excel
+    df.to_excel(output_xlsx_file, index=False)
 
 
 if __name__ == "__main__":
     start_time = time.time()
     logger.info("Сбор ссылок на товары...")
-    all_product_links = collect_links()
-    logger.info(f"Найдено {len(all_product_links)} товаров.")
-    save_urls_product(output_csv_file, all_product_links)
+    # all_product_links = collect_links()
+    # logger.info(f"Найдено {len(all_product_links)} товаров.")
+    # save_urls_product(output_csv_file, all_product_links)
+    # main_th()
+    asyncio.run(parsing_page())
+# logger.info("Сбор информации о товарах...")
+# collect_details()
 
-    # logger.info("Сбор информации о товарах...")
-    # collect_details()
+# logger.info(f"Собрано данных о {len(product_details)} товарах.")
+# logger.info(f"Время выполнения: {time.time() - start_time:.2f} секунд")
 
-    # logger.info(f"Собрано данных о {len(product_details)} товарах.")
-    # logger.info(f"Время выполнения: {time.time() - start_time:.2f} секунд")
+# # Пример вывода результата
+# for product in product_details[:5]:
+#     logger.info(product)
 
-    # # Пример вывода результата
-    # for product in product_details[:5]:
-    #     logger.info(product)
+# with open("product_data.json", "w", encoding="utf-8") as f:
+#     json.dump(product_details, f, ensure_ascii=False, indent=4)
 
-    # with open("product_data.json", "w", encoding="utf-8") as f:
-    #     json.dump(product_details, f, ensure_ascii=False, indent=4)
-
-    # logger.info("Данные сохранены в product_data.json")
+# logger.info("Данные сохранены в product_data.json")
