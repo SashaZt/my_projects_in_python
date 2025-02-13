@@ -1380,6 +1380,11 @@ def find_all_matching_records(records_bd, records_salesdrive):
         normalized_name_bd = normalize_name(bd_record["manager_name"])
         swapped_name_bd = swap_name(bd_record["manager_name"])
         normalized_swapped_bd = normalize_name(swapped_name_bd)
+        analizZvonka = bd_record["call_analysis"]
+        summaBallovPoKriteriam = bd_record["sum_points_criterion"]
+        rekomendacii = bd_record["recommendations"]
+        summaBallov = bd_record["sum_points"]
+        finalnaaOcenka = bd_record["final_assessment"]
 
         matched = False
         for sd_record in records_salesdrive:
@@ -1405,7 +1410,7 @@ def find_all_matching_records(records_bd, records_salesdrive):
                 if sd_id not in sd_matches:
                     formatted_record = {
                         "id": sd_id,
-                        "data": {"comment": bd_record["notes"]}
+                        "data": {"comment": bd_record["notes"], "analizZvonka": analizZvonka, "summaBallovPoKriteriam": summaBallovPoKriteriam, "rekomendacii": rekomendacii, "summaBallov": summaBallov, "finalnaaOcenka": finalnaaOcenka},
                     }
                     sd_matches[sd_id] = formatted_record
                 matched = True
@@ -1530,6 +1535,7 @@ def work_salesdrive():
     records_salesdrive = get_salesdrive_orders()
     # logger.info(records_bd)
     # logger.info(records_salesdrive)
+
     # Получаем списки совпадений (всех найденных пар)
     orders_data, ids_to_update = find_all_matching_records(records_bd, records_salesdrive)
     

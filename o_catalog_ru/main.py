@@ -201,10 +201,50 @@ def main_th():
             results.append(future.result())
 
 
+def main_th_img():
+    urls = []
+    with open(output_csv_file_img, newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            urls.append(row["url"])
+
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        futures = []
+        for url in urls:
+            image_filename = extract_image_filename(url)
+            output_html_file = (
+                html_directory / f"html_{hashlib.md5(url.encode()).hexdigest()}.html"
+            )
+
+            if not os.path.exists(output_html_file):
+                futures.append(executor.submit(get_html, url, output_html_file))
+            else:
+                print(f"Файл для {url} уже существует, пропускаем.")
+
+        results = []
+        for future in as_completed(futures):
+            # Здесь вы можете обрабатывать результаты по мере их завершения
+            results.append(future.result())
+
+
 def fetch(url):
-    response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.text
+    attempts = 10
+    for attempt in range(attempts):
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            if response.status_code == 200:
+                return response.text
+            else:
+                logger.warning(
+                    f"Non-200 status code {response.status_code} on attempt {attempt + 1} for URL {url}. Retrying in 5 seconds..."
+                )
+                time.sleep(5)
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                f"Request error fetching URL {url} on attempt {attempt + 1}: {e}"
+            )
+            time.sleep(5)
+    return None
 
 
 def get_html(url, html_file):
@@ -235,6 +275,8 @@ async def parsing_page():
             name = name_tag.text.strip() if name_tag else None
             img_tag = soup.find("meta", attrs={"property": "og:image"})
             image_url = img_tag.get("content") if img_tag else None
+            if not image_url:
+                continue
             image_filename = extract_image_filename(image_url)
             description = None
             description_tag = soup.find("div", attrs={"id": "tab-description"})
@@ -256,11 +298,6 @@ async def parsing_page():
             all_data.append(data_product)
             all_img_urls.append(image_url)
     save_urls_product(output_csv_file_img, all_img_urls)
-    # logger.info(all_data)
-    # with open(output_json_file, "w", encoding="utf-8") as json_file:
-    #     json.dump(all_data, json_file, ensure_ascii=False, indent=4)
-    # Создаем DataFrame
-
     df = pd.DataFrame(all_data)
 
     # Сохраняем в Excel
@@ -274,7 +311,8 @@ if __name__ == "__main__":
     # logger.info(f"Найдено {len(all_product_links)} товаров.")
     # save_urls_product(output_csv_file, all_product_links)
     # main_th()
-    asyncio.run(parsing_page())
+    # asyncio.run(parsing_page())
+    main_th_img()
 # logger.info("Сбор информации о товарах...")
 # collect_details()
 

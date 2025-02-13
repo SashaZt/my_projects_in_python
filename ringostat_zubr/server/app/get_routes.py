@@ -67,7 +67,7 @@ async def get_comment_orders(
            date_to = datetime.strptime(date_to, "%Y-%m-%d %H:%M:%S")
 
        query = """
-           SELECT id, date, phone, manager_name ,notes, date
+           SELECT id, date, phone, manager_name ,notes, date,call_analysis,sum_points_criterion,recommendations,sum_points, final_assessment
            FROM calls_data 
            WHERE comment_order = FALSE 
            AND date BETWEEN %s AND %s
