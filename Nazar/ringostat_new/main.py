@@ -8,8 +8,40 @@ from app.api.get_routes import router as get_routes  # Роутер для GET-�
 from fastapi.middleware.cors import CORSMiddleware  # Для настройки CORS.
 from fastapi.responses import JSONResponse  # Формат ответа в JSON.
 from app.core.config import SSL_KEYFILE, SSL_CERTFILE  # Настройки SSL.
-from configuration.logger_setup import logger  # Логирование.
+from loguru import logger
+from pathlib import Path
+import sys
 import uvicorn  # Запуск сервера.
+from app.api.olx_routes import router as olx_router  
+from app.api.olx_message_routes import router as olx_message_router
+from app.api.olx_token_routes import router as olx_token_router
+
+
+
+current_directory = Path.cwd()
+log_directory = current_directory / "log"
+log_directory.mkdir(parents=True, exist_ok=True)
+
+log_file_path = log_directory / "log_message.log"
+
+logger.remove()
+# 🔹 Логирование в файл
+logger.add(
+    log_file_path,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {line} | {message}",
+    level="DEBUG",
+    encoding="utf-8",
+    rotation="10 MB",
+    retention="7 days",
+)
+
+# 🔹 Логирование в консоль (цветной вывод)
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{line}</cyan> | <cyan>{message}</cyan>",
+    level="DEBUG",
+    enqueue=True,
+)
 
 
 @asynccontextmanager
@@ -56,7 +88,16 @@ async def log_middleware(request: Request, call_next):
 # # Подключение маршрутов
 app.include_router(post_router)  # Роутер для POST-запросов.
 app.include_router(get_routes)  # Роутер для GET-запросов.
+app.include_router(olx_router)  # Добавляем OLX роутер
+app.include_router(olx_message_router)
+app.include_router(olx_token_router)
 
+
+
+# Выводим все зарегистрированные маршруты
+logger.debug("Registered routes:")
+for route in app.routes:
+    logger.debug(f"Route: {route.path} [{', '.join(route.methods)}]")
 
 if __name__ == "__main__":
     logger.debug("Запуск FastAPI сервера")
@@ -67,4 +108,5 @@ if __name__ == "__main__":
         ssl_keyfile=SSL_KEYFILE,  # Путь к файлу ключа SSL.
         ssl_certfile=SSL_CERTFILE,  # Путь к файлу сертификата SSL.
         log_level="debug",  # Уровень логирования.
+        # reload=True  # Добавляем автоперезагрузку для разработки
     )
