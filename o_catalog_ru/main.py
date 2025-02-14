@@ -212,12 +212,12 @@ def main_th_img():
         futures = []
         for url in urls:
             image_filename = extract_image_filename(url)
-            output_html_file = (
-                html_directory / f"html_{hashlib.md5(url.encode()).hexdigest()}.html"
+            output_file = (
+                img_directory / f"{image_filename}.png"
             )
 
-            if not os.path.exists(output_html_file):
-                futures.append(executor.submit(get_html, url, output_html_file))
+            if not os.path.exists(output_file):
+                futures.append(executor.submit(get_img, url, output_file))
             else:
                 print(f"Файл для {url} уже существует, пропускаем.")
 
@@ -245,6 +245,24 @@ def fetch(url):
             )
             time.sleep(5)
     return None
+def fetch_img(url):
+    attempts = 10
+    for attempt in range(attempts):
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            if response.status_code == 200 and "image" in response.headers.get("Content-Type", ""):
+                return response.content
+            else:
+                logger.warning(
+                    f"Non-200 status code {response.status_code} or invalid content type on attempt {attempt + 1} for URL {url}. Retrying in 5 seconds..."
+                )
+                time.sleep(5)
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                f"Request error fetching URL {url} on attempt {attempt + 1}: {e}"
+            )
+            time.sleep(5)
+    return None
 
 
 def get_html(url, html_file):
@@ -253,6 +271,14 @@ def get_html(url, html_file):
         file.write(src)
     logger.info(html_file)
 
+def get_img(url, img_path):
+    img_data = fetch_img(url)
+    if img_data:
+        with open(img_path, "wb") as file:
+            file.write(img_data)
+        logger.info(f"Saved image to {img_path}")
+    else:
+        logger.error(f"Failed to download image from {url}")
 
 def extract_image_filename(image_url):
     match = re.search(r"/(\d{4})/(\d{2})/([^/]+)\.png$", image_url)
