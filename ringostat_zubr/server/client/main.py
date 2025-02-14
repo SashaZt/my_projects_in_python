@@ -1129,7 +1129,7 @@ def write_add_call_data(call_data):
 
     # Преобразуем ключи перед отправкой
     call_data = convert_keys_to_english(call_data)
-    logger.info(call_data)
+    # logger.info(call_data)
     try:
         response = requests.post(
             url,
@@ -1619,12 +1619,12 @@ async def question_gpt(value_promt, result_text):
     sum_points = get_value(sections, sum_points_keys).replace("*", "")
     final_assessment = get_value(sections, final_assessment_keys).replace(".", ",").replace("*", "")
     
-    logger.info(call_analysis)
-    logger.info(sum_points_criterion)
-    logger.info(recommendations)
-    logger.info(sum_points)
-    logger.info(final_assessment)
-    logger.info(message)
+    # logger.info(call_analysis)
+    # logger.info(sum_points_criterion)
+    # logger.info(recommendations)
+    # logger.info(sum_points)
+    # logger.info(final_assessment)
+    # logger.info(message)
     return call_analysis,sum_points_criterion,recommendations,sum_points,final_assessment
     
 # Функция для извлечения значения по возможным ключам
