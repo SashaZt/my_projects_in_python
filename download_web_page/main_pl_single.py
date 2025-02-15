@@ -265,7 +265,7 @@ def download_pdf(idRCRD, cookies):
 def main():
     # urls = get_urls(output_csv_file)
     # asyncio.run(single_html(urls))
-    url = "https://msadvertisingpartnerprogram.powerappsportals.com/partner-directory/"
+    url = "https://rrr.lt/ru/poisk?q=K6D39U438AD"
     asyncio.run(single_html_one(url))
 
 

@@ -38,48 +38,48 @@ logger.add(
 
 def get_json():
 
+
     cookies = {
-        "ks.tg": "47",
-        "k_stat": "a6864b24-87cc-4ce5-94ea-db68e661c075",
-        "current-action-name": "Index",
-        "kaspi.storefront.cookie.city": "750000000",
+        'ci_session': '89ce1ca80a105d611439fd301899ef03bde4a024',
+        'ff_ux_sid': '019504fc-3a84-7388-ad96-2a3660bb4ef4',
+        'cart_session': '8f322e0aec7afe3d66f11648c5a0f7b0',
+        'cf_clearance': '3_rpruEg5qJb_bEkgrShX00.uUS7cgkTeh30KaXEY2c-1739545395-1.2.1.1-Z.choenG0Cu6BPOhFvB5Hfa4HqdQwMid._Hx_9_NPzFTxXU7sG69sCQ36QqNBnH9I8uWm.AQZm1LsVbgxSeeimo9csm51D84Adgcu2o1ytqUrFNCKg8OGCn2uyDl4zhwj6H0L.hfXKjanULzFhwO755tO_TZruaKx4TmXFEOYiI1UlM.Q.H0uZ7nCsX0j_OrSX0105wENn_gGFnoz9QzVXwgnG1OKNj9bAK4LfymlkLEcuxcMdb9xV2LuL_Hhz8ib58lGDTV5zRgiKQEHmphBH_pXyyu2uAyfzb2BJ3IJSo',
+        'CookieConsent': '{stamp:%27FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739545396288%2Cregion:%27ua%27}',
+        'soundestID': '20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt',
+        'disable_ovoko_modal': '67af5b37d1b665.14705006',
+        'wishlist': '537d367fad7fd4dac69b5e9a31296570',
     }
 
     headers = {
-        "Accept": "application/json, text/*",
-        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-        "Connection": "keep-alive",
-        # 'Cookie': 'ks.tg=47; k_stat=a6864b24-87cc-4ce5-94ea-db68e661c075; current-action-name=Index; kaspi.storefront.cookie.city=750000000',
-        "DNT": "1",
-        "Referer": "https://kaspi.kz/shop/c/categories/",
-        "Sec-Fetch-Dest": "empty",
-        "Sec-Fetch-Mode": "cors",
-        "Sec-Fetch-Site": "same-origin",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
-        "X-KS-City": "750000000",
-        "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'accept-language': 'ru,en;q=0.9,uk;q=0.8',
+        'cache-control': 'no-cache',
+        # 'cookie': 'ci_session=89ce1ca80a105d611439fd301899ef03bde4a024; ff_ux_sid=019504fc-3a84-7388-ad96-2a3660bb4ef4; cart_session=8f322e0aec7afe3d66f11648c5a0f7b0; cf_clearance=3_rpruEg5qJb_bEkgrShX00.uUS7cgkTeh30KaXEY2c-1739545395-1.2.1.1-Z.choenG0Cu6BPOhFvB5Hfa4HqdQwMid._Hx_9_NPzFTxXU7sG69sCQ36QqNBnH9I8uWm.AQZm1LsVbgxSeeimo9csm51D84Adgcu2o1ytqUrFNCKg8OGCn2uyDl4zhwj6H0L.hfXKjanULzFhwO755tO_TZruaKx4TmXFEOYiI1UlM.Q.H0uZ7nCsX0j_OrSX0105wENn_gGFnoz9QzVXwgnG1OKNj9bAK4LfymlkLEcuxcMdb9xV2LuL_Hhz8ib58lGDTV5zRgiKQEHmphBH_pXyyu2uAyfzb2BJ3IJSo; CookieConsent={stamp:%27FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739545396288%2Cregion:%27ua%27}; soundestID=20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt; disable_ovoko_modal=67af5b37d1b665.14705006; wishlist=537d367fad7fd4dac69b5e9a31296570',
+        'dnt': '1',
+        'pragma': 'no-cache',
+        'priority': 'u=1, i',
+        'referer': 'https://rrr.lt/ru/poisk?q=K6D39U438AD',
+        'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+        'x-requested-with': 'XMLHttpRequest',
     }
 
     params = {
-        "depth": "2",
-        "city": "750000000",
-        "code": "Smartphones and gadgets",
-        "rootType": "desktop",
+        'q': 'K6D39U438AD',
+        'prs': '1',
+        'page': '1',
     }
 
-    response = requests.get(
-        "https://kaspi.kz/yml/main-navigation/n/n/desktop-menu",
-        params=params,
-        cookies=cookies,
-        headers=headers,
-        timeout=30,
-    )
+    response = requests.get('https://rrr.lt/ru/poisk', params=params, cookies=cookies, headers=headers)
     # Проверка успешности запроса
     if response.status_code == 200:
         json_data = response.json()
-        with open("kaspi.json", "w", encoding="utf-8") as f:
+        with open("rrr.json", "w", encoding="utf-8") as f:
             json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
         logger.info(json_data)
         time.sleep(10)

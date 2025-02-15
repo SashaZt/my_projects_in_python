@@ -31,46 +31,46 @@ def load_proxies():
 
 def get_html():
     cookies = {
-        "secure_customer_sig": "",
-        "localization": "UA",
-        "cart_currency": "EUR",
-        "_shopify_y": "E717B01C-0604-4E6E-b4a4-a2cf8e0db410",
-        "_tracking_consent": "%7B%22con%22%3A%7B%22CMP%22%3A%7B%22a%22%3A%22%22%2C%22m%22%3A%22%22%2C%22p%22%3A%22%22%2C%22s%22%3A%22%22%7D%7D%2C%22v%22%3A%222.1%22%2C%22region%22%3A%22UA18%22%2C%22reg%22%3A%22%22%2C%22purposes%22%3A%7B%22a%22%3Atrue%2C%22p%22%3Atrue%2C%22m%22%3Atrue%2C%22t%22%3Atrue%7D%2C%22display_banner%22%3Afalse%2C%22sale_of_data_region%22%3Afalse%2C%22consent_id%22%3A%222B8B1ACA-52ad-4A74-a4ca-f851092e7cd7%22%7D",
-        "_orig_referrer": "",
-        "_landing_page": "%2F",
-        "locale_bar_accepted": "1",
-    }
+    'ci_session': '89ce1ca80a105d611439fd301899ef03bde4a024',
+    'ff_ux_sid': '019504fc-3a84-7388-ad96-2a3660bb4ef4',
+    'cart_session': '8f322e0aec7afe3d66f11648c5a0f7b0',
+    'CookieConsent': '{stamp:%27FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739545396288%2Cregion:%27ua%27}',
+    'soundestID': '20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt',
+    'disable_ovoko_modal': '67af5b37d1b665.14705006',
+    'wishlist': '537d367fad7fd4dac69b5e9a31296570',
+    'cf_clearance': 'gl.ZYNtoyr1AOGV66q1P1zhlHF0l_gBee8Rv0_ME6BA-1739548092-1.2.1.1-SyPGbC1tTsuMRUuCAPaSJ_3JbPaVe243rdyNHFpr1CHS_Soq.AG6DOsyDQg4AtheG5H9bwXa1JdNrUDJ6j3eBkbZvhFAdxkwn1paVh4IUw0SqKUpoZXGuVXfVoYjsNcYnWdZVUQIOjEQcAZ8.ZmkA0rlzENRmTtVrr7UqrEBEY59w2YEiWt4bOHH1prw.RbjXO05vkDoFgKp_1_mGEU81W18Rtrxdt4gbUCEedVOH4PluB72G7RwKdPA2jsKxET45h1b3YV7siNwY0H4hS176ZeJ0jjaOkB4QZLC0uW6o.U',
+    'omnisendSessionID': 'H3q0nWo4AAio4m-20250214154811',
+}
 
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        # 'cookie': 'secure_customer_sig=; localization=UA; cart_currency=EUR; _shopify_y=E717B01C-0604-4E6E-b4a4-a2cf8e0db410; _tracking_consent=%7B%22con%22%3A%7B%22CMP%22%3A%7B%22a%22%3A%22%22%2C%22m%22%3A%22%22%2C%22p%22%3A%22%22%2C%22s%22%3A%22%22%7D%7D%2C%22v%22%3A%222.1%22%2C%22region%22%3A%22UA18%22%2C%22reg%22%3A%22%22%2C%22purposes%22%3A%7B%22a%22%3Atrue%2C%22p%22%3Atrue%2C%22m%22%3Atrue%2C%22t%22%3Atrue%7D%2C%22display_banner%22%3Afalse%2C%22sale_of_data_region%22%3Afalse%2C%22consent_id%22%3A%222B8B1ACA-52ad-4A74-a4ca-f851092e7cd7%22%7D; _orig_referrer=; _landing_page=%2F; locale_bar_accepted=1',
-        "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "cross-site",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'ru,en;q=0.9,uk;q=0.8',
+        'cache-control': 'no-cache',
+        # 'cookie': 'ci_session=89ce1ca80a105d611439fd301899ef03bde4a024; ff_ux_sid=019504fc-3a84-7388-ad96-2a3660bb4ef4; cart_session=8f322e0aec7afe3d66f11648c5a0f7b0; CookieConsent={stamp:%27FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739545396288%2Cregion:%27ua%27}; soundestID=20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt; disable_ovoko_modal=67af5b37d1b665.14705006; wishlist=537d367fad7fd4dac69b5e9a31296570; cf_clearance=gl.ZYNtoyr1AOGV66q1P1zhlHF0l_gBee8Rv0_ME6BA-1739548092-1.2.1.1-SyPGbC1tTsuMRUuCAPaSJ_3JbPaVe243rdyNHFpr1CHS_Soq.AG6DOsyDQg4AtheG5H9bwXa1JdNrUDJ6j3eBkbZvhFAdxkwn1paVh4IUw0SqKUpoZXGuVXfVoYjsNcYnWdZVUQIOjEQcAZ8.ZmkA0rlzENRmTtVrr7UqrEBEY59w2YEiWt4bOHH1prw.RbjXO05vkDoFgKp_1_mGEU81W18Rtrxdt4gbUCEedVOH4PluB72G7RwKdPA2jsKxET45h1b3YV7siNwY0H4hS176ZeJ0jjaOkB4QZLC0uW6o.U; omnisendSessionID=H3q0nWo4AAio4m-20250214154811',
+        'dnt': '1',
+        'pragma': 'no-cache',
+        'priority': 'u=0, i',
+        'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
     }
 
-    response = requests.get(
-        "https://nordicsport.com/products/master-800",
-        cookies=cookies,
-        headers=headers,
-        timeout=30,
-    )
+    params = {
+        'q': 'K6D39U438AD',
+    }
+
+    response = requests.get('https://rrr.lt/ru/poisk', params=params, cookies=cookies, headers=headers)
 
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
-        with open("nordicsport.html", "w", encoding="utf-8") as file:
+        with open("rrr.html", "w", encoding="utf-8") as file:
             file.write(response.text)
     logger.info(response.status_code)
 
