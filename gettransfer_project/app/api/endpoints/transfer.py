@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.crud.transfer import (
+from crud.transfer import (
     get_transfer,
     get_transfers,
     create_transfer,
     update_transfer,
     delete_transfer,
 )
-from app.schemas.transfer import Transfer, TransferCreate
-from app.core.dependencies import get_db
-from app.core.logger import logger
+from schemas.transfer import Transfer, TransferCreate
+from core.dependencies import get_db
+from core.logger import logger
 
 router = APIRouter(prefix="/transfer", tags=["transfer"])
 

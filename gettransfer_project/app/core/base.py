@@ -1,3 +1,4 @@
+#app/core/base.py
 from sqlalchemy.ext.declarative import declarative_base
 
 # Создаём базовый класс для моделей SQLAlchemy.

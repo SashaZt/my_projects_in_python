@@ -1,5 +1,5 @@
 # dependencies.py
-from app.core.database import get_session
+from core.database import get_session
 
 # Унифицированное получение сессии базы данных.
 async def get_db():

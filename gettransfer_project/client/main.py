@@ -3,8 +3,34 @@ import asyncio
 import json
 import httpx
 import aiofiles
-from app.core.logger import logger
+from pathlib import Path
+from loguru import logger
+import sys
 
+
+current_directory = Path.cwd()
+log_directory = current_directory / "log"
+log_directory.mkdir(parents=True, exist_ok=True)
+log_file_path = log_directory / "log_message.log"
+
+logger.remove()
+# 🔹 Логирование в файл
+logger.add(
+    log_file_path,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {line} | {message}",
+    level="DEBUG",
+    encoding="utf-8",
+    rotation="10 MB",
+    retention="7 days",
+)
+
+# 🔹 Логирование в консоль (цветной вывод)
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{line}</cyan> | <cyan>{message}</cyan>",
+    level="DEBUG",
+    enqueue=True,
+)
 # URL-шаблон запроса: {page} будет заменяться на номер страницы
 URL_TEMPLATE = (
     "https://gettransfer.com/api/transfers?"
@@ -15,29 +41,32 @@ URL_TEMPLATE = (
 
 # Необходимые заголовки и cookies – заполните реальными значениями
 HEADERS = {
-    "accept": "application/json, text/plain, */*",
-    "accept-language": "ru,en;q=0.9,uk;q=0.8",
-    "dnt": "1",
-    "priority": "u=1, i",
-    "referer": "https://gettransfer.com/ru/carrier/",
-    "sec-ch-ua": '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36",
+    'accept': 'application/json, text/plain, */*',
+    'accept-language': 'ru,en;q=0.9,uk;q=0.8',
+    'dnt': '1',
+    'priority': 'u=1, i',
+    'referer': 'https://gettransfer.com/ru/carrier/',
+    'sec-ch-ua': '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-origin',
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
 }
 
+
 COOKIES = {
-    "locale": "ru",
-    "cookieAccepted": "true",
-    # Заполните остальные cookie, необходимые для корректного ответа сервера
+    'locale': 'ru',
+    'cookieAccepted': 'true',
+    'rack.session': '7d455f84ae005c2474c86e22051d3bfaee8fe06ba0167f1a3ba33ef4f4dc4402',
+    '__cf_bm': 'jyx.tGoMu4fO6NDWbSTTsfa5PM8uyCMa9GvmzupHqPI-1739713454-1.0.1.1-GJUt0POJLGaGCBVdDhvAAfd8yTNAjQNMwkDY.MpLWghXR3H6PT2oCHwiAPn3nBF3PxSfLhoAyOtkFpxasnqi_.TAB.AKSry9WAUYpyBhf2I',
+    'cf_clearance': 'bKOUZ6Q2FdKfOHKIytTp2wRYbskB2o5DVAPOBIZU970-1739713455-1.2.1.1-QWOJOzj.IEdNpvJvKScPonAwX2MSTNBkf_GWa.L7VRNBfDZbsg2MuqgFSXE4Uf3FGgi13wyFx5hxS8QFR0TCB9ol8.9UF0B3LIqu9qzoGS5.3gxLn1qfd_h7Ds3DIv8SxSWQtsoOWffOVJrGMjA08rvqxyWRzplJDXd2Fjo8ULUyGpEhZIHoIqAtMNe4Rd4u4sXqvO4TKGJbcZ4fnRLth7TaFSVUn.xdjqx2aD5oSdripqIOYzJX8yYJtOqA2k0mvrE3Q1GrNAZFWx_gFV4lxtYwxSA4tHO8cZhJLJ99jUI',
+    'io': 'GHrs8VqMH0t3Q7HNOsDm',
 }
 
 # API-эндпоинт вашего FastAPI, куда будут отправляться записи
-API_ENDPOINT = "http://fastapi_app:5000/transfer"
+API_ENDPOINT = "http://web:5000/transfer"
 
 
 async def fetch_page(client: httpx.AsyncClient, page: int) -> dict:
@@ -72,11 +101,13 @@ async def get_json() -> dict:
                 logger.error("Не удалось получить данные первой страницы")
                 return {}
 
-            pages_count = first_page_data.get("pages_count", 1)
+            # Если данные вложены в ключ "data", извлекаем его
+            data_section = first_page_data.get("data", {})
+            pages_count = data_section.get("pages_count", 1)
             logger.info(f"Обнаружено страниц: {pages_count}")
 
-            # Предполагаем, что основная информация находится в ключе "data"
-            all_data = first_page_data.get("data", [])
+            # Извлекаем список трансферов
+            all_data = data_section.get("transfers", [])
 
             # Если страниц больше 1 – делаем дополнительные запросы
             if pages_count > 1:
@@ -86,16 +117,18 @@ async def get_json() -> dict:
                 pages_results = await asyncio.gather(*tasks, return_exceptions=True)
                 for idx, page_result in enumerate(pages_results, start=2):
                     if isinstance(page_result, dict) and page_result:
-                        page_data = page_result.get("data", [])
-                        logger.debug(
-                            f"Страница {idx}: получено {len(page_data)} записей"
-                        )
+                        nested = page_result.get("data", {})
+                        page_data = nested.get("transfers", [])
+                        logger.debug(f"Страница {idx}: получено {len(page_data)} записей")
                         all_data.extend(page_data)
                     else:
                         logger.error(f"Ошибка при получении данных страницы {idx}")
 
-            # Обновляем JSON: заменяем ключ "data" объединёнными данными
-            first_page_data["data"] = all_data
+            # Обновляем JSON: заменяем ключ "data" на объединённые данные
+            first_page_data["data"] = {
+                "transfers": all_data,
+                "pages_count": pages_count
+            }
 
             # Асинхронно сохраняем JSON в файл
             file_output = "output_json.json"
@@ -108,6 +141,7 @@ async def get_json() -> dict:
         return {}
 
 
+
 async def scrap_json() -> list:
     """
     Асинхронно загрузить сохранённый JSON, обработать его и сформировать итоговый список записей.
@@ -118,8 +152,8 @@ async def scrap_json() -> list:
         data = json.loads(content)
 
         all_transfers = []  # Итоговый список для хранения обработанных записей
-        # Предполагаем, что данные трансферов находятся в ключе "data"
-        transfers = data.get("data", [])
+        # Извлекаем список трансферов из вложенного ключа "data"
+        transfers = data.get("data", {}).get("transfers", [])
 
         for transfer in transfers:
             # Извлечение основных полей
@@ -256,7 +290,8 @@ async def main():
 if __name__ == "__main__":
 
     async def run_with_pause():
-        await main()
+        logger.info("Запуск скрипта")
+        # await main()
         # Асинхронная пауза на 5 минут (300 секунд)
         await asyncio.sleep(300)
 

@@ -2,7 +2,6 @@ services:
   postgres:
     build: ./postgres
     container_name: postgres_container
-    user: "1000:1000"
     ports:
       - "5432:5432"
     volumes:
@@ -16,46 +15,83 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     networks:
       - postgres_fastapi_network
+
   web:
-    build: ./app
+    build:
+      context: .
+      dockerfile: app/Dockerfile
     container_name: fastapi_app
+    working_dir: /app
     ports:
       - "5000:5000"
     volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-    env_file:
-      - ./core/.env
-    depends_on:
-      - postgres
+      - ./app:/app # монтируем только директорию app, где уже есть всё необходимое
+      - ./alembic.ini:/app/alembic.ini
+      - ./alembic:/app/alembic
     environment:
-      RUN_MIGRATIONS: "1"
+      PYTHONPATH: /app
       DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: postgres_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:5000/docs" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    command: [ "main.py" ]
     restart: always
     networks:
       - postgres_fastapi_network
+
   client:
     build:
       context: ./client
       dockerfile: Dockerfile
+    container_name: client_app # добавим имя контейнера
     volumes:
-      - /etc/localtime:/etc/localtime:ro # Использование временной зоны хоста
-      - /etc/timezone:/etc/timezone:ro # Использование временной зоны хоста
+      - ./client:/client # монтируем код клиента
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      API_ENDPOINT: "http://web:5000/transfer" # правильный URL для доступа к API
+      PYTHONUNBUFFERED: 1 # для правильного логирования
     depends_on:
-      - app
+      web:
+        condition: service_healthy
     networks:
       - postgres_fastapi_network
     restart: always
+
   alembic:
-    build: ./app
+    build:
+      context: .
+      dockerfile: app/Dockerfile
     container_name: alembic_runner
+    volumes:
+      - ./:/app # монтируем весь проект в /app
+    working_dir: /app # рабочая директория соответствует монтированию
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
-    command: [ "alembic", "upgrade", "head" ]
-    restart: "no"
+      PYTHONPATH: /app # PYTHONPATH тоже должен соответствовать
+
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: postgres_db
+    entrypoint: [ "alembic" ] # Переопределяем ENTRYPOINT
+    command: [ "-c", "alembic.ini", "upgrade", "head" ] # Команда как массив
+    networks:
+      - postgres_fastapi_network
 
 networks:
   postgres_fastapi_network:

@@ -5,13 +5,13 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 import uvicorn
 
-from app.core.database import engine
-from app.core.logger import logger
-from app.core.config import SSL_KEYFILE, SSL_CERTFILE
+from core.database import engine
+from core.logger import logger
+from core.config import SSL_KEYFILE, SSL_CERTFILE
 from fastapi.middleware.cors import CORSMiddleware
 
 # Подключаем эндпоинты
-from app.endpoints.transfer import router as transfer_router
+from api.endpoints.transfer import router as transfer_router
 
 
 @asynccontextmanager

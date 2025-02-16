@@ -1,8 +1,6 @@
 # app/models/transfer.py
 from sqlalchemy import Column, Date, Time, String, Integer, Float
-from app.database import (
-    Base,
-)  # предположим, что Base импортируется от declarative_base()
+from core.database import Base
 
 
 class Transfer(Base):

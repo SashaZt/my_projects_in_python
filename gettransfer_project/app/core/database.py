@@ -1,6 +1,6 @@
-# database.py
-from app.core.config import DATABASE_URL  # Импорт строки подключения к базе данных.
-from app.core.base import Base  # Импорт базового класса для моделей.
+# /app/core/database.py
+from core.config import DATABASE_URL  # Импорт строки подключения к базе данных.
+from core.base import Base  # Импорт базового класса для моделей.
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,

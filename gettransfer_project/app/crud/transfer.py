@@ -1,8 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from app.models.transfer import Transfer as TransferModel  # SQLAlchemy‑модель
-from app.schemas.transfer import TransferCreate  # Pydantic‑схема для создания
-from app.core.logger import logger
+from models.transfer import Transfer as TransferModel  # SQLAlchemy‑модель
+from schemas.transfer import TransferCreate  # Pydantic‑схема для создания
+from core.logger import logger
 
 
 async def get_transfer(db: AsyncSession, transfer_id: int) -> TransferModel:
