@@ -1,7 +1,7 @@
 # app/Dockerfile
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y openssl
+RUN apt-get update && apt-get install -y openssl curl
 
 WORKDIR /app
 ENV PYTHONPATH=/app 

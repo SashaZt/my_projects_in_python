@@ -1,9 +1,14 @@
+#app/crud/transfer.py
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from models.transfer import Transfer as TransferModel  # SQLAlchemy‑модель
 from schemas.transfer import TransferCreate  # Pydantic‑схема для создания
 from core.logger import logger
 
+async def get_transfer_by_transfer_id(db: AsyncSession, transfer_id: str):
+    query = select(TransferModel).where(Transfer.transfer_id == transfer_id)
+    result = await db.execute(query)
+    return result.scalar_one_or_none()
 
 async def get_transfer(db: AsyncSession, transfer_id: int) -> TransferModel:
     """
@@ -34,17 +39,24 @@ async def get_transfers(db: AsyncSession, skip: int = 0, limit: int = 100):
     return transfers
 
 
-async def create_transfer(db: AsyncSession, transfer: TransferCreate) -> TransferModel:
-    """
-    Создать новую запись Transfer.
-    """
-    logger.debug(f"Создание новой записи Transfer с данными: {transfer.dict()}")
-    db_transfer = TransferModel(**transfer.dict())
-    db.add(db_transfer)
+async def create_transfer(db: AsyncSession, transfer: TransferCreate):
+    # Сначала проверяем существование transfer_id
+    query = select(Transfer).where(Transfer.transfer_id == transfer.transfer_id)
+    result = await db.execute(query)
+    exists = result.scalar_one_or_none()
+    
+    if exists:
+        # Если запись существует, обновляем её
+        for key, value in transfer.dict().items():
+            setattr(exists, key, value)
+    else:
+        # Если записи нет, создаём новую
+        exists = Transfer(**transfer.dict())
+        db.add(exists)
+
     await db.commit()
-    await db.refresh(db_transfer)
-    logger.info(f"Новая запись Transfer успешно создана с id={db_transfer.id}")
-    return db_transfer
+    await db.refresh(exists)
+    return exists
 
 
 async def update_transfer(

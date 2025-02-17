@@ -1,3 +1,4 @@
+#app/api/endpoints/transfer.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from crud.transfer import (
@@ -6,6 +7,7 @@ from crud.transfer import (
     create_transfer,
     update_transfer,
     delete_transfer,
+    get_transfer_by_transfer_id
 )
 from schemas.transfer import Transfer, TransferCreate
 from core.dependencies import get_db
@@ -36,13 +38,21 @@ async def read_transfer(transfer_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/", response_model=Transfer, status_code=status.HTTP_201_CREATED)
-async def create_new_transfer(
-    transfer: TransferCreate, db: AsyncSession = Depends(get_db)
-):
-    logger.debug(f"Создание нового трансфера с данными: {transfer.dict()}")
+async def create_new_transfer(transfer: TransferCreate, db: AsyncSession = Depends(get_db)):
+    logger.debug(f"Создание/обновление трансфера с данными: {transfer.dict()}")
+    existing = await get_transfer_by_transfer_id(db, transfer.transfer_id)
     new_transfer = await create_transfer(db, transfer)
-    logger.info(f"Новый трансфер создан с id={new_transfer.id}")
-    return new_transfer
+    
+    # Возвращаем разные статус коды для создания и обновления
+    if existing:
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=jsonable_encoder(new_transfer)
+        )
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content=jsonable_encoder(new_transfer)
+    )
 
 
 @router.put("/{transfer_id}", response_model=Transfer)

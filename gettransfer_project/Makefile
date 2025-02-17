@@ -39,21 +39,9 @@ start:
 	@sleep 10
 	docker-compose up -d web
 	@echo "Waiting for web service..."
-	@sleep 20
-	@echo "Checking web service status..."
-	@if [ "$$(docker-compose ps -q web)" ]; then \
-		if [ "$$(docker inspect -f '{{.State.Running}}' $$(docker-compose ps -q web))" = "true" ]; then \
-			make migrate-up; \
-			docker-compose up -d client; \
-		else \
-			echo "Web service failed to start"; \
-			docker-compose logs web; \
-			exit 1; \
-		fi \
-	else \
-		echo "Web service not found"; \
-		exit 1; \
-	fi
+	@sleep 10
+	make migrate-up
+	docker-compose up -d client
 	make logs
 # Помощь по командам
 help:

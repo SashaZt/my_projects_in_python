@@ -6,7 +6,8 @@ import aiofiles
 from pathlib import Path
 from loguru import logger
 import sys
-
+from datetime import datetime  # добавьте этот импорт в начало файла
+from dateutil.parser import parse  # добавьте этот импорт
 
 current_directory = Path.cwd()
 log_directory = current_directory / "log"
@@ -66,7 +67,7 @@ COOKIES = {
 }
 
 # API-эндпоинт вашего FastAPI, куда будут отправляться записи
-API_ENDPOINT = "http://web:5000/transfer"
+API_ENDPOINT = "http://web:5000/transfer/"
 
 
 async def fetch_page(client: httpx.AsyncClient, page: int) -> dict:
@@ -246,8 +247,41 @@ async def send_transfer(client: httpx.AsyncClient, transfer: dict):
     Отправить запись трансфера на API вашего FastAPI для сохранения в БД.
     """
     try:
-        logger.debug(f"Отправка POST-запроса на {API_ENDPOINT} с данными: {transfer}")
-        response = await client.post(API_ENDPOINT, json=transfer)
+        # Обработка created_at
+        created_at = transfer.get('created_at')
+        if created_at:
+            dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            created_at_date = dt.date()
+            created_at_time = dt.time()
+        else:
+            created_at_date = datetime.now().date()
+            created_at_time = datetime.now().time()
+
+        # Обработка date_to_local
+        date_to_local = transfer.get('date_to_local')
+        time_to_local = None
+        if date_to_local:
+            dt_local = datetime.fromisoformat(date_to_local)
+            date_to_local = dt_local.date().isoformat()  # получаем только дату
+            time_to_local = dt_local.time().isoformat()  # сохраняем время отдельно
+
+        formatted_transfer = {
+            "created_at_date": created_at_date.isoformat(),
+            "created_at_time": created_at_time.isoformat(),
+            "transfer_id": str(transfer.get('transfer_id')),
+            "date_to_local": date_to_local,
+            "time_to_local": time_to_local,
+            "type": transfer.get('type'),
+            "distance": transfer.get('distance'),
+            "from_location": transfer.get('from_location'),
+            "to_location": transfer.get('to_location'),
+            "pax": transfer.get('pax'),
+            "transport_type_ids": ','.join(transfer.get('transport_type_ids', [])) if transfer.get('transport_type_ids') else None,
+            "carrier_offer_price": transfer.get('carrier_offer', {}).get('price') if transfer.get('carrier_offer') else None
+        }
+
+        logger.debug(f"Отправка POST-запроса на {API_ENDPOINT} с данными: {formatted_transfer}")
+        response = await client.post(API_ENDPOINT, json=formatted_transfer)
         response.raise_for_status()
         logger.info(
             f"Запись трансфера с id={transfer.get('transfer_id')} успешно отправлена в API"
@@ -256,6 +290,7 @@ async def send_transfer(client: httpx.AsyncClient, transfer: dict):
         logger.error(
             f"HTTP ошибка при отправке трансфера с id={transfer.get('transfer_id')}: {http_err}"
         )
+        logger.error(f"Ответ сервера: {http_err.response.text}")
     except httpx.RequestError as req_err:
         logger.error(
             f"Ошибка запроса при отправке трансфера с id={transfer.get('transfer_id')}: {req_err}"
@@ -264,7 +299,6 @@ async def send_transfer(client: httpx.AsyncClient, transfer: dict):
         logger.error(
             f"Ошибка при отправке трансфера с id={transfer.get('transfer_id')}: {err}"
         )
-
 
 async def send_all_transfers(transfers: list):
     """
