@@ -75,7 +75,6 @@ headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "accept-language": "ru,en;q=0.9,uk;q=0.8",
     "cache-control": "no-cache",
-    # 'cookie': 'secure_customer_sig=; localization=UA; cart_currency=EUR; _shopify_y=E717B01C-0604-4E6E-b4a4-a2cf8e0db410; _tracking_consent=%7B%22con%22%3A%7B%22CMP%22%3A%7B%22a%22%3A%22%22%2C%22m%22%3A%22%22%2C%22p%22%3A%22%22%2C%22s%22%3A%22%22%7D%7D%2C%22v%22%3A%222.1%22%2C%22region%22%3A%22UA18%22%2C%22reg%22%3A%22%22%2C%22purposes%22%3A%7B%22a%22%3Atrue%2C%22p%22%3Atrue%2C%22m%22%3Atrue%2C%22t%22%3Atrue%7D%2C%22display_banner%22%3Afalse%2C%22sale_of_data_region%22%3Afalse%2C%22consent_id%22%3A%222B8B1ACA-52ad-4A74-a4ca-f851092e7cd7%22%7D; _orig_referrer=; _landing_page=%2F; locale_bar_accepted=1',
     "dnt": "1",
     "pragma": "no-cache",
     "priority": "u=0, i",
@@ -241,30 +240,40 @@ def pars_htmls():
         if product_script:
             try:
                 product_data = json.loads(product_script.string)
+                # Извлекаем имя продукта из корневого объекта
+                product_name = product_data.get("name")
 
-                name = product_data.get("name")
-                sku = product_data.get("sku")
-
+                # Извлекаем данные из offers
                 offers = product_data.get("offers", [])
-                price = None
+                results = []
 
-                if isinstance(offers, list) and offers:
-                    raw_price = offers[0].get("price")
-                    if raw_price:
-                        price = raw_price.replace(".", ",")
+                if isinstance(offers, list):
+                    for offer in offers:
+                        offer_price = offer.get("price")
+                        offer_sku = offer.get("sku")
+                        # При необходимости форматируем цену (заменяем точку на запятую)
+                        if offer_price:
+                            offer_price = offer_price.replace(".", ",")
+                        data_json = {"name": product_name, "sku": offer_sku, "price": offer_price}
+                        all_data.append(data_json)
                 elif isinstance(offers, dict):
-                    raw_price = offers.get("price")
-                    if raw_price:
-                        price = raw_price.replace(".", ",")
+                    offer_price = offers.get("price")
+                    offer_sku = offers.get("sku")
+                    if offer_price:
+                        offer_price = offer_price.replace(".", ",")
+                    data_json = {"name": product_name, "sku": offer_sku, "price": offer_price}
+                    results.append(data_json)
 
-                data_json = {"name": name, "sku": sku, "price": price}
-                all_data.append(data_json)
+                # results теперь содержит список словарей для каждого предложения
+                # logger.info(results)
             except json.JSONDecodeError as e:
                 logger.error(f"Ошибка парсинга JSON: {e}")
-                return None
+                # Или можно использовать print:
+                logger.info(f"Ошибка парсинга JSON: {e}")
         else:
             logger.error("Product JSON не найден.")
-            return None
+            # Или можно использовать print:
+            logger.info("Product JSON не найден.")
 
     logger.info(all_data)
     update_sheet_with_data(sheet, all_data)
