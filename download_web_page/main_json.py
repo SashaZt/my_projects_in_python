@@ -39,52 +39,69 @@ logger.add(
 def get_json():
 
 
-    cookies = {
-        'ci_session': '89ce1ca80a105d611439fd301899ef03bde4a024',
-        'ff_ux_sid': '019504fc-3a84-7388-ad96-2a3660bb4ef4',
-        'cart_session': '8f322e0aec7afe3d66f11648c5a0f7b0',
-        'cf_clearance': '3_rpruEg5qJb_bEkgrShX00.uUS7cgkTeh30KaXEY2c-1739545395-1.2.1.1-Z.choenG0Cu6BPOhFvB5Hfa4HqdQwMid._Hx_9_NPzFTxXU7sG69sCQ36QqNBnH9I8uWm.AQZm1LsVbgxSeeimo9csm51D84Adgcu2o1ytqUrFNCKg8OGCn2uyDl4zhwj6H0L.hfXKjanULzFhwO755tO_TZruaKx4TmXFEOYiI1UlM.Q.H0uZ7nCsX0j_OrSX0105wENn_gGFnoz9QzVXwgnG1OKNj9bAK4LfymlkLEcuxcMdb9xV2LuL_Hhz8ib58lGDTV5zRgiKQEHmphBH_pXyyu2uAyfzb2BJ3IJSo',
-        'CookieConsent': '{stamp:%27FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739545396288%2Cregion:%27ua%27}',
-        'soundestID': '20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt',
-        'disable_ovoko_modal': '67af5b37d1b665.14705006',
-        'wishlist': '537d367fad7fd4dac69b5e9a31296570',
+    import requests
+
+    url = "https://rrr.lt/ru/poisk"
+
+    params = {
+        "q": "K6D39U438AD",
+        "prs": "1",
+        "page": "1",
+        "_": "1739806171498"
     }
 
     headers = {
-        'accept': 'application/json, text/javascript, */*; q=0.01',
-        'accept-language': 'ru,en;q=0.9,uk;q=0.8',
-        'cache-control': 'no-cache',
-        # 'cookie': 'ci_session=89ce1ca80a105d611439fd301899ef03bde4a024; ff_ux_sid=019504fc-3a84-7388-ad96-2a3660bb4ef4; cart_session=8f322e0aec7afe3d66f11648c5a0f7b0; cf_clearance=3_rpruEg5qJb_bEkgrShX00.uUS7cgkTeh30KaXEY2c-1739545395-1.2.1.1-Z.choenG0Cu6BPOhFvB5Hfa4HqdQwMid._Hx_9_NPzFTxXU7sG69sCQ36QqNBnH9I8uWm.AQZm1LsVbgxSeeimo9csm51D84Adgcu2o1ytqUrFNCKg8OGCn2uyDl4zhwj6H0L.hfXKjanULzFhwO755tO_TZruaKx4TmXFEOYiI1UlM.Q.H0uZ7nCsX0j_OrSX0105wENn_gGFnoz9QzVXwgnG1OKNj9bAK4LfymlkLEcuxcMdb9xV2LuL_Hhz8ib58lGDTV5zRgiKQEHmphBH_pXyyu2uAyfzb2BJ3IJSo; CookieConsent={stamp:%27FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739545396288%2Cregion:%27ua%27}; soundestID=20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt; disable_ovoko_modal=67af5b37d1b665.14705006; wishlist=537d367fad7fd4dac69b5e9a31296570',
-        'dnt': '1',
-        'pragma': 'no-cache',
-        'priority': 'u=1, i',
-        'referer': 'https://rrr.lt/ru/poisk?q=K6D39U438AD',
-        'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'empty',
-        'sec-fetch-mode': 'cors',
-        'sec-fetch-site': 'same-origin',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
-        'x-requested-with': 'XMLHttpRequest',
+        "accept": "application/json, text/javascript, */*; q=0.01",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "dnt": "1",
+        "priority": "u=1, i",
+        "referer": "https://rrr.lt/ru/poisk?q=K6D39U438AD",
+        "sec-ch-ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+        "x-requested-with": "XMLHttpRequest"
     }
 
-    params = {
-        'q': 'K6D39U438AD',
-        'prs': '1',
-        'page': '1',
+    # Передаём cookies в виде словаря
+    cookies = {
+        "ff_ux_sid": "019504fc-3a84-7388-ad96-2a3660bb4ef4",
+        "cart_session": "8f322e0aec7afe3d66f11648c5a0f7b0",
+        "CookieConsent": "{stamp:'FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==',necessary:true,preferences:true,statistics:true,marketing:true,method:'explicit',ver:1,utc:1739545396288,region:'ua'}",
+        "soundestID": "20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt",
+        "disable_ovoko_modal": "67af5b37d1b665.14705006",
+        "wishlist": "537d367fad7fd4dac69b5e9a31296570",
+        "_sp_id.1c83": "a0bf4e27-4e81-4056-890d-cb7fa6f6a40c.1739797427.1.1739797428..ed012ab0-4695-4520-b3c8-892aa2c4d963..1413d343-f311-4ca7-bd52-d97b150fd93a.1739797427295.8",
+        "ci_session": "2c801ede895c447cfb8aa46c3369057d98b282ab",
+        "cf_clearance": "RLFWc49rIAzflS_iuFxkQntUfCzG28vWd4FAZOreLxE-1739806139-1.2.1.1-FaYUsB7JXWEujJq7FQRMv2SA8yvqB7wsz06niBH_lQj9bQCj_OFwoioaBlWc9M_UH3IllD0zXs501A.zz.QrSrj1CgcXw03r9wJc.tSTjrYaUeIPInsQvfc3ivO5whHLadvRUqEYKPmNYcjltXlUhXL2bub508Va9V_PnIwAi73D_o8Ji9rz9LGPBGOlm.skp5_6J5vGKMDk2PCkWaJ_6hz5PaHjxMn_KnzwFQRyE_Bmrbt9ForEsZR3sFxosg2DQgKrAQra__BlvLl.P.fV.3DSmjzVg6uUX696BjcisVQ",
+        "omnisendSessionID": "QL3CO2dEvKI1o0-20250217152858"
     }
 
-    response = requests.get('https://rrr.lt/ru/poisk', params=params, cookies=cookies, headers=headers)
-    # Проверка успешности запроса
-    if response.status_code == 200:
-        json_data = response.json()
+    response = requests.get(url, params=params, headers=headers, cookies=cookies)
+
+    # Если сервер вернул корректный JSON, то выводим его:
+    try:
+        print(response)
+        response
+        data = response.json()
         with open("rrr.json", "w", encoding="utf-8") as f:
-            json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
-        logger.info(json_data)
-        time.sleep(10)
-    else:
-        logger.error(response.status_code)
+            json.dump(data, f, ensure_ascii=False, indent=4)  # Записываем в файл
+        print(data)
+    except ValueError:
+        print("Ошибка: ответ не содержит JSON")
+
+    # # Проверка успешности запроса
+    # if response.status_code == 200:
+    #     json_data = response.json()
+    #     with open("rrr.json", "w", encoding="utf-8") as f:
+    #         json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
+    #     logger.info(json_data)
+    #     time.sleep(10)
+    # else:
+    #     logger.error(response.status_code)
 
 
 # def extract_user_name(user_id, user_options):

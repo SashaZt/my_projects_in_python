@@ -135,15 +135,18 @@ def parsin_xml():
 
 def fetch(url):
     response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.text
+    if response.status_code == 200:
+        return response.text
+    else:
+        logger.error(f"Ошибка при загрузке страницы: {response.status_code}")
+        return None
 
 
 def get_html(url, html_file):
     src = fetch(url)
     with open(html_file, "w", encoding="utf-8") as file:
         file.write(src)
-    logger.info(html_file)
+    logger.info(f"Файл успешно сохранен в: {html_file}")
 
 
 def main_th():
@@ -153,7 +156,7 @@ def main_th():
         for row in reader:
             urls.append(row["url"])
 
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         futures = []
         for url in urls:
             output_html_file = (

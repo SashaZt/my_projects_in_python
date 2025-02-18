@@ -9,6 +9,8 @@ from crud.transfer import (
     delete_transfer,
     get_transfer_by_transfer_id
 )
+from fastapi.responses import JSONResponse  # Добавить этот импорт
+from fastapi.encoders import jsonable_encoder  # И этот, если еще не импортирован
 from schemas.transfer import Transfer, TransferCreate
 from core.dependencies import get_db
 from core.logger import logger

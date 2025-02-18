@@ -3,169 +3,206 @@ import json
 from pathlib import Path
 from typing import Optional, Dict
 import random
-import aiofiles
-from playwright.async_api import async_playwright, Response
 import logging
+import pandas as pd
+import json
+import time
+import urllib.parse
+import requests
+import time
+from urllib.parse import urlparse, urlunparse
+import sys
+import pandas as pd
+import requests
+from loguru import logger
+from pathlib import Path
+from bs4 import BeautifulSoup
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+
+
+API_KEY = "6c54502fd688c7ce737f1c650444884a"
+# API_KEY = "b7141d2b54426945a9f0bf6ab4c7bc54"
+# Настройте максимальное количество попыток, если требуется
+MAX_RETRIES = 10
+RETRY_DELAY = 30  # Задержка между попытками в секундах
+
+
+
+current_directory = Path.cwd()
+html_directory = current_directory / "html"
+json_directory = current_directory / "json"
+log_directory = current_directory / "log"
+data_directory = current_directory / "data"
+log_directory.mkdir(parents=True, exist_ok=True)
+data_directory.mkdir(parents=True, exist_ok=True)
+json_directory.mkdir(parents=True, exist_ok=True)
+html_directory.mkdir(parents=True, exist_ok=True)
+
+log_file_path = log_directory / "log_message.log"
+xlsx_result = data_directory / "result.xlsx"
+output_csv_file = data_directory / "output.csv"
+
+logger.remove()
+# 🔹 Логирование в файл
+logger.add(
+    log_file_path,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {line} | {message}",
+    level="DEBUG",
+    encoding="utf-8",
+    rotation="10 MB",
+    retention="7 days",
 )
-logger = logging.getLogger(__name__)
 
-class WebScraper:
-    def __init__(self, url: str):
-        self.url = url
-        self.current_directory = Path.cwd()
-        self.proxy_file = self.current_directory / "configuration" / "roman.txt"
-        self.json_file = self.current_directory / "data" / "response.json"
-        self.setup_directories()
+# 🔹 Логирование в консоль (цветной вывод)
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{line}</cyan> | <cyan>{message}</cyan>",
+    level="DEBUG",
+    enqueue=True,
+)
+def make_request_with_retries(url, params, max_retries=10, delay=30, headers=None):
+    """
+    Делает запрос с повторными попытками.
 
-    def setup_directories(self):
-        """Создание необходимых директорий."""
-        (self.current_directory / "configuration").mkdir(parents=True, exist_ok=True)
-        (self.current_directory / "data").mkdir(parents=True, exist_ok=True)
-        logger.info("Directories created or already exist")
+    Args:
+        url (str): URL для запроса.
+        params (dict): Параметры запроса.
+        max_retries (int): Максимальное количество попыток.
+        delay (int): Задержка между попытками в секундах.
+        headers (dict): Пользовательские заголовки.
 
-    async def load_proxies(self) -> list:
-        """Загрузка прокси из файла."""
-        if not self.proxy_file.exists():
-            logger.info(f"Proxy file {self.proxy_file} not found. Running locally.")
-            return []
-        
+    Returns:
+        Response | None: Успешный ответ или None, если все попытки исчерпаны.
+    """
+    retries = 0
+    while retries < max_retries:
         try:
-            async with aiofiles.open(self.proxy_file, 'r', encoding='utf-8') as file:
-                proxies = [line.strip() for line in await file.readlines() if line.strip()]
-            logger.info(f"Loaded {len(proxies)} proxies")
-            return proxies
+            response = requests.get(url, params=params, headers=headers, timeout=60)
+            if response.status_code == 200:
+                return response
+            else:
+                logger.warning(
+                    f"Ошибка {response.status_code} при запросе {url}. Попытка {retries + 1}/{max_retries}."
+                )
         except Exception as e:
-            logger.error(f"Error loading proxies: {e}")
-            return []
+            logger.error(
+                f"Ошибка при выполнении запроса: {e}. Попытка {retries + 1}/{max_retries}."
+            )
+        retries += 1
+        time.sleep(delay)
 
-    def parse_proxy(self, proxy: str) -> Dict:
-        """Парсинг строки прокси в конфигурацию."""
-        try:
-            if "@" in proxy:
-                protocol, rest = proxy.split("://", 1)
-                credentials, server = rest.split("@", 1)
-                username, password = credentials.split(":", 1)
-                return {
-                    "server": f"{protocol}://{server}",
-                    "username": username,
-                    "password": password,
-                }
-            return {"server": f"http://{proxy}"}
-        except Exception as e:
-            logger.error(f"Error parsing proxy {proxy}: {e}")
-            return None
-
-    async def save_json_response(self, data: dict):
-        """Сохранение JSON ответа в файл."""
-        try:
-            async with aiofiles.open(self.json_file, 'w', encoding='utf-8') as f:
-                await f.write(json.dumps(data, ensure_ascii=False, indent=2))
-            logger.info(f"JSON response saved to {self.json_file}")
-        except Exception as e:
-            logger.error(f"Error saving JSON response: {e}")
-
-    async def handle_response(self, response: Response):
-        """Обработка ответов от сервера."""
-        try:
-            if "rrr.lt/ru/poisk?q" in response.url:
-                headers = await response.all_headers()
-                if 'application/json' in headers.get('content-type', ''):
-                    logger.info(f"Intercepted JSON response from {response.url}")
-                    json_data = await response.json()
-                    await self.save_json_response(json_data)
-                    logger.info("JSON response captured and saved")
-        except Exception as e:
-            logger.error(f"Error handling response: {e}")
-
-    async def scrape(self):
-        """Основной метод скрапинга."""
-        proxies = await self.load_proxies()
-        retry_count = 3
-        
-        for attempt in range(retry_count):
-            try:
-                proxy_config = None
-                if proxies:
-                    proxy = random.choice(proxies)
-                    proxy_config = self.parse_proxy(proxy)
-                    logger.info(f"Using proxy: {proxy}")
-                else:
-                    logger.info("Running without proxy")
-
-                async with async_playwright() as p:
-                    browser_args = {
-                        "headless": False,  # Показывать браузер
-                    }
-                    
-                    if proxy_config:
-                        browser_args["proxy"] = proxy_config
-                    
-                    browser = await p.chromium.launch(**browser_args)
-                    context = await browser.new_context(
-                        viewport={'width': 1920, 'height': 1080}
-                    )
-                    page = await context.new_page()
-                    
-                    # Подписываемся на события ответа
-                    page.on("response", self.handle_response)
-                    
-                    try:
-                        logger.info(f"Navigating to URL: {self.url}")
-                        response = await page.goto(
-                            self.url,
-                            timeout=30000,
-                            wait_until="networkidle"
-                        )
-                        
-                        if response.status == 403:
-                            logger.warning("Access denied (403)")
-                            if proxies:
-                                logger.info(f"Retrying with different proxy. Attempt {attempt + 1}/{retry_count}")
-                                continue
-                        
-                        # Ждем загрузки контента и возможных AJAX запросов
-                        await asyncio.sleep(5)
-                        
-                        logger.info(f"Final URL: {page.url}")
-                        logger.info(f"Status: {response.status}")
-                        
-                        return True
-                        
-                    except Exception as e:
-                        logger.error(f"Error during navigation: {e}")
-                        if attempt < retry_count - 1:
-                            logger.info(f"Retrying... Attempt {attempt + 2}/{retry_count}")
-                            continue
-                        raise
-                    finally:
-                        await context.close()
-                        await browser.close()
-                        
-            except Exception as e:
-                logger.error(f"Attempt {attempt + 1} failed: {e}")
-                if attempt == retry_count - 1:
-                    raise
-                
-        return False
-
-def main():
-    url = "https://rrr.lt/ru/poisk?q=K6D39U438AD"
-    scraper = WebScraper(url)
+    logger.error(f"Не удалось выполнить запрос после {max_retries} попыток: {url}")
     
-    try:
-        success = asyncio.run(scraper.scrape())
-        if success:
-            logger.info("Scraping completed successfully")
-        else:
-            logger.error("Scraping failed after all retries")
-    except Exception as e:
-        logger.error(f"Fatal error: {e}")
+    return None
 
+def get_all_page_html(id_product):
+    url = f"https://rrr.lt/ru/poisk"
+    
+    # Определяем необходимые заголовки
+    headers = {
+        'accept': 'application/json, text/javascript, */*; q=0.01',
+        'accept-language': 'ru,en;q=0.9,uk;q=0.8',
+        'x-requested-with': 'XMLHttpRequest'
+    }
+    
+    # Параметры запроса
+    query_params = {
+        'q': id_product,
+        'prs': '2',
+        'page': '1'
+    }
+    
+    # Параметры для ScraperAPI
+    payload = {
+        "api_key": API_KEY,
+        "url": url,
+        "keep_headers": "true",  # Важно для сохранения пользовательских заголовков
+        # 'render': 'true'  # Включаем рендеринг JavaScript
+    }
+    json_file = json_directory / f"{id_product}.json"
+    if json_file.exists():
+        logger.info(f"Файл {json_file} уже существует. Пропускаем.")
+        return
+    # Добавляем параметры запроса к URL
+    payload["url"] = f"{url}?{urllib.parse.urlencode(query_params)}"
+
+    response = make_request_with_retries(
+        "https://api.scraperapi.com/", 
+        payload, 
+        MAX_RETRIES, 
+        RETRY_DELAY,
+        headers=headers  # Передаем заголовки в функцию
+    )
+    
+    if not response:
+        raise Exception(
+            "Не удалось загрузить первую страницу после нескольких попыток."
+        )
+        
+    
+    src = response.text
+    with open(json_file, "w", encoding="utf-8") as file:
+        file.write(src)
+
+    logger.info(f"Скачано {json_file}")
+
+
+
+def read_urls(csv_path):
+    """Читает CSV-файл и возвращает список URL."""
+    try:
+        df = pd.read_csv(csv_path, usecols=["id"])  # Загружаем только колонку "url"
+        return df["url"].dropna().tolist()  # Убираем пустые значения и возвращаем список
+    except Exception as e:
+        logger.error(f"Ошибка при чтении файла: {e}")
+        return []
+def extract_data():
+    all_data = []
+    for json_file in json_directory.glob("*.json"):
+        with open(json_file, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        logger.info(f"Обработка файла: {json_file}")
+        # Найти деталь "Охладитель EGR" с минимальной ценой
+        parts = data.get("parts", [])
+        if not parts:
+            logger.error("Не найдены детали в JSON.")
+            continue
+        min_price_part = min(
+            parts,
+            key=lambda x: float(x.get("price", float("inf"))),
+            default=None
+        )
+        sku = data.get("search_query", None)
+        
+        # Найти категорию "Система выброса газов" с part_count > 0
+        categories = data.get("categories", {})
+        category_name = next(
+            (category["name"] for category in categories.values() if category.get("part_count", 0) > 0),
+            None
+        )
+
+        if min_price_part and category_name:
+            result = {
+                "Бренд": min_price_part.get("car", {}).get("manufacturer", None),
+                "Код": sku,
+                "Kод производителя": data.get("manufacturer_code", None),
+                "Описание": f"{category_name} | Оригінал | Гарантія  на весь товар | Гарантійне встановлення запчастини у нас в СТО | Запчастини з Євро-розборів | Відповідальність | Телефонуйте | Мирного дня.",
+                "Цена": min_price_part["price"],
+                "Количество, ШТ.": "1",
+                "Б/У": "1",
+                "Фото товара": None,
+                # "part_name": min_price_part["part_name"],
+                
+                
+            }
+            logger.info(f"Найдены данные: {result}")
+            all_data.append(result)
+    if all_data:
+        df = pd.DataFrame(all_data)
+        df.to_excel(xlsx_result, index=False)
+        logger.info(f"Данные успешно сохранены в файл {xlsx_result}")
 if __name__ == "__main__":
-    main()
+    # urls = read_urls(output_csv_file)
+    # for url in urls[:101]:
+    #     get_all_page_html(url)
+    extract_data()

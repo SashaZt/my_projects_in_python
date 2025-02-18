@@ -6,7 +6,7 @@ from schemas.transfer import TransferCreate  # Pydantic‑схема для со
 from core.logger import logger
 
 async def get_transfer_by_transfer_id(db: AsyncSession, transfer_id: str):
-    query = select(TransferModel).where(Transfer.transfer_id == transfer_id)
+    query = select(TransferModel).where(TransferModel.transfer_id == transfer_id)  # Исправлено на TransferModel
     result = await db.execute(query)
     return result.scalar_one_or_none()
 
@@ -40,8 +40,8 @@ async def get_transfers(db: AsyncSession, skip: int = 0, limit: int = 100):
 
 
 async def create_transfer(db: AsyncSession, transfer: TransferCreate):
-    # Сначала проверяем существование transfer_id
-    query = select(Transfer).where(Transfer.transfer_id == transfer.transfer_id)
+    # Проверяем существование transfer_id
+    query = select(TransferModel).where(TransferModel.transfer_id == transfer.transfer_id)  # Исправлено на TransferModel
     result = await db.execute(query)
     exists = result.scalar_one_or_none()
     
@@ -51,7 +51,7 @@ async def create_transfer(db: AsyncSession, transfer: TransferCreate):
             setattr(exists, key, value)
     else:
         # Если записи нет, создаём новую
-        exists = Transfer(**transfer.dict())
+        exists = TransferModel(**transfer.dict())  # Исправлено на TransferModel
         db.add(exists)
 
     await db.commit()

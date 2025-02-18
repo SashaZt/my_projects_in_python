@@ -75,7 +75,7 @@ async def fetch_page(client: httpx.AsyncClient, page: int) -> dict:
     url = URL_TEMPLATE.format(page=page)
     try:
         logger.debug(f"Отправка GET-запроса на {url}")
-        response = await client.get(url, headers=HEADERS, cookies=COOKIES)
+        response = await client.get(url, headers=HEADERS, cookies=COOKIES,timeout=60)
         response.raise_for_status()
         logger.info(f"Данные для страницы {page} успешно получены")
         return response.json()
@@ -325,7 +325,7 @@ if __name__ == "__main__":
 
     async def run_with_pause():
         logger.info("Запуск скрипта")
-        # await main()
+        await main()
         # Асинхронная пауза на 5 минут (300 секунд)
         await asyncio.sleep(300)
 
