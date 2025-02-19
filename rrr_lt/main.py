@@ -156,17 +156,82 @@ def read_urls(csv_path):
     except Exception as e:
         logger.error(f"Ошибка при чтении файла: {e}")
         return []
+# def extract_data():
+#     all_data = []
+    
+#     for json_file in json_directory.glob("*.json"):
+#         with open(json_file, "r", encoding="utf-8") as file:
+#             data = json.load(file)
+#         logger.info(f"Обработка файла: {json_file}")
+#         # Найти деталь "Охладитель EGR" с минимальной ценой
+#         parts = data.get("parts", [])
+#         if not parts:
+#             logger.error("Не найдены детали в JSON.")
+#             continue
+#         min_price_part = min(
+#             parts,
+#             key=lambda x: float(x.get("price", float("inf"))),
+#             default=None
+#         )
+#         sku = data.get("search_query", None)
+        
+#         # Найти категорию "Система выброса газов" с part_count > 0
+#         categories = data.get("categories", {})
+#         category_name = next(
+#             (category["name"] for category in categories.values() if category.get("part_count", 0) > 0),
+#             None
+#         )
+        
+#         if min_price_part and category_name:
+#             delivery_price_str = min_price_part.get("delivery_price", None).replace(" €", "")
+#             price_str = min_price_part["price"]
+#             # Если значение отсутствует (None) или пустое, устанавливаем "0"
+#             if not delivery_price_str:
+#                 delivery_price_str = "0"
+#             else:
+#                 delivery_price_str = delivery_price_str.replace(" €", "")
+
+#             if not price_str:
+#                 price_str = "0"
+
+#             # Преобразуем строки в числа типа float и суммируем
+#             delivery_price = float(delivery_price_str)
+#             price = float(price_str)
+#             result = {
+#                 "Бренд": min_price_part.get("car", {}).get("manufacturer", None),
+#                 "Код": sku,
+#                 "Kод производителя": data.get("manufacturer_code", None),
+#                 "Описание": f"{category_name} | Оригінал | Гарантія  на весь товар | Гарантійне встановлення запчастини у нас в СТО | Запчастини з Євро-розборів | Відповідальність | Телефонуйте | Мирного дня.",
+#                 "Цена товара и доставки": delivery_price + price,
+#                 "Цена товара": price,
+#                 "Цена только доставки": delivery_price,
+#                 "Количество, ШТ.": "1",
+#                 "Б/У": "1",
+#                 "Фото товара": None,
+#                 # "part_name": min_price_part["part_name"],
+                
+                
+#             }
+#             logger.info(f"Найдены данные: {result}")
+#             all_data.append(result)
+#     if all_data:
+#         df = pd.DataFrame(all_data)
+#         df.to_excel(xlsx_result, index=False)
+#         logger.info(f"Данные успешно сохранены в файл {xlsx_result}")
 def extract_data():
-    all_data = []
+    # Словарь для хранения данных по категориям
+    category_data = {}
+    
     for json_file in json_directory.glob("*.json"):
         with open(json_file, "r", encoding="utf-8") as file:
             data = json.load(file)
         logger.info(f"Обработка файла: {json_file}")
-        # Найти деталь "Охладитель EGR" с минимальной ценой
+        
         parts = data.get("parts", [])
         if not parts:
             logger.error("Не найдены детали в JSON.")
             continue
+            
         min_price_part = min(
             parts,
             key=lambda x: float(x.get("price", float("inf"))),
@@ -174,33 +239,57 @@ def extract_data():
         )
         sku = data.get("search_query", None)
         
-        # Найти категорию "Система выброса газов" с part_count > 0
         categories = data.get("categories", {})
         category_name = next(
             (category["name"] for category in categories.values() if category.get("part_count", 0) > 0),
             None
         )
-
+        
         if min_price_part and category_name:
+            delivery_price_str = min_price_part.get("delivery_price", None)
+            if delivery_price_str:
+                delivery_price_str = delivery_price_str.replace(" €", "")
+            else:
+                delivery_price_str = "0"
+
+            price_str = min_price_part.get("price", "0")
+            if not price_str:
+                price_str = "0"
+
+            delivery_price = float(delivery_price_str)
+            price = float(price_str)
+            
             result = {
                 "Бренд": min_price_part.get("car", {}).get("manufacturer", None),
                 "Код": sku,
                 "Kод производителя": data.get("manufacturer_code", None),
                 "Описание": f"{category_name} | Оригінал | Гарантія  на весь товар | Гарантійне встановлення запчастини у нас в СТО | Запчастини з Євро-розборів | Відповідальність | Телефонуйте | Мирного дня.",
-                "Цена": min_price_part["price"],
+                "Цена товара и доставки": delivery_price + price,
+                "Цена товара": price,
+                "Цена только доставки": delivery_price,
                 "Количество, ШТ.": "1",
                 "Б/У": "1",
                 "Фото товара": None,
-                # "part_name": min_price_part["part_name"],
-                
-                
             }
-            logger.info(f"Найдены данные: {result}")
-            all_data.append(result)
-    if all_data:
-        df = pd.DataFrame(all_data)
-        df.to_excel(xlsx_result, index=False)
-        logger.info(f"Данные успешно сохранены в файл {xlsx_result}")
+            
+            # Добавляем данные в соответствующую категорию
+            if category_name not in category_data:
+                category_data[category_name] = []
+            category_data[category_name].append(result)
+            logger.info(f"Добавлены данные в категорию {category_name}")
+
+    # Сохраняем данные в отдельные файлы по категориям
+    for category_name, data in category_data.items():
+        if data:
+            # Создаем безопасное имя файла, заменяя недопустимые символы
+            safe_category_name = "".join(c for c in category_name if c.isalnum() or c in (' ', '-', '_'))
+            file_name = f"{safe_category_name}.xlsx"
+            df = pd.DataFrame(data)
+            df.to_excel(file_name, index=False)
+            logger.info(f"Создан файл для категории '{category_name}': {file_name}")
+
+
+
 if __name__ == "__main__":
     # urls = read_urls(output_csv_file)
     # for url in urls[:101]:
