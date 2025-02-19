@@ -246,6 +246,9 @@ def extract_data():
         )
         
         if min_price_part and category_name:
+            manufacturer_code = min_price_part.get("manufacturer_code", None)
+            if not manufacturer_code:
+                continue
             delivery_price_str = min_price_part.get("delivery_price", None)
             if delivery_price_str:
                 delivery_price_str = delivery_price_str.replace(" €", "")
@@ -262,7 +265,7 @@ def extract_data():
             result = {
                 "Бренд": min_price_part.get("car", {}).get("manufacturer", None),
                 "Код": sku,
-                "Kод производителя": data.get("manufacturer_code", None),
+                "Kод производителя": manufacturer_code,
                 "Описание": f"{category_name} | Оригінал | Гарантія  на весь товар | Гарантійне встановлення запчастини у нас в СТО | Запчастини з Євро-розборів | Відповідальність | Телефонуйте | Мирного дня.",
                 "Цена товара и доставки": delivery_price + price,
                 "Цена товара": price,
@@ -292,6 +295,7 @@ def extract_data():
 
 if __name__ == "__main__":
     # urls = read_urls(output_csv_file)
-    # for url in urls[:101]:
+    # for url in urls[:1]:
+    #     url = "19070006031"
     #     get_all_page_html(url)
     extract_data()
