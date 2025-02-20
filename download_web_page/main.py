@@ -31,41 +31,51 @@ def load_proxies():
 
 def get_html():
     cookies = {
-    'ci_session': '89ce1ca80a105d611439fd301899ef03bde4a024',
-    'ff_ux_sid': '019504fc-3a84-7388-ad96-2a3660bb4ef4',
-    'cart_session': '8f322e0aec7afe3d66f11648c5a0f7b0',
-    'CookieConsent': '{stamp:%27FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739545396288%2Cregion:%27ua%27}',
-    'soundestID': '20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt',
-    'disable_ovoko_modal': '67af5b37d1b665.14705006',
-    'wishlist': '537d367fad7fd4dac69b5e9a31296570',
-    'cf_clearance': 'gl.ZYNtoyr1AOGV66q1P1zhlHF0l_gBee8Rv0_ME6BA-1739548092-1.2.1.1-SyPGbC1tTsuMRUuCAPaSJ_3JbPaVe243rdyNHFpr1CHS_Soq.AG6DOsyDQg4AtheG5H9bwXa1JdNrUDJ6j3eBkbZvhFAdxkwn1paVh4IUw0SqKUpoZXGuVXfVoYjsNcYnWdZVUQIOjEQcAZ8.ZmkA0rlzENRmTtVrr7UqrEBEY59w2YEiWt4bOHH1prw.RbjXO05vkDoFgKp_1_mGEU81W18Rtrxdt4gbUCEedVOH4PluB72G7RwKdPA2jsKxET45h1b3YV7siNwY0H4hS176ZeJ0jjaOkB4QZLC0uW6o.U',
-    'omnisendSessionID': 'H3q0nWo4AAio4m-20250214154811',
-}
+        "ff_ux_sid": "01951e21-0372-73e7-a40f-fb4044d99065",
+        "cart_session": "98a083baaa75a2455bc963ff37384614",
+        "CookieConsent": "{stamp:%27oOj/qWLhr0FGO1BiYh3KBgS88qAySCiaqHuu3lL8Pkc37pQj/8xiUw==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739967239075%2Cregion:%27ua%27}",
+        "soundestID": "20250219121357-uK5hPCVyvcoRyP4DmDGhZNFSSczVht5GKW06ukaGKpxrlW9ye",
+        "disable_ovoko_modal": "67b5cb08c0d443.18578412",
+        "wishlist": "7ff898c670ad4351c445bea97a9e7ac9",
+        "ci_session": "de65c6ec4971490fc737d749cb9e6e0a4a546c03",
+        "_sp_ses.1c83": "*",
+        "omnisendSessionID": "TEp0iH4QqgGhZA-20250220141849",
+        "cf_clearance": "A5j5ewJmzC74DgLTDOb9oQeCFvKnn91jbRZKTx2gYwk-1740062775-1.2.1.1-2X6rPkPiqkukYwfghdfdXStbMaPHcLPcbLj2ybSFO3f3MLLkE0zOX2bz9sEAKwjjBMXDIDGlgEATr2hssi.iHbzcHjQxluG6Iq.b8fVIeXouduSfJQpAm.um7HWcatBkEYEwpjrs.IxeVRYKqEXb5TJLOewZj85ZFmTC8PhrDPuO0i4nmib323804z3GAk1oU.ViUaDfW4AVWFg6D1geK1VoKVW_qW.C1jSuu9CcLiuYerVdAPshUbcV6EYSSboJleJGL4vpPQ.UrgB6AAd8l9j_zGU_CSvpCY5fcIFukzY",
+        "_sp_id.1c83": "e3f3ac00-53db-4c60-98b1-4caa70b1743a.1739975796.3.1740062857.1740055136.06169233-b896-47ea-8c4e-c7ac6a1e2c43.3777d8c5-a5ac-49f9-a8f2-1c77d0c8667c.098ef868-8be4-4677-8a1d-9fbe99ab9d4a.1740057184692.73",
+        "_dd_s": "logs=1&id=86090fb1-da5d-4ef1-b163-1e53b8fa5be2&created=1740062857429&expire=1740063760322",
+    }
 
     headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-language': 'ru,en;q=0.9,uk;q=0.8',
-        'cache-control': 'no-cache',
-        # 'cookie': 'ci_session=89ce1ca80a105d611439fd301899ef03bde4a024; ff_ux_sid=019504fc-3a84-7388-ad96-2a3660bb4ef4; cart_session=8f322e0aec7afe3d66f11648c5a0f7b0; CookieConsent={stamp:%27FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739545396288%2Cregion:%27ua%27}; soundestID=20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt; disable_ovoko_modal=67af5b37d1b665.14705006; wishlist=537d367fad7fd4dac69b5e9a31296570; cf_clearance=gl.ZYNtoyr1AOGV66q1P1zhlHF0l_gBee8Rv0_ME6BA-1739548092-1.2.1.1-SyPGbC1tTsuMRUuCAPaSJ_3JbPaVe243rdyNHFpr1CHS_Soq.AG6DOsyDQg4AtheG5H9bwXa1JdNrUDJ6j3eBkbZvhFAdxkwn1paVh4IUw0SqKUpoZXGuVXfVoYjsNcYnWdZVUQIOjEQcAZ8.ZmkA0rlzENRmTtVrr7UqrEBEY59w2YEiWt4bOHH1prw.RbjXO05vkDoFgKp_1_mGEU81W18Rtrxdt4gbUCEedVOH4PluB72G7RwKdPA2jsKxET45h1b3YV7siNwY0H4hS176ZeJ0jjaOkB4QZLC0uW6o.U; omnisendSessionID=H3q0nWo4AAio4m-20250214154811',
-        'dnt': '1',
-        'pragma': 'no-cache',
-        'priority': 'u=0, i',
-        'sec-ch-ua': '"Not A(Brand";v="8", "Chromium";v="132", "Google Chrome";v="132"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'same-origin',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "max-age=0",
+        "dnt": "1",
+        "priority": "u=0, i",
+        "sec-ch-ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+        # 'cookie': 'ff_ux_sid=01951e21-0372-73e7-a40f-fb4044d99065; cart_session=98a083baaa75a2455bc963ff37384614; CookieConsent={stamp:%27oOj/qWLhr0FGO1BiYh3KBgS88qAySCiaqHuu3lL8Pkc37pQj/8xiUw==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739967239075%2Cregion:%27ua%27}; soundestID=20250219121357-uK5hPCVyvcoRyP4DmDGhZNFSSczVht5GKW06ukaGKpxrlW9ye; disable_ovoko_modal=67b5cb08c0d443.18578412; wishlist=7ff898c670ad4351c445bea97a9e7ac9; ci_session=de65c6ec4971490fc737d749cb9e6e0a4a546c03; _sp_ses.1c83=*; omnisendSessionID=TEp0iH4QqgGhZA-20250220141849; cf_clearance=A5j5ewJmzC74DgLTDOb9oQeCFvKnn91jbRZKTx2gYwk-1740062775-1.2.1.1-2X6rPkPiqkukYwfghdfdXStbMaPHcLPcbLj2ybSFO3f3MLLkE0zOX2bz9sEAKwjjBMXDIDGlgEATr2hssi.iHbzcHjQxluG6Iq.b8fVIeXouduSfJQpAm.um7HWcatBkEYEwpjrs.IxeVRYKqEXb5TJLOewZj85ZFmTC8PhrDPuO0i4nmib323804z3GAk1oU.ViUaDfW4AVWFg6D1geK1VoKVW_qW.C1jSuu9CcLiuYerVdAPshUbcV6EYSSboJleJGL4vpPQ.UrgB6AAd8l9j_zGU_CSvpCY5fcIFukzY; _sp_id.1c83=e3f3ac00-53db-4c60-98b1-4caa70b1743a.1739975796.3.1740062857.1740055136.06169233-b896-47ea-8c4e-c7ac6a1e2c43.3777d8c5-a5ac-49f9-a8f2-1c77d0c8667c.098ef868-8be4-4677-8a1d-9fbe99ab9d4a.1740057184692.73; _dd_s=logs=1&id=86090fb1-da5d-4ef1-b163-1e53b8fa5be2&created=1740062857429&expire=1740063760322',
     }
 
     params = {
-        'q': 'K6D39U438AD',
+        "q": "89820A6010",
+        "prs": "2",
+        "exact": "1",
     }
 
-    response = requests.get('https://rrr.lt/ru/poisk', params=params, cookies=cookies, headers=headers)
+    response = requests.get(
+        "https://rrr.lt/ru/poisk",
+        params=params,
+        cookies=cookies,
+        headers=headers,
+        timeout=30,
+    )
 
     # Проверка кода ответа
     if response.status_code == 200:

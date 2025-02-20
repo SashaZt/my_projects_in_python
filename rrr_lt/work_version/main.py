@@ -7,9 +7,12 @@ from pathlib import Path
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from config import COOKIES, HEADERS
 from loguru import logger
+
+from config import COOKIES, HEADERS
 from main_th import process_products_with_threads
+from main_th_queue import process_pages_with_threads_code
+from scrap_product import extract_data_product
 
 current_directory = Path.cwd()
 html_code_directory = current_directory / "html_code"
@@ -63,16 +66,58 @@ def read_urls(csv_path):
         return []
 
 
-urls = read_urls(output_csv_file)
-# id_products = ["5802243444", "7355163422"]  # Список ID продуктов
-process_products_with_threads(
-    id_products=urls,
-    num_threads=10,
-    api_key=API_KEY,
-    base_url="https://rrr.lt/ru/poisk",
-    headers=HEADERS,
-    cookies=COOKIES,
-    json_product_directory=json_product_directory,
-    max_retries=MAX_RETRIES,
-    delay=RETRY_DELAY,
-)
+# # Скачиваем коды товаров
+# process_pages_with_threads_code(
+#     total_pages=3,
+#     num_threads=50,
+#     api_key=API_KEY,
+#     html_code_directory=html_code_directory,
+#     max_retries=MAX_RETRIES,
+#     delay=RETRY_DELAY,
+# )
+
+
+def extract_data_code():
+    all_data = []
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_code_directory.glob("*.html"):
+        with open(html_file, encoding="utf-8") as file:
+            src = file.read()
+        soup = BeautifulSoup(src, "lxml")
+        code_tag = soup.find_all("button", attrs={"data-testid": "part-code"})
+        if not code_tag:
+            logger.error(f"Не найден код в файле {html_file}")
+            continue
+        for code in code_tag:
+            code_text = code.text.strip()  # Убираем лишние пробелы
+            all_data.append(code_text)
+    save_code_csv(all_data)
+
+
+def save_code_csv(data):
+    # Создаем DataFrame с заголовком "code"
+    df = pd.DataFrame(data, columns=["code"])
+
+    # Сохраняем в CSV файл
+    output_file = output_csv_file  # Можно изменить путь и имя файла
+    df.to_csv(output_file, index=False, encoding="utf-8")
+    logger.info(
+        f"Все коды успешно сохранены в {output_file}. Всего записей: {len(data)}"
+    )
+
+
+# # Запуск скачивания страниц с товарами
+# urls = read_urls(output_csv_file)
+# process_products_with_threads(
+#     id_products=urls,
+#     num_threads=10,
+#     api_key=API_KEY,
+#     base_url="https://rrr.lt/ru/poisk",
+#     headers=HEADERS,
+#     cookies=COOKIES,
+#     json_product_directory=json_product_directory,
+#     max_retries=MAX_RETRIES,
+#     delay=RETRY_DELAY,
+# )
+if __name__ == "__main__":
+    extract_data_product()

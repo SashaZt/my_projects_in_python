@@ -146,7 +146,7 @@ def updates_draft(extId, product_data):
 
     try:
         response = session.put(
-            f"{api_url_draft}/api/v1/draft/extId", headers=headers, json=product_data
+            f"{api_url_draft}/api/v1/draft/{extId}", headers=headers, json=product_data
         )
 
         if response.status_code == 200:
@@ -230,7 +230,7 @@ if __name__ == "__main__":
         # Для привязки к существующему товару
         "part_number_key": "ES0NKBBBD",  # Опциональное. String. Используется для привязки оффера к существующему товару
         # Языковые настройки
-        "source_language": "pl_PL",  # Опциональное. String. Язык контента (ro_RO, bg_BG, hu_HU и др.)
+        "source_language": "ro_RO",  # Опциональное. String. Язык контента (ro_RO, bg_BG, hu_HU и др.)
         # Основная информация о товаре
         "name": "Aspirator vertical, Roidmi, X20S, Alb/Negru, Fara fir, 2 in 1, Functie mop, Putere 435W, Rezervor 0,4 l, Baterie 2500 mAh, Filtrare in 6 etape, Accesorii incluse",  # Обязательное. String 1-255 символов. Название товара
         "part_number": "md788hc/d",  # Обязательное. String 1-25 символов. Уникальный идентификатор производителя
@@ -247,10 +247,35 @@ if __name__ == "__main__":
         # # Характеристики товара
         "characteristics": [
             {
-                "id": 24,  # Обязательное. Integer 1-65535. ID характеристики
-                "value": "test",  # Обязательное. String 1-255 символов
-                "tag": "original",  # Обязательное для характеристик с тегами
-            }
+                "id": 5704,  # Product type (обязательное поле, is_mandatory: 1)
+                "value": "Aspirator vertical cu spalare",
+            },
+            {"id": 8434, "value": "Rezidential"},  # Usage
+            {
+                "id": 6903,  # Power type (обязательное поле, is_mandatory: 1)
+                "value": "Acumulator",
+            },
+            {"id": 6917, "value": "Uscata Cu spalare"},  # Vacuum type
+            {
+                "id": 6922,  # Floor Type
+                "value": "Covoare, Podele, Podele dure, Multi-suprafete, Tapiterie",
+            },
+            {
+                "id": 6878,  # Weight
+                "value": "1.5 kg",
+                "tag": "UnitOfMeasure",  # Обязательный тег для веса
+            },
+            {
+                "id": 5401,  # Color
+                "value": "Alb Gri",
+                "tag": "ColorNuance",  # Обязательный тег для цвета
+            },
+            {"id": 6866, "value": "435 W"},  # Power
+            {
+                "id": 6932,  # Collection capacity (обязательное поле, is_mandatory: 1)
+                "value": "0.4 l",
+            },
+            {"id": 6935, "value": "HEPA"},  # Exhaust filter
         ],
         # Информация о семействе товаров
         "family": {
@@ -320,8 +345,8 @@ if __name__ == "__main__":
         # ],
     }
 
-    # get_draft()
-    updates_draft("95117032", product_data)
+    get_draft()
+    # updates_draft("95117032", product_data)
     # # Создание черновика
     # response = create_draft(product_data)
     # logger.info(response)
