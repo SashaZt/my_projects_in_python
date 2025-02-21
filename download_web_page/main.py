@@ -31,24 +31,16 @@ def load_proxies():
 
 def get_html():
     cookies = {
-        "ff_ux_sid": "01951e21-0372-73e7-a40f-fb4044d99065",
-        "cart_session": "98a083baaa75a2455bc963ff37384614",
-        "CookieConsent": "{stamp:%27oOj/qWLhr0FGO1BiYh3KBgS88qAySCiaqHuu3lL8Pkc37pQj/8xiUw==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739967239075%2Cregion:%27ua%27}",
-        "soundestID": "20250219121357-uK5hPCVyvcoRyP4DmDGhZNFSSczVht5GKW06ukaGKpxrlW9ye",
-        "disable_ovoko_modal": "67b5cb08c0d443.18578412",
-        "wishlist": "7ff898c670ad4351c445bea97a9e7ac9",
-        "ci_session": "de65c6ec4971490fc737d749cb9e6e0a4a546c03",
-        "_sp_ses.1c83": "*",
-        "omnisendSessionID": "TEp0iH4QqgGhZA-20250220141849",
-        "cf_clearance": "A5j5ewJmzC74DgLTDOb9oQeCFvKnn91jbRZKTx2gYwk-1740062775-1.2.1.1-2X6rPkPiqkukYwfghdfdXStbMaPHcLPcbLj2ybSFO3f3MLLkE0zOX2bz9sEAKwjjBMXDIDGlgEATr2hssi.iHbzcHjQxluG6Iq.b8fVIeXouduSfJQpAm.um7HWcatBkEYEwpjrs.IxeVRYKqEXb5TJLOewZj85ZFmTC8PhrDPuO0i4nmib323804z3GAk1oU.ViUaDfW4AVWFg6D1geK1VoKVW_qW.C1jSuu9CcLiuYerVdAPshUbcV6EYSSboJleJGL4vpPQ.UrgB6AAd8l9j_zGU_CSvpCY5fcIFukzY",
-        "_sp_id.1c83": "e3f3ac00-53db-4c60-98b1-4caa70b1743a.1739975796.3.1740062857.1740055136.06169233-b896-47ea-8c4e-c7ac6a1e2c43.3777d8c5-a5ac-49f9-a8f2-1c77d0c8667c.098ef868-8be4-4677-8a1d-9fbe99ab9d4a.1740057184692.73",
-        "_dd_s": "logs=1&id=86090fb1-da5d-4ef1-b163-1e53b8fa5be2&created=1740062857429&expire=1740063760322",
+        "_gcl_au": "1.1.1807574848.1740066140",
+        "_ga": "GA1.1.1183695763.1740066140",
+        "OptanonAlertBoxClosed": "2025-02-20T15:42:20.666Z",
+        "OptanonConsent": "isGpcEnabled=0&datestamp=Thu+Feb+20+2025+17%3A42%3A37+GMT%2B0200+(%D0%92%D0%BE%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F+%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B0%2C+%D1%81%D1%82%D0%B0%D0%BD%D0%B4%D0%B0%D1%80%D1%82%D0%BD%D0%BE%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202411.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=bbb48d07-470d-42a4-96c9-2509b56c2bbf&interactionCount=2&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1%2CC0005%3A1&intType=1&geolocation=UA%3B18&AwaitingReconsent=false",
+        "_ga_QWX66025LC": "GS1.1.1740066140.1.1.1740066177.23.0.0",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "max-age=0",
         "dnt": "1",
         "priority": "u=0, i",
         "sec-ch-ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
@@ -56,22 +48,15 @@ def get_html():
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
+        "sec-fetch-site": "none",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-        # 'cookie': 'ff_ux_sid=01951e21-0372-73e7-a40f-fb4044d99065; cart_session=98a083baaa75a2455bc963ff37384614; CookieConsent={stamp:%27oOj/qWLhr0FGO1BiYh3KBgS88qAySCiaqHuu3lL8Pkc37pQj/8xiUw==%27%2Cnecessary:true%2Cpreferences:true%2Cstatistics:true%2Cmarketing:true%2Cmethod:%27explicit%27%2Cver:1%2Cutc:1739967239075%2Cregion:%27ua%27}; soundestID=20250219121357-uK5hPCVyvcoRyP4DmDGhZNFSSczVht5GKW06ukaGKpxrlW9ye; disable_ovoko_modal=67b5cb08c0d443.18578412; wishlist=7ff898c670ad4351c445bea97a9e7ac9; ci_session=de65c6ec4971490fc737d749cb9e6e0a4a546c03; _sp_ses.1c83=*; omnisendSessionID=TEp0iH4QqgGhZA-20250220141849; cf_clearance=A5j5ewJmzC74DgLTDOb9oQeCFvKnn91jbRZKTx2gYwk-1740062775-1.2.1.1-2X6rPkPiqkukYwfghdfdXStbMaPHcLPcbLj2ybSFO3f3MLLkE0zOX2bz9sEAKwjjBMXDIDGlgEATr2hssi.iHbzcHjQxluG6Iq.b8fVIeXouduSfJQpAm.um7HWcatBkEYEwpjrs.IxeVRYKqEXb5TJLOewZj85ZFmTC8PhrDPuO0i4nmib323804z3GAk1oU.ViUaDfW4AVWFg6D1geK1VoKVW_qW.C1jSuu9CcLiuYerVdAPshUbcV6EYSSboJleJGL4vpPQ.UrgB6AAd8l9j_zGU_CSvpCY5fcIFukzY; _sp_id.1c83=e3f3ac00-53db-4c60-98b1-4caa70b1743a.1739975796.3.1740062857.1740055136.06169233-b896-47ea-8c4e-c7ac6a1e2c43.3777d8c5-a5ac-49f9-a8f2-1c77d0c8667c.098ef868-8be4-4677-8a1d-9fbe99ab9d4a.1740057184692.73; _dd_s=logs=1&id=86090fb1-da5d-4ef1-b163-1e53b8fa5be2&created=1740062857429&expire=1740063760322',
-    }
-
-    params = {
-        "q": "89820A6010",
-        "prs": "2",
-        "exact": "1",
+        # 'cookie': '_gcl_au=1.1.1807574848.1740066140; _ga=GA1.1.1183695763.1740066140; OptanonAlertBoxClosed=2025-02-20T15:42:20.666Z; OptanonConsent=isGpcEnabled=0&datestamp=Thu+Feb+20+2025+17%3A42%3A37+GMT%2B0200+(%D0%92%D0%BE%D1%81%D1%82%D0%BE%D1%87%D0%BD%D0%B0%D1%8F+%D0%95%D0%B2%D1%80%D0%BE%D0%BF%D0%B0%2C+%D1%81%D1%82%D0%B0%D0%BD%D0%B4%D0%B0%D1%80%D1%82%D0%BD%D0%BE%D0%B5+%D0%B2%D1%80%D0%B5%D0%BC%D1%8F)&version=202411.2.0&browserGpcFlag=0&isIABGlobal=false&hosts=&consentId=bbb48d07-470d-42a4-96c9-2509b56c2bbf&interactionCount=2&isAnonUser=1&landingPath=NotLandingPage&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1%2CC0004%3A1%2CC0005%3A1&intType=1&geolocation=UA%3B18&AwaitingReconsent=false; _ga_QWX66025LC=GS1.1.1740066140.1.1.1740066177.23.0.0',
     }
 
     response = requests.get(
-        "https://rrr.lt/ru/poisk",
-        params=params,
+        "https://www.freepik.com/templates/business-cards/4",
         cookies=cookies,
         headers=headers,
         timeout=30,
@@ -80,7 +65,7 @@ def get_html():
     # Проверка кода ответа
     if response.status_code == 200:
         # Сохранение HTML-страницы целиком
-        with open("rrr.html", "w", encoding="utf-8") as file:
+        with open("freepik.html", "w", encoding="utf-8") as file:
             file.write(response.text)
     logger.info(response.status_code)
 
@@ -943,38 +928,43 @@ def pars_htmls():
 
 
 def scrap_html():
-    # Открываем HTML-файл
-    with open(
-        "Телефоны и гаджеты в Абай (Караганд.обл) - купить в Магазине на Kaspi.kz.html",
-        "r",
-        encoding="utf-8",
-    ) as file:
-        html_content = file.read()
+    with open("freepik.html", "r", encoding="utf-8") as file:
+        content = file.read()
+    soup = BeautifulSoup(content, "lxml")
+    # Находим все элементы <figure> с классом "$relative"
+    figures = soup.find_all("figure", class_="$relative")
 
-    # Используем регулярное выражение для поиска данных allMerchants
-    pattern = re.compile(r'\{"id":"(:allMerchants:[^"]+)",.*?\}', re.DOTALL)
-    matches = pattern.findall(html_content)
+    # Список для хранения результатов
+    results = []
 
-    # Создаем список словарей с найденными данными
-    all_merchants = []
-    for match in matches:
-        merchant_pattern = re.compile(
-            r'\{"id":"' + re.escape(match) + r'",.*?\}', re.DOTALL
-        )
-        merchant_data = merchant_pattern.search(html_content)
-        if merchant_data:
-            all_merchants.append(json.loads(merchant_data.group(0)))
+    # Проходим по всем найденным <figure>
+    for figure in figures:
+        # Ищем <img> внутри каждого <figure>
+        img = figure.find("img")
+        if img:
+            # Извлекаем атрибуты alt и src
+            alt_text = img.get("alt", "")  # Если alt отсутствует, вернем пустую строку
+            src_url = img.get("src", "")  # Если src отсутствует, вернем пустую строку
+            results.append({"alt": alt_text, "src": src_url})
 
     # Выводим результаты
-    for merchant in all_merchants:
-        print(merchant["id"].replace(":allMerchants:", ""))
+    for result in results:
+        print(f"Alt: {result['alt']}")
+        print(f"Src: {result['src']}")
+        print("---")
+
+    # Если нужно сохранить в список словарей или файл, вот пример:
+    import json
+
+    with open("image_data.json", "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=4)
 
 
 if __name__ == "__main__":
-    # scrap_html()
+    scrap_html()
     # main_realoem()
     # get_htmls()
-    get_html()
+    # get_html()
     # get_contact_prom()
     # get_category_html()
     # get_session_html()

@@ -1,18 +1,9 @@
 import json
 import sys
-import time
-import urllib.parse
 from pathlib import Path
 
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
 from loguru import logger
-
-from config import COOKIES, HEADERS
-from main_th_queue import process_pages_with_threads_code
-
-# from main_th import process_products_with_threads
 
 current_directory = Path.cwd()
 html_code_directory = current_directory / "html_code"
@@ -29,11 +20,6 @@ xlsx_result = data_directory / "result.xlsx"
 output_csv_file = data_directory / "output.csv"
 
 
-API_KEY = "6c54502fd688c7ce737f1c650444884a"
-# API_KEY = "b7141d2b54426945a9f0bf6ab4c7bc54"
-# Настройте максимальное количество попыток, если требуется
-MAX_RETRIES = 10
-RETRY_DELAY = 30  # Задержка между попытками в секундах
 logger.remove()
 # 🔹 Логирование в файл
 logger.add(

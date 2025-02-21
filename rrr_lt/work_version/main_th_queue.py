@@ -1,25 +1,20 @@
-import json
 import sys
 import threading
 import time
 import urllib.parse
 from pathlib import Path
 from queue import Empty, Queue
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-import pandas as pd
 import requests
-from bs4 import BeautifulSoup
 from loguru import logger
 from tqdm import tqdm
 
-from config import COOKIES, HEADERS
-
-# API_KEY = "6c54502fd688c7ce737f1c650444884a"
-API_KEY = "b7141d2b54426945a9f0bf6ab4c7bc54"
-# Настройте максимальное количество попыток, если требуется
-MAX_RETRIES = 10
-RETRY_DELAY = 30  # Задержка между попытками в секундах
+# # API_KEY = "6c54502fd688c7ce737f1c650444884a"
+# API_KEY = "b7141d2b54426945a9f0bf6ab4c7bc54"
+# # Настройте максимальное количество попыток, если требуется
+# MAX_RETRIES = 10
+# RETRY_DELAY = 30  # Задержка между попытками в секундах
 
 
 current_directory = Path.cwd()
@@ -62,7 +57,7 @@ class ThreadedScraperCode:
         num_threads: int,
         api_key: str,
         html_code_directory: Path,
-        max_retries: int = 10,
+        max_retries: int = 50,
         delay: int = 30,
     ):
         self.num_threads = num_threads
@@ -122,6 +117,7 @@ class ThreadedScraperCode:
 
     def process_page(self, page: int) -> None:
         """Обрабатывает одну страницу"""
+        # logger.info(f"Обработка страницы {page}")
         try:
             html_file = self.html_code_directory / f"page_{page}.html"
             if html_file.exists():
@@ -132,7 +128,7 @@ class ThreadedScraperCode:
                 return
             # Параметры для ScraperAPI
             payload = {
-                "api_key": API_KEY,
+                "api_key": self.api_key,
                 "keep_headers": "true",  # Важно для сохранения пользовательских заголовков
                 # 'render': 'true'  # Включаем рендеринг JavaScript
             }

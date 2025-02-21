@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import threading
 import time
@@ -9,6 +10,8 @@ from typing import Dict, List, Optional
 import requests
 from loguru import logger
 from tqdm import tqdm
+
+from database import create_database, extract_and_save_product, get_all_codes
 
 current_directory = Path.cwd()
 html_code_directory = current_directory / "html_code"
@@ -53,7 +56,7 @@ class ThreadedScraper:
         headers: Dict,
         cookies: Dict,
         json_product_directory: Path,
-        max_retries: int = 10,
+        max_retries: int = 50,
         delay: int = 30,
     ):
         self.num_threads = num_threads
@@ -80,6 +83,12 @@ class ThreadedScraper:
         # Формируем строку Cookie из словаря cookies
         cookie_string = "; ".join(f"{key}={value}" for key, value in cookies.items())
         self.headers["Cookie"] = cookie_string
+        # Создаем БД при инициализации
+        asyncio.run(create_database())
+        codes_data = asyncio.run(get_all_codes())
+        # Создаем множества для быстрого поиска
+        self.existing_search_queries = set(row[0] for row in codes_data if row[0])
+        self.existing_codes = set(row[1] for row in codes_data if row[1])
 
     def make_request_with_retries(
         self, url: str, params: Dict, headers: Optional[Dict] = None
@@ -113,8 +122,19 @@ class ThreadedScraper:
     def process_product(self, id_product: str) -> None:
         """Обрабатывает один продукт"""
         try:
-            json_file = self.json_product_directory / f"{id_product}.json"
-            if json_file.exists():
+            # json_file = self.json_product_directory / f"{id_product}.json"
+            # if json_file.exists():
+            #     with self.processed_lock:
+            #         self.processed_count += 1
+            #         if self.progress_bar:
+            #             self.progress_bar.update(1)
+            #     return
+            # Проверяем наличие code в базе данных вместо файла
+            if (
+                id_product in self.existing_search_queries
+                or id_product in self.existing_codes
+            ):
+                # logger.info(f"Продукт {id_product} уже обработан")
                 with self.processed_lock:
                     self.processed_count += 1
                     if self.progress_bar:
@@ -135,15 +155,29 @@ class ThreadedScraper:
             response = self.make_request_with_retries(
                 "https://api.scraperapi.com/", payload, headers=self.headers
             )
-
             if response:
-                with open(json_file, "w", encoding="utf-8") as file:
-                    file.write(response.text)
-                logger.info(f"Скачано {json_file}")
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    extract_and_save_product(response.text, id_product)
+                )
+                loop.close()
+                # if response:
+                #     with open(json_file, "w", encoding="utf-8") as file:
+                #         file.write(response.text)
+                #     loop = asyncio.new_event_loop()
+                #     asyncio.set_event_loop(loop)
+                #     loop.run_until_complete(
+                #         extract_and_save_product(response.text, json_file)
+                #     )
+                #     loop.close()
+                # Добавляем новый код в список существующих
+                self.existing_codes.add(id_product)
 
-                # Увеличиваем счетчик обработанных задач
                 with self.processed_lock:
                     self.processed_count += 1
+                    if self.progress_bar:
+                        self.progress_bar.update(1)
             else:
                 logger.error(f"Не удалось загрузить данные для продукта {id_product}")
 
@@ -153,7 +187,7 @@ class ThreadedScraper:
     def worker(self) -> None:
         """Рабочий поток, обрабатывающий задачи из очереди"""
         thread_name = threading.current_thread().name
-        logger.debug(f"Запущен поток {thread_name}")
+        # logger.debug(f"Запущен поток {thread_name}")
 
         while not self.stop_event.is_set():
             try:
@@ -177,7 +211,7 @@ class ThreadedScraper:
                 if not self.stop_event.is_set():
                     time.sleep(1)  # Пауза перед следующей попыткой
 
-        logger.debug(f"Поток {thread_name} завершил работу")
+        # logger.debug(f"Поток {thread_name} завершил работу")
 
     def start(self) -> None:
         """Запускает пул рабочих потоков"""
@@ -235,7 +269,7 @@ class ThreadedScraper:
 
 # Пример использования:
 def process_products_with_threads(
-    id_products: List[str], num_threads: int = 10, **kwargs
+    id_products: List[str], num_threads: int = 50, **kwargs
 ) -> None:
     """
     Обрабатывает список продуктов с использованием пула потоков
