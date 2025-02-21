@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import threading
 import time
@@ -10,12 +11,7 @@ import requests
 from loguru import logger
 from tqdm import tqdm
 
-# # API_KEY = "6c54502fd688c7ce737f1c650444884a"
-# API_KEY = "b7141d2b54426945a9f0bf6ab4c7bc54"
-# # Настройте максимальное количество попыток, если требуется
-# MAX_RETRIES = 10
-# RETRY_DELAY = 30  # Задержка между попытками в секундах
-
+from database import create_database, extract_and_save_codes
 
 current_directory = Path.cwd()
 html_code_directory = current_directory / "html_code"
@@ -85,6 +81,7 @@ class ThreadedScraperCode:
             "accept-language": "ru,en;q=0.9,uk;q=0.8",
             "x-requested-with": "XMLHttpRequest",
         }
+        asyncio.run(create_database())
 
     def make_request_with_retries(
         self, url: str, params: Dict, headers: Optional[Dict] = None
@@ -156,8 +153,12 @@ class ThreadedScraperCode:
             )
 
             if response:
-                with open(html_file, "w", encoding="utf-8") as file:
-                    file.write(response.text)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(extract_and_save_codes(response.text))
+                loop.close()
+                # with open(html_file, "w", encoding="utf-8") as file:
+                #     file.write(response.text)
 
                 with self.processed_lock:
                     self.processed_count += 1

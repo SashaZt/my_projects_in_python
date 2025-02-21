@@ -5,12 +5,13 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-from bs4 import BeautifulSoup
+
+# from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from loguru import logger
 
 # Парсинг товаров
-from database import export_to_excel
+from database import export_to_excel, get_all_codes
 
 # Скачивание товаров
 from main_th import process_products_with_threads
@@ -31,9 +32,8 @@ data_directory.mkdir(parents=True, exist_ok=True)
 json_product_directory.mkdir(parents=True, exist_ok=True)
 html_code_directory.mkdir(parents=True, exist_ok=True)
 
+DB_PATH = config_directory / "rrr_lt.db"
 log_file_path = log_directory / "log_message.log"
-xlsx_result = data_directory / "result.xlsx"
-output_csv_file = data_directory / "output.csv"
 env_file_path = config_directory / ".env"
 config_file_path = config_directory / "config.txt"
 
@@ -64,45 +64,67 @@ logger.add(
 )
 
 
-def read_urls(csv_path):
-    """Читает CSV-файл и возвращает список URL."""
-    try:
-        df = pd.read_csv(csv_path, usecols=["code"])  # Загружаем только колонку "url"
-        return (
-            df["code"].dropna().tolist()
-        )  # Убираем пустые значения и возвращаем список
-    except Exception as e:
-        logger.error(f"Ошибка при чтении файла: {e}")
-        return []
+# def read_urls(csv_path):
+#     """Читает CSV-файл и возвращает список URL."""
+#     try:
+#         df = pd.read_csv(csv_path, usecols=["code"])  # Загружаем только колонку "url"
+#         return (
+#             df["code"].dropna().tolist()
+#         )  # Убираем пустые значения и возвращаем список
+#     except Exception as e:
+#         logger.error(f"Ошибка при чтении файла: {e}")
+#         return []
 
 
-def extract_data_code():
-    all_data = []
-    # Пройтись по каждому HTML файлу в папке
-    for html_file in html_code_directory.glob("*.html"):
-        with open(html_file, encoding="utf-8") as file:
-            src = file.read()
-        soup = BeautifulSoup(src, "lxml")
-        code_tag = soup.find_all("button", attrs={"data-testid": "part-code"})
-        if not code_tag:
-            logger.error(f"Не найден код в файле {html_file}")
-            continue
-        for code in code_tag:
-            code_text = code.text.strip()  # Убираем лишние пробелы
-            all_data.append(code_text)
-    save_code_csv(all_data)
+# def extract_data_code():
+#     all_data = []
+#     # Пройтись по каждому HTML файлу в папке
+#     for html_file in html_code_directory.glob("*.html"):
+#         with open(html_file, encoding="utf-8") as file:
+#             src = file.read()
+#         soup = BeautifulSoup(src, "lxml")
+#         code_tag = soup.find_all("button", attrs={"data-testid": "part-code"})
+#         if not code_tag:
+#             logger.error(f"Не найден код в файле {html_file}")
+#             continue
+#         for code in code_tag:
+#             code_text = code.text.strip()  # Убираем лишние пробелы
+#             all_data.append(code_text)
+#     save_code_csv(all_data)
 
 
-def save_code_csv(data):
-    # Создаем DataFrame с заголовком "code"
-    df = pd.DataFrame(data, columns=["code"])
+# def save_code_csv(data):
+#     # Создаем DataFrame с заголовком "code"
+#     df = pd.DataFrame(data, columns=["code"])
 
-    # Сохраняем в CSV файл
-    output_file = output_csv_file  # Можно изменить путь и имя файла
-    df.to_csv(output_file, index=False, encoding="utf-8")
-    logger.info(
-        f"Все коды успешно сохранены в {output_file}. Всего записей: {len(data)}"
+
+#     # Сохраняем в CSV файл
+#     output_file = output_csv_file  # Можно изменить путь и имя файла
+#     df.to_csv(output_file, index=False, encoding="utf-8")
+#     logger.info(
+#         f"Все коды успешно сохранены в {output_file}. Всего записей: {len(data)}"
+#     )
+def delete_db_file():
+    print("Удаление файла базы данных")
+    confirm = input(
+        "Вы уверены, что хотите удалить файл базы данных? Это действие необратимо. (да/нет): "
     )
+    if confirm.lower() != "да":
+        logger.warning("Удаление отменено.")
+        return
+    # Удаление файла
+    if DB_PATH.exists():
+        try:
+            DB_PATH.unlink()
+            logger.info(f"Файл {DB_PATH} успешно удален")
+        except PermissionError:
+            logger.error(
+                f"Ошибка: файл {DB_PATH} открыт или используется другим процессом"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при удалении файла {DB_PATH}: {e}")
+    else:
+        logger.error(f"Файл {DB_PATH} не существует")
 
 
 def main_config():
@@ -182,10 +204,9 @@ def main_loop():
         print(
             "\nВыберите действие:\n"
             "1. Скачивание кодов с сайта\n"
-            "2. Извлечение кодов запчастей\n"
-            "3. Скачивание запчастей\n"
-            "4. Получение файлов Ексель\n"
-            "5. Удалить временные файлы\n"
+            "2. Скачивание запчастей\n"
+            "3. Получение файлов Ексель\n"
+            "4. Удалить временные файлы\n"
             "0. Выход"
         )
         choice = input("Введите номер действия: ")
@@ -199,15 +220,19 @@ def main_loop():
                 delay=RETRY_DELAY,
             )
 
-        elif choice == "2":
-            # извлечь_кодов запчастей
-            extract_data_code()
+        # elif choice == "2":
+        #     # извлечь_кодов запчастей
+        #     extract_data_code()
 
-        elif choice == "3":
-            urls = read_urls(output_csv_file)
+        elif choice == "2":
+            # Получение списка кодов
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            codes = loop.run_until_complete(get_all_codes())
+            loop.close()
             headers, cookies = main_config()
             process_products_with_threads(
-                id_products=urls,
+                id_products=codes,
                 num_threads=NUM_THREADS,
                 api_key=API_KEY,
                 base_url="https://rrr.lt/ru/poisk",
@@ -217,18 +242,14 @@ def main_loop():
                 max_retries=MAX_RETRIES,
                 delay=RETRY_DELAY,
             )
-        elif choice == "4":
+        elif choice == "3":
             # Получить данные о продукте
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(export_to_excel())
             loop.close()
-        elif choice == "5":
-            for file in html_code_directory.glob("*.html"):
-                file.unlink()
-            for file in json_product_directory.glob("*.json"):
-                file.unlink()
-            print("Временные файлы удалены")
+        elif choice == "4":
+            delete_db_file()
         elif choice == "0":
             break
         else:

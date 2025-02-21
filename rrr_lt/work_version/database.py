@@ -4,15 +4,16 @@ from pathlib import Path
 
 import aiosqlite
 import pandas as pd
+from bs4 import BeautifulSoup
 from loguru import logger
 
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
 data_directory = current_directory / "data"
-db_file_path = config_directory / "rrr_lt.db"
+DB_PATH = config_directory / "rrr_lt.db"
 
-# Путь к базе данных
-DB_PATH = Path(db_file_path)
+# # Путь к базе данных
+# DB_PATH = Path(db_file_path)
 
 
 # 1. Создание базы данных и таблицы
@@ -36,6 +37,18 @@ async def create_database():
             )
         """
         )
+        # Новая таблица codes с уникальным индексом на code
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS codes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """
+        )
+        # Создаем уникальный индекс на поле code (необязательно, так как UNIQUE уже в определении)
+        # await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_code ON codes (code)')
         await db.commit()
 
 
@@ -132,13 +145,62 @@ async def extract_and_save_product(json_data: str, id_product: str):
             # logger.info(f"Данные из {id_product} успешно записаны в БД")
 
 
-# Новая функция для получения всех search_query и code
-async def get_all_codes():
+# Новая функция для получения всех search_query и code из таблицы products
+async def get_all_codes_products():
     async with aiosqlite.connect(DB_PATH) as db:
         cursor = await db.execute("SELECT search_query, code FROM products")
         rows = await cursor.fetchall()
         # Возвращаем список кортежей (search_query, code)
         return rows
+
+
+# Асинхронная запись кодов в таблицу codes
+async def insert_data_codes(db, codes: list[str]):
+    # Используем INSERT OR IGNORE, чтобы не записывать дубликаты
+    await db.executemany(
+        """
+        INSERT OR IGNORE INTO codes (code) VALUES (?)
+        """,
+        [(code,) for code in codes],  # Преобразуем список кодов в список кортежей
+    )
+    await db.commit()
+
+
+# Извлечение кодов из response.text и запись в БД
+async def extract_and_save_codes(
+    src: str,
+):
+    # logger.info(f"Извлечение кодов для продукта: {id_product}")
+
+    all_data = []
+    soup = BeautifulSoup(src, "lxml")
+    code_tag = soup.find_all("button", attrs={"data-testid": "part-code"})
+
+    if not code_tag:
+        # logger.error(f"Не найдены коды в ответе для продукта {id_product}")
+        return
+
+    for code in code_tag:
+        code_text = code.text.strip()  # Убираем лишние пробелы
+        all_data.append(code_text)
+
+    if all_data:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await insert_data_codes(db, all_data)
+            # logger.info(
+            #     # f"Записано {len(all_data)} уникальных кодов для продукта {id_product}"
+            # )
+    # else:
+    # logger.warning(f"Нет кодов для записи для продукта {id_product}")
+
+
+# Новая функция для получения всех search_query и code из таблицы products
+async def get_all_codes():
+    async with aiosqlite.connect(DB_PATH) as db:
+        cursor = await db.execute("SELECT code FROM codes")
+        rows = await cursor.fetchall()
+        # Возвращаем список строк code
+        return [row[0] for row in rows]
 
 
 # # Пример генерации данных (замените на вашу логику)

@@ -11,7 +11,12 @@ import requests
 from loguru import logger
 from tqdm import tqdm
 
-from database import create_database, extract_and_save_product, get_all_codes
+from database import (
+    create_database,
+    extract_and_save_product,
+    get_all_codes,
+    get_all_codes_products,
+)
 
 current_directory = Path.cwd()
 html_code_directory = current_directory / "html_code"
@@ -85,7 +90,7 @@ class ThreadedScraper:
         self.headers["Cookie"] = cookie_string
         # Создаем БД при инициализации
         asyncio.run(create_database())
-        codes_data = asyncio.run(get_all_codes())
+        codes_data = asyncio.run(get_all_codes_products())
         # Создаем множества для быстрого поиска
         self.existing_search_queries = set(row[0] for row in codes_data if row[0])
         self.existing_codes = set(row[1] for row in codes_data if row[1])
