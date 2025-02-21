@@ -1,15 +1,10 @@
-import json
 import sys
-import time
-import urllib.parse
 from pathlib import Path
 
 import pandas as pd
-import requests
 from bs4 import BeautifulSoup
-from loguru import logger
-
 from config import COOKIES, HEADERS
+from loguru import logger
 from main_th import process_products_with_threads
 from main_th_queue import process_pages_with_threads_code
 from scrap_product import extract_data_product
@@ -66,17 +61,6 @@ def read_urls(csv_path):
         return []
 
 
-# # Скачиваем коды товаров
-# process_pages_with_threads_code(
-#     total_pages=3,
-#     num_threads=50,
-#     api_key=API_KEY,
-#     html_code_directory=html_code_directory,
-#     max_retries=MAX_RETRIES,
-#     delay=RETRY_DELAY,
-# )
-
-
 def extract_data_code():
     all_data = []
     # Пройтись по каждому HTML файлу в папке
@@ -106,18 +90,59 @@ def save_code_csv(data):
     )
 
 
-# # Запуск скачивания страниц с товарами
-# urls = read_urls(output_csv_file)
-# process_products_with_threads(
-#     id_products=urls,
-#     num_threads=10,
-#     api_key=API_KEY,
-#     base_url="https://rrr.lt/ru/poisk",
-#     headers=HEADERS,
-#     cookies=COOKIES,
-#     json_product_directory=json_product_directory,
-#     max_retries=MAX_RETRIES,
-#     delay=RETRY_DELAY,
-# )
+def main_loop():
+    while True:
+        print(
+            "\nВыберите действие:\n"
+            "1. Скачивание кодов с сайта\n"
+            "2. Извлечение кодов запчастей\n"
+            "3. Скачивание запчастей\n"
+            "4. Получение файлов Ексель\n"
+            "5. Удалить временные файлы\n"
+            "0. Выход"
+        )
+        choice = input("Введите номер действия: ")
+        if choice == "1":
+            process_pages_with_threads_code(
+                total_pages=3,
+                num_threads=50,
+                api_key=API_KEY,
+                html_code_directory=html_code_directory,
+                max_retries=MAX_RETRIES,
+                delay=RETRY_DELAY,
+            )
+
+        elif choice == "2":
+            # извлечь_кодов запчастей
+            extract_data_code()
+
+        elif choice == "3":
+            urls = read_urls(output_csv_file)
+            process_products_with_threads(
+                id_products=urls,
+                num_threads=10,
+                api_key=API_KEY,
+                base_url="https://rrr.lt/ru/poisk",
+                headers=HEADERS,
+                cookies=COOKIES,
+                json_product_directory=json_product_directory,
+                max_retries=MAX_RETRIES,
+                delay=RETRY_DELAY,
+            )
+        elif choice == "4":
+            # Получить данные о продукте
+            extract_data_product()
+        elif choice == "5":
+            for file in html_code_directory.glob("*.html"):
+                file.unlink()
+            for file in json_product_directory.glob("*.json"):
+                file.unlink()
+            print("Временные файлы удалены")
+        elif choice == "0":
+            break
+        else:
+            print("Неверный ввод. Попробуйте еще раз.")
+
+
 if __name__ == "__main__":
-    extract_data_product()
+    main_loop()

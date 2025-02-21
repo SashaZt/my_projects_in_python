@@ -342,7 +342,7 @@ if __name__ == "__main__":
     # # Получить все коды запчастей
     get_all_code(3)
     # # # Получить все коды запчастей
-    # extract_data_code()
+    extract_data_code()
     # Получить данные о продукте
     urls = read_urls(output_csv_file)
     for url in urls[:1]:
