@@ -8,10 +8,9 @@ from queue import Empty, Queue
 from typing import Dict, Optional
 
 import requests
+from database import create_database, extract_and_save_codes
 from loguru import logger
 from tqdm import tqdm
-
-from database import create_database, extract_and_save_codes
 
 current_directory = Path.cwd()
 html_code_directory = current_directory / "html_code"
@@ -53,7 +52,7 @@ class ThreadedScraperCode:
         num_threads: int,
         api_key: str,
         html_code_directory: Path,
-        max_retries: int = 50,
+        max_retries: int = 95,
         delay: int = 30,
     ):
         self.num_threads = num_threads
@@ -141,13 +140,6 @@ class ThreadedScraperCode:
                 # Добавляем параметры запроса к URL
                 payload["url"] = f"{url}?{urllib.parse.urlencode(params)}"
 
-            # # Параметры для ScraperAPI
-            # payload = {
-            #     "api_key": self.api_key,
-            #     "url": url,
-            #     "keep_headers": "true",
-            # }
-
             response = self.make_request_with_retries(
                 "https://api.scraperapi.com/", payload, headers=self.headers
             )
@@ -157,8 +149,8 @@ class ThreadedScraperCode:
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(extract_and_save_codes(response.text))
                 loop.close()
-                # with open(html_file, "w", encoding="utf-8") as file:
-                #     file.write(response.text)
+                with open(html_file, "w", encoding="utf-8") as file:
+                    file.write(response.text)
 
                 with self.processed_lock:
                     self.processed_count += 1
@@ -228,7 +220,7 @@ class ThreadedScraperCode:
 
 
 def process_pages_with_threads_code(
-    total_pages: int, num_threads: int = 50, **kwargs
+    total_pages: int, num_threads: int = 95, **kwargs
 ) -> None:
     """
     Обрабатывает страницы с использованием пула потоков

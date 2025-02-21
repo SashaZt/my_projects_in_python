@@ -8,15 +8,14 @@ from queue import Empty, Queue
 from typing import Dict, List, Optional
 
 import requests
-from loguru import logger
-from tqdm import tqdm
-
 from database import (
     create_database,
     extract_and_save_product,
     get_all_codes,
     get_all_codes_products,
 )
+from loguru import logger
+from tqdm import tqdm
 
 current_directory = Path.cwd()
 html_code_directory = current_directory / "html_code"
@@ -61,7 +60,7 @@ class ThreadedScraper:
         headers: Dict,
         cookies: Dict,
         json_product_directory: Path,
-        max_retries: int = 50,
+        max_retries: int = 95,
         delay: int = 30,
     ):
         self.num_threads = num_threads
@@ -274,7 +273,7 @@ class ThreadedScraper:
 
 # Пример использования:
 def process_products_with_threads(
-    id_products: List[str], num_threads: int = 50, **kwargs
+    id_products: List[str], num_threads: int = 95, **kwargs
 ) -> None:
     """
     Обрабатывает список продуктов с использованием пула потоков
