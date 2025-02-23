@@ -268,6 +268,67 @@ async def set_search_time_true(id_product: str):
 #         yield batch
 
 
+# # 3. Выгрузка данных в Excel
+# async def export_to_excel():
+#     async with aiosqlite.connect(DB_PATH) as db:
+#         cursor = await db.execute(
+#             """
+#             SELECT brand, code, description, total_price, quantity, used, photo
+#             FROM products
+#             """
+#         )
+#         rows = await cursor.fetchall()
+
+#         # Создаем словарь для группировки по category_name
+#         data_by_category = {}
+
+#         for row in rows:
+#             brand, code, description, total_price, quantity, used, photo = row
+#             # Извлекаем category_name из description (первая часть до "|")
+#             category_name = (
+#                 description.split(" | ")[0].strip() if description else "Unknown"
+#             )
+
+#             # Добавляем данные в словарь по категориям
+#             if category_name not in data_by_category:
+#                 data_by_category[category_name] = []
+#             data_by_category[category_name].append(
+#                 {
+#                     "Бренд": brand,
+#                     "Код": code,
+#                     "Описание": description,
+#                     "Цена товара": total_price,
+#                     "Количество, ШТ.": quantity,
+#                     "Б/У": used,
+#                     "Фото товара": photo,
+#                 }
+#             )
+
+
+#         # Сохраняем данные в Excel-файлы по категориям
+#         for category_name, category_data in data_by_category.items():
+#             df = pd.DataFrame(
+#                 category_data,
+#                 columns=[
+#                     "Бренд",
+#                     "Код",
+#                     "Описание",
+#                     "Цена товара",
+#                     "Количество, ШТ.",
+#                     "Б/У",
+#                     "Фото товара",
+#                 ],
+#             )
+#             # Формируем имя файла на основе category_name
+#             # Заменяем недопустимые символы в имени файла
+#             safe_category_name = "".join(
+#                 c if c.isalnum() or c in " _-" else "_" for c in category_name
+#             )
+#             file_name = data_directory / f"{safe_category_name}.xlsx"
+#             df.to_excel(file_name, index=False, engine="openpyxl")
+#             logger.info(
+#                 f"Данные для категории '{category_name}' выгружены в {file_name}"
+#             )
 # 3. Выгрузка данных в Excel
 async def export_to_excel():
     async with aiosqlite.connect(DB_PATH) as db:
@@ -284,12 +345,10 @@ async def export_to_excel():
 
         for row in rows:
             brand, code, description, total_price, quantity, used, photo = row
-            # Извлекаем category_name из description (первая часть до "|")
             category_name = (
                 description.split(" | ")[0].strip() if description else "Unknown"
             )
 
-            # Добавляем данные в словарь по категориям
             if category_name not in data_by_category:
                 data_by_category[category_name] = []
             data_by_category[category_name].append(
@@ -304,30 +363,66 @@ async def export_to_excel():
                 }
             )
 
+        # Максимальное количество строк в одном файле
+        MAX_ROWS = 600_000
+
         # Сохраняем данные в Excel-файлы по категориям
         for category_name, category_data in data_by_category.items():
-            df = pd.DataFrame(
-                category_data,
-                columns=[
-                    "Бренд",
-                    "Код",
-                    "Описание",
-                    "Цена товара",
-                    "Количество, ШТ.",
-                    "Б/У",
-                    "Фото товара",
-                ],
-            )
-            # Формируем имя файла на основе category_name
-            # Заменяем недопустимые символы в имени файла
+            # Очищаем имя категории от недопустимых символов
             safe_category_name = "".join(
                 c if c.isalnum() or c in " _-" else "_" for c in category_name
             )
-            file_name = data_directory / f"{safe_category_name}.xlsx"
-            df.to_excel(file_name, index=False, engine="openpyxl")
-            logger.info(
-                f"Данные для категории '{category_name}' выгружены в {file_name}"
-            )
+
+            # Если данных меньше максимума, сохраняем в один файл
+            if len(category_data) <= MAX_ROWS:
+                df = pd.DataFrame(
+                    category_data,
+                    columns=[
+                        "Бренд",
+                        "Код",
+                        "Описание",
+                        "Цена товара",
+                        "Количество, ШТ.",
+                        "Б/У",
+                        "Фото товара",
+                    ],
+                )
+                file_name = data_directory / f"{safe_category_name}.xlsx"
+                df.to_excel(file_name, index=False, engine="openpyxl")
+                logger.info(
+                    f"Данные для категории '{category_name}' выгружены в {file_name}"
+                )
+            else:
+                # Разбиваем на части по MAX_ROWS
+                total_rows = len(category_data)
+                file_count = (total_rows + MAX_ROWS - 1) // MAX_ROWS  # Округляем вверх
+
+                for i in range(file_count):
+                    start_idx = i * MAX_ROWS
+                    end_idx = min((i + 1) * MAX_ROWS, total_rows)
+                    chunk_data = category_data[start_idx:end_idx]
+
+                    df = pd.DataFrame(
+                        chunk_data,
+                        columns=[
+                            "Бренд",
+                            "Код",
+                            "Описание",
+                            "Цена товара",
+                            "Количество, ШТ.",
+                            "Б/У",
+                            "Фото товара",
+                        ],
+                    )
+
+                    # Формируем имя файла с суффиксом _02, _03 и т.д.
+                    suffix = f"_{(i + 1):02d}" if i > 0 else ""
+                    file_name = data_directory / f"{safe_category_name}{suffix}.xlsx"
+                    df.to_excel(file_name, index=False, engine="openpyxl")
+                    logger.info(
+                        f"Часть {i+1} данных для категории '{category_name}' "
+                        f"выгружена в {file_name} ({len(chunk_data)} строк)"
+                    )
 
 
 # # Основная функция
