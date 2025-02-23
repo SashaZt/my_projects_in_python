@@ -12,9 +12,6 @@ config_directory = current_directory / "config"
 data_directory = current_directory / "data"
 DB_PATH = config_directory / "rrr_lt.db"
 
-# # Путь к базе данных
-# DB_PATH = Path(db_file_path)
-
 
 # 1. Создание базы данных и таблицы
 async def create_database():
@@ -43,7 +40,9 @@ async def create_database():
             CREATE TABLE IF NOT EXISTS codes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 code TEXT UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                search_time BOOLEAN DEFAULT FALSE
+
             )
         """
         )
@@ -88,7 +87,9 @@ async def extract_and_save_product(json_data: str, id_product: str):
 
     parts = data.get("parts", [])
     if not parts:
-        logger.error(f"Не найдены детали в JSON для продукта {id_product}")
+        # logger.error(f"Не найдены детали в JSON для продукта {id_product}")
+        await set_search_time_true(id_product)  # Используем await
+
         return
 
     min_price_part = min(
@@ -201,6 +202,38 @@ async def get_all_codes():
         rows = await cursor.fetchall()
         # Возвращаем список строк code
         return [row[0] for row in rows]
+
+
+async def set_search_time_true(id_product: str):
+    """
+    Устанавливает search_time = True для записи с code = id_product в таблице codes.
+
+    Args:
+        id_product (str): Значение code, для которого нужно установить search_time = True.
+    """
+    async with aiosqlite.connect(DB_PATH) as db:
+        try:
+            # Обновляем search_time на True для указанного code
+            result = await db.execute(
+                """
+                UPDATE codes 
+                SET search_time = TRUE 
+                WHERE code = ?
+                """,
+                (id_product,),
+            )
+            await db.commit()
+
+            # Проверяем, сколько строк было обновлено
+            rows_affected = result.rowcount
+            if rows_affected > 0:
+                pass
+                # logger.info(f"Для продукта {id_product} установлен search_time = True")
+            else:
+                logger.warning(f"Продукт {id_product} не найден в таблице codes")
+
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении search_time для {id_product}: {e}")
 
 
 # # Пример генерации данных (замените на вашу логику)

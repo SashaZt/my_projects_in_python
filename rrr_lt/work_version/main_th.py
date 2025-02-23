@@ -11,8 +11,8 @@ import requests
 from database import (
     create_database,
     extract_and_save_product,
-    get_all_codes,
     get_all_codes_products,
+    set_search_time_true,
 )
 from loguru import logger
 from tqdm import tqdm
@@ -126,13 +126,6 @@ class ThreadedScraper:
     def process_product(self, id_product: str) -> None:
         """Обрабатывает один продукт"""
         try:
-            # json_file = self.json_product_directory / f"{id_product}.json"
-            # if json_file.exists():
-            #     with self.processed_lock:
-            #         self.processed_count += 1
-            #         if self.progress_bar:
-            #             self.progress_bar.update(1)
-            #     return
             # Проверяем наличие code в базе данных вместо файла
             if (
                 id_product in self.existing_search_queries
@@ -160,21 +153,14 @@ class ThreadedScraper:
                 "https://api.scraperapi.com/", payload, headers=self.headers
             )
             if response:
+                src = response.text
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-                loop.run_until_complete(
-                    extract_and_save_product(response.text, id_product)
-                )
+                # Выполняем оба действия в одном цикле
+                loop.run_until_complete(extract_and_save_product(src, id_product))
+                loop.run_until_complete(set_search_time_true(id_product))
                 loop.close()
-                # if response:
-                #     with open(json_file, "w", encoding="utf-8") as file:
-                #         file.write(response.text)
-                #     loop = asyncio.new_event_loop()
-                #     asyncio.set_event_loop(loop)
-                #     loop.run_until_complete(
-                #         extract_and_save_product(response.text, json_file)
-                #     )
-                #     loop.close()
+
                 # Добавляем новый код в список существующих
                 self.existing_codes.add(id_product)
 

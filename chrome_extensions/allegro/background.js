@@ -53,7 +53,13 @@ async function processOffersRequest(details) {
             const processedData = newOffers.map(offer => ({
                 id: offer.id,
                 name: offer.name,
-                stats: offer.stats
+                stats: {
+                    watchersCount: offer.stats?.watchersCount,
+                    visitsCount: offer.stats?.visitsCount
+                },
+                stock: {
+                    sold: offer.stock?.sold
+                }
             }));
 
             // Добавляем в аккумулятор

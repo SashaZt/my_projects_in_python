@@ -68,7 +68,7 @@ Thumbs.db
 *.obj
 *.rar
 *.fbx
-
+*.db-journal
 *.session-journal
 *.session
 # Здесь мы игнорируем все .txt файлы...

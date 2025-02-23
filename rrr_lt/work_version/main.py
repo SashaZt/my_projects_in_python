@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pandas as pd
 
+# Парсинг товаров
+from database import export_to_excel, get_all_codes
+
 # from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from loguru import logger
-
-# Парсинг товаров
-from database import export_to_excel, get_all_codes
 
 # Скачивание товаров
 from main_th import process_products_with_threads
