@@ -1,6 +1,34 @@
 let isEnabled = true;
 let isAutoPaginationActive = false;
 const OFFERS_URL_PATTERN = 'edge.salescenter.allegro.com/sale/offers';
+const TARGET_URL = 'https://salescenter.allegro.com/my-assortment?limit=500&publication.status=ACTIVE&sellingMode.format=BUY_NOW&publication.marketplace=allegro-pl';
+
+// Проверяем текущий URL и перенаправляем если нужно
+if (window.location.href.includes('salescenter.allegro.com/my-sales')) {
+    sendLog('Обнаружена страница my-sales, перенаправляем на целевой URL');
+    window.location.href = TARGET_URL;
+}
+// Функция для проверки текущего URL
+function isTargetPage() {
+    return window.location.href.includes('salescenter.allegro.com/my-assortment') &&
+        window.location.href.includes('publication.status=ACTIVE') &&
+        window.location.href.includes('sellingMode.format=BUY_NOW');
+}
+
+// Проверяем текущий URL и выполняем соответствующие действия
+async function handleUrlChange() {
+    if (window.location.href.includes('salescenter.allegro.com/my-sales')) {
+        sendLog('Обнаружена страница my-sales, перенаправляем на целевой URL');
+        window.location.href = TARGET_URL;
+    } else if (isTargetPage()) {
+        sendLog('Обнаружена целевая страница, запускаем сбор данных');
+        // Даем время на полную загрузку страницы
+        await delay(2000);
+        await startAutoPagination();
+    }
+}
+// Запускаем обработку URL при загрузке страницы
+handleUrlChange();
 
 // Функция для задержки
 function delay(ms) {
@@ -72,8 +100,21 @@ async function waitForContentUpdate() {
     }
 }
 
+
+
+
 // Функция автоматической пагинации
 async function startAutoPagination() {
+    // Проверяем логин перед началом
+    const loginCheck = await new Promise(resolve => {
+        chrome.runtime.sendMessage({ action: "checkLogin" }, resolve);
+    });
+
+    if (loginCheck.status === 'redirecting') {
+        sendLog('Redirecting to login page');
+        return;
+    }
+
     if (!isEnabled || isAutoPaginationActive) return;
 
     isAutoPaginationActive = true;

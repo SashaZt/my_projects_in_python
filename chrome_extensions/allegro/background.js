@@ -1,8 +1,19 @@
-// Хранилище для накопления офферов
+// Глобальные переменные
+let isAutoLoginEnabled = true;
 let accumulatedOffers = [];
 const processedOfferIds = new Set();
 let isProcessing = false;
 
+// Настройки планировщика
+let schedulerSettings = {
+    enabled: false,
+    time: "08:00",
+    days: [],
+    lastRun: null,
+    nextRun: null
+};
+
+// Функция логирования
 function logBackground(message, type = 'info') {
     console.log(`[Background][${type}]`, message);
     if (type !== 'debug') {
@@ -14,7 +25,89 @@ function logBackground(message, type = 'info') {
     }
 }
 
-// Функция для экспорта данных
+// Функция редиректа на страницу логина
+async function redirectToLogin(tabId) {
+    try {
+        await chrome.tabs.update(tabId, {
+            url: 'https://allegro.com/log-in?origin_url=https%3A%2F%2Fsalescenter.allegro.com'
+        });
+        logBackground('Перенаправление на страницу логина');
+        return true;
+    } catch (error) {
+        logBackground(`Ошибка при редиректе: ${error.message}`, 'error');
+        return false;
+    }
+}
+
+// Проверка статуса авторизации
+async function checkLoginStatus() {
+    try {
+        const cookie = await chrome.cookies.get({
+            url: 'https://allegro.pl',
+            name: 'QXLSESSID'
+        });
+        return !!cookie;
+    } catch (error) {
+        logBackground(`Ошибка при проверке куки: ${error.message}`, 'error');
+        return false;
+    }
+}
+
+// Обработка запросов офферов
+async function processOffersRequest(details) {
+    if (isProcessing) return;
+
+    try {
+        isProcessing = true;
+        const headers = {};
+        details.requestHeaders.forEach(header => {
+            headers[header.name] = header.value;
+        });
+
+        const response = await fetch(details.url, { headers });
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!data || !data.offers) return;
+
+        const newOffers = data.offers.filter(offer => !processedOfferIds.has(offer.id));
+        if (newOffers.length === 0) return;
+
+        newOffers.forEach(offer => processedOfferIds.add(offer.id));
+
+        const processedData = newOffers.map(offer => ({
+            id: offer.id,
+            name: offer.name,
+            stats: {
+                watchersCount: offer.stats?.watchersCount,
+                visitsCount: offer.stats?.visitsCount
+            },
+            stock: {
+                sold: offer.stock?.sold
+            }
+        }));
+
+        accumulatedOffers = [...accumulatedOffers, ...processedData];
+
+        chrome.runtime.sendMessage({
+            action: "statsUpdate",
+            stats: {
+                accumulated: accumulatedOffers.length,
+                new: newOffers.length
+            }
+        }).catch(() => { });
+
+        logBackground(`Added ${newOffers.length} new offers (Total: ${accumulatedOffers.length})`);
+    } catch (error) {
+        logBackground(`Error processing request: ${error.message}`, 'error');
+    } finally {
+        isProcessing = false;
+    }
+}
+
+// Функция экспорта офферов
 async function exportOffers() {
     if (accumulatedOffers.length === 0) {
         return {
@@ -24,7 +117,6 @@ async function exportOffers() {
     }
 
     try {
-        // Отправляем данные, а создание и скачивание файла будет в popup
         const result = {
             success: true,
             count: accumulatedOffers.length,
@@ -32,9 +124,6 @@ async function exportOffers() {
         };
 
         logBackground(`Prepared ${accumulatedOffers.length} offers for export`);
-
-        // Очищаем накопленные данные только после успешного экспорта
-        const count = accumulatedOffers.length;
         accumulatedOffers = [];
         processedOfferIds.clear();
 
@@ -48,91 +137,7 @@ async function exportOffers() {
     }
 }
 
-// Обработка одного запроса офферов
-async function processOffersRequest(details) {
-    if (isProcessing) return;
-
-    try {
-        isProcessing = true;
-
-        // Собираем заголовки из оригинального запроса
-        const headers = {};
-        details.requestHeaders.forEach(header => {
-            headers[header.name] = header.value;
-        });
-
-        // Выполняем запрос
-        const response = await fetch(details.url, { headers });
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (!data || !data.offers) return;
-
-        // Фильтруем новые офферы
-        const newOffers = data.offers.filter(offer => !processedOfferIds.has(offer.id));
-        if (newOffers.length === 0) return;
-
-        // Добавляем ID в сет обработанных
-        newOffers.forEach(offer => processedOfferIds.add(offer.id));
-
-        // Обрабатываем новые офферы
-        const processedData = newOffers.map(offer => ({
-            id: offer.id,
-            name: offer.name,
-            stats: {
-                watchersCount: offer.stats?.watchersCount,
-                visitsCount: offer.stats?.visitsCount
-            },
-            stock: {
-                sold: offer.stock?.sold
-            }
-        }));
-
-        // Добавляем в аккумулятор
-        accumulatedOffers = [...accumulatedOffers, ...processedData];
-
-        // Обновляем статистику в popup
-        chrome.runtime.sendMessage({
-            action: "statsUpdate",
-            stats: {
-                accumulated: accumulatedOffers.length,
-                new: newOffers.length
-            }
-        }).catch(() => { });
-
-        logBackground(`Added ${newOffers.length} new offers (Total: ${accumulatedOffers.length})`);
-
-    } catch (error) {
-        logBackground(`Error processing request: ${error.message}`, 'error');
-    } finally {
-        isProcessing = false;
-    }
-}
-
-// Перехват запросов
-chrome.webRequest.onBeforeSendHeaders.addListener(
-    async function (details) {
-        if (details.url.includes('edge.salescenter.allegro.com/sale/offers') &&
-            !details.url.includes('/stats')) {
-            processOffersRequest(details);
-        }
-    },
-    { urls: ["*://edge.salescenter.allegro.com/*"] },
-    ["requestHeaders"]
-);
-
-// Добавляем настройки планировщика
-let schedulerSettings = {
-    enabled: false,
-    time: "08:00",
-    days: [],
-    lastRun: null,
-    nextRun: null
-};
-
-// Загрузка настроек
+// Функции планировщика
 async function loadSchedulerSettings() {
     try {
         const result = await chrome.storage.local.get('schedulerSettings');
@@ -145,7 +150,6 @@ async function loadSchedulerSettings() {
     }
 }
 
-// Сохранение настроек
 async function saveSchedulerSettings(settings) {
     try {
         schedulerSettings = { ...schedulerSettings, ...settings };
@@ -158,7 +162,6 @@ async function saveSchedulerSettings(settings) {
     }
 }
 
-// Обновление времени следующего запуска
 function updateNextRun() {
     if (!schedulerSettings.enabled || !schedulerSettings.time || !schedulerSettings.days.length) {
         schedulerSettings.nextRun = null;
@@ -167,8 +170,6 @@ function updateNextRun() {
 
     const now = new Date();
     const [hours, minutes] = schedulerSettings.time.split(':').map(Number);
-
-    // Находим следующий подходящий день
     let nextRun = new Date(now);
     nextRun.setHours(hours, minutes, 0, 0);
 
@@ -183,33 +184,8 @@ function updateNextRun() {
     schedulerSettings.nextRun = nextRun.toISOString();
 }
 
-// Проверка необходимости запуска
-async function checkScheduledRun() {
-    if (!schedulerSettings.enabled || !schedulerSettings.nextRun) return;
-
-    const now = new Date();
-    const nextRun = new Date(schedulerSettings.nextRun);
-
-    if (now >= nextRun) {
-        logBackground('Starting scheduled run');
-        // Запускаем сбор данных
-        await startScheduledRun();
-        // Обновляем время следующего запуска
-        schedulerSettings.lastRun = now.toISOString();
-        updateNextRun();
-        await saveSchedulerSettings({});
-    }
-}
-// Запускаем проверку каждую минуту
-setInterval(checkScheduledRun, 60000);
-
-// Загружаем настройки при старте
-loadSchedulerSettings();
-
-// Выполнение запланированного запуска
 async function startScheduledRun() {
     try {
-        // Находим активную вкладку с Allegro
         const tabs = await chrome.tabs.query({
             url: [
                 "*://allegro.pl/*",
@@ -222,7 +198,6 @@ async function startScheduledRun() {
             return;
         }
 
-        // Отправляем команду на запуск пагинации
         await chrome.tabs.sendMessage(tabs[0].id, {
             action: "startPagination"
         });
@@ -233,17 +208,83 @@ async function startScheduledRun() {
     }
 }
 
+async function checkScheduledRun() {
+    if (!schedulerSettings.enabled || !schedulerSettings.nextRun) return;
 
+    const now = new Date();
+    const nextRun = new Date(schedulerSettings.nextRun);
 
-// Обработчик сообщений
-// Обработчик сообщений в background.js
+    if (now >= nextRun) {
+        logBackground('Starting scheduled run');
+        await startScheduledRun();
+        schedulerSettings.lastRun = now.toISOString();
+        updateNextRun();
+        await saveSchedulerSettings({});
+    }
+}
+
+// Инициализация и слушатели событий
+loadSchedulerSettings();
+setInterval(checkScheduledRun, 60000);
+
+// Слушатель изменения куки
+chrome.cookies.onChanged.addListener(async (changeInfo) => {
+    if (changeInfo.cookie.name === 'QXLSESSID') {
+        if (changeInfo.removed) {
+            logBackground('Сессия завершена, куки удалены');
+        } else {
+            logBackground('Новая сессия установлена');
+        }
+    }
+});
+
+// Слушатель обновления вкладок
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' &&
+        tab.url &&
+        tab.url.includes('allegro') &&
+        !tab.url.includes('/login')) {
+
+        const isLoggedIn = await checkLoginStatus();
+        if (!isLoggedIn && isAutoLoginEnabled) {
+            logBackground('Обнаружена неавторизованная сессия, начинаем процесс логина');
+            await redirectToLogin(tabId);
+        }
+    }
+});
+
+// Слушатель веб-запросов
+chrome.webRequest.onBeforeSendHeaders.addListener(
+    async function (details) {
+        if (details.url.includes('edge.salescenter.allegro.com/sale/offers') &&
+            !details.url.includes('/stats')) {
+            processOffersRequest(details);
+        }
+    },
+    { urls: ["*://edge.salescenter.allegro.com/*"] },
+    ["requestHeaders"]
+);
+
+// Основной обработчик сообщений
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "checkLogin") {
+        checkLoginStatus().then(isLoggedIn => {
+            if (!isLoggedIn && isAutoLoginEnabled) {
+                redirectToLogin(sender.tab.id).then(() => {
+                    sendResponse({ status: 'redirecting' });
+                });
+            } else {
+                sendResponse({ status: isLoggedIn ? 'logged_in' : 'not_logged_in' });
+            }
+        });
+        return true;
+    }
+
     if (message.action === "exportOffers") {
-        // Выполняем экспорт и отправляем результат
         exportOffers().then(result => {
             sendResponse(result);
         });
-        return true; // Указываем, что ответ будет асинхронным
+        return true;
     }
 
     if (message.action === "getStats") {
@@ -254,7 +295,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // Добавляем обработчики для планировщика
     if (message.action === "getSchedulerSettings") {
         sendResponse(schedulerSettings);
         return true;
