@@ -1,13 +1,24 @@
-let isEnabled = true;
+let isEnabled = true; // По умолчанию включено
 let isAutoPaginationActive = false;
 const OFFERS_URL_PATTERN = 'edge.salescenter.allegro.com/sale/offers';
 const TARGET_URL = 'https://salescenter.allegro.com/my-assortment?limit=500&publication.status=ACTIVE&sellingMode.format=BUY_NOW&publication.marketplace=allegro-pl';
+
+// Проверка и загрузка настроек при инициализации
+chrome.storage.local.get(['isEnabled'], function (result) {
+    // Если настройка отсутствует, устанавливаем по умолчанию включенное состояние
+    isEnabled = result.isEnabled !== undefined ? result.isEnabled : true;
+    sendLog(`Скрипт контента инициализирован с isEnabled: ${isEnabled}`, 'info');
+
+    // Автоматический запуск
+    handleUrlChange();
+});
 
 // Проверяем текущий URL и перенаправляем если нужно
 if (window.location.href.includes('salescenter.allegro.com/my-sales')) {
     sendLog('Обнаружена страница my-sales, перенаправляем на целевой URL');
     window.location.href = TARGET_URL;
 }
+
 // Функция для проверки текущего URL
 function isTargetPage() {
     return window.location.href.includes('salescenter.allegro.com/my-assortment') &&
@@ -24,11 +35,25 @@ async function handleUrlChange() {
         sendLog('Обнаружена целевая страница, запускаем сбор данных');
         // Даем время на полную загрузку страницы
         await delay(2000);
-        await startAutoPagination();
+
+        // Проверяем, не запущена ли уже пагинация
+        if (!isAutoPaginationActive) {
+            await startAutoPagination();
+        }
     }
 }
-// Запускаем обработку URL при загрузке страницы
+
+// Запускаем обработку URL при загрузке страницы и при изменении URL
 handleUrlChange();
+
+// Следим за изменениями URL
+let lastUrl = location.href;
+new MutationObserver(() => {
+    if (location.href !== lastUrl) {
+        lastUrl = location.href;
+        handleUrlChange();
+    }
+}).observe(document, { subtree: true, childList: true });
 
 // Функция для задержки
 function delay(ms) {
@@ -51,6 +76,7 @@ async function clickNextPage() {
     }
     return false;
 }
+
 // Функция экспорта данных
 async function exportCollectedData() {
     sendLog('Начинаем финальный экспорт данных');
@@ -65,7 +91,8 @@ async function exportCollectedData() {
                 // После успешного получения данных, отправляем их в popup для скачивания
                 chrome.runtime.sendMessage({
                     action: "downloadData",
-                    data: response.data
+                    data: response.data,
+                    fileName: response.fileName
                 }).catch(() => {
                     // Ошибка при отправке в popup не критична
                     sendLog('Не удалось отправить данные в popup, но данные были успешно собраны', 'info');
@@ -74,12 +101,13 @@ async function exportCollectedData() {
                 sendLog(`Финальный экспорт завершен: ${response.count} офферов`);
                 resolve(true);
             } else {
-                sendLog('Ошибка при финальном экспорте', 'error');
+                sendLog('Ошибка при финальном экспорте: ' + (response?.error || 'Неизвестная ошибка'), 'error');
                 reject(new Error(response?.error || 'Export failed'));
             }
         });
     });
 }
+
 // Функция проверки наличия кнопки и её состояния
 function checkNextButton() {
     const nextButton = document.querySelector('button[aria-label="następna strona"]');
@@ -100,83 +128,101 @@ async function waitForContentUpdate() {
     }
 }
 
-
-
-
 // Функция автоматической пагинации
 async function startAutoPagination() {
     // Проверяем логин перед началом
-    const loginCheck = await new Promise(resolve => {
-        chrome.runtime.sendMessage({ action: "checkLogin" }, resolve);
-    });
-
-    if (loginCheck.status === 'redirecting') {
-        sendLog('Redirecting to login page');
-        return;
-    }
-
-    if (!isEnabled || isAutoPaginationActive) return;
-
-    isAutoPaginationActive = true;
-    let wasLastPage = false;
-    sendLog('Запущена автоматическая пагинация');
-
     try {
-        // Проверяем начальное состояние
-        let buttonStatus = checkNextButton();
-        if (buttonStatus === 'no-button' || buttonStatus === 'disabled') {
-            wasLastPage = true;
-        } else {
-            // Листаем страницы
-            while (isEnabled && isAutoPaginationActive) {
-                await delay(5000); // Ждем 5 секунд между кликами
-
-                // Проверяем кнопку перед кликом
-                buttonStatus = checkNextButton();
-                if (buttonStatus !== 'active') {
-                    wasLastPage = true;
-                    break;
+        const loginCheck = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ action: "checkLogin" }, response => {
+                if (chrome.runtime.lastError) {
+                    reject(chrome.runtime.lastError);
+                } else {
+                    resolve(response);
                 }
+            });
+        });
 
-                // Кликаем и ждем обновления
-                const nextButton = document.querySelector('button[aria-label="następna strona"]');
-                nextButton.click();
-                sendLog('Переход на следующую страницу');
-
-                // Ждем обновления контента
-                await waitForContentUpdate();
-            }
+        if (loginCheck.status === 'redirecting') {
+            sendLog('Перенаправление на страницу логина');
+            return;
         }
 
-        sendLog('Автоматическая пагинация завершена');
+        if (!isEnabled) {
+            sendLog('Расширение отключено, пагинация не будет запущена');
+            return;
+        }
 
-        // Если это была последняя страница, запускаем экспорт
-        if (wasLastPage) {
-            sendLog('Достигнута последняя страница, начинаем экспорт');
-            await delay(2000); // Ждем завершения последних запросов
-            await exportCollectedData();
+        if (isAutoPaginationActive) {
+            sendLog('Пагинация уже активна, не запускаем повторно');
+            return;
+        }
+
+        isAutoPaginationActive = true;
+        let wasLastPage = false;
+        sendLog('Запущена автоматическая пагинация');
+
+        try {
+            // Проверяем начальное состояние
+            let buttonStatus = checkNextButton();
+            if (buttonStatus === 'no-button' || buttonStatus === 'disabled') {
+                wasLastPage = true;
+                sendLog('Кнопка "следующая страница" не найдена или неактивна');
+            } else {
+                // Листаем страницы
+                while (isEnabled && isAutoPaginationActive) {
+                    await delay(5000); // Ждем 5 секунд между кликами
+
+                    // Проверяем кнопку перед кликом
+                    buttonStatus = checkNextButton();
+                    if (buttonStatus !== 'active') {
+                        wasLastPage = true;
+                        sendLog('Достигнута последняя страница (кнопка не активна)');
+                        break;
+                    }
+
+                    // Кликаем и ждем обновления
+                    const nextButton = document.querySelector('button[aria-label="następna strona"]');
+                    nextButton.click();
+                    sendLog('Переход на следующую страницу');
+
+                    // Ждем обновления контента
+                    await waitForContentUpdate();
+                }
+            }
+
+            sendLog('Автоматическая пагинация завершена');
+
+            // Если это была последняя страница, запускаем экспорт
+            if (wasLastPage) {
+                sendLog('Достигнута последняя страница, начинаем экспорт');
+                await delay(2000); // Ждем завершения последних запросов
+                await exportCollectedData();
+            }
+        } catch (error) {
+            sendLog(`Ошибка при автоматической пагинации: ${error.message}`, 'error');
+        } finally {
+            isAutoPaginationActive = false;
         }
     } catch (error) {
-        sendLog(`Ошибка при автоматической пагинации: ${error.message}`, 'error');
-    } finally {
+        sendLog(`Не удалось проверить статус логина: ${error.message}`, 'error');
         isAutoPaginationActive = false;
     }
 }
 
 // Расширяем существующий обработчик сообщений
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    sendLog(`Received message: ${JSON.stringify(message)}`, 'info');
+    sendLog(`Получено сообщение: ${JSON.stringify(message)}`, 'info');
 
     if (message.action === "ping") {
         sendResponse({ status: "pong" });
     }
     else if (message.action === "toggleExtension") {
         isEnabled = message.enabled;
-        sendLog(`Extension ${isEnabled ? 'enabled' : 'disabled'}`, 'info');
-        if (isEnabled) {
-            // При включении расширения запускаем автопагинацию
+        sendLog(`Расширение ${isEnabled ? 'включено' : 'выключено'}`, 'info');
+        if (isEnabled && !isAutoPaginationActive && isTargetPage()) {
+            // При включении расширения запускаем автопагинацию, если мы на целевой странице
             startAutoPagination();
-        } else {
+        } else if (!isEnabled) {
             // При выключении останавливаем
             isAutoPaginationActive = false;
         }
@@ -191,7 +237,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ status: "ok" });
     }
 
-    return false;
+    return true; // Удерживаем соединение открытым для асинхронного ответа
 });
 
 function sendLog(message, type = 'info') {
@@ -200,10 +246,10 @@ function sendLog(message, type = 'info') {
         action: "log",
         message: typeof message === 'object' ? JSON.stringify(message) : message,
         type: type
-    }).catch(() => { });
+    }).catch(() => { }); // Игнорируем ошибки отправки логов
 }
 
-sendLog('Content script loaded and initialized');
+sendLog('Скрипт контента загружен и инициализирован');
 
 // Функция для проверки URL
 function isOffersUrl(url) {
@@ -217,7 +263,7 @@ window.fetch = async function (...args) {
     const url = (typeof resource === 'string') ? resource : resource.url;
 
     if (isEnabled && isOffersUrl(url)) {
-        sendLog(`Intercepted fetch request to: ${url}`, 'request');
+        sendLog(`Перехвачен fetch запрос: ${url}`, 'request');
         try {
             // Клонируем и модифицируем конфигурацию
             const newConfig = {
@@ -235,15 +281,15 @@ window.fetch = async function (...args) {
 
             // Обрабатываем ответ
             clonedResponse.json().then(data => {
-                sendLog('Received fetch response', 'response');
+                sendLog('Получен ответ на fetch запрос', 'response');
                 processAndSaveOffers(data);
             }).catch(error => {
-                sendLog(`Error parsing fetch response: ${error.message}`, 'error');
+                sendLog(`Ошибка при разборе ответа: ${error.message}`, 'error');
             });
 
             return response;
         } catch (error) {
-            sendLog(`Fetch error: ${error.message}`, 'error');
+            sendLog(`Ошибка fetch: ${error.message}`, 'error');
             return originalFetch(...args);
         }
     }
@@ -258,7 +304,7 @@ XMLHttpRequest.prototype.open = function (method, url, ...args) {
     this._url = url;
     this._method = method;
     if (isEnabled && isOffersUrl(url)) {
-        sendLog(`Intercepted XHR ${method} request to: ${url}`, 'request');
+        sendLog(`Перехвачен XHR ${method} запрос: ${url}`, 'request');
     }
     return originalXHROpen.apply(this, [method, url, ...args]);
 };
@@ -268,10 +314,10 @@ XMLHttpRequest.prototype.send = function (data) {
         this.addEventListener('load', function () {
             try {
                 const response = JSON.parse(this.responseText);
-                sendLog('Received XHR response', 'response');
+                sendLog('Получен ответ на XHR запрос', 'response');
                 processAndSaveOffers(response);
             } catch (error) {
-                sendLog(`Error processing XHR response: ${error.message}`, 'error');
+                sendLog(`Ошибка при обработке ответа XHR: ${error.message}`, 'error');
             }
         });
     }
@@ -281,7 +327,7 @@ XMLHttpRequest.prototype.send = function (data) {
 // Функция обработки и сохранения офферов
 function processAndSaveOffers(data) {
     if (!data || !data.offers) {
-        sendLog('Invalid data structure received', 'error');
+        sendLog('Получены неверные данные', 'error');
         return;
     }
 
@@ -300,40 +346,34 @@ function processAndSaveOffers(data) {
         }));
 
         const storageKey = `offers_${new Date().getTime()}`;
-        sendLog(`Processing ${processedOffers.length} offers`, 'info');
+        sendLog(`Обработка ${processedOffers.length} офферов`, 'info');
 
         chrome.storage.local.set({
             [storageKey]: processedOffers
         }, () => {
-            sendLog(`Saved ${processedOffers.length} offers with key: ${storageKey}`, 'info');
+            sendLog(`Сохранено ${processedOffers.length} офферов с ключом: ${storageKey}`, 'info');
             chrome.runtime.sendMessage({
                 action: "offersUpdated",
                 count: processedOffers.length
             });
         });
     } catch (error) {
-        sendLog(`Error processing offers: ${error.message}`, 'error');
+        sendLog(`Ошибка при обработке офферов: ${error.message}`, 'error');
     }
 }
 
-// Обработчик сообщений
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    sendLog(`Received message: ${JSON.stringify(message)}`, 'info');
-
-    if (message.action === "ping") {
-        sendResponse({ status: "pong" });
+// Функция для периодической проверки состояния страницы
+async function periodicCheck() {
+    try {
+        // Если мы на целевой странице и пагинация не активна - запускаем ее
+        if (isTargetPage() && !isAutoPaginationActive && isEnabled) {
+            sendLog('Периодическая проверка: запуск пагинации на целевой странице');
+            await startAutoPagination();
+        }
+    } catch (error) {
+        sendLog(`Ошибка в периодической проверке: ${error.message}`, 'error');
     }
-    else if (message.action === "toggleExtension") {
-        isEnabled = message.enabled;
-        sendLog(`Extension ${isEnabled ? 'enabled' : 'disabled'}`, 'info');
-        sendResponse({ status: "ok" });
-    }
+}
 
-    return false;
-});
-
-// Инициализация состояния
-chrome.storage.local.get(['isEnabled'], function (result) {
-    isEnabled = result.isEnabled !== false;
-    sendLog(`Initial state: ${isEnabled ? 'enabled' : 'disabled'}`, 'info');
-});
+// Запускаем периодическую проверку каждую минуту
+setInterval(periodicCheck, 60000);

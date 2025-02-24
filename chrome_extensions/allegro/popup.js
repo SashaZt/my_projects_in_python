@@ -21,7 +21,13 @@ document.addEventListener('DOMContentLoaded', function () {
     let autoScroll = true;
     let logs = [];
     const MAX_LOGS = 1000;
-
+    document.getElementById('processAllShops').addEventListener('click', function () {
+        chrome.runtime.sendMessage({ action: "startShopsProcessing" }, function (response) {
+            if (response.status === "started") {
+                addLog('Запущена обработка всех магазинов');
+            }
+        });
+    });
     function addLog(message, type = 'info') {
         const timestamp = new Date().toLocaleTimeString();
         const logEntry = {
@@ -235,7 +241,13 @@ document.addEventListener('DOMContentLoaded', function () {
             addLog(`Добавлено ${message.stats.new} новых офферов (Всего: ${message.stats.accumulated})`);
         }
         else if (message.action === "downloadData") {
-            if (message.data) {
+            
+            if (message.data && message.fileName) {
+                // Используем имя файла из сообщения
+                downloadObjectAsJson(message.data, message.fileName);
+                addLog(`Скачан файл: ${message.fileName}`);
+            } else if (message.data) {
+                // Если имя файла не передано, используем резервный вариант
                 const fileName = `allegro_offers_${new Date().toISOString().split('.')[0].replace(/:/g, '-')}.json`;
                 downloadObjectAsJson(message.data, fileName);
                 addLog(`Скачан файл: ${fileName}`);
