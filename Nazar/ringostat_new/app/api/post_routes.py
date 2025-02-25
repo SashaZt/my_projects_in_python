@@ -13,6 +13,8 @@ from app.models.telegram_message import TelegramMessage
 from app.models.telegram_users import TelegramUser
 from sqlalchemy import update
 from sqlalchemy import update, select, or_, and_
+from app.schemas.telegram import MessageQuerySchema, UserSchema, MessageSchema
+from sqlalchemy.orm import joinedload
 
 
 # from app.schemas.telegram_message import TelegramMessageCreate
@@ -329,75 +331,111 @@ async def update_message_read_status(
         )
 
 
-# @router.post("/telegram/message")
-# async def save_telegram_message(
-#     message: TelegramMessageCreate, db: AsyncSession = Depends(get_db)
-# ):
-#     """
-#     Сохраняет сообщение Telegram в базу данных, создавая или обновляя записи отправителя и получателя.
+@router.post("/telegram/chat", response_model=list[TelegramMessageSchema])
+async def get_chat_messages(
+    query_params: MessageQuerySchema, db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить сообщения между двумя пользователями с пагинацией.
 
-#     :param message: Входные данные сообщения.
-#     :param db: Асинхронная сессия базы данных.
-#     :return: Сохранённое сообщение в формате JSON.
-#     """
-#     logger.info(f"Получены данные для сохранения: {message}")
+    :param query_params: Параметры запроса (telegram_id отправителя, telegram_id получателя, лимит, смещение)
+    :param db: Асинхронная сессия базы данных
+    :return: Список сообщений с полными данными
+    """
+    try:
+        logger.info(f"Запрос на получение сообщений: {query_params.model_dump()}")
 
-#     try:
-#         # Проверяем существование отправителя
-#         sender_query = await db.execute(
-#             select(TelegramUser).where(
-#                 TelegramUser.telegram_id == message.sender.telegram_id
-#             )
-#         )
-#         sender = sender_query.scalar_one_or_none()
+        # Получаем пользователей по их telegram_id
+        sender_query = select(TelegramUser).where(
+            TelegramUser.telegram_id == query_params.sender_id
+        )
+        recipient_query = select(TelegramUser).where(
+            TelegramUser.telegram_id == query_params.recipient_id
+        )
 
-#         if not sender:
-#             sender = TelegramUser(
-#                 name=message.sender.name,
-#                 username=message.sender.username,
-#                 telegram_id=message.sender.telegram_id,
-#                 phone=message.sender.phone,
-#             )
-#             db.add(sender)
-#             logger.info(f"Создан новый отправитель: {sender}")
+        sender_result = await db.execute(sender_query)
+        sender = sender_result.scalar_one_or_none()
 
-#         # Проверяем существование получателя
-#         recipient_query = await db.execute(
-#             select(TelegramUser).where(
-#                 TelegramUser.telegram_id == message.recipient.telegram_id
-#             )
-#         )
-#         recipient = recipient_query.scalar_one_or_none()
+        recipient_result = await db.execute(recipient_query)
+        recipient = recipient_result.scalar_one_or_none()
 
-#         if not recipient:
-#             recipient = TelegramUser(
-#                 name=message.recipient.name,
-#                 username=message.recipient.username,
-#                 telegram_id=message.recipient.telegram_id,
-#                 phone=message.recipient.phone,
-#             )
-#             db.add(recipient)
-#             logger.info(f"Создан новый получатель: {recipient}")
+        if sender is None or recipient is None:
+            logger.warning(
+                f"Пользователь не найден: telegram_id_sender={query_params.sender_id}, telegram_id_recipient={query_params.recipient_id}"
+            )
+            raise HTTPException(
+                status_code=404,
+                detail="Sender or recipient not found in the database",
+            )
 
-#         await db.flush()  # Обновляем объекты, чтобы получить их ID
+        # Запрос на получение сообщений между двумя пользователями
+        # Включаем сообщения, отправленные в обоих направлениях
+        query = (
+            select(TelegramMessage)
+            .options(
+                joinedload(TelegramMessage.sender),
+                joinedload(TelegramMessage.recipient),
+            )
+            .where(
+                or_(
+                    and_(
+                        TelegramMessage.sender_id == sender.id,
+                        TelegramMessage.recipient_id == recipient.id,
+                    ),
+                    and_(
+                        TelegramMessage.sender_id == recipient.id,
+                        TelegramMessage.recipient_id == sender.id,
+                    ),
+                )
+            )
+            .order_by(
+                TelegramMessage.created_at.desc()
+            )  # Сортировка по времени создания (новые сначала)
+            .offset(query_params.offset)
+            .limit(query_params.limit)
+        )
 
-#         # Создаём сообщение
-#         new_message = TelegramMessage(
-#             sender_id=sender.id,
-#             recipient_id=recipient.id,
-#             message=message.message.text,
-#         )
-#         db.add(new_message)
+        result = await db.execute(query)
+        messages = result.scalars().all()
 
-#         await db.commit()
-#         await db.refresh(new_message)
-#         logger.info("Сообщение успешно сохранено в базу данных.")
-#         return new_message
+        if not messages:
+            logger.info("Сообщения между указанными пользователями не найдены.")
+            return []
 
+        # Преобразуем сообщения в формат ответа
+        serialized_messages = [
+            TelegramMessageSchema(
+                sender=UserSchema(
+                    name=message.sender.name,
+                    username=message.sender.username,
+                    telegram_id=message.sender.telegram_id,
+                    phone=message.sender.phone,
+                ),
+                recipient=UserSchema(
+                    name=message.recipient.name,
+                    username=message.recipient.username,
+                    telegram_id=message.recipient.telegram_id,
+                    phone=message.recipient.phone,
+                ),
+                message=MessageSchema(
+                    message_id=message.message_id,
+                    text=message.message,
+                    is_reply=message.is_reply,
+                    reply_to=message.reply_to,
+                    read=message.is_read,
+                    direction=message.direction,
+                ),
+            )
+            for message in messages
+        ]
 
-#     except Exception as e:
-#         await db.rollback()
-#         logger.error(f"Ошибка при сохранении сообщения: {e}")
-#         raise HTTPException(
-#             status_code=500, detail=f"Ошибка при сохранении сообщения: {str(e)}"
-#         )
+        logger.info(
+            f"Найдено {len(serialized_messages)} сообщений между пользователями."
+        )
+        return serialized_messages
+
+    except Exception as e:
+        logger.error(f"Ошибка при получении сообщений чата: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при получении сообщений чата: {e}"
+        )

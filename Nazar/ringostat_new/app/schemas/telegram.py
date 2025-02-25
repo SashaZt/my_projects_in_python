@@ -28,3 +28,9 @@ class MessageReadSchema(BaseModel):
     sender_id: int
     recipient_id: int
     max_id: int
+
+class MessageQuerySchema(BaseModel):
+    sender_id: int  # telegram_id отправителя
+    recipient_id: int  # telegram_id получателя
+    limit: int = 20
+    offset: int = 0
