@@ -343,7 +343,7 @@ async function exportOffers() {
                     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
                     if (tabs[0]) {
                         await chrome.tabs.update(tabs[0].id, {
-                            url: URLS.LOGOUT_URL
+                            url: URLS.COMPLETE_URL
                         });
                         logBackground('Выполнен выход после завершения всех магазинов');
                     }
