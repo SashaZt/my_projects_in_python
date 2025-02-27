@@ -42,7 +42,8 @@ logger.add(
 )
 
 
-def anali_pdf_02(test_page_no=0):
+def anali_pdf_02():
+    test_page_no = 1
     pdf_path = pdf_directory / "R001-017-002.pdf"
     # pdf_path = pdf_directory / "R001-014-000.pdf"
     with pdfplumber.open(pdf_path) as pdf:
@@ -50,20 +51,20 @@ def anali_pdf_02(test_page_no=0):
             if page_no == test_page_no:
                 # Настройки для обнаружения таблиц
 
-                horizontal_lines_01 = [10, 25]
-                vertical_lines_01 = [
-                    50,
-                    60,
+                horizontal_lines_13 = [75, 85, 95, 105, 115]
+                vertical_lines_13 = [
+                    30,
+                    95,
                     137,
                 ]
-                horizontal_lines_02 = [30, 45]
-                vertical_lines_02 = [
-                    15,
-                    40,
-                    180,
+                horizontal_lines_14 = [75, 85, 95, 105, 115]
+                vertical_lines_14 = [
+                    190,
+                    260,
+                    320,
                 ]
-                horizontal_lines_03 = [30, 45]
-                vertical_lines_03 = [
+                horizontal_lines_15 = [30, 45]
+                vertical_lines_15 = [
                     380,
                     405,
                     535,
@@ -101,9 +102,9 @@ def anali_pdf_02(test_page_no=0):
                 # Стратегии могут быть: "lines", "text", "explicit"
                 table_settings = {
                     "vertical_strategy": "explicit",
-                    "explicit_vertical_lines": vertical_lines_12,
+                    "explicit_vertical_lines": vertical_lines_15,
                     "horizontal_strategy": "explicit",
-                    "explicit_horizontal_lines": horizontal_lines_12,
+                    "explicit_horizontal_lines": horizontal_lines_15,
                     "snap_tolerance": 3,  # Толерантность при поиске линий (в пикселях)
                     "join_tolerance": 3,  # Толерантность при объединении линий
                     "edge_min_length": 10,  # Минимальная длина линий
@@ -129,4 +130,4 @@ def anali_pdf_02(test_page_no=0):
 
 if __name__ == "__main__":
 
-    anali_pdf_02(test_page_no=0)
+    anali_pdf_02()
