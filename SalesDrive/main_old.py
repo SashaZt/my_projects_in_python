@@ -11,7 +11,6 @@ import gspread
 import requests
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from gspread.utils import rowcol_to_a1
 from loguru import logger
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -1374,10 +1373,10 @@ async def update_order_data(
                             primary_contact.get("con_povnaOplata"),
                         ),
                     )
-                else:
-                    logger.info(
-                        f"Контакт с ID {contact_id} уже существует в базе данных"
-                    )
+                # else:
+                #     logger.info(
+                #         f"Контакт с ID {contact_id} уже существует в базе данных"
+                #     )
 
                 # Вставляем телефоны и email первичного контакта
                 phone_list = primary_contact.get("phone", [])
@@ -1443,10 +1442,10 @@ async def update_order_data(
                                 contact.get("con_povnaOplata"),
                             ),
                         )
-                    else:
-                        logger.info(
-                            f"Контакт с ID {contact_id} уже существует в таблице contacts"
-                        )
+                    # else:
+                    #     logger.info(
+                    #         f"Контакт с ID {contact_id} уже существует в таблице contacts"
+                    #     )
 
                     # Вставляем телефоны и email других контактов
                     phone_list = contact.get("phone", [])
@@ -1849,7 +1848,7 @@ async def process_order(file_path: str):
                 orders = json_data["data"]
                 logger.info(f"Найден массив 'data' с {len(orders)} заказами")
                 for order in orders:
-                    await insert_or_update_order_data(order)
+                    await insert_or_update_order_data(order)  # Используем новую функцию
                 return
 
             # Если это не объект с ключом "data", продолжаем обработку
@@ -1857,11 +1856,11 @@ async def process_order(file_path: str):
                 # Это массив заказов
                 logger.info(f"Обрабатываем массив из {len(json_data)} заказов")
                 for order in json_data:
-                    await insert_or_update_order_data(order)
+                    await insert_or_update_order_data(order)  # Используем новую функцию
             elif isinstance(json_data, dict):
                 # Это один заказ
                 logger.info("Обрабатываем одиночный заказ")
-                await insert_or_update_order_data(json_data)
+                await insert_or_update_order_data(json_data)  # Используем новую функцию
             else:
                 logger.error(f"Неподдерживаемый формат данных в файле: {file_path}")
 
@@ -2135,7 +2134,6 @@ def prepare_sheet(spreadsheet, sheet_name, headers):
     # Проверяем, существует ли лист
     try:
         worksheet = spreadsheet.worksheet(sheet_name)
-
     except gspread.exceptions.WorksheetNotFound:
         # Если лист не существует, создаем его
         worksheet = spreadsheet.add_worksheet(
@@ -2294,13 +2292,12 @@ async def export_orders_to_sheets():
 
         # Подключаемся к Google Sheets
         spreadsheet = connect_to_google_sheets()
-        all_ids_line = get_ids_from_column_a(spreadsheet, SHEET_NAME)
+
         # Подготавливаем лист
         worksheet = prepare_sheet(spreadsheet, SHEET_NAME, headers)
-        # Выгружаем данные
-        update_orders_in_sheet(worksheet, orders_data, all_ids_line)
 
-        # upload_data_to_sheet(worksheet, orders_data)
+        # Выгружаем данные
+        upload_data_to_sheet(worksheet, orders_data)
 
         # Отмечаем заказы как выгруженные
         order_ids = [order["id"] for order in orders_data]
@@ -2310,91 +2307,6 @@ async def export_orders_to_sheets():
 
     except Exception as e:
         logger.error(f"Ошибка при экспорте данных в Google Sheets: {e}")
-
-
-def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
-    """
-    Для каждого заказа из orders_data ищет в all_ids_line (список кортежей (номер строки, id) из колонки A)
-    строку с совпадающим id и обновляет эту строку новыми данными.
-
-    Данные формируются в соответствии с заголовками листа (первая строка),
-    что позволяет избежать смещения данных, если ключи заказа не совпадают точно с заголовками.
-    """
-    try:
-        # Получаем заголовки листа (первая строка)
-        headers = worksheet.row_values(1)
-        if not headers:
-            logger.error("Заголовки листа не найдены.")
-            return
-
-        for order in orders_data:
-            order_id_str = str(order.get("id", ""))
-            # Поиск строки, где значение в колонке A совпадает с order_id
-            target_row = None
-            for row_num, id_val in all_ids_line:
-                if id_val == order_id_str:
-                    target_row = row_num
-                    break
-
-            if target_row is None:
-                logger.info(
-                    f"Заказ с id {order_id_str} не найден в колонке A, пропускаем обновление."
-                )
-                continue
-
-            # Формируем строку данных в соответствии с порядком заголовков
-            row_data = []
-            for header in headers:
-                # Пробуем найти соответствующее значение:
-                if header in order:
-                    value = order[header]
-                else:
-                    found = False
-                    for key, val in order.items():
-                        if key.lower() == header.lower():
-                            value = val
-                            found = True
-                            break
-                    if not found:
-                        value = ""
-                # Преобразуем None в пустую строку и сложные типы в строку (JSON)
-                if value is None:
-                    value = ""
-                elif isinstance(value, (dict, list)):
-                    value = json.dumps(value, ensure_ascii=False)
-                row_data.append(value)
-
-            # Определяем диапазон обновления по количеству столбцов
-            last_cell = rowcol_to_a1(target_row, len(headers))
-            cell_range = f"A{target_row}:{last_cell}"
-            worksheet.update(values=[row_data], range_name=cell_range)
-
-            logger.info(f"Обновлена строка {target_row} для заказа с id {order_id_str}")
-
-    except Exception as e:
-        logger.error(f"Ошибка при обновлении заказов в Google Sheets: {e}")
-
-
-def get_ids_from_column_a(spreadsheet, sheet_name):
-    """
-    Подключается к Google Sheets, открывает лист SHEET_NAME и возвращает
-    список кортежей (номер строки, id), где id берутся из колонки A.
-    """
-    try:
-
-        worksheet = spreadsheet.worksheet(sheet_name)
-
-        # Получаем все значения из колонки A
-        col_a_values = worksheet.col_values(1)
-
-        # Формируем список кортежей: (номер строки, id)
-        # Учтите, что первая строка может содержать заголовок.
-        result = [(idx, cell) for idx, cell in enumerate(col_a_values, start=1)]
-        return result
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении значений из колонки A: {e}")
-        return []
 
 
 async def main():
@@ -2426,5 +2338,5 @@ async def main():
 
 
 if __name__ == "__main__":
-    get_salesdrive_orders()
+    # get_salesdrive_orders()
     asyncio.run(main())
