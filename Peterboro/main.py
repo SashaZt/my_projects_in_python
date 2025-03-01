@@ -1,150 +1,4 @@
-# import json
-# import os
-# import re
-# import shutil
-# import sys
-# from collections import defaultdict
-# from pathlib import Path
-
-# import pdfplumber
-# from loguru import logger
-
-# # pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-# # pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
-
-# current_directory = Path.cwd()
-# pdf_directory = current_directory / "pdf"
-# log_directory = current_directory / "log"
-# temp_directory = current_directory / "temp"
-# temp_directory.mkdir(parents=True, exist_ok=True)
-# pdf_directory.mkdir(parents=True, exist_ok=True)
-# log_directory.mkdir(parents=True, exist_ok=True)
-
-# log_file_path = log_directory / "log_message.log"
-
-# logger.remove()
-# # 🔹 Логирование в файл
-# logger.add(
-#     log_file_path,
-#     format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {line} | {message}",
-#     level="DEBUG",
-#     encoding="utf-8",
-#     rotation="10 MB",
-#     retention="7 days",
-# )
-
-# # 🔹 Логирование в консоль (цветной вывод)
-# logger.add(
-#     sys.stderr,
-#     format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{line}</cyan> | <cyan>{message}</cyan>",
-#     level="DEBUG",
-#     enqueue=True,
-# )
-
-
-# def anali_pdf_02():
-#     test_page_no = 1
-#     pdf_path = pdf_directory / "R001-005-000.pdf"
-#     # pdf_path = pdf_directory / "R001-014-000.pdf"
-#     with pdfplumber.open(pdf_path) as pdf:
-#         for page_no, page in enumerate(pdf.pages):
-#             if page_no == test_page_no:
-#                 # Настройки для обнаружения таблиц
-
-#                 horizontal_lines_13 = [75, 85, 95, 105, 115]
-#                 vertical_lines_13 = [
-#                     30,
-#                     95,
-#                     137,
-#                 ]
-#                 horizontal_lines_14 = [75, 85, 95, 105, 115]
-#                 vertical_lines_14 = [
-#                     190,
-#                     260,
-#                     320,
-#                 ]
-#                 horizontal_lines_15 = [150, 160, 170, 180]
-#                 vertical_lines_15 = [
-#                     30,
-#                     95,
-#                     137,
-#                 ]
-#                 horizontal_lines_16 = [150, 160, 170, 180]
-#                 vertical_lines_16 = [
-#                     190,
-#                     260,
-#                     320,
-#                 ]
-#                 horizontal_lines_17 = [205, 215, 225, 235]
-#                 vertical_lines_17 = [
-#                     30,
-#                     95,
-#                     137,
-#                 ]
-#                 horizontal_lines_18 = [205, 215, 225, 235]
-#                 vertical_lines_18 = [
-#                     190,
-#                     260,
-#                     320,
-#                 ]
-#                 horizontal_lines_19 = [252, 262, 270, 280, 290]
-#                 vertical_lines_19 = [
-#                     30,
-#                     95,
-#                     137,
-#                 ]
-#                 horizontal_lines_20 = [252, 262, 270, 280]
-#                 vertical_lines_20 = [
-#                     190,
-#                     260,
-#                     320,
-#                 ]
-#                 horizontal_lines_21 = [365, 373, 383]
-#                 vertical_lines_21 = [
-#                     30,
-#                     95,
-#                     137,
-#                 ]
-#                 horizontal_lines_22 = [510, 521, 530, 545]
-#                 vertical_lines_22 = [
-#                     15,
-#                     95,
-#                     137,
-#                 ]
-#                 horizontal_lines_23 = [275, 287, 390]
-#                 vertical_lines_23 = [365, 450]
-#                 # Стратегии могут быть: "lines", "text", "explicit"
-#                 table_settings = {
-#                     "vertical_strategy": "explicit",
-#                     "explicit_vertical_lines": vertical_lines_23,
-#                     "horizontal_strategy": "explicit",
-#                     "explicit_horizontal_lines": horizontal_lines_23,
-#                     "snap_tolerance": 3,  # Толерантность при поиске линий (в пикселях)
-#                     "join_tolerance": 3,  # Толерантность при объединении линий
-#                     "edge_min_length": 10,  # Минимальная длина линий
-#                     "min_words_vertical": 1,  # Минимальное количество слов для вертикальной линии
-#                     "min_words_horizontal": 1,  # Минимальное количество слов для горизонтальной линии
-#                 }
-#                 tables = page.extract_tables(table_settings)
-
-#                 # Выводим данные всех найденных таблиц
-#                 for table_no, table in enumerate(tables):
-#                     print(f"Страница №{page_no + 1}, Таблица №{table_no + 1}:")
-#                     for row in table:
-#                         print(row)
-#                     print("\n")  # Добавляем пустую строку для разделения таблиц
-
-#                 # Визуализация поиска таблиц с настройками
-#                 image = page.to_image(resolution=150)
-#                 image.debug_tablefinder(table_settings)
-#                 filename = os.path.join(temp_directory, "analis.png")
-#                 image.save(filename)
-#                 break
-
-
-# if __name__ == "__main__":
-
-#     anali_pdf_02()
+import csv
 import json
 import os
 import re
@@ -265,24 +119,12 @@ def extract_table_data(table, table_name="", table_type=""):
 
     elif table_type == "tabular_data":
         # Для таблиц со второй страницы (lines_13-23)
-        # Обрабатываем как таблицу с заголовками и данными
-        if len(table) >= 1:
-            # Первая строка - заголовки
-            headers = [
-                col.strip() if col else f"col_{i}" for i, col in enumerate(table[0])
-            ]
-            # Остальные строки - данные
-            data_rows = []
-            for row in table[1:]:
-                row_data = {}
-                for i, cell in enumerate(row):
-                    if i < len(headers):
-                        header = headers[i]
-                        value = cell.strip() if cell else ""
-                        row_data[header] = value
-                if any(row_data.values()):  # Пропускаем полностью пустые строки
-                    data_rows.append(row_data)
-            result = data_rows
+        # Обрабатываем как набор ключ-значений
+        for row in table:
+            if len(row) >= 2 and row[0]:
+                key = row[0].strip()
+                value = row[1].strip() if len(row) > 1 and row[1] else None
+                result[key] = value
 
     else:
         # По умолчанию, возвращаем сырые данные
@@ -381,67 +223,67 @@ def get_table_definitions(page_no):
     elif page_no == 1:
         return [
             {
-                "name": "table_13",
+                "name": "building_style",
                 "horizontal_lines": [75, 85, 95, 105, 115],
                 "vertical_lines": [30, 95, 137],
                 "type": "tabular_data",
             },
             {
-                "name": "table_14",
+                "name": "exterior_features",
                 "horizontal_lines": [75, 85, 95, 105, 115],
                 "vertical_lines": [190, 260, 320],
                 "type": "tabular_data",
             },
             {
-                "name": "table_15",
+                "name": "rooms",
                 "horizontal_lines": [150, 160, 170, 180],
                 "vertical_lines": [30, 95, 137],
                 "type": "tabular_data",
             },
             {
-                "name": "table_16",
+                "name": "kitchen_info",
                 "horizontal_lines": [150, 160, 170, 180],
                 "vertical_lines": [190, 260, 320],
                 "type": "tabular_data",
             },
             {
-                "name": "table_17",
+                "name": "bathroom_info",
                 "horizontal_lines": [205, 215, 225, 235],
                 "vertical_lines": [30, 95, 137],
                 "type": "tabular_data",
             },
             {
-                "name": "table_18",
+                "name": "heat_info",
                 "horizontal_lines": [205, 215, 225, 235],
                 "vertical_lines": [190, 260, 320],
                 "type": "tabular_data",
             },
             {
-                "name": "table_19",
+                "name": "physical_condition",
                 "horizontal_lines": [252, 262, 270, 280, 290],
                 "vertical_lines": [30, 95, 137],
                 "type": "tabular_data",
             },
             {
-                "name": "table_20",
+                "name": "interior_features",
                 "horizontal_lines": [252, 262, 270, 280],
                 "vertical_lines": [190, 260, 320],
                 "type": "tabular_data",
             },
             {
-                "name": "table_21",
+                "name": "construction_details",
                 "horizontal_lines": [365, 373, 383],
                 "vertical_lines": [30, 95, 137],
                 "type": "tabular_data",
             },
             {
-                "name": "table_22",
+                "name": "value_history",
                 "horizontal_lines": [510, 521, 530, 545],
                 "vertical_lines": [15, 95, 137],
                 "type": "tabular_data",
             },
             {
-                "name": "table_23",
+                "name": "picture_info",
                 "horizontal_lines": [275, 287, 390],
                 "vertical_lines": [365, 450],
                 "type": "tabular_data",
@@ -623,19 +465,28 @@ def post_process_data(data):
     # Данные со второй страницы
     if "page_2" in data.get("data", {}):
         page2_data = data["data"]["page_2"]
-        processed["property"]["additional_info"] = {
-            "table_13": page2_data.get("table_13", []),
-            "table_14": page2_data.get("table_14", []),
-            "table_15": page2_data.get("table_15", []),
-            "table_16": page2_data.get("table_16", []),
-            "table_17": page2_data.get("table_17", []),
-            "table_18": page2_data.get("table_18", []),
-            "table_19": page2_data.get("table_19", []),
-            "table_20": page2_data.get("table_20", []),
-            "table_21": page2_data.get("table_21", []),
-            "table_22": page2_data.get("table_22", []),
-            "table_23": page2_data.get("table_23", []),
-        }
+
+        # Создаем единый словарь для всех строительных характеристик
+        building_info = {}
+
+        # Объединяем все словари с информацией о здании в один общий словарь
+        building_info.update(page2_data.get("building_style", {}))
+        building_info.update(page2_data.get("exterior_features", {}))
+        building_info.update(page2_data.get("rooms", {}))
+        building_info.update(page2_data.get("kitchen_info", {}))
+        building_info.update(page2_data.get("bathroom_info", {}))
+        building_info.update(page2_data.get("heat_info", {}))
+        building_info.update(page2_data.get("physical_condition", {}))
+        building_info.update(page2_data.get("interior_features", {}))
+        building_info.update(page2_data.get("construction_details", {}))
+
+        processed["property"]["building_info"] = building_info
+
+        # Отдельный раздел для истории оценки
+        processed["property"]["value_history"] = page2_data.get("value_history", {})
+
+        # Информация о изображении
+        processed["property"]["picture_info"] = page2_data.get("picture_info", {})
 
     return processed
 
@@ -650,30 +501,158 @@ def save_json_data(data, output_path):
     return output_path
 
 
+def export_multiple_pdfs_to_csv(pdf_data_list, output_directory):
+    """
+    Экспортирует данные из нескольких PDF файлов в единый CSV файл.
+
+    Args:
+        pdf_data_list: Список кортежей (имя_файла, обработанные_данные)
+        output_directory: Директория для сохранения CSV файла
+
+    Returns:
+        Путь к созданному CSV файлу
+    """
+    # Определяем заголовки CSV на основе структуры Peterboro.xlsx
+    headers = [
+        "Parcel ID",
+        "File Name",
+        "Owner1",
+        "Owner2",
+        "Owner3",
+        "Owner4",
+        "Owner5",
+        "Situs",
+        "Card",
+        "Class",
+        "District",
+        "Zone",
+        "Living Units",
+        "Neighborhood",
+        "Alternate ID",
+        "Vol/Pg",
+        "Total Acres",
+        "Land Value",
+        "Building Value",
+        "Total Value",
+        "Transfer Date",
+        "Price",
+        "Type",
+        "Validity",
+        "Style",
+        "Story Height",
+        "Attic",
+        "Exterior Walls",
+        # Добавьте другие заголовки из второй страницы
+    ]
+
+    # Создаем выходной путь
+    output_path = os.path.join(output_directory, "combined_property_data.csv")
+
+    # Запись CSV файла
+    with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=headers)
+        writer.writeheader()
+
+        for file_name, processed_data in pdf_data_list:
+            # Создаем строку данных для экспорта
+            data_row = {"File Name": file_name}
+
+            # Извлекаем данные из обработанной структуры
+            property_data = processed_data.get("property", {})
+
+            # Информация о владельце
+            owner_data = property_data.get("owner", {})
+            data_row["Owner1"] = owner_data.get("Owner1", "")
+            data_row["Owner2"] = owner_data.get("Owner2", "")
+            data_row["Owner3"] = owner_data.get("Owner3", "")
+            data_row["Owner4"] = owner_data.get("Owner4", "")
+            data_row["Owner5"] = owner_data.get("Owner5", "")
+
+            # Адрес и расположение
+            location_data = property_data.get("location", {})
+            data_row["Situs"] = location_data.get("situs", "")
+            data_row["Card"] = location_data.get("card", "")
+            data_row["Class"] = location_data.get("class", "")
+            data_row["Total Acres"] = location_data.get("total_acres", "")
+
+            # Детали собственности
+            details_data = property_data.get("details", {})
+            data_row["District"] = details_data.get("District", "")
+            data_row["Zone"] = details_data.get("Zoning", "")
+            data_row["Living Units"] = details_data.get("Living Units", "")
+            data_row["Neighborhood"] = details_data.get("Neighborhood", "")
+            data_row["Alternate ID"] = details_data.get("Alternate ID", "")
+            data_row["Vol/Pg"] = details_data.get("Vol / Pg", "")
+
+            # Данные оценки
+            assessment_data = property_data.get("assessment", {})
+            data_row["Land Value"] = assessment_data.get("Land", "")
+            data_row["Building Value"] = assessment_data.get("Building", "")
+            data_row["Total Value"] = assessment_data.get("Total", "")
+
+            # Информация о передаче прав
+            transfer_data = property_data.get("transfer", {})
+            data_row["Transfer Date"] = transfer_data.get("date", "")
+            data_row["Price"] = transfer_data.get("price", "")
+            data_row["Type"] = transfer_data.get("type", "")
+            data_row["Validity"] = transfer_data.get("validity", "")
+
+            # Данные о здании (со второй страницы)
+            building_info = property_data.get("building_info", {})
+            data_row["Style"] = building_info.get("Style", "")
+            data_row["Story Height"] = building_info.get("Story height", "")
+            data_row["Attic"] = building_info.get("Attic", "")
+            data_row["Exterior Walls"] = building_info.get("Exterior Walls", "")
+
+            # Параметры для записи CSV
+            # Определите идентификатор участка (в данном случае используем местоположение)
+            parcel_id = location_data.get("situs", "").replace(" ", "_")
+            if not parcel_id:
+                parcel_id = "unknown_parcel"
+
+            data_row["Parcel ID"] = parcel_id
+
+            # Записываем строку в CSV
+            writer.writerow(data_row)
+
+    return output_path
+
+
 if __name__ == "__main__":
-    pdf_file = "R001-017-002.pdf"
-    pdf_path = pdf_directory / pdf_file
+    # pdf_file = "R001-013-000.pdf"
+    # pdf_path = pdf_directory / pdf_file
 
-    # Анализируем обе страницы PDF
-    raw_data = analyze_pdf_with_multiple_pages(
-        pdf_path,
-        pages_to_process=[0, 1],  # Обрабатываем первую и вторую страницы
-        save_debug_images=True,
-    )
+    # # Анализируем обе страницы PDF
+    # raw_data = analyze_pdf_with_multiple_pages(
+    #     pdf_path,
+    #     pages_to_process=[0, 1],  # Обрабатываем первую и вторую страницы
+    #     save_debug_images=True,
+    # )
 
-    # Постобработка данных
-    processed_data = post_process_data(raw_data)
+    # # Постобработка данных
+    # processed_data = post_process_data(raw_data)
 
-    # Сохраняем сырые данные для отладки
-    raw_output_path = temp_directory / f"{pdf_file.replace('.pdf', '')}_raw_data.json"
-    save_json_data(raw_data, raw_output_path)
+    # # Сохраняем сырые данные для отладки
+    # raw_output_path = temp_directory / f"{pdf_file.replace('.pdf', '')}_raw_data.json"
+    # save_json_data(raw_data, raw_output_path)
 
-    # Сохраняем обработанные данные
-    output_path = temp_directory / f"{pdf_file.replace('.pdf', '')}_processed.json"
-    saved_path = save_json_data(processed_data, output_path)
+    # # Сохраняем обработанные данные
+    # output_path = temp_directory / f"{pdf_file.replace('.pdf', '')}_processed.json"
+    # saved_path = save_json_data(processed_data, output_path)
 
-    # Выводим информацию о результате
-    print(f"\nОбработка завершена:")
-    print(f"Обработано страниц: {len(raw_data['pages_info'])}")
-    print(f"Сырые данные сохранены в {raw_output_path}")
-    print(f"Обработанные данные сохранены в {saved_path}")
+    # # Выводим информацию о результате
+    # print(f"\nОбработка завершена:")
+    # print(f"Обработано страниц: {len(raw_data['pages_info'])}")
+    # print(f"Сырые данные сохранены в {raw_output_path}")
+    # print(f"Обработанные данные сохранены в {saved_path}")
+    # Для обработки нескольких файлов
+    pdf_data_list = []
+    for pdf_file in pdf_directory.glob("*.pdf"):
+        # Анализируем PDF
+        raw_data = analyze_pdf_with_multiple_pages(pdf_file, pages_to_process=[0, 1])
+        processed_data = post_process_data(raw_data)
+        pdf_data_list.append((pdf_file.name, processed_data))
+
+    # Экспортируем все в один CSV
+    combined_csv = export_multiple_pdfs_to_csv(pdf_data_list, temp_directory)
+    print(f"Данные всех PDF файлов экспортированы в CSV: {combined_csv}")
