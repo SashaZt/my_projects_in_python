@@ -245,49 +245,52 @@ def load_metadata_from_json(json_data):
         return {}
 
 
-def get_salesdrive_orders(date_from=None, date_to=None):
+def get_salesdrive_orders():
     try:
-        # Если даты не указаны, используем последние 24 часа
-        if not date_from or not date_to:
-            date_to = datetime.now()
-            date_from = date_to - timedelta(days=1)
-            date_to = date_to.replace(hour=23, minute=59, second=59)
-            date_from = date_from.replace(hour=0, minute=0, second=0)
-        # date_from = datetime(2024, 7, 1, 0, 0, 0)  # 01.07.2024 00:00:00
+        # Получаем текущий год и предыдущий год
+        current_date = datetime.now()
+        current_year = current_date.year
+        previous_year = current_year - 1
+
+        # Создаем даты: с начала предыдущего года до конца текущего
+        date_from = datetime(previous_year, 1, 1, 0, 0, 0)
+        date_to = datetime(current_year, 12, 31, 23, 59, 59)
+
         # Форматируем даты
         date_from_str = date_from.strftime("%Y-%m-%d %H:%M:%S")
         date_to_str = date_to.strftime("%Y-%m-%d %H:%M:%S")
 
-        url = "https://leia.salesdrive.me/api/order/list/"
-        headers = {"Form-Api-Key": SALESDRIVE_API}
-        # page = 14
-        params = {
-            "filter[orderTime][from]": date_from_str,
-            "filter[orderTime][to]": date_to_str,
-            "page": 1,
-            "limit": 100,
-        }
+        # Базовый URL
+        base_url = "https://leia.salesdrive.me/api/order/list/"
 
-        #    logger.info(f"Отправляем запрос на URL: {url} с параметрами: {params}")
+        # Формируем строку запроса вручную
+        status_params = "&".join(
+            [f"filter[statusId][]={status}" for status in [1, 2, 3, 4]]
+        )
+        query_string = f"filter[orderTime][from]={requests.utils.quote(date_from_str)}&filter[orderTime][to]={requests.utils.quote(date_to_str)}&{status_params}&page=1&limit=100"
+        full_url = f"{base_url}?{query_string}"
+
+        logger.info(f"Запрашиваем заказы с {date_from_str} по {date_to_str}")
+        logger.info(f"URL запроса: {full_url}")
+
+        headers = {"Form-Api-Key": SALESDRIVE_API}
 
         response = requests.get(
-            url,
+            full_url,
             headers=headers,
-            params=params,
             timeout=(10, 30),  # (connect timeout, read timeout)
         )
 
-        #    logger.info(f"Получен ответ со статусом: {response.status_code}")
-
         if response.status_code == 200:
             data = response.json()
-
+            logger.info(f"Получено заказов: {len(data.get('data', []))}")
             write_recordings_to_json(recordings_output_file, data)
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             loop.run_until_complete(process_order(recordings_output_file))
             loop.close()
         else:
+            logger.error(f"Ошибка API: {response.status_code}, Текст: {response.text}")
             raise Exception(
                 f"API request failed with status code: {response.status_code}"
             )
@@ -1561,7 +1564,7 @@ async def insert_or_update_order_data(order_data):
             logger.info("Ошибка: отсутствует ID заказа в данных")
             return False
 
-        # Получаем текстовое представление для statusId
+        # Получаем текстовое представление для statusId из JSON
         statusId = order_data.get("statusId")
         statusId_text = str(statusId)
 
@@ -1571,7 +1574,6 @@ async def insert_or_update_order_data(order_data):
             if metadata and "statusId" in metadata:
                 status_mapping = metadata["statusId"]
                 statusId_text = status_mapping.get(statusId, str(statusId))
-                # logger.debug(f"Статус заказа {order_id}: {statusId} -> {statusId_text}")
 
         # Получаем текстовое представление для typeId
         typeId = order_data.get("typeId")
@@ -1581,7 +1583,6 @@ async def insert_or_update_order_data(order_data):
             if metadata and "typeId" in metadata:
                 type_mapping = metadata["typeId"]
                 typeId_text = type_mapping.get(typeId, str(typeId))
-                # logger.debug(f"Тип заказа {order_id}: {typeId} -> {typeId_text}")
 
         # shipping_method ID Переводим в текст
         shipping_method = order_data.get("shipping_method")
@@ -1607,6 +1608,18 @@ async def insert_or_update_order_data(order_data):
                     payment_method, str(payment_method)
                 )
 
+        # Список статусов, при которых заказ можно обновлять
+        updatable_statuses = [
+            "Новий",
+            "Підтверджено",
+            "На відправку",
+            "Відправлено",
+            "Сплачено",
+        ]
+
+        # Список конечных статусов, при которых заказ больше не обновляется
+        final_statuses = ["Продаж", "Відмова", "Повернення", "Видалений"]
+
         async with aiosqlite.connect(DB_PATH) as db:
             # Проверяем, существует ли уже запись с таким ID
             cursor = await db.execute(
@@ -1625,8 +1638,38 @@ async def insert_or_update_order_data(order_data):
                     existing_status_text = status_mapping.get(
                         existing_status, str(existing_status)
                     )
-                if existing_status_text == "Новий" or statusId_text == "Новий":
-                    # Если текущий статус или новый статус - "Новий", обновляем заказ
+
+                # Проверяем условия обновления
+                should_update = False
+
+                # Условие 1: Если текущий статус в БД находится в списке обновляемых
+                if existing_status_text in updatable_statuses:
+                    # Проверяем, не пытаемся ли мы обновить на тот же статус
+                    if existing_status_text != statusId_text:
+                        should_update = True
+                        logger.info(
+                            f"Обновляем заказ: статус изменился с '{existing_status_text}' на '{statusId_text}'"
+                        )
+                    # else:
+                    #     logger.info(
+                    #         f"Статус не изменился: '{existing_status_text}' -> '{statusId_text}'. Пропускаем обновление."
+                    #     )
+
+                # Условие 2: Если текущий статус в БД является конечным
+                elif existing_status_text in final_statuses:
+                    logger.info(
+                        f"Заказ с ID {order_id} имеет конечный статус '{existing_status_text}'. Обновление не требуется."
+                    )
+                    should_update = False
+
+                # Условие 3: Для всех других случаев (на всякий случай)
+                else:
+                    logger.info(
+                        f"Заказ с ID {order_id} имеет неизвестный статус '{existing_status_text}'. Обновляем на '{statusId_text}'."
+                    )
+                    should_update = True
+
+                if should_update:
                     logger.info(
                         f"Обновляем заказ с ID {order_id} (статус: {existing_status_text} -> {statusId_text})"
                     )
@@ -1644,6 +1687,7 @@ async def insert_or_update_order_data(order_data):
                     return False
             else:
                 # Заказ не существует, вставляем новую запись
+                logger.info(f"Новый заказ с ID {order_id}, статус: {statusId_text}")
                 await insert_order_data(
                     db,
                     order_id,
@@ -1868,57 +1912,6 @@ async def process_order(file_path: str):
         import traceback
 
         logger.error(traceback.format_exc())
-
-
-# async def process_order(file_path: str):
-#     """Обработка JSON файла и загрузка данных в БД"""
-#     try:
-#         with open(file_path, "r", encoding="utf-8") as f:
-#             # Загружаем весь файл в переменную
-#             content = f.read().strip()
-
-#             # Загружаем метаданные из файла
-#             json_data = json.loads(content)
-#             global metadata
-#             metadata = load_metadata_from_json(json_data)
-#             # logger.info(f"Метаданные загружены: {metadata}")
-
-#             # Очищаем от возможных терминирующих запятых в конце объектов JSON
-#             if content.endswith(","):
-#                 content = content[:-1]
-
-#             # Проверяем, содержит ли JSON ключ "data" с массивом заказов
-#             if (
-#                 isinstance(json_data, dict)
-#                 and "data" in json_data
-#                 and isinstance(json_data["data"], list)
-#             ):
-#                 orders = json_data["data"]
-#                 logger.info(f"Найден массив 'data' с {len(orders)} заказами")
-#                 for order in orders:
-#                     await insert_order_data(order)
-#                 return
-
-#             # Если это не объект с ключом "data", продолжаем обработку
-#             if isinstance(json_data, list):
-#                 # Это массив заказов
-#                 logger.info(f"Обрабатываем массив из {len(json_data)} заказов")
-#                 for order in json_data:
-#                     await insert_order_data(order)
-#             elif isinstance(json_data, dict):
-#                 # Это один заказ
-#                 logger.info("Обрабатываем одиночный заказ")
-#                 await insert_order_data(json_data)
-#             else:
-#                 logger.error(f"Неподдерживаемый формат данных в файле: {file_path}")
-
-#     except json.JSONDecodeError as e:
-#         logger.error(f"Ошибка декодирования JSON: {e}")
-#     except Exception as e:
-#         logger.error(f"Ошибка при обработке файла {file_path}: {e}")
-#         import traceback
-
-#         logger.error(traceback.format_exc())
 
 
 async def get_all_order_data():
@@ -2507,7 +2500,7 @@ def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
                         # Более длинная пауза после каждых 10 запросов
                         if request_count % 10 == 0:
                             logger.info(
-                                "Пауза для соблюдения лимитов API (3 секунды)..."
+                                "Пауза для соблюдения лимитов API (3 секунда)..."
                             )
                             time.sleep(3)
                     except Exception as cell_err:
@@ -2610,7 +2603,7 @@ async def main():
 
     # Пример JSON строки (можно заменить на фактические данные)
     # recordings_output_file = data_directory / f"recording_14.json"
-    await process_order(recordings_output_file)
+    # await process_order(recordings_output_file)
 
     # # Выгрузка в  Google Sheets
     await export_orders_to_sheets()
