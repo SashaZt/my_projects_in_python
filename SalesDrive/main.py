@@ -2,6 +2,7 @@ import asyncio
 import json
 import os.path
 import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
@@ -1374,10 +1375,10 @@ async def update_order_data(
                             primary_contact.get("con_povnaOplata"),
                         ),
                     )
-                else:
-                    logger.info(
-                        f"Контакт с ID {contact_id} уже существует в базе данных"
-                    )
+                # else:
+                #     logger.info(
+                #         f"Контакт с ID {contact_id} уже существует в базе данных"
+                #     )
 
                 # Вставляем телефоны и email первичного контакта
                 phone_list = primary_contact.get("phone", [])
@@ -1443,10 +1444,10 @@ async def update_order_data(
                                 contact.get("con_povnaOplata"),
                             ),
                         )
-                    else:
-                        logger.info(
-                            f"Контакт с ID {contact_id} уже существует в таблице contacts"
-                        )
+                    # else:
+                    #     logger.info(
+                    #         f"Контакт с ID {contact_id} уже существует в таблице contacts"
+                    #     )
 
                     # Вставляем телефоны и email других контактов
                     phone_list = contact.get("phone", [])
@@ -1570,7 +1571,7 @@ async def insert_or_update_order_data(order_data):
             if metadata and "statusId" in metadata:
                 status_mapping = metadata["statusId"]
                 statusId_text = status_mapping.get(statusId, str(statusId))
-                logger.debug(f"Статус заказа {order_id}: {statusId} -> {statusId_text}")
+                # logger.debug(f"Статус заказа {order_id}: {statusId} -> {statusId_text}")
 
         # Получаем текстовое представление для typeId
         typeId = order_data.get("typeId")
@@ -1580,7 +1581,7 @@ async def insert_or_update_order_data(order_data):
             if metadata and "typeId" in metadata:
                 type_mapping = metadata["typeId"]
                 typeId_text = type_mapping.get(typeId, str(typeId))
-                logger.debug(f"Тип заказа {order_id}: {typeId} -> {typeId_text}")
+                # logger.debug(f"Тип заказа {order_id}: {typeId} -> {typeId_text}")
 
         # shipping_method ID Переводим в текст
         shipping_method = order_data.get("shipping_method")
@@ -1624,7 +1625,6 @@ async def insert_or_update_order_data(order_data):
                     existing_status_text = status_mapping.get(
                         existing_status, str(existing_status)
                     )
-
                 if existing_status_text == "Новий" or statusId_text == "Новий":
                     # Если текущий статус или новый статус - "Новий", обновляем заказ
                     logger.info(
@@ -1641,10 +1641,6 @@ async def insert_or_update_order_data(order_data):
                     )
                     return True
                 else:
-                    # Иначе пропускаем
-                    logger.warning(
-                        f"Заказ с ID {order_id} уже существует и не требует обновления (статус: {existing_status_text})"
-                    )
                     return False
             else:
                 # Заказ не существует, вставляем новую запись
@@ -1701,130 +1697,130 @@ async def mark_as_uploaded(order_id: int):
         logger.info(f"Заказ с ID {order_id} отмечен как выгруженный")
 
 
-def upload_to_google_sheets(orders: List[Dict[str, Any]]):
-    """Выгрузка данных в Google Sheets"""
-    if not orders:
-        logger.error("Нет данных для выгрузки в Google Sheets")
-        return
+# def upload_to_google_sheets(orders: List[Dict[str, Any]]):
+#     """Выгрузка данных в Google Sheets"""
+#     if not orders:
+#         logger.error("Нет данных для выгрузки в Google Sheets")
+#         return
 
-    try:
-        # Настройка учетных данных
-        scope = [
-            "https://spreadsheets.google.com/feeds",
-            "https://www.googleapis.com/auth/drive",
-        ]
+#     try:
+#         # Настройка учетных данных
+#         scope = [
+#             "https://spreadsheets.google.com/feeds",
+#             "https://www.googleapis.com/auth/drive",
+#         ]
 
-        creds = ServiceAccountCredentials.from_json_keyfile_name(
-            GOOGLE_CREDENTIALS_PATH, scope
-        )
-        client = gspread.authorize(creds)
+#         creds = ServiceAccountCredentials.from_json_keyfile_name(
+#             GOOGLE_CREDENTIALS_PATH, scope
+#         )
+#         client = gspread.authorize(creds)
 
-        # Открытие таблицы
-        spreadsheet = client.open_by_id(SPREADSHEET_ID)
-        worksheet = None
+#         # Открытие таблицы
+#         spreadsheet = client.open_by_id(SPREADSHEET_ID)
+#         worksheet = None
 
-        # Проверяем, существует ли лист
-        try:
-            worksheet = spreadsheet.worksheet(SHEET_NAME)
-        except gspread.exceptions.WorksheetNotFound:
-            # Если лист не существует, создаем его
-            worksheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows=1000, cols=20)
+#         # Проверяем, существует ли лист
+#         try:
+#             worksheet = spreadsheet.worksheet(SHEET_NAME)
+#         except gspread.exceptions.WorksheetNotFound:
+#             # Если лист не существует, создаем его
+#             worksheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows=1000, cols=20)
 
-        # Подготовка заголовков таблицы
-        headers = [
-            "ID Заказа",
-            "Статус",
-            "Дата Заказа",
-            "Сумма",
-            "Способ Оплаты",
-            "Клиент",
-            "Телефон",
-            "Email",
-            "Адрес Доставки",
-            "Товары",
-        ]
+#         # Подготовка заголовков таблицы
+#         headers = [
+#             "ID Заказа",
+#             "Статус",
+#             "Дата Заказа",
+#             "Сумма",
+#             "Способ Оплаты",
+#             "Клиент",
+#             "Телефон",
+#             "Email",
+#             "Адрес Доставки",
+#             "Товары",
+#         ]
 
-        # Проверяем, есть ли уже заголовки
-        existing_headers = worksheet.row_values(1)
-        if not existing_headers:
-            worksheet.append_row(headers)
+#         # Проверяем, есть ли уже заголовки
+#         existing_headers = worksheet.row_values(1)
+#         if not existing_headers:
+#             worksheet.append_row(headers)
 
-        # Подготовка и загрузка данных заказов
-        for order in orders:
-            order_data = order["data"]
+#         # Подготовка и загрузка данных заказов
+#         for order in orders:
+#             order_data = order["data"]
 
-            # Контактная информация
-            primary_contact = order_data.get("primaryContact", {})
-            name = f"{primary_contact.get('lName', '')} {primary_contact.get('fName', '')}".strip()
-            phone = (
-                primary_contact.get("phone", [""])[0]
-                if primary_contact.get("phone")
-                else ""
-            )
-            email = (
-                primary_contact.get("email", [""])[0]
-                if primary_contact.get("email")
-                else ""
-            )
+#             # Контактная информация
+#             primary_contact = order_data.get("primaryContact", {})
+#             name = f"{primary_contact.get('lName', '')} {primary_contact.get('fName', '')}".strip()
+#             phone = (
+#                 primary_contact.get("phone", [""])[0]
+#                 if primary_contact.get("phone")
+#                 else ""
+#             )
+#             email = (
+#                 primary_contact.get("email", [""])[0]
+#                 if primary_contact.get("email")
+#                 else ""
+#             )
 
-            # Товары
-            products = []
-            for product in order_data.get("products", []):
-                product_text = product.get("text", "")
-                amount = product.get("amount", 0)
-                price = product.get("price", 0)
-                if product_text and amount > 0:
-                    products.append(f"{product_text} (кол-во: {amount}, цена: {price})")
+#             # Товары
+#             products = []
+#             for product in order_data.get("products", []):
+#                 product_text = product.get("text", "")
+#                 amount = product.get("amount", 0)
+#                 price = product.get("price", 0)
+#                 if product_text and amount > 0:
+#                     products.append(f"{product_text} (кол-во: {amount}, цена: {price})")
 
-            products_text = "; ".join(products)
+#             products_text = "; ".join(products)
 
-            # Формирование строки для добавления
-            row_data = [
-                order_data.get("id", ""),  # ID Заказа
-                order_data.get("statusId", ""),  # Статус
-                order_data.get("orderTime", ""),  # Дата Заказа
-                order_data.get("paymentAmount", 0),  # Сумма
-                order_data.get("payment_method", ""),  # Способ Оплаты
-                name,  # Клиент
-                phone,  # Телефон
-                email,  # Email
-                order_data.get("shipping_address", ""),  # Адрес Доставки
-                products_text,  # Товары
-            ]
+#             # Формирование строки для добавления
+#             row_data = [
+#                 order_data.get("id", ""),  # ID Заказа
+#                 order_data.get("statusId", ""),  # Статус
+#                 order_data.get("orderTime", ""),  # Дата Заказа
+#                 order_data.get("paymentAmount", 0),  # Сумма
+#                 order_data.get("payment_method", ""),  # Способ Оплаты
+#                 name,  # Клиент
+#                 phone,  # Телефон
+#                 email,  # Email
+#                 order_data.get("shipping_address", ""),  # Адрес Доставки
+#                 products_text,  # Товары
+#             ]
 
-            # Добавляем данные в таблицу
-            worksheet.append_row(row_data)
+#             # Добавляем данные в таблицу
+#             worksheet.append_row(row_data)
 
-            # Помечаем заказ как выгруженный
-            asyncio.create_task(mark_as_uploaded(order["id"]))
+#             # Помечаем заказ как выгруженный
+#             asyncio.create_task(mark_as_uploaded(order["id"]))
 
-        logger.info(
-            f"Данные успешно выгружены в Google Sheets, обработано заказов: {len(orders)}"
-        )
+#         logger.info(
+#             f"Данные успешно выгружены в Google Sheets, обработано заказов: {len(orders)}"
+#         )
 
-    except Exception as e:
-        logger.error(f"Ошибка при выгрузке в Google Sheets: {e}")
+#     except Exception as e:
+#         logger.error(f"Ошибка при выгрузке в Google Sheets: {e}")
 
 
-async def process_json_file(file_path: str):
-    """Обработка JSON файла и загрузка данных в БД"""
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            # Проверяем, является ли содержимое объектом или массивом
-            content = f.read().strip()
-            if content.startswith("[") and content.endswith("]"):
-                data = json.loads(content)
-                for order in data:
-                    await insert_order_data(order)
-            else:
-                # Если это один объект, а не массив
-                data = json.loads(content)
-                await insert_order_data(data)
+# async def process_json_file(file_path: str):
+#     """Обработка JSON файла и загрузка данных в БД"""
+#     try:
+#         with open(file_path, "r", encoding="utf-8") as f:
+#             # Проверяем, является ли содержимое объектом или массивом
+#             content = f.read().strip()
+#             if content.startswith("[") and content.endswith("]"):
+#                 data = json.loads(content)
+#                 for order in data:
+#                     await insert_order_data(order)
+#             else:
+#                 # Если это один объект, а не массив
+#                 data = json.loads(content)
+#                 await insert_order_data(data)
 
-    except json.JSONDecodeError as e:
-        logger.error(f"Ошибка декодирования JSON: {e}")
-    except Exception as e:
-        logger.error(f"Ошибка обработки файла: {e}")
+#     except json.JSONDecodeError as e:
+#         logger.error(f"Ошибка декодирования JSON: {e}")
+#     except Exception as e:
+#         logger.error(f"Ошибка обработки файла: {e}")
 
 
 async def process_order(file_path: str):
@@ -1847,7 +1843,7 @@ async def process_order(file_path: str):
                 and isinstance(json_data["data"], list)
             ):
                 orders = json_data["data"]
-                logger.info(f"Найден массив 'data' с {len(orders)} заказами")
+                # logger.info(f"Найден массив 'data' с {len(orders)} заказами")
                 for order in orders:
                     await insert_or_update_order_data(order)
                 return
@@ -2241,66 +2237,154 @@ async def export_orders_to_sheets():
             logger.error("Нет новых заказов для выгрузки")
             return
 
-        # Создаем полный список заголовков из всех возможных полей
-        all_headers = set()
-        for order in orders_data:
-            for key in order.keys():
-                all_headers.add(key)
-
-        # Сортируем заголовки для лучшей читаемости (основные поля заказа в начале)
-        headers = []
-
-        # Сначала добавляем основные поля заказа
-        base_fields = [
-            "id",
-            "formId",
-            "version",
-            "orderTime",
-            "statusId",
-            "paymentAmount",
-        ]
-        for field in base_fields:
-            if field in all_headers:
-                headers.append(field)
-                all_headers.remove(field)
-
-        # Затем добавляем поля контакта
-        contact_fields = [h for h in all_headers if h.startswith("contact_")]
-        for field in sorted(contact_fields):
-            headers.append(field)
-            all_headers.remove(field)
-
-        # Затем поля доставки
-        delivery_fields = [h for h in all_headers if h.startswith("delivery_")]
-        for field in sorted(delivery_fields):
-            headers.append(field)
-            all_headers.remove(field)
-
-        # Затем специальные поля продуктов и комментариев
-        special_fields = [
-            "products_info",
-            "other_contacts",
-            "tip_prodazu_values",
-            "client_comments",
-        ]
-        for field in special_fields:
-            if field in all_headers:
-                headers.append(field)
-                all_headers.remove(field)
-
-        # Добавляем оставшиеся поля в алфавитном порядке
-        for field in sorted(all_headers):
-            headers.append(field)
-
         # Подключаемся к Google Sheets
         spreadsheet = connect_to_google_sheets()
+        if not spreadsheet:
+            logger.error("Не удалось подключиться к Google Sheets")
+            return
+
+        # Получаем ID строк из колонки A
         all_ids_line = get_ids_from_column_a(spreadsheet, SHEET_NAME)
-        # Подготавливаем лист
-        worksheet = prepare_sheet(spreadsheet, SHEET_NAME, headers)
+
+        try:
+            # Проверяем, существует ли лист
+            worksheet = spreadsheet.worksheet(SHEET_NAME)
+
+            # Получаем существующие заголовки из таблицы
+            existing_headers = worksheet.row_values(1)
+
+            if not existing_headers:
+                # Если заголовков нет, создаем их из данных заказов
+                logger.info("Заголовки в таблице отсутствуют, создаем новые")
+
+                # Создаем полный список заголовков из всех возможных полей
+                all_headers = set()
+                for order in orders_data:
+                    for key in order.keys():
+                        all_headers.add(key)
+
+                # Сортируем заголовки для лучшей читаемости (основные поля заказа в начале)
+                headers = []
+
+                # Сначала добавляем основные поля заказа
+                base_fields = [
+                    "id",
+                    "formId",
+                    "version",
+                    "orderTime",
+                    "statusId",
+                    "paymentAmount",
+                ]
+                for field in base_fields:
+                    if field in all_headers:
+                        headers.append(field)
+                        all_headers.remove(field)
+
+                # Затем добавляем поля контакта
+                contact_fields = [h for h in all_headers if h.startswith("contact_")]
+                for field in sorted(contact_fields):
+                    headers.append(field)
+                    all_headers.remove(field)
+
+                # Затем поля доставки
+                delivery_fields = [h for h in all_headers if h.startswith("delivery_")]
+                for field in sorted(delivery_fields):
+                    headers.append(field)
+                    all_headers.remove(field)
+
+                # Затем специальные поля продуктов и комментариев
+                special_fields = [
+                    "products_info",
+                    "other_contacts",
+                    "tip_prodazu_values",
+                    "client_comments",
+                ]
+                for field in special_fields:
+                    if field in all_headers:
+                        headers.append(field)
+                        all_headers.remove(field)
+
+                # Добавляем оставшиеся поля в алфавитном порядке
+                for field in sorted(all_headers):
+                    headers.append(field)
+
+                # Добавляем заголовки в первую строку
+                worksheet.append_row(headers)
+                # logger.info(f"Добавлены заголовки в таблицу: {headers}")
+            else:
+                # Используем существующие заголовки
+                # logger.info(
+                #     f"Используем существующие заголовки из таблицы: {existing_headers}"
+                # )
+                headers = existing_headers
+
+        except gspread.exceptions.WorksheetNotFound:
+            # Если лист не существует, создаем его
+            logger.info(f"Лист {SHEET_NAME} не найден, создаем новый")
+
+            # Создаем полный список заголовков из всех возможных полей
+            all_headers = set()
+            for order in orders_data:
+                for key in order.keys():
+                    all_headers.add(key)
+
+            # Сортируем заголовки (аналогично коду выше)
+            headers = []
+            base_fields = [
+                "id",
+                "formId",
+                "version",
+                "orderTime",
+                "statusId",
+                "paymentAmount",
+            ]
+            for field in base_fields:
+                if field in all_headers:
+                    headers.append(field)
+                    all_headers.remove(field)
+
+            contact_fields = [h for h in all_headers if h.startswith("contact_")]
+            for field in sorted(contact_fields):
+                headers.append(field)
+                all_headers.remove(field)
+
+            delivery_fields = [h for h in all_headers if h.startswith("delivery_")]
+            for field in sorted(delivery_fields):
+                headers.append(field)
+                all_headers.remove(field)
+
+            special_fields = [
+                "products_info",
+                "other_contacts",
+                "tip_prodazu_values",
+                "client_comments",
+            ]
+            for field in special_fields:
+                if field in all_headers:
+                    headers.append(field)
+                    all_headers.remove(field)
+
+            for field in sorted(all_headers):
+                headers.append(field)
+
+            # Создаем новый лист
+            worksheet = spreadsheet.add_worksheet(
+                title=SHEET_NAME, rows=1000, cols=len(headers)
+            )
+
+            # Добавляем заголовки
+            worksheet.append_row(headers)
+            # logger.info(f"Создан новый лист с заголовками: {headers}")
+
+            # Обновляем список ID строк (пока пустой)
+            all_ids_line = []
+
+        # Логируем информацию о заголовках и данных для отладки
+        # logger.info(f"Используемые заголовки: {headers}")
+        # logger.info(f"Данные для выгрузки: {orders_data}")
+
         # Выгружаем данные
         update_orders_in_sheet(worksheet, orders_data, all_ids_line)
-
-        # upload_data_to_sheet(worksheet, orders_data)
 
         # Отмечаем заказы как выгруженные
         order_ids = [order["id"] for order in orders_data]
@@ -2310,15 +2394,15 @@ async def export_orders_to_sheets():
 
     except Exception as e:
         logger.error(f"Ошибка при экспорте данных в Google Sheets: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
 
 
 def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
     """
-    Для каждого заказа из orders_data ищет в all_ids_line (список кортежей (номер строки, id) из колонки A)
-    строку с совпадающим id и обновляет эту строку новыми данными.
-
-    Данные формируются в соответствии с заголовками листа (первая строка),
-    что позволяет избежать смещения данных, если ключи заказа не совпадают точно с заголовками.
+    Обновляет или добавляет данные о заказах в Google Sheets с точным соответствием заголовкам.
+    Добавлены паузы между запросами для соблюдения ограничений API Google Sheets.
     """
     try:
         # Получаем заголовки листа (первая строка)
@@ -2327,52 +2411,169 @@ def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
             logger.error("Заголовки листа не найдены.")
             return
 
+        # Логируем заголовки для отладки
+        # logger.info(f"Заголовки таблицы: {headers}")
+        # logger.info(f"Количество заголовков: {len(headers)}")
+
+        # Удаляем дублирующиеся заголовки, если они есть
+        unique_headers = []
+        seen_headers = set()
+        for header in headers:
+            if header not in seen_headers:
+                seen_headers.add(header)
+                unique_headers.append(header)
+
+        # Если были найдены дубликаты, логируем это
+        if len(unique_headers) != len(headers):
+            logger.warning(
+                f"Найдены дублирующиеся заголовки в таблице: {len(headers) - len(unique_headers)}"
+            )
+            logger.info(f"Уникальные заголовки: {unique_headers}")
+
+        # Счетчик запросов для отслеживания и предотвращения превышения лимитов
+        request_count = 0
+
         for order in orders_data:
             order_id_str = str(order.get("id", ""))
-            # Поиск строки, где значение в колонке A совпадает с order_id
+            # Поиск строки с совпадающим ID
             target_row = None
             for row_num, id_val in all_ids_line:
                 if id_val == order_id_str:
                     target_row = row_num
                     break
 
-            if target_row is None:
-                logger.info(
-                    f"Заказ с id {order_id_str} не найден в колонке A, пропускаем обновление."
-                )
-                continue
+            # Логируем данные заказа для отладки
+            logger.info(f"Обрабатываем заказ ID {order_id_str}")
 
-            # Формируем строку данных в соответствии с порядком заголовков
-            row_data = []
-            for header in headers:
-                # Пробуем найти соответствующее значение:
+            # Если нашли строку, сначала получим текущие значения для отладки
+            if target_row is not None:
+                logger.info(f"Найдена существующая строка {target_row}")
+                try:
+                    current_values = worksheet.row_values(target_row)
+                    # logger.info(f"Текущие значения строки: {current_values}")
+                except Exception as e:
+                    logger.warning(f"Не удалось получить текущие значения строки: {e}")
+
+            # Создаем словарь для удобного доступа к данным по заголовкам
+            row_data_by_header = {}
+
+            # Проходим по всем заголовкам и ищем соответствующие данные
+            for header in unique_headers:
+                # Сначала пробуем прямое совпадение
                 if header in order:
-                    value = order[header]
-                else:
-                    found = False
-                    for key, val in order.items():
-                        if key.lower() == header.lower():
-                            value = val
-                            found = True
-                            break
-                    if not found:
-                        value = ""
-                # Преобразуем None в пустую строку и сложные типы в строку (JSON)
+                    row_data_by_header[header] = order[header]
+                    continue
+
+                # Если прямого совпадения нет, ищем без учета регистра
+                header_lower = header.lower()
+                found = False
+                for key, value in order.items():
+                    if key.lower() == header_lower:
+                        row_data_by_header[header] = value
+                        found = True
+                        break
+
+                # Если по-прежнему не нашли, устанавливаем пустое значение
+                if not found:
+                    row_data_by_header[header] = ""
+
+            # Преобразование значений
+            for header, value in row_data_by_header.items():
                 if value is None:
-                    value = ""
+                    row_data_by_header[header] = ""
                 elif isinstance(value, (dict, list)):
-                    value = json.dumps(value, ensure_ascii=False)
-                row_data.append(value)
+                    row_data_by_header[header] = json.dumps(value, ensure_ascii=False)
 
-            # Определяем диапазон обновления по количеству столбцов
-            last_cell = rowcol_to_a1(target_row, len(headers))
-            cell_range = f"A{target_row}:{last_cell}"
-            worksheet.update(values=[row_data], range_name=cell_range)
+            # Логируем подготовленные данные
+            # logger.info(f"Подготовленные данные по заголовкам: {row_data_by_header}")
 
-            logger.info(f"Обновлена строка {target_row} для заказа с id {order_id_str}")
+            if target_row is not None:
+                # Обновляем существующую строку по одной ячейке за раз
+                for col_idx, header in enumerate(unique_headers, start=1):
+                    try:
+                        value = row_data_by_header.get(header, "")
+                        # Обновляем ячейку
+                        worksheet.update_cell(target_row, col_idx, value)
+                        # logger.info(
+                        #     f"Обновлена ячейка ({target_row}, {col_idx}) = {header} со значением: {value}"
+                        # )
+
+                        # Увеличиваем счетчик запросов
+                        request_count += 1
+
+                        # Делаем небольшую паузу между обновлениями ячеек
+                        time.sleep(0.5)
+
+                        # Более длинная пауза после каждых 10 запросов
+                        if request_count % 10 == 0:
+                            logger.info(
+                                "Пауза для соблюдения лимитов API (3 секунды)..."
+                            )
+                            time.sleep(3)
+                    except Exception as cell_err:
+                        logger.error(
+                            f"Ошибка при обновлении ячейки ({target_row}, {col_idx}) = {header}: {cell_err}"
+                        )
+                        # При ошибке делаем более длинную паузу
+                        time.sleep(5)
+
+                logger.info(
+                    f"Завершено обновление строки {target_row} для заказа с id {order_id_str}"
+                )
+
+                # Пауза после обработки каждого заказа
+                time.sleep(2)
+
+            else:
+                # Добавляем новую строку
+                logger.info("Добавление новой строки для заказа")
+
+                # Формируем строку данных в том же порядке, что и заголовки
+                new_row_data = [
+                    row_data_by_header.get(header, "") for header in unique_headers
+                ]
+
+                # Логируем длину массива данных и заголовков для проверки соответствия
+                logger.info(
+                    f"Длина массива данных: {len(new_row_data)}, длина массива заголовков: {len(unique_headers)}"
+                )
+
+                try:
+                    # Делаем длинную паузу перед добавлением новой строки
+                    time.sleep(3)
+                    worksheet.append_row(
+                        new_row_data, value_input_option="USER_ENTERED"
+                    )
+                    logger.info(
+                        f"Добавлена новая строка для заказа с id {order_id_str}"
+                    )
+
+                    # Пауза после добавления строки
+                    time.sleep(3)
+                    request_count += 1
+                except Exception as append_err:
+                    logger.error(f"Ошибка при добавлении новой строки: {append_err}")
+
+                    # В случае ошибки делаем очень длинную паузу и пробуем еще раз
+                    logger.info("Делаем паузу на 20 секунд и пробуем снова...")
+                    time.sleep(20)
+                    try:
+                        worksheet.append_row(
+                            new_row_data, value_input_option="USER_ENTERED"
+                        )
+                        logger.info(
+                            f"Успешно добавлена новая строка для заказа с id {order_id_str} после повторной попытки"
+                        )
+                    except Exception as retry_err:
+                        logger.error(
+                            f"Не удалось добавить новую строку даже после паузы: {retry_err}"
+                        )
 
     except Exception as e:
         logger.error(f"Ошибка при обновлении заказов в Google Sheets: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
 
 
 def get_ids_from_column_a(spreadsheet, sheet_name):
@@ -2413,16 +2614,6 @@ async def main():
 
     # # Выгрузка в  Google Sheets
     await export_orders_to_sheets()
-
-    # # Получаем заказы, которые еще не выгружены в Google Sheets
-    # non_uploaded_orders = await get_non_uploaded_orders()
-
-    # # Выгружаем данные в Google Sheets
-    # if non_uploaded_orders:
-    #     # Этот вызов будет блокирующим, так как библиотека gspread не поддерживает асинхронность
-    #     upload_to_google_sheets(non_uploaded_orders)
-    # else:
-    #     print("Нет новых заказов для выгрузки в Google Sheets")
 
 
 if __name__ == "__main__":
