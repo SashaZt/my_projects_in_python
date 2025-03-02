@@ -381,6 +381,7 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
                 data_row["Story height"] = building_info.get("Story height", "")
                 data_row["Attic"] = building_info.get("Attic", "")
                 data_row["Exterior Walls"] = building_info.get("Exterior Walls", "")
+                data_row["Amenities"] = building_info.get("Amenities", "")
                 data_row["Basement"] = building_info.get("Basement", "")
                 data_row["Heat Type"] = building_info.get("Heat Type", "")
                 data_row["Fuel Type"] = building_info.get("Fuel Type", "")
@@ -394,6 +395,7 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
                 data_row["Year Built"] = building_info.get("Year Built", "")
                 data_row["Eff Year Built"] = building_info.get("Eff Year", "")
                 data_row["Year Remodeled"] = building_info.get("Year Remodeled", "")
+                data_row["Extra Fixtures"] = building_info.get("Extra Fixtures", "")
                 data_row["Grade"] = building_info.get("Grade", "")
                 data_row["Condition"] = building_info.get("Condition", "")
                 data_row["Ground Floor Area"] = value_history.get(
