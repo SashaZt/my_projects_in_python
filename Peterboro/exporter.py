@@ -73,6 +73,32 @@ def post_process_data(data):
             "validity": page1_data.get("transfer_validity", {}).get("Validity", ""),
         }
 
+        # ИСПРАВЛЕНИЕ: Получаем picture_info напрямую, т.к. теперь он доступен на верхнем уровне
+        picture_info = page1_data.get("picture_info", {})
+
+        # Если picture_info пустой или Type пустой, устанавливаем жёсткое значение
+        if not picture_info or (picture_info and not picture_info.get("Type")):
+            logger.warning(
+                "picture_info пустой или Type пустой в post_process_data, устанавливаем жёсткое значение"
+            )
+            picture_info = None
+
+        # Всегда логируем для отладки
+        logger.info(f"picture_info в post_process_data: {picture_info}")
+
+        processed["property"]["picture_info"] = picture_info
+
+        # Проверяем, есть ли данные picture_info в итоговом объекте
+        if (
+            "picture_info" not in processed["property"]
+            or processed["property"]["picture_info"] is None
+            or not processed["property"]["picture_info"].get("Type")
+        ):
+            processed["property"]["picture_info"] = {
+                "Type": ""  # Пустое значение вместо жесткого
+            }
+            logger.info("Создан пустой блок picture_info из-за отсутствия данных")
+
         # Данные со второй страницы для RESIDENTIAL
         if "page_2" in data.get("data", {}):
             page2_data = data["data"]["page_2"]
@@ -96,8 +122,12 @@ def post_process_data(data):
             # Отдельный раздел для истории оценки
             processed["property"]["value_history"] = page2_data.get("value_history", {})
 
-            # Информация о изображении
-            processed["property"]["picture_info"] = page2_data.get("picture_info", {})
+            # Если picture_info из page2_data не пустой и имеет Type, используем его
+            if "picture_info" in page2_data and page2_data["picture_info"].get("Type"):
+                processed["property"]["picture_info"] = page2_data["picture_info"]
+                logger.info(
+                    f"Использую picture_info из page2_data: {page2_data['picture_info']}"
+                )
 
     # Добавьте в функцию post_process_data в файле exporter.py
     # в части обработки типа COMMERCIAL:
@@ -169,6 +199,7 @@ def export_to_json(raw_data, output_path):
 def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
     """
     Экспортирует данные из нескольких PDF файлов в единый CSV файл.
+    Заголовки точно соответствуют структуре из Excel-шаблона.
 
     Args:
         pdf_data_list: Список кортежей (имя_файла, обработанные_данные)
@@ -177,46 +208,74 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
     Returns:
         Путь к созданному CSV файлу
     """
-    # Определяем заголовки CSV на основе структуры Peterboro.xlsx
+    # Определяем заголовки CSV точно по структуре из Excel-шаблона
     headers = [
-        "File Name",
-        "Document Type",
+        "File name",
+        "Situs",
+        "Map ID",
+        "Class",
+        "Card",
         "Owner1",
         "Owner2",
         "Owner3",
         "Owner4",
         "Owner5",
-        "Situs",
-        "Card",
-        "Class",
-        "District",
-        "Zone",
         "Living Units",
         "Neighborhood",
-        "Alternate ID",
-        "Vol/Pg",
-        "Total Acres",
-        "Land Value",
-        "Building Value",
-        "Total Value",
+        "Alternate Id",
+        "Vol / Pg",
+        "District",
+        "Zoning",
+        "Class",
+        "Land",
+        "Building",
+        "Total",
         "Transfer Date",
         "Price",
         "Type",
         "Validity",
-        # Заголовки для RESIDENTIAL
-        "Style",
-        "Story Height",
-        "Attic",
-        "Exterior Walls",
-        # Заголовки для COMMERCIAL
         "Year Built/Eff Year",
         "Building #",
         "Structure Type",
         "Identical Units",
         "Total Units",
         "Grade",
-        "# Covered Parking",
-        "# Uncovered Parking",
+        "Covered Parking",
+        "Uncovered Parking",
+        "Style",
+        "Story height",
+        "Attic",
+        "Exterior Walls",
+        "Year Built",
+        "Eff Year Built",
+        "Year Remodeled",
+        "Amenities",
+        "Basement",
+        "FBLA Size",
+        "Rec Rm Size",
+        "Car Bsmt Gar",
+        "FBLA Type",
+        "Rec Rm Type",
+        "Heat Type",
+        "Fuel Type",
+        "System Type",
+        "Stacks",
+        "Openings",
+        "Pre-Fab",
+        "Bedrooms",
+        "Family Rooms",
+        "Kitchens",
+        "Total Rooms",
+        "Full Baths",
+        "Half Baths",
+        "Extra Fixtures",
+        "Grade",
+        "Condition",
+        "Ground Floor Area",
+        "Total Living Area",
+        "Basement Area Type",
+        "Type.1",  # Добавлено новое поле
+        "Total Acres",
     ]
 
     # Запись CSV файла
@@ -227,16 +286,21 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
         for file_name, processed_data in pdf_data_list:
             # Создаем строку данных для экспорта
             data_row = {
-                "File Name": file_name,
-                "Document Type": processed_data.get("document_type", "UNKNOWN"),
-            }
+                header: "" for header in headers
+            }  # Инициализируем все поля пустыми строками
+
+            data_row["File name"] = file_name
+            document_type = processed_data.get("document_type", "UNKNOWN")
+
+            # Добавляем Map ID (имя файла без расширения)
+            data_row["Map ID"] = Path(file_name).stem
 
             # Извлекаем данные из обработанной структуры
             property_data = processed_data.get("property", {})
 
             # Если документ не распознан или имеет неподдерживаемый тип,
             # записываем только базовую информацию
-            if data_row["Document Type"] not in ["RESIDENTIAL", "COMMERCIAL"]:
+            if document_type not in ["RESIDENTIAL", "COMMERCIAL"]:
                 writer.writerow(data_row)
                 continue
 
@@ -258,37 +322,87 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
             # Детали собственности
             details_data = property_data.get("details", {})
             data_row["District"] = details_data.get("District", "")
-            data_row["Zone"] = details_data.get("Zoning", "")
+            data_row["Zoning"] = details_data.get("Zoning", "")
             data_row["Living Units"] = details_data.get("Living Units", "")
             data_row["Neighborhood"] = details_data.get("Neighborhood", "")
-            data_row["Alternate ID"] = details_data.get("Alternate ID", "")
-            data_row["Vol/Pg"] = details_data.get("Vol / Pg", "")
+            data_row["Alternate Id"] = details_data.get("Alternate ID", "")
+            data_row["Vol / Pg"] = details_data.get("Vol / Pg", "")
 
             # Данные оценки
             assessment_data = property_data.get("assessment", {})
-            data_row["Land Value"] = assessment_data.get("Land", "")
-            data_row["Building Value"] = assessment_data.get("Building", "")
-            data_row["Total Value"] = assessment_data.get("Total", "")
+            data_row["Land"] = assessment_data.get("Land", "")
+            data_row["Building"] = assessment_data.get("Building", "")
+            data_row["Total"] = assessment_data.get("Total", "")
 
             # Информация о передаче прав
             transfer_data = property_data.get("transfer", {})
             data_row["Transfer Date"] = transfer_data.get("date", "")
             data_row["Price"] = transfer_data.get("price", "")
-            data_row["Type"] = transfer_data.get("type", "")
+
+            # ИЗМЕНЕНО: Сначала устанавливаем тип из информации о передаче прав
+            transfer_type = transfer_data.get("type", "")
+            if transfer_type and transfer_type.strip():
+                data_row["Type"] = transfer_type
+                logger.info(f"Установлен Type из transfer_data: {transfer_type}")
+            # Валидность
             data_row["Validity"] = transfer_data.get("validity", "")
 
-            # В зависимости от типа документа обрабатываем соответствующие поля
-            if data_row["Document Type"] == "RESIDENTIAL":
+            # Обработка picture_info и данных со второй страницы
+            if document_type == "RESIDENTIAL":
                 # Данные о здании для RESIDENTIAL
                 building_info = property_data.get("building_info", {})
+
+                # ИЗМЕНЕНО: Получаем данные picture_info и обрабатываем Type из picture_info только
+                # если оно есть и не перезаписывать типом из transfer_data если он непустой
+                picture_info = property_data.get("picture_info", {})
+
+                # Логгируем для отладки
+                logger.debug(f"picture_info в CSV: {picture_info}")
+
+                # Получаем значение Type
+                type_value = picture_info["Type"]
+                # Заменяем '\n' на запятую и пробел, если они есть
+                if isinstance(type_value, str):
+                    type_value = type_value.replace("\n", ", ")
+
+                # Сохраняем в отдельное поле Type.1 в CSV
+                data_row["Type.1"] = type_value
+                logger.info(f"Установлен Type.1 из picture_info: {type_value}")
+
+                # Если transfer_type пустой, используем данные из picture_info для Type
+                if not transfer_type or transfer_type.strip() in ["", "None", "null"]:
+                    data_row["Type"] = type_value
+                    logger.info(
+                        f"Type из transfer_data пустой, использую Type из picture_info: {type_value}"
+                    )
+                # Заполняем поля по шаблону Excel
                 data_row["Style"] = building_info.get("Style", "")
-                data_row["Story Height"] = building_info.get("Story height", "")
+                data_row["Story height"] = building_info.get("Story height", "")
                 data_row["Attic"] = building_info.get("Attic", "")
                 data_row["Exterior Walls"] = building_info.get("Exterior Walls", "")
+                data_row["Basement"] = building_info.get("Basement", "")
+                data_row["Heat Type"] = building_info.get("Heat Type", "")
+                data_row["Fuel Type"] = building_info.get("Fuel Type", "")
+                data_row["System Type"] = building_info.get("System Type", "")
+                data_row["Bedrooms"] = building_info.get("Bedrooms", "")
+                data_row["Total Rooms"] = building_info.get("Total Rooms", "")
+                data_row["Full Baths"] = building_info.get("Full Baths", "")
+                data_row["Half Baths"] = building_info.get("Half Baths", "")
+                data_row["Year Built"] = building_info.get("Year Built", "")
+                data_row["Eff Year Built"] = building_info.get("Eff Year", "")
+                data_row["Year Remodeled"] = building_info.get("Year Remodeled", "")
+                data_row["Grade"] = building_info.get("Grade", "")
+                data_row["Condition"] = building_info.get("Condition", "")
+                data_row["Ground Floor Area"] = building_info.get(
+                    "Ground Floor Area", ""
+                )
+                data_row["Total Living Area"] = building_info.get("Total Area", "")
 
-            elif data_row["Document Type"] == "COMMERCIAL":
+            elif document_type == "COMMERCIAL":
                 # Данные о здании для COMMERCIAL
                 building_info = property_data.get("commercial_building_info", {})
+
+                # Заполняем поля по шаблону Excel
                 data_row["Year Built/Eff Year"] = building_info.get(
                     "Year Built/Eff Year", ""
                 )
@@ -297,10 +411,8 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
                 data_row["Identical Units"] = building_info.get("Identical Units", "")
                 data_row["Total Units"] = building_info.get("Total Units", "")
                 data_row["Grade"] = building_info.get("Grade", "")
-                data_row["# Covered Parking"] = building_info.get(
-                    "# Covered Parking", ""
-                )
-                data_row["# Uncovered Parking"] = building_info.get(
+                data_row["Covered Parking"] = building_info.get("# Covered Parking", "")
+                data_row["Uncovered Parking"] = building_info.get(
                     "# Uncovered Parking", ""
                 )
 

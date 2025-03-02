@@ -90,6 +90,9 @@ def detect_document_type(pdf_path):
     return document_type
 
 
+# Модифицируйте функцию extract_table_data, добавив специальную обработку для picture_info:
+
+
 def extract_table_data(table, table_name="", table_type=""):
     """
     Преобразует данные таблицы в словарь согласно указанному типу
@@ -108,7 +111,34 @@ def extract_table_data(table, table_name="", table_type=""):
         logger.warning(f"Таблица {table_name} пуста")
         return result
 
-    # Обработка по типу таблицы
+    # Специальная обработка для picture_info
+    if table_name == "picture_info":
+        # Проверка наличия "Type" в первой строке и данных во второй строке
+        if len(table) >= 2 and table[0][0] == "Type" and table[1][0]:
+            result["Type"] = table[1][0]
+            logger.info(f"picture_info извлечен: Type = {table[1][0]}")
+            return result
+        # Другой возможный формат: первая колонка - "Type", вторая - значение
+        elif (
+            len(table) >= 1
+            and len(table[0]) >= 2
+            and table[0][0] == "Type"
+            and table[0][1]
+        ):
+            result["Type"] = table[0][1]
+            logger.info(f"picture_info извлечен (формат 2): Type = {table[0][1]}")
+            return result
+        # Еще один возможный формат: просто значения в первой или второй строке
+        elif len(table) >= 1 and table[0][0] and "Type" not in table[0][0]:
+            result["Type"] = table[0][0]
+            logger.info(f"picture_info извлечен (формат 3): Type = {table[0][0]}")
+            return result
+        elif len(table) >= 2 and table[1][0] and "Type" not in table[1][0]:
+            result["Type"] = table[1][0]
+            logger.info(f"picture_info извлечен (формат 4): Type = {table[1][0]}")
+            return result
+
+    # Обработка по типу таблицы для остальных случаев
     if table_type == "header":
         # Для заголовка документа (lines_01)
         if len(table) > 0 and len(table[0]) >= 2:
@@ -491,8 +521,8 @@ def analyze_pdf_page(pdf_path, document_type, page_no=0, save_debug_images=True)
                 "explicit_vertical_lines": vertical_lines,
                 "horizontal_strategy": "explicit",
                 "explicit_horizontal_lines": horizontal_lines,
-                "snap_tolerance": 3,
-                "join_tolerance": 3,
+                "snap_tolerance": 5,  # Увеличиваем для лучшего захвата
+                "join_tolerance": 5,  # Увеличиваем для лучшего захвата
                 "edge_min_length": 10,
                 "min_words_vertical": 1,
                 "min_words_horizontal": 1,
@@ -504,12 +534,11 @@ def analyze_pdf_page(pdf_path, document_type, page_no=0, save_debug_images=True)
             # Вывод для отладки
             if tables:
                 for table_no, table in enumerate(tables):
-                    print(
+                    logger.info(
                         f"Страница {page_no + 1}, Таблица '{table_name}' #{table_no + 1}:"
                     )
                     for row in table:
-                        print(row)
-                    print("\n")
+                        logger.info(row)
 
                 # Преобразование и сохранение данных
                 table_data = extract_table_data(tables[0], table_name, table_type)
@@ -523,22 +552,6 @@ def analyze_pdf_page(pdf_path, document_type, page_no=0, save_debug_images=True)
                     results["data"][table_name] = table_data
             else:
                 logger.warning(f"Таблица '{table_name}' не найдена")
-
-            # Сохранение отладочного изображения
-            if save_debug_images:
-                image = page.to_image(resolution=150)
-                image.debug_tablefinder(table_settings)
-                filename = os.path.join(
-                    temp_directory, f"page{page_no+1}_{table_name}.png"
-                )
-                image.save(filename)
-                logger.info(f"Сохранено отладочное изображение: {filename}")
-
-        # Дополнительное полное отладочное изображение
-        if save_debug_images:
-            image = page.to_image(resolution=150)
-            filename = os.path.join(temp_directory, f"page_{page_no + 1}_full.png")
-            image.save(filename)
 
     return results
 
@@ -573,7 +586,7 @@ def analyze_pdf_with_multiple_pages(
             page_results = analyze_pdf_page(
                 pdf_path, document_type, page_no, save_debug_images
             )
-
+            logger.info(page_results)
             # Сохраняем информацию о странице
             combined_results["pages_info"].append(page_results["page_info"])
 
@@ -581,9 +594,27 @@ def analyze_pdf_with_multiple_pages(
             if page_no == 0:  # Первая страница - основная информация о собственности
                 combined_results["data"].update(page_results["data"])
             else:  # Другие страницы - дополнительные данные
+                # Для второй страницы добавляем ключ page_2
                 page_key = f"page_{page_no + 1}"
                 combined_results["data"][page_key] = page_results["data"]
 
+                # НОВЫЙ КОД: Копируем picture_info со страницы 2 на верхний уровень
+                if (
+                    document_type == "RESIDENTIAL"
+                    and "picture_info" in page_results["data"]
+                ):
+                    # Если в picture_info есть данные, копируем их на верхний уровень
+                    if page_results["data"]["picture_info"]:
+                        combined_results["data"]["picture_info"] = page_results["data"][
+                            "picture_info"
+                        ]
+                        logger.info(
+                            f"Скопирован picture_info на верхний уровень: {page_results['data']['picture_info']}"
+                        )
+                    # Если picture_info пустой, создаем пустую структуру
+                    else:
+                        combined_results["data"]["picture_info"] = {"Type": ""}
+                        logger.info("Создан пустой picture_info на верхнем уровне")
     return combined_results
 
 
@@ -608,10 +639,10 @@ if __name__ == "__main__":
         )
 
         if not pdf_path.exists():
-            print(f"Ошибка: файл {pdf_path} не найден")
+            logger.error(f"Ошибка: файл {pdf_path} не найден")
             sys.exit(1)
 
-        print(f"Анализ PDF: {pdf_path}")
+        logger.info(f"Анализ PDF: {pdf_path}")
 
         # Анализируем PDF
         raw_data = analyze_pdf_with_multiple_pages(pdf_path, pages_to_process=[0, 1])
@@ -620,6 +651,6 @@ if __name__ == "__main__":
         output_path = temp_directory / f"{pdf_path.stem}_raw_data.json"
         save_json_data(raw_data, output_path)
 
-        print(f"Данные сохранены в {output_path}")
+        logger.info(f"Данные сохранены в {output_path}")
     else:
-        print("Использование: python parser.py <путь_к_pdf>")
+        logger.warning("Использование: python parser.py <путь_к_pdf>")
