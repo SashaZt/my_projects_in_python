@@ -198,12 +198,26 @@ def extract_table_data(table, table_name="", table_type=""):
 
     elif table_type == "tabular_data":
         # Для таблиц со второй страницы (lines_13-23)
-        # Обрабатываем как набор ключ-значений
+        # Обрабатываем каждую строку как ключ-значение
         for row in table:
-            if len(row) >= 2 and row[0]:
+            if len(row) >= 2 and row[0]:  # Если есть ключ и значение
                 key = row[0].strip()
-                value = row[1].strip() if len(row) > 1 and row[1] else None
+                value = row[1].strip() if row[1] else ""
                 result[key] = value
+    # elif table_type == "tabular_data":
+    #     # Для таблиц со второй страницы (lines_13-23)
+    #     # Обрабатываем каждую строку как ключ-значение
+    #     for row in table:
+    #         # Учитываем оба варианта: [ключ, значение] и [ключ]
+    #         if row and len(row) > 0 and row[0]:
+    #             key = row[0].strip()
+    #             # Для строк с двумя элементами, берем второй как значение
+    #             if len(row) >= 2:
+    #                 value = row[1].strip() if row[1] else ""
+    #             # Для строк с одним элементом, значение пустое
+    #             else:
+    #                 value = ""
+    #             result[key] = value
 
     else:
         # По умолчанию, возвращаем сырые данные
@@ -304,7 +318,7 @@ def get_table_definitions_residential(page_no):
             {
                 "name": "building_style",
                 "horizontal_lines": [75, 85, 95, 105, 115],
-                "vertical_lines": [30, 95, 137],
+                "vertical_lines": [30, 95, 140],
                 "type": "tabular_data",
             },
             {
@@ -316,7 +330,7 @@ def get_table_definitions_residential(page_no):
             {
                 "name": "rooms",
                 "horizontal_lines": [150, 160, 170, 180],
-                "vertical_lines": [30, 95, 137],
+                "vertical_lines": [30, 95, 140],
                 "type": "tabular_data",
             },
             {
@@ -328,7 +342,7 @@ def get_table_definitions_residential(page_no):
             {
                 "name": "bathroom_info",
                 "horizontal_lines": [205, 215, 225, 235],
-                "vertical_lines": [30, 95, 137],
+                "vertical_lines": [30, 95, 140],
                 "type": "tabular_data",
             },
             {
@@ -358,7 +372,7 @@ def get_table_definitions_residential(page_no):
             {
                 "name": "value_history",
                 "horizontal_lines": [510, 521, 530, 545],
-                "vertical_lines": [15, 95, 137],
+                "vertical_lines": [15, 95, 165],
                 "type": "tabular_data",
             },
             {
@@ -586,7 +600,6 @@ def analyze_pdf_with_multiple_pages(
             page_results = analyze_pdf_page(
                 pdf_path, document_type, page_no, save_debug_images
             )
-            logger.info(page_results)
             # Сохраняем информацию о странице
             combined_results["pages_info"].append(page_results["page_info"])
 
@@ -598,23 +611,23 @@ def analyze_pdf_with_multiple_pages(
                 page_key = f"page_{page_no + 1}"
                 combined_results["data"][page_key] = page_results["data"]
 
-                # НОВЫЙ КОД: Копируем picture_info со страницы 2 на верхний уровень
+                # Копируем picture_info со страницы 2 на верхний уровень
                 if (
                     document_type == "RESIDENTIAL"
                     and "picture_info" in page_results["data"]
                 ):
-                    # Если в picture_info есть данные, копируем их на верхний уровень
-                    if page_results["data"]["picture_info"]:
-                        combined_results["data"]["picture_info"] = page_results["data"][
-                            "picture_info"
-                        ]
-                        logger.info(
-                            f"Скопирован picture_info на верхний уровень: {page_results['data']['picture_info']}"
-                        )
-                    # Если picture_info пустой, создаем пустую структуру
-                    else:
-                        combined_results["data"]["picture_info"] = {"Type": ""}
-                        logger.info("Создан пустой picture_info на верхнем уровне")
+                    combined_results["data"]["picture_info"] = page_results["data"][
+                        "picture_info"
+                    ]
+                    logger.info(
+                        f"Скопирован picture_info на верхний уровень: {page_results['data']['picture_info']}"
+                    )
+
+    # Логирование итоговых данных
+    logger.info(
+        f"Сформированы итоговые данные для файла {pdf_path}: {combined_results}"
+    )
+
     return combined_results
 
 

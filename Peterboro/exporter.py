@@ -273,7 +273,7 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
         "Condition",
         "Ground Floor Area",
         "Total Living Area",
-        "Basement Area Type",
+        "Basement Area",
         "Type.1",  # Добавлено новое поле
         "Total Acres",
     ]
@@ -351,6 +351,7 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
             if document_type == "RESIDENTIAL":
                 # Данные о здании для RESIDENTIAL
                 building_info = property_data.get("building_info", {})
+                value_history = property_data.get("value_history", {})
 
                 # ИЗМЕНЕНО: Получаем данные picture_info и обрабатываем Type из picture_info только
                 # если оно есть и не перезаписывать типом из transfer_data если он непустой
@@ -385,6 +386,8 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
                 data_row["Fuel Type"] = building_info.get("Fuel Type", "")
                 data_row["System Type"] = building_info.get("System Type", "")
                 data_row["Bedrooms"] = building_info.get("Bedrooms", "")
+                data_row["Family Rooms"] = building_info.get("Family Rooms", "")
+                data_row["Kitchens"] = building_info.get("Kitchens", "")
                 data_row["Total Rooms"] = building_info.get("Total Rooms", "")
                 data_row["Full Baths"] = building_info.get("Full Baths", "")
                 data_row["Half Baths"] = building_info.get("Half Baths", "")
@@ -393,10 +396,13 @@ def export_multiple_pdfs_to_csv(pdf_data_list, output_path):
                 data_row["Year Remodeled"] = building_info.get("Year Remodeled", "")
                 data_row["Grade"] = building_info.get("Grade", "")
                 data_row["Condition"] = building_info.get("Condition", "")
-                data_row["Ground Floor Area"] = building_info.get(
+                data_row["Ground Floor Area"] = value_history.get(
                     "Ground Floor Area", ""
                 )
-                data_row["Total Living Area"] = building_info.get("Total Area", "")
+                data_row["Total Living Area"] = value_history.get(
+                    "Total Living Area", ""
+                )
+                data_row["Basement Area"] = value_history.get("Basement Area", None)
 
             elif document_type == "COMMERCIAL":
                 # Данные о здании для COMMERCIAL

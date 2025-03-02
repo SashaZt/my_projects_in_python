@@ -43,8 +43,8 @@ def anali_pdf_02(pdf_path, test_page_no=0):
             if page_no == test_page_no:
                 # Настройки для обнаружения таблиц
 
-                vertical_lines_13 = [365, 450]
-                horizontal_lines_13 = [275, 287, 390]
+                vertical_lines_13 = [15, 95, 165]
+                horizontal_lines_13 = [510, 521, 530, 545]
 
                 # Стратегии могут быть: "lines", "text", "explicit"
                 table_settings = {
@@ -76,7 +76,7 @@ def anali_pdf_02(pdf_path, test_page_no=0):
 
 
 if __name__ == "__main__":
-    pdf_file = "R001-005-000.pdf"
+    pdf_file = "R001-007-002.pdf"
     pdf_path = pdf_directory / pdf_file
     # Указываем номер листа, начинается с 0
     test_page_no = 1
