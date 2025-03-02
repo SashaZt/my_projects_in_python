@@ -2519,7 +2519,7 @@ def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
 
             else:
                 # Добавляем новую строку
-                logger.info("Добавление новой строки для заказа")
+                # logger.info("Добавление новой строки для заказа")
 
                 # Формируем строку данных в том же порядке, что и заголовки
                 new_row_data = [
@@ -2527,9 +2527,9 @@ def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
                 ]
 
                 # Логируем длину массива данных и заголовков для проверки соответствия
-                logger.info(
-                    f"Длина массива данных: {len(new_row_data)}, длина массива заголовков: {len(unique_headers)}"
-                )
+                # logger.info(
+                #     f"Длина массива данных: {len(new_row_data)}, длина массива заголовков: {len(unique_headers)}"
+                # )
 
                 try:
                     # Делаем длинную паузу перед добавлением новой строки

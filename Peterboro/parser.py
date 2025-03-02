@@ -1,10 +1,7 @@
-import csv
 import json
 import os
 import re
-import shutil
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 import pdfplumber
@@ -39,6 +36,58 @@ logger.add(
     level="DEBUG",
     enqueue=True,
 )
+
+
+def detect_document_type(pdf_path):
+    """
+    Определяет тип документа PDF (RESIDENTIAL или COMMERCIAL)
+
+    Returns:
+        str: тип документа ('RESIDENTIAL', 'COMMERCIAL' или 'UNKNOWN')
+    """
+    document_type = "UNKNOWN"
+
+    with pdfplumber.open(pdf_path) as pdf:
+        if len(pdf.pages) > 0:
+            page = pdf.pages[0]
+
+            # Настройки для определения заголовка документа
+            header_settings = {
+                "vertical_strategy": "explicit",
+                "explicit_vertical_lines": [50, 60, 137],
+                "horizontal_strategy": "explicit",
+                "explicit_horizontal_lines": [10, 25],
+                "snap_tolerance": 3,
+                "join_tolerance": 3,
+                "edge_min_length": 10,
+                "min_words_vertical": 1,
+                "min_words_horizontal": 1,
+            }
+
+            # Пытаемся извлечь таблицу заголовка
+            header_tables = page.extract_tables(header_settings)
+
+            if header_tables and len(header_tables) > 0 and len(header_tables[0]) > 0:
+                header_row = header_tables[0][0]
+                if len(header_row) >= 2 and header_row[1]:
+                    document_type = header_row[1].strip()
+                    logger.info(f"Определен тип документа: {document_type}")
+                    return document_type
+
+            # Если не удалось определить тип через таблицу, пытаемся использовать текст
+            text = page.extract_text()
+            if text:
+                if "RESIDENTIAL" in text.upper():
+                    document_type = "RESIDENTIAL"
+                    logger.info(f"Определен тип документа из текста: {document_type}")
+                elif "COMMERCIAL" in text.upper():
+                    document_type = "COMMERCIAL"
+                    logger.info(f"Определен тип документа из текста: {document_type}")
+
+    logger.warning(
+        f"Не удалось определить тип документа, используется по умолчанию: {document_type}"
+    )
+    return document_type
 
 
 def extract_table_data(table, table_name="", table_type=""):
@@ -139,11 +188,11 @@ def extract_table_data(table, table_name="", table_type=""):
     return result
 
 
-def get_table_definitions(page_no):
+def get_table_definitions_residential(page_no):
     """
-    Возвращает определения таблиц для указанной страницы
+    Возвращает определения таблиц для RESIDENTIAL документа
     """
-    # Таблицы для первой страницы
+    # Таблицы для первой страницы RESIDENTIAL
     if page_no == 0:
         return [
             {
@@ -219,7 +268,7 @@ def get_table_definitions(page_no):
                 "type": "transfer_data",
             },
         ]
-    # Таблицы для второй страницы
+    # Таблицы для второй страницы RESIDENTIAL
     elif page_no == 1:
         return [
             {
@@ -293,11 +342,125 @@ def get_table_definitions(page_no):
         return []
 
 
-def analyze_pdf_page(pdf_path, page_no=0, save_debug_images=True):
+def get_table_definitions_commercial(page_no):
+    """
+    Возвращает определения таблиц для COMMERCIAL документа
+    """
+    # Таблицы для первой страницы COMMERCIAL
+    if page_no == 0:
+        return [
+            {
+                "name": "document_type",
+                "horizontal_lines": [10, 25],
+                "vertical_lines": [50, 60, 137],
+                "type": "header",
+            },
+            {
+                "name": "situs",
+                "horizontal_lines": [30, 45],
+                "vertical_lines": [15, 40, 180],
+                "type": "key_value_row",
+            },
+            {
+                "name": "class",
+                "horizontal_lines": [30, 45],
+                "vertical_lines": [380, 405, 535],
+                "type": "key_value_row",
+            },
+            {
+                "name": "card",
+                "horizontal_lines": [30, 45],
+                "vertical_lines": [550, 572, 610],
+                "type": "key_value_row",
+            },
+            {
+                "name": "owner_address",
+                "horizontal_lines": [65, 77, 86, 96, 106, 130],
+                "vertical_lines": [15, 205],
+                "type": "address",
+            },
+            {
+                "name": "property_details",
+                "horizontal_lines": [65, 75, 84, 93, 103, 110, 118, 130],
+                "vertical_lines": [210, 265, 360],
+                "type": "property_details",
+            },
+            {
+                "name": "total_acres",
+                "horizontal_lines": [305, 315],
+                "vertical_lines": [15, 59, 90],
+                "type": "single_key_value",
+            },
+            {
+                "name": "value_data",
+                "horizontal_lines": [247, 256, 267, 275],
+                "vertical_lines": [420, 470, 520],
+                "type": "value_data",
+            },
+            {
+                "name": "transfer_date",
+                "horizontal_lines": [445, 453, 464],
+                "vertical_lines": [15, 80],
+                "type": "transfer_data",
+            },
+            {
+                "name": "transfer_price",
+                "horizontal_lines": [445, 453, 464],
+                "vertical_lines": [120, 150],
+                "type": "transfer_data",
+            },
+            {
+                "name": "transfer_type",
+                "horizontal_lines": [445, 455, 465],
+                "vertical_lines": [150, 200],
+                "type": "transfer_data",
+            },
+            {
+                "name": "transfer_validity",
+                "horizontal_lines": [445, 455, 465],
+                "vertical_lines": [270, 410],
+                "type": "transfer_data",
+            },
+        ]
+    # Таблицы для второй страницы COMMERCIAL
+    elif page_no == 1:
+        return [
+            {
+                "name": "building_info",
+                "horizontal_lines": [72, 82, 92, 101, 110, 120, 129, 138, 149],
+                "vertical_lines": [14, 95, 170],
+                "type": "tabular_data",
+            },
+            # При необходимости добавьте другие таблицы для второй страницы коммерческого документа
+        ]
+    else:
+        return []
+
+
+def get_table_definitions(document_type, page_no):
+    """
+    Возвращает определения таблиц в зависимости от типа документа и номера страницы
+    """
+    if document_type == "RESIDENTIAL":
+        return get_table_definitions_residential(page_no)
+    elif document_type == "COMMERCIAL":
+        return get_table_definitions_commercial(page_no)
+    else:
+        # Для неизвестного типа используем определения RESIDENTIAL по умолчанию
+        logger.warning(
+            f"Неизвестный тип документа: {document_type}, используем RESIDENTIAL по умолчанию"
+        )
+        return get_table_definitions_residential(page_no)
+
+
+def analyze_pdf_page(pdf_path, document_type, page_no=0, save_debug_images=True):
     """
     Анализирует отдельную страницу PDF с множеством таблиц
     """
-    results = {"page_info": {"number": page_no + 1}, "data": {}}
+    results = {
+        "page_info": {"number": page_no + 1, "document_type": document_type},
+        "data": {},
+    }
 
     with pdfplumber.open(pdf_path) as pdf:
         if page_no >= len(pdf.pages):
@@ -310,8 +473,8 @@ def analyze_pdf_page(pdf_path, page_no=0, save_debug_images=True):
         results["page_info"]["width"] = page.width
         results["page_info"]["height"] = page.height
 
-        # Получаем определения таблиц для страницы
-        table_definitions = get_table_definitions(page_no)
+        # Получаем определения таблиц для страницы в зависимости от типа документа
+        table_definitions = get_table_definitions(document_type, page_no)
 
         # Обработка каждого определения таблицы
         for table_def in table_definitions:
@@ -386,7 +549,15 @@ def analyze_pdf_with_multiple_pages(
     """
     Анализирует несколько страниц PDF и объединяет результаты
     """
-    combined_results = {"page_count": 0, "pages_info": [], "data": {}}
+    # Сначала определяем тип документа
+    document_type = detect_document_type(pdf_path)
+
+    combined_results = {
+        "page_count": 0,
+        "document_type": document_type,
+        "pages_info": [],
+        "data": {},
+    }
 
     with pdfplumber.open(pdf_path) as pdf:
         combined_results["page_count"] = len(pdf.pages)
@@ -398,8 +569,10 @@ def analyze_pdf_with_multiple_pages(
                 )
                 continue
 
-            logger.info(f"Обработка страницы {page_no + 1}")
-            page_results = analyze_pdf_page(pdf_path, page_no, save_debug_images)
+            logger.info(f"Обработка страницы {page_no + 1} типа {document_type}")
+            page_results = analyze_pdf_page(
+                pdf_path, document_type, page_no, save_debug_images
+            )
 
             # Сохраняем информацию о странице
             combined_results["pages_info"].append(page_results["page_info"])
@@ -414,83 +587,6 @@ def analyze_pdf_with_multiple_pages(
     return combined_results
 
 
-def post_process_data(data):
-    """
-    Обрабатывает объединенные данные для создания структурированного JSON
-    """
-    processed = {"page_count": data.get("page_count", 0), "property": {}}
-
-    # Данные с первой страницы
-    page1_data = data.get("data", {})
-
-    # Базовая информация о недвижимости
-    processed["property"]["document_type"] = page1_data.get("document_type", {}).get(
-        "document_type", ""
-    )
-
-    # Адрес и расположение
-    processed["property"]["location"] = {
-        "situs": page1_data.get("Situs", ""),
-        "card": page1_data.get("Card", ""),
-        "class": page1_data.get("Class", ""),
-        "total_acres": page1_data.get("Total Acres", ""),
-    }
-
-    # Информация о владельце
-    owner_address = page1_data.get("owner_address", {})
-    processed["property"]["owner"] = {
-        "Owner1": owner_address.get("Owner1", ""),
-        "Owner2": owner_address.get("Owner2", ""),
-        "Owner3": owner_address.get("Owner3", ""),
-        "Owner4": owner_address.get("Owner4", ""),
-        "Owner5": owner_address.get("Owner5", ""),
-    }
-
-    # Детали собственности
-    property_details = page1_data.get("property_details", {})
-    processed["property"]["details"] = property_details
-
-    # Данные оценки
-    value_data = page1_data.get("value_data", {})
-    processed["property"]["assessment"] = value_data
-
-    # Информация о передаче прав
-    processed["property"]["transfer"] = {
-        "date": page1_data.get("transfer_date", {}).get("Transfer Date", ""),
-        "price": page1_data.get("transfer_price", {}).get("Price", ""),
-        "type": page1_data.get("transfer_type", {}).get("Type", ""),
-        "validity": page1_data.get("transfer_validity", {}).get("Validity", ""),
-    }
-
-    # Данные со второй страницы
-    if "page_2" in data.get("data", {}):
-        page2_data = data["data"]["page_2"]
-
-        # Создаем единый словарь для всех строительных характеристик
-        building_info = {}
-
-        # Объединяем все словари с информацией о здании в один общий словарь
-        building_info.update(page2_data.get("building_style", {}))
-        building_info.update(page2_data.get("exterior_features", {}))
-        building_info.update(page2_data.get("rooms", {}))
-        building_info.update(page2_data.get("kitchen_info", {}))
-        building_info.update(page2_data.get("bathroom_info", {}))
-        building_info.update(page2_data.get("heat_info", {}))
-        building_info.update(page2_data.get("physical_condition", {}))
-        building_info.update(page2_data.get("interior_features", {}))
-        building_info.update(page2_data.get("construction_details", {}))
-
-        processed["property"]["building_info"] = building_info
-
-        # Отдельный раздел для истории оценки
-        processed["property"]["value_history"] = page2_data.get("value_history", {})
-
-        # Информация о изображении
-        processed["property"]["picture_info"] = page2_data.get("picture_info", {})
-
-    return processed
-
-
 def save_json_data(data, output_path):
     """
     Сохраняет данные в JSON-файл
@@ -501,123 +597,29 @@ def save_json_data(data, output_path):
     return output_path
 
 
-def export_multiple_pdfs_to_csv(pdf_data_list, output_directory):
-    """
-    Экспортирует данные из нескольких PDF файлов в единый CSV файл.
-
-    Args:
-        pdf_data_list: Список кортежей (имя_файла, обработанные_данные)
-        output_directory: Директория для сохранения CSV файла
-
-    Returns:
-        Путь к созданному CSV файлу
-    """
-    # Определяем заголовки CSV на основе структуры Peterboro.xlsx
-    headers = [
-        "File Name",
-        "Owner1",
-        "Owner2",
-        "Owner3",
-        "Owner4",
-        "Owner5",
-        "Situs",
-        "Card",
-        "Class",
-        "District",
-        "Zone",
-        "Living Units",
-        "Neighborhood",
-        "Alternate ID",
-        "Vol/Pg",
-        "Total Acres",
-        "Land Value",
-        "Building Value",
-        "Total Value",
-        "Transfer Date",
-        "Price",
-        "Type",
-        "Validity",
-        "Style",
-        "Story Height",
-        "Attic",
-        "Exterior Walls",
-        # Добавьте другие заголовки из второй страницы
-    ]
-
-    # Создаем выходной путь
-    output_path = os.path.join(output_directory, "peterboro.csv")
-
-    # Запись CSV файла
-    with open(output_path, "w", newline="", encoding="utf-8") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=headers)
-        writer.writeheader()
-
-        for file_name, processed_data in pdf_data_list:
-            # Создаем строку данных для экспорта
-            data_row = {"File Name": file_name}
-
-            # Извлекаем данные из обработанной структуры
-            property_data = processed_data.get("property", {})
-
-            # Информация о владельце
-            owner_data = property_data.get("owner", {})
-            data_row["Owner1"] = owner_data.get("Owner1", "")
-            data_row["Owner2"] = owner_data.get("Owner2", "")
-            data_row["Owner3"] = owner_data.get("Owner3", "")
-            data_row["Owner4"] = owner_data.get("Owner4", "")
-            data_row["Owner5"] = owner_data.get("Owner5", "")
-
-            # Адрес и расположение
-            location_data = property_data.get("location", {})
-            data_row["Situs"] = location_data.get("situs", "")
-            data_row["Card"] = location_data.get("card", "")
-            data_row["Class"] = location_data.get("class", "")
-            data_row["Total Acres"] = location_data.get("total_acres", "")
-
-            # Детали собственности
-            details_data = property_data.get("details", {})
-            data_row["District"] = details_data.get("District", "")
-            data_row["Zone"] = details_data.get("Zoning", "")
-            data_row["Living Units"] = details_data.get("Living Units", "")
-            data_row["Neighborhood"] = details_data.get("Neighborhood", "")
-            data_row["Alternate ID"] = details_data.get("Alternate ID", "")
-            data_row["Vol/Pg"] = details_data.get("Vol / Pg", "")
-
-            # Данные оценки
-            assessment_data = property_data.get("assessment", {})
-            data_row["Land Value"] = assessment_data.get("Land", "")
-            data_row["Building Value"] = assessment_data.get("Building", "")
-            data_row["Total Value"] = assessment_data.get("Total", "")
-
-            # Информация о передаче прав
-            transfer_data = property_data.get("transfer", {})
-            data_row["Transfer Date"] = transfer_data.get("date", "")
-            data_row["Price"] = transfer_data.get("price", "")
-            data_row["Type"] = transfer_data.get("type", "")
-            data_row["Validity"] = transfer_data.get("validity", "")
-
-            # Данные о здании (со второй страницы)
-            building_info = property_data.get("building_info", {})
-            data_row["Style"] = building_info.get("Style", "")
-            data_row["Story Height"] = building_info.get("Story height", "")
-            data_row["Attic"] = building_info.get("Attic", "")
-            data_row["Exterior Walls"] = building_info.get("Exterior Walls", "")
-
-            # Записываем строку в CSV
-            writer.writerow(data_row)
-
-    return output_path
-
-
+# Если файл запускается напрямую, анализируем один PDF
 if __name__ == "__main__":
+    import sys
 
-    pdf_data_list = []
-    for pdf_file in pdf_directory.glob("*.pdf"):
+    if len(sys.argv) > 1:
+        pdf_file = sys.argv[1]
+        pdf_path = (
+            pdf_directory / pdf_file if not os.path.isabs(pdf_file) else Path(pdf_file)
+        )
+
+        if not pdf_path.exists():
+            print(f"Ошибка: файл {pdf_path} не найден")
+            sys.exit(1)
+
+        print(f"Анализ PDF: {pdf_path}")
+
         # Анализируем PDF
-        raw_data = analyze_pdf_with_multiple_pages(pdf_file, pages_to_process=[0, 1])
-        processed_data = post_process_data(raw_data)
-        pdf_data_list.append((pdf_file.name, processed_data))
+        raw_data = analyze_pdf_with_multiple_pages(pdf_path, pages_to_process=[0, 1])
 
-    # Экспортируем все в один CSV
-    combined_csv = export_multiple_pdfs_to_csv(pdf_data_list, temp_directory)
-    print(f"Данные всех PDF файлов экспортированы в CSV: {combined_csv}")
+        # Сохраняем результаты
+        output_path = temp_directory / f"{pdf_path.stem}_raw_data.json"
+        save_json_data(raw_data, output_path)
+
+        print(f"Данные сохранены в {output_path}")
+    else:
+        print("Использование: python parser.py <путь_к_pdf>")
