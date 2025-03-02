@@ -11,8 +11,8 @@ from loguru import logger
 current_directory = Path.cwd()
 pdf_directory = current_directory / "pdf"
 log_directory = current_directory / "log"
-# temp_directory = current_directory / "temp"
-# temp_directory.mkdir(parents=True, exist_ok=True)
+temp_directory = current_directory / "temp"
+temp_directory.mkdir(parents=True, exist_ok=True)
 pdf_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
 
