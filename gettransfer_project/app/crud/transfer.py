@@ -6,7 +6,7 @@ from schemas.transfer import TransferCreate  # Pydantic‑схема для со
 from core.logger import logger
 
 async def get_transfer_by_transfer_id(db: AsyncSession, transfer_id: str):
-    query = select(TransferModel).where(TransferModel.transfer_id == transfer_id)  # Исправлено на TransferModel
+    query = select(TransferModel).where(TransferModel.transfer_id == transfer_id)  
     result = await db.execute(query)
     return result.scalar_one_or_none()
 

@@ -357,7 +357,8 @@ async def create_database():
             uploaded_to_sheets BOOLEAN DEFAULT FALSE,
             last_update_exported TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            orderTimeLook TEXT  -- Добавлена новая колонка
         )
         """
         )
@@ -550,373 +551,6 @@ async def create_database():
         logger.info("База данных создана успешно")
 
 
-# async def insert_order_data(order_data):
-#     """Вставка всех данных заказа в созданные таблицы"""
-#     order_id = None
-
-#     try:
-#         order_id = order_data.get("id")
-#         if not order_id:
-#             logger.info("Ошибка: отсутствует ID заказа в данных")
-#             return False
-
-#         async with aiosqlite.connect(DB_PATH) as db:
-#             # Проверяем, существует ли уже запись с таким ID
-#             cursor = await db.execute("SELECT id FROM orders WHERE id = ?", (order_id,))
-#             existing_record = await cursor.fetchone()
-
-#             # statusId ID Переводим в текст
-#             statusId = order_data.get("statusId")
-#             statusId_text = str(
-#                 statusId
-#             )  # По умолчанию используем строковое представление числа
-
-#             if statusId is not None:
-#                 # Получаем соответствие ID -> текст из глобальных метаданных
-#                 if metadata and "statusId" in metadata:
-#                     type_mapping = metadata["statusId"]
-#                     statusId_text = type_mapping.get(statusId, str(statusId))
-
-#             if existing_record and statusId_text != "Новий":
-#                 logger.warning(f"Заказ с ID {order_id} уже существует в базе данных")
-#                 return False
-
-#             # type_id ID Переводим в текст
-#             type_id = order_data.get("typeId")
-#             type_id_text = str(
-#                 type_id
-#             )  # По умолчанию используем строковое представление числа
-
-#             if type_id is not None:
-#                 # Получаем соответствие ID -> текст из глобальных метаданных
-#                 if metadata and "typeId" in metadata:
-#                     type_mapping = metadata["typeId"]
-#                     type_id_text = type_mapping.get(type_id, str(type_id))
-
-#             # shipping_method ID Переводим в текст
-#             shipping_method = order_data.get("shipping_method")
-#             shipping_method_text = str(shipping_method)
-
-#             if shipping_method is not None:
-#                 # Получаем соответствие ID -> текст из глобальных метаданных
-#                 if metadata and "shipping_method" in metadata:
-#                     type_mapping = metadata["shipping_method"]
-#                     shipping_method_text = type_mapping.get(
-#                         shipping_method, str(shipping_method)
-#                     )
-
-#             # payment_method ID Переводим в текст
-#             payment_method = order_data.get("payment_method")
-#             payment_method_text = str(payment_method)
-
-#             if payment_method is not None:
-#                 # Получаем соответствие ID -> текст из глобальных метаданных
-#                 if metadata and "payment_method" in metadata:
-#                     type_mapping = metadata["payment_method"]
-#                     payment_method_text = type_mapping.get(
-#                         payment_method, str(payment_method)
-#                     )
-
-#             # Вставляем основные данные заказа
-#             await db.execute(
-#                 """
-#             INSERT INTO orders (
-#                 id, formId, version, organizationId, shipping_method, payment_method,
-#                 shipping_address, comment, timeEntryOrder, holderTime, document_ord_check,
-#                 discountAmount, orderTime, updateAt, statusId, paymentDate, rejectionReason,
-#                 userId, paymentAmount, commissionAmount, costPriceAmount, shipping_costs,
-#                 expensesAmount, profitAmount, typeId, payedAmount, restPay, call, sajt,
-#                 externalId, utmPage, utmMedium, campaignId, utmSourceFull, utmSource,
-#                 utmCampaign, utmContent, utmTerm, uploaded_to_sheets
-#             ) VALUES (
-#                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE
-#             )
-#             """,
-#                 (
-#                     order_data.get("id"),
-#                     order_data.get("formId"),
-#                     order_data.get("version"),
-#                     order_data.get("organizationId"),
-#                     shipping_method_text,
-#                     payment_method_text,
-#                     order_data.get("shipping_address"),
-#                     order_data.get("comment"),
-#                     order_data.get("timeEntryOrder"),
-#                     order_data.get("holderTime"),
-#                     order_data.get("document_ord_check"),
-#                     order_data.get("discountAmount"),
-#                     order_data.get("orderTime"),
-#                     order_data.get("updateAt"),
-#                     statusId_text,
-#                     order_data.get("paymentDate"),
-#                     order_data.get("rejectionReason"),
-#                     order_data.get("userId"),
-#                     order_data.get("paymentAmount"),
-#                     order_data.get("commissionAmount"),
-#                     order_data.get("costPriceAmount"),
-#                     order_data.get("shipping_costs"),
-#                     order_data.get("expensesAmount"),
-#                     order_data.get("profitAmount"),
-#                     type_id_text,
-#                     order_data.get("payedAmount"),
-#                     order_data.get("restPay"),
-#                     order_data.get("call"),
-#                     order_data.get("sajt"),
-#                     order_data.get("externalId"),
-#                     order_data.get("utmPage"),
-#                     order_data.get("utmMedium"),
-#                     order_data.get("campaignId"),
-#                     order_data.get("utmSourceFull"),
-#                     order_data.get("utmSource"),
-#                     order_data.get("utmCampaign"),
-#                     order_data.get("utmContent"),
-#                     order_data.get("utmTerm"),
-#                 ),
-#             )
-
-#             # Вставляем данные о доставке
-#             ord_delivery_data = order_data.get("ord_delivery_data", [])
-#             if ord_delivery_data is not None:  # Проверка на None
-#                 for delivery in ord_delivery_data:
-#                     await db.execute(
-#                         """
-#                     INSERT INTO delivery_data (
-#                         order_id, senderId, backDelivery, cityName, provider, payForDelivery,
-#                         type, trackingNumber, statusCode, deliveryDateAndTime, idEntity,
-#                         branchNumber, address
-#                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-#                     """,
-#                         (
-#                             order_id,
-#                             delivery.get("senderId"),
-#                             delivery.get("backDelivery"),
-#                             delivery.get("cityName"),
-#                             delivery.get("provider"),
-#                             delivery.get("payForDelivery"),
-#                             delivery.get("type"),
-#                             delivery.get("trackingNumber"),
-#                             delivery.get("statusCode"),
-#                             delivery.get("deliveryDateAndTime"),
-#                             delivery.get("idEntity"),
-#                             delivery.get("branchNumber"),
-#                             delivery.get("address"),
-#                         ),
-#                     )
-
-#             # Вставляем данные первичного контакта
-#             primary_contact = order_data.get("primaryContact")
-#             if primary_contact:
-#                 contact_id = primary_contact.get("id")
-
-#                 # Проверяем, существует ли контакт с таким ID
-#                 cursor = await db.execute(
-#                     "SELECT id FROM primary_contacts WHERE id = ?", (contact_id,)
-#                 )
-#                 existing_contact = await cursor.fetchone()
-
-#                 if not existing_contact:
-#                     # Вставляем только если контакта еще нет
-#                     await db.execute(
-#                         """
-#                     INSERT INTO primary_contacts (
-#                         id, order_id, formId, version, active, con_uGC, con_bloger,
-#                         lName, fName, mName, telegram, instagramNick, counterpartyId,
-#                         comment, userId, createTime, leadsCount, leadsSalesCount,
-#                         leadsSalesAmount, company, con_povnaOplata
-#                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-#                     """,
-#                         (
-#                             contact_id,
-#                             order_id,
-#                             primary_contact.get("formId"),
-#                             primary_contact.get("version"),
-#                             primary_contact.get("active"),
-#                             primary_contact.get("con_uGC"),
-#                             primary_contact.get("con_bloger"),
-#                             primary_contact.get("lName"),
-#                             primary_contact.get("fName"),
-#                             primary_contact.get("mName"),
-#                             primary_contact.get("telegram"),
-#                             primary_contact.get("instagramNick"),
-#                             primary_contact.get("counterpartyId"),
-#                             primary_contact.get("comment"),
-#                             primary_contact.get("userId"),
-#                             primary_contact.get("createTime"),
-#                             primary_contact.get("leadsCount"),
-#                             primary_contact.get("leadsSalesCount"),
-#                             primary_contact.get("leadsSalesAmount"),
-#                             primary_contact.get("company"),
-#                             primary_contact.get("con_povnaOplata"),
-#                         ),
-#                     )
-#                 else:
-#                     logger.info(
-#                         f"Контакт с ID {contact_id} уже существует в базе данных"
-#                     )
-
-#                 # Вставляем телефоны и email первичного контакта
-#                 phone_list = primary_contact.get("phone", [])
-#                 if phone_list is not None:  # Проверка на None
-#                     for phone in phone_list:
-#                         await db.execute(
-#                             "INSERT INTO contact_phones (contact_id, phone) VALUES (?, ?)",
-#                             (contact_id, phone),
-#                         )
-
-#                 email_list = primary_contact.get("email", [])
-#                 if email_list is not None:  # Проверка на None
-#                     for email in email_list:
-#                         await db.execute(
-#                             "INSERT INTO contact_emails (contact_id, email) VALUES (?, ?)",
-#                             (contact_id, email),
-#                         )
-
-#             # Вставляем данные других контактов
-#             contacts_list = order_data.get("contacts", [])
-#             if contacts_list is not None:  # Проверка на None
-#                 for contact in contacts_list:
-#                     contact_id = contact.get("id")
-
-#                     # Проверяем, существует ли контакт с таким ID
-#                     cursor = await db.execute(
-#                         "SELECT id FROM contacts WHERE id = ?", (contact_id,)
-#                     )
-#                     existing_contact = await cursor.fetchone()
-
-#                     if not existing_contact:
-#                         # Вставляем только если контакта еще нет
-#                         await db.execute(
-#                             """
-#                         INSERT INTO contacts (
-#                             id, order_id, formId, version, active, con_uGC, con_bloger,
-#                             lName, fName, mName, telegram, instagramNick, counterpartyId,
-#                             comment, userId, createTime, leadsCount, leadsSalesCount,
-#                             leadsSalesAmount, company, con_povnaOplata
-#                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-#                         """,
-#                             (
-#                                 contact_id,
-#                                 order_id,
-#                                 contact.get("formId"),
-#                                 contact.get("version"),
-#                                 contact.get("active"),
-#                                 contact.get("con_uGC"),
-#                                 contact.get("con_bloger"),
-#                                 contact.get("lName"),
-#                                 contact.get("fName"),
-#                                 contact.get("mName"),
-#                                 contact.get("telegram"),
-#                                 contact.get("instagramNick"),
-#                                 contact.get("counterpartyId"),
-#                                 contact.get("comment"),
-#                                 contact.get("userId"),
-#                                 contact.get("createTime"),
-#                                 contact.get("leadsCount"),
-#                                 contact.get("leadsSalesCount"),
-#                                 contact.get("leadsSalesAmount"),
-#                                 contact.get("company"),
-#                                 contact.get("con_povnaOplata"),
-#                             ),
-#                         )
-#                     else:
-#                         logger.info(
-#                             f"Контакт с ID {contact_id} уже существует в таблице contacts"
-#                         )
-
-#                     # Вставляем телефоны и email других контактов
-#                     phone_list = contact.get("phone", [])
-#                     if phone_list is not None:  # Проверка на None
-#                         for phone in phone_list:
-#                             await db.execute(
-#                                 "INSERT INTO other_contact_phones (contact_id, phone) VALUES (?, ?)",
-#                                 (contact_id, phone),
-#                             )
-
-#                     email_list = contact.get("email", [])
-#                     if email_list is not None:  # Проверка на None
-#                         for email in email_list:
-#                             await db.execute(
-#                                 "INSERT INTO other_contact_emails (contact_id, email) VALUES (?, ?)",
-#                                 (contact_id, email),
-#                             )
-
-#             # Вставляем данные продуктов
-#             products_list = order_data.get("products", [])
-#             if products_list is not None:  # Проверка на None
-#                 for product in products_list:
-#                     await db.execute(
-#                         """
-#                     INSERT INTO products (
-#                         order_id, amount, percentCommission, preSale, productId, price, stockId,
-#                         costPrice, discount, description, commission, percentDiscount,
-#                         parameter, text, barcode, documentName, manufacturer, sku, uktzed
-#                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-#                     """,
-#                         (
-#                             order_id,
-#                             product.get("amount"),
-#                             product.get("percentCommission"),
-#                             product.get("preSale"),
-#                             product.get("productId"),
-#                             product.get("price"),
-#                             product.get("stockId"),
-#                             product.get("costPrice"),
-#                             product.get("discount"),
-#                             product.get("description"),
-#                             product.get("commission"),
-#                             product.get("percentDiscount"),
-#                             product.get("parameter"),
-#                             product.get("text"),
-#                             product.get("barcode"),
-#                             product.get("documentName"),
-#                             product.get("manufacturer"),
-#                             product.get("sku"),
-#                             product.get("uktzed"),
-#                         ),
-#                     )
-
-#             # Вставляем tipProdazu1 с заменой числовых значений на текст
-#             tip_list = order_data.get("tipProdazu1", [])
-#             if tip_list is not None:  # Проверка на None
-#                 # Получаем соответствие ID -> текст из глобальных метаданных
-#                 tip_mapping = metadata.get("tipProdazu1", {}) if metadata else {}
-
-#                 for tip in tip_list:
-#                     # Получаем текстовое представление для числового значения
-#                     tip_text = tip_mapping.get(
-#                         tip, str(tip)
-#                     )  # Если нет в словаре, используем строковое значение
-
-#                     await db.execute(
-#                         "INSERT INTO tip_prodazu (order_id, value) VALUES (?, ?)",
-#                         (order_id, tip_text),
-#                     )
-
-#             # Вставляем dzereloKomentarVidKlienta
-#             dzerelo_list = order_data.get("dzereloKomentarVidKlienta", [])
-#             if dzerelo_list is not None:  # Проверка на None
-#                 for dzerelo in dzerelo_list:
-#                     await db.execute(
-#                         "INSERT INTO dzerelo_komentar (order_id, value) VALUES (?, ?)",
-#                         (order_id, dzerelo),
-#                     )
-
-#             await db.commit()
-#             # logger.info(f"Заказ с ID {order_id} успешно добавлен в базу данных")
-#             return True
-
-#     except Exception as e:
-#         logger.error(f"Ошибка при вставке данных заказа: {e}, Заказ {order_id}")
-#         # Можно добавить более подробную информацию для отладки
-#         try:
-#             import traceback
-
-#             logger.debug(f"Подробная информация об ошибке: {traceback.format_exc()}")
-#         except:
-#             pass
-#         return False
-
-
 async def insert_order_data(
     db,
     order_id,
@@ -931,6 +565,17 @@ async def insert_order_data(
         if not order_id:
             logger.info("Ошибка: отсутствует ID заказа в данных")
             return False
+        order_time = order_data.get("orderTime")
+        order_time_look = ""
+        if order_time:
+            try:
+                # Парсим дату из строки формата "2024-08-03 09:22:04"
+                dt = datetime.strptime(order_time, "%Y-%m-%d %H:%M:%S")
+                # Форматируем в нужный формат "08.2024"
+                order_time_look = dt.strftime("%m.%Y")
+            except:
+                # В случае ошибки оставляем пустую строку
+                order_time_look = ""
 
         # Вставляем основные данные заказа
         await db.execute(
@@ -942,9 +587,9 @@ async def insert_order_data(
                 userId, paymentAmount, commissionAmount, costPriceAmount, shipping_costs,
                 expensesAmount, profitAmount, typeId, payedAmount, restPay, call, sajt,
                 externalId, utmPage, utmMedium, campaignId, utmSourceFull, utmSource,
-                utmCampaign, utmContent, utmTerm, uploaded_to_sheets
+                utmCampaign, utmContent, utmTerm, uploaded_to_sheets,orderTimeLook
             ) VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, FALSE,?
             )
             """,
             (
@@ -986,6 +631,7 @@ async def insert_order_data(
                 order_data.get("utmCampaign"),
                 order_data.get("utmContent"),
                 order_data.get("utmTerm"),
+                order_time_look,
             ),
         )
 
@@ -1741,132 +1387,6 @@ async def mark_as_uploaded(order_id: int):
         logger.info(f"Заказ с ID {order_id} отмечен как выгруженный")
 
 
-# def upload_to_google_sheets(orders: List[Dict[str, Any]]):
-#     """Выгрузка данных в Google Sheets"""
-#     if not orders:
-#         logger.error("Нет данных для выгрузки в Google Sheets")
-#         return
-
-#     try:
-#         # Настройка учетных данных
-#         scope = [
-#             "https://spreadsheets.google.com/feeds",
-#             "https://www.googleapis.com/auth/drive",
-#         ]
-
-#         creds = ServiceAccountCredentials.from_json_keyfile_name(
-#             GOOGLE_CREDENTIALS_PATH, scope
-#         )
-#         client = gspread.authorize(creds)
-
-#         # Открытие таблицы
-#         spreadsheet = client.open_by_id(SPREADSHEET_ID)
-#         worksheet = None
-
-#         # Проверяем, существует ли лист
-#         try:
-#             worksheet = spreadsheet.worksheet(SHEET_NAME)
-#         except gspread.exceptions.WorksheetNotFound:
-#             # Если лист не существует, создаем его
-#             worksheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows=1000, cols=20)
-
-#         # Подготовка заголовков таблицы
-#         headers = [
-#             "ID Заказа",
-#             "Статус",
-#             "Дата Заказа",
-#             "Сумма",
-#             "Способ Оплаты",
-#             "Клиент",
-#             "Телефон",
-#             "Email",
-#             "Адрес Доставки",
-#             "Товары",
-#         ]
-
-#         # Проверяем, есть ли уже заголовки
-#         existing_headers = worksheet.row_values(1)
-#         if not existing_headers:
-#             worksheet.append_row(headers)
-
-#         # Подготовка и загрузка данных заказов
-#         for order in orders:
-#             order_data = order["data"]
-
-#             # Контактная информация
-#             primary_contact = order_data.get("primaryContact", {})
-#             name = f"{primary_contact.get('lName', '')} {primary_contact.get('fName', '')}".strip()
-#             phone = (
-#                 primary_contact.get("phone", [""])[0]
-#                 if primary_contact.get("phone")
-#                 else ""
-#             )
-#             email = (
-#                 primary_contact.get("email", [""])[0]
-#                 if primary_contact.get("email")
-#                 else ""
-#             )
-
-#             # Товары
-#             products = []
-#             for product in order_data.get("products", []):
-#                 product_text = product.get("text", "")
-#                 amount = product.get("amount", 0)
-#                 price = product.get("price", 0)
-#                 if product_text and amount > 0:
-#                     products.append(f"{product_text} (кол-во: {amount}, цена: {price})")
-
-#             products_text = "; ".join(products)
-
-#             # Формирование строки для добавления
-#             row_data = [
-#                 order_data.get("id", ""),  # ID Заказа
-#                 order_data.get("statusId", ""),  # Статус
-#                 order_data.get("orderTime", ""),  # Дата Заказа
-#                 order_data.get("paymentAmount", 0),  # Сумма
-#                 order_data.get("payment_method", ""),  # Способ Оплаты
-#                 name,  # Клиент
-#                 phone,  # Телефон
-#                 email,  # Email
-#                 order_data.get("shipping_address", ""),  # Адрес Доставки
-#                 products_text,  # Товары
-#             ]
-
-#             # Добавляем данные в таблицу
-#             worksheet.append_row(row_data)
-
-#             # Помечаем заказ как выгруженный
-#             asyncio.create_task(mark_as_uploaded(order["id"]))
-
-#         logger.info(
-#             f"Данные успешно выгружены в Google Sheets, обработано заказов: {len(orders)}"
-#         )
-
-#     except Exception as e:
-#         logger.error(f"Ошибка при выгрузке в Google Sheets: {e}")
-
-
-# async def process_json_file(file_path: str):
-#     """Обработка JSON файла и загрузка данных в БД"""
-#     try:
-#         with open(file_path, "r", encoding="utf-8") as f:
-#             # Проверяем, является ли содержимое объектом или массивом
-#             content = f.read().strip()
-#             if content.startswith("[") and content.endswith("]"):
-#                 data = json.loads(content)
-#                 for order in data:
-#                     await insert_order_data(order)
-#             else:
-#                 # Если это один объект, а не массив
-#                 data = json.loads(content)
-#                 await insert_order_data(data)
-
-#     except json.JSONDecodeError as e:
-#         logger.error(f"Ошибка декодирования JSON: {e}")
-#     except Exception as e:
-#         logger.error(f"Ошибка обработки файла: {e}")
-
-
 async def process_order(file_path: str):
     """Обработка JSON файла и загрузка данных в БД"""
     try:
@@ -2291,6 +1811,7 @@ async def export_orders_to_sheets():
                     "other_contacts",
                     "tip_prodazu_values",
                     "client_comments",
+                    "orderTimeLook",
                 ]
                 for field in special_fields:
                     if field in all_headers:
@@ -2303,12 +1824,7 @@ async def export_orders_to_sheets():
 
                 # Добавляем заголовки в первую строку
                 worksheet.append_row(headers)
-                # logger.info(f"Добавлены заголовки в таблицу: {headers}")
             else:
-                # Используем существующие заголовки
-                # logger.info(
-                #     f"Используем существующие заголовки из таблицы: {existing_headers}"
-                # )
                 headers = existing_headers
 
         except gspread.exceptions.WorksheetNotFound:
@@ -2351,6 +1867,7 @@ async def export_orders_to_sheets():
                 "other_contacts",
                 "tip_prodazu_values",
                 "client_comments",
+                "orderTimeLook",
             ]
             for field in special_fields:
                 if field in all_headers:
@@ -2367,15 +1884,11 @@ async def export_orders_to_sheets():
 
             # Добавляем заголовки
             worksheet.append_row(headers)
-            # logger.info(f"Создан новый лист с заголовками: {headers}")
 
             # Обновляем список ID строк (пока пустой)
             all_ids_line = []
 
         # Логируем информацию о заголовках и данных для отладки
-        # logger.info(f"Используемые заголовки: {headers}")
-        # logger.info(f"Данные для выгрузки: {orders_data}")
-
         # Выгружаем данные
         update_orders_in_sheet(worksheet, orders_data, all_ids_line)
 
@@ -2392,6 +1905,72 @@ async def export_orders_to_sheets():
         logger.error(traceback.format_exc())
 
 
+async def update_order_time_look_for_existing_orders():
+    """
+    Одноразовая функция для заполнения поля orderTimeLook для всех существующих заказов
+    на основе значений в поле orderTime
+    """
+    try:
+        logger.info(
+            "Начинаем обновление поля orderTimeLook для существующих заказов..."
+        )
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            # Получаем все записи с непустым orderTime
+            cursor = await db.execute(
+                "SELECT id, orderTime FROM orders WHERE orderTime IS NOT NULL"
+            )
+            orders = await cursor.fetchall()
+
+            if not orders:
+                logger.info("Нет заказов для обновления")
+                return
+
+            logger.info(f"Найдено {len(orders)} заказов для обновления")
+            updated_count = 0
+            error_count = 0
+
+            for order in orders:
+                order_id, order_time = order
+
+                try:
+                    if order_time:
+                        # Парсим дату из строки формата "2024-08-03 09:22:04"
+                        dt = datetime.strptime(order_time, "%Y-%m-%d %H:%M:%S")
+                        # Форматируем в нужный формат "08.2024"
+                        order_time_look = dt.strftime("%m.%Y")
+
+                        # Обновляем запись
+                        await db.execute(
+                            "UPDATE orders SET orderTimeLook = ? WHERE id = ?",
+                            (order_time_look, order_id),
+                        )
+                        updated_count += 1
+
+                        # Выводим прогресс каждые 100 записей
+                        if updated_count % 100 == 0:
+                            logger.info(f"Обновлено {updated_count} заказов...")
+                except Exception as e:
+                    logger.error(f"Ошибка при обновлении заказа ID {order_id}: {e}")
+                    error_count += 1
+
+            # Сохраняем изменения
+            await db.commit()
+
+            logger.info(
+                f"Обновление завершено. Успешно обновлено: {updated_count}, с ошибками: {error_count}"
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка при массовом обновлении поля orderTimeLook: {e}")
+        try:
+            import traceback
+
+            logger.debug(f"Подробная информация об ошибке: {traceback.format_exc()}")
+        except:
+            pass
+
+
 def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
     """
     Обновляет или добавляет данные о заказах в Google Sheets с точным соответствием заголовкам.
@@ -2404,9 +1983,20 @@ def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
             logger.error("Заголовки листа не найдены.")
             return
 
-        # Логируем заголовки для отладки
-        # logger.info(f"Заголовки таблицы: {headers}")
-        # logger.info(f"Количество заголовков: {len(headers)}")
+        # Проверяем наличие заголовка orderTimeLook
+        if "orderTimeLook" not in headers:
+            # Добавляем новый заголовок в конец
+            next_col = len(headers) + 1
+            cell = rowcol_to_a1(1, next_col)
+
+            # Добавляем паузу перед добавлением нового заголовка
+            time.sleep(1)
+
+            worksheet.update(cell, "orderTimeLook")
+            logger.info(f"Добавлен заголовок 'orderTimeLook' в ячейку {cell}")
+
+            # Обновляем список заголовков
+            headers.append("orderTimeLook")
 
         # Удаляем дублирующиеся заголовки, если они есть
         unique_headers = []
@@ -2425,7 +2015,6 @@ def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
 
         # Счетчик запросов для отслеживания и предотвращения превышения лимитов
         request_count = 0
-
         for order in orders_data:
             order_id_str = str(order.get("id", ""))
             # Поиск строки с совпадающим ID
@@ -2487,9 +2076,6 @@ def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
                         value = row_data_by_header.get(header, "")
                         # Обновляем ячейку
                         worksheet.update_cell(target_row, col_idx, value)
-                        # logger.info(
-                        #     f"Обновлена ячейка ({target_row}, {col_idx}) = {header} со значением: {value}"
-                        # )
 
                         # Увеличиваем счетчик запросов
                         request_count += 1
@@ -2519,17 +2105,11 @@ def update_orders_in_sheet(worksheet, orders_data, all_ids_line):
 
             else:
                 # Добавляем новую строку
-                # logger.info("Добавление новой строки для заказа")
 
                 # Формируем строку данных в том же порядке, что и заголовки
                 new_row_data = [
                     row_data_by_header.get(header, "") for header in unique_headers
                 ]
-
-                # Логируем длину массива данных и заголовков для проверки соответствия
-                # logger.info(
-                #     f"Длина массива данных: {len(new_row_data)}, длина массива заголовков: {len(unique_headers)}"
-                # )
 
                 try:
                     # Делаем длинную паузу перед добавлением новой строки
@@ -2595,7 +2175,7 @@ async def main():
     """Основная функция для запуска процесса"""
     # Создаем базу данных, если она не существует
     await create_database()
-
+    # await update_order_time_look_for_existing_orders()
     # Обработка данных из JSON строки или файла
     # Можно раскомментировать нужный вариант
     # await process_json_file('путь_к_файлу.json')

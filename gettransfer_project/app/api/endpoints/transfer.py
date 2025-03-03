@@ -83,3 +83,42 @@ async def delete_existing_transfer(
         raise HTTPException(status_code=404, detail="Трансфер не найден")
     logger.info(f"Трансфер с id={transfer_id} успешно удалён")
     return {"detail": "Трансфер успешно удалён"}
+
+# Фильтрация по ключевым словам
+@router.get("/airport-city/list", response_model=list[Transfer])
+async def list_airport_city_transfers(
+    airport_keyword: str = Query(..., description="Ключевое слово для поиска аэропорта"),
+    city_keyword: str = Query(..., description="Ключевое слово для поиска города"),
+    skip: int = 0, 
+    limit: int = 100, 
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить список трансферов между указанным аэропортом и городом.
+    По умолчанию ищет трансферы между Vienna и Airport (VIE).
+    """
+    logger.debug(f"Запрос трансферов между аэропортом '{airport_keyword}' и городом '{city_keyword}'")
+    transfers = await get_airport_city_transfers(
+        db, airport_keyword, city_keyword, skip, limit
+    )
+    logger.info(f"Найдено {len(transfers)} трансферов между аэропортом и городом")
+    return transfers
+
+
+@router.get("/auto-suggestions", response_model=AutoSuggestionResponse)
+async def get_transfer_auto_suggestions(
+    airport_keyword: str = Query(..., description="Ключевое слово для поиска аэропорта"),
+    city_keyword: str = Query(..., description="Ключевое слово для поиска города"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить автоматические предложения для трансферов между аэропортом и городом.
+    Исключает срочные заказы (менее 15 минут до исполнения).
+    
+    Возвращает данные для автопредложения с указанием направления и цены
+    в зависимости от типа транспорта и количества пассажиров.
+    """
+    logger.debug(f"Запрос автопредложений для трансферов между '{airport_keyword}' и '{city_keyword}'")
+    suggestions = await get_auto_suggestions(db, airport_keyword, city_keyword)
+    logger.info(f"Сгенерированы автопредложения с {suggestions['available_transfers']} доступными трансферами")
+    return suggestions

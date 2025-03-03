@@ -29,3 +29,26 @@ class Transfer(TransferBase):
 
     class Config:
         from_attributes = True
+
+#Для фильтрации по ключевых слов
+class TransportOption(BaseModel):
+    name: str
+    passengers: str
+    luggage: str
+    price: float
+
+
+class Direction(BaseModel):
+    name: str
+    transport_options: List[TransportOption]
+
+
+class TransferStats(BaseModel):
+    pax_distribution: Dict[int, int]
+
+
+class AutoSuggestionResponse(BaseModel):
+    directions: List[Direction]
+    notes: List[str]
+    available_transfers: int
+    transfer_stats: Optional[TransferStats] = None

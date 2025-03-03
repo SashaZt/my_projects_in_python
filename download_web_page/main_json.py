@@ -35,61 +35,42 @@ logger.add(
     enqueue=True,
 )
 
+headers = {
+    "accept": "*/*",
+    "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    "dnt": "1",
+    "origin": "https://ba.prg.kz",
+    "priority": "u=1, i",
+    "referer": "https://ba.prg.kz/",
+    "sec-ch-ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "cross-site",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+}
+def get_json(id_company):
 
-def get_json():
-
-
-    import requests
-
-    url = "https://rrr.lt/ru/poisk"
+    
 
     params = {
-        "q": "K6D39U438AD",
-        "prs": "1",
-        "page": "1",
-        "_": "1739806171498"
+        "id": id_company,
+        "lang": "ru",
     }
 
-    headers = {
-        "accept": "application/json, text/javascript, */*; q=0.01",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "dnt": "1",
-        "priority": "u=1, i",
-        "referer": "https://rrr.lt/ru/poisk?q=K6D39U438AD",
-        "sec-ch-ua": '"Not(A:Brand";v="99", "Google Chrome";v="133", "Chromium";v="133"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
-        "x-requested-with": "XMLHttpRequest"
-    }
-
-    # Передаём cookies в виде словаря
-    cookies = {
-        "ff_ux_sid": "019504fc-3a84-7388-ad96-2a3660bb4ef4",
-        "cart_session": "8f322e0aec7afe3d66f11648c5a0f7b0",
-        "CookieConsent": "{stamp:'FJYq039mXvwLvGGsA1nWSv4CIb/hW9IQAXsfAVNMdGD0OSicpLwRFg==',necessary:true,preferences:true,statistics:true,marketing:true,method:'explicit',ver:1,utc:1739545396288,region:'ua'}",
-        "soundestID": "20250214150314-tTLL7sADxlRmvWiM8vE5ME7ri725ZI8QIgpd3Qjq3SMoreXXt",
-        "disable_ovoko_modal": "67af5b37d1b665.14705006",
-        "wishlist": "537d367fad7fd4dac69b5e9a31296570",
-        "_sp_id.1c83": "a0bf4e27-4e81-4056-890d-cb7fa6f6a40c.1739797427.1.1739797428..ed012ab0-4695-4520-b3c8-892aa2c4d963..1413d343-f311-4ca7-bd52-d97b150fd93a.1739797427295.8",
-        "ci_session": "2c801ede895c447cfb8aa46c3369057d98b282ab",
-        "cf_clearance": "RLFWc49rIAzflS_iuFxkQntUfCzG28vWd4FAZOreLxE-1739806139-1.2.1.1-FaYUsB7JXWEujJq7FQRMv2SA8yvqB7wsz06niBH_lQj9bQCj_OFwoioaBlWc9M_UH3IllD0zXs501A.zz.QrSrj1CgcXw03r9wJc.tSTjrYaUeIPInsQvfc3ivO5whHLadvRUqEYKPmNYcjltXlUhXL2bub508Va9V_PnIwAi73D_o8Ji9rz9LGPBGOlm.skp5_6J5vGKMDk2PCkWaJ_6hz5PaHjxMn_KnzwFQRyE_Bmrbt9ForEsZR3sFxosg2DQgKrAQra__BlvLl.P.fV.3DSmjzVg6uUX696BjcisVQ",
-        "omnisendSessionID": "QL3CO2dEvKI1o0-20250217152858"
-    }
-
-    response = requests.get(url, params=params, headers=headers, cookies=cookies)
-
+    response = requests.get(
+        "https://apiba.prgapp.kz/CompanyFullInfo",
+        params=params,
+        headers=headers,
+        timeout=30,
+    )
+    file_name = json_directory / f"{id_company}.json"
     # Если сервер вернул корректный JSON, то выводим его:
     try:
-        print(response)
-        response
         data = response.json()
-        with open("rrr.json", "w", encoding="utf-8") as f:
+        with open(file_name, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)  # Записываем в файл
-        print(data)
     except ValueError:
         print("Ошибка: ответ не содержит JSON")
 
