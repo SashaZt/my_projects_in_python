@@ -188,26 +188,28 @@ class KauflandAPI:
 
     # Примеры методов для работы с API
 
-    def get_categories(self, limit=20, offset=0):
+    def get_categories(self, storefront="de", limit=20, offset=0):
         """
         Получение списка категорий
 
+        :param storefront: Код страны (например, "de" для Германии)
         :param limit: Максимальное количество записей
         :param offset: Смещение для пагинации
         :return: Список категорий
         """
-        params = {"limit": limit, "offset": offset}
+        params = {"storefront": storefront, "limit": limit, "offset": offset}
         return self.make_request("GET", "/categories/", params=params)
 
-    def get_product(self, product_id, embedded=None):
+    def get_product(self, product_id, storefront="de", embedded=None):
         """
         Получение информации о товаре
 
         :param product_id: ID товара
+        :param storefront: Код страны (например, "de" для Германии)
         :param embedded: Дополнительные поля (например, "category,units")
         :return: Информация о товаре
         """
-        params = {}
+        params = {"storefront": storefront}
         if embedded:
             params["embedded"] = embedded
 
@@ -305,25 +307,29 @@ def test_signature_example():
     """
     Проверяет корректность создания подписи на примере из документации API
     """
+    # Используем точно такие же значения, как в примере из документации
     method = "POST"
     uri = "https://sellerapi.kaufland.com/v2/units/"
     body = ""
-    timestamp = int(time.time())
-    secret_key = "a7d0cb1da1ddbc86c96ee5fedd341b7d8ebfbb2f5c83cfe0909f4e57f05dd403"
+    timestamp = 1411055926  # Фиксированное значение из документации
+    secret_key = "a7d0cb1da1ddbc86c96ee5fedd341b7d8ebfbb2f5c83cfe0909f4e57f05dd403"  # Ключ из примера документации
 
     # Ожидаемая подпись из документации
     expected_signature = (
         "da0b65f51c0716c1d3fa658b7eaf710583630a762a98c9af8e9b392bd9df2e2a"
     )
 
-    # Создаем объект API клиента с тестовым ключом
+    # Создаем временный объект API клиента с тестовым ключом
     test_api = KauflandAPI("test_client_key", secret_key)
 
     # Получаем подпись
     signature = test_api.sign_request(method, uri, body, timestamp)
 
     # Проверяем соответствие
-    logger.info(f"Пример из документации:")
+    logger.info(f"Тест подписи по примеру из документации:")
+    logger.info(
+        f"- Использованные значения: метод={method}, URI={uri}, timestamp={timestamp}"
+    )
     logger.info(f"- Ожидаемая подпись: {expected_signature}")
     logger.info(f"- Полученная подпись: {signature}")
     logger.info(f"- Подписи совпадают: {signature == expected_signature}")
@@ -341,34 +347,57 @@ if __name__ == "__main__":
     logger.info("Проверка корректности генерации подписи...")
     signature_correct = test_signature_example()
 
-    # if not signature_correct:
-    #     logger.error("Генерация подписи работает некорректно! Проверьте алгоритм.")
-    # else:
-    #     logger.info("Генерация подписи работает корректно.")
+    if not signature_correct:
+        logger.error("Генерация подписи работает некорректно! Проверьте алгоритм.")
+    else:
+        logger.info("Генерация подписи работает корректно.")
 
-    # # Создаем API клиент с реальными ключами
-    # api = KauflandAPI(CLIENT_KEY, SECRET_KEY)
+    # Создаем API клиент с реальными ключами
+    api = KauflandAPI(CLIENT_KEY, SECRET_KEY)
 
-    # # Пример получения информации о доступных торговых площадках
-    # try:
-    #     logger.info("Запрос информации о торговых площадках...")
-    #     storefronts = api.get_storefront_info()
-    #     logger.info(f"Получена информация о торговых площадках")
-    # except Exception as e:
-    #     logger.error(f"Ошибка при получении информации о торговых площадках: {e}")
+    # Пример получения информации о доступных торговых площадках
+    try:
+        logger.info("Запрос информации о торговых площадках...")
+        storefronts = api.get_storefront_info()
+        storefront_codes = storefronts.get("data", [])
+        logger.info(
+            f"Получена информация о торговых площадках: {', '.join(storefront_codes)}"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при получении информации о торговых площадках: {e}")
+        storefront_codes = ["de"]  # Значение по умолчанию
 
-    # # Пример получения информации о категориях
-    # try:
-    #     logger.info("Запрос категорий...")
-    #     categories = api.get_categories(limit=5)
-    #     logger.info(f"Получено {len(categories.get('data', []))} категорий")
-    # except Exception as e:
-    #     logger.error(f"Ошибка при получении категорий: {e}")
+    # Используем первую доступную торговую площадку, если есть
+    default_storefront = storefront_codes[0] if storefront_codes else "de"
+    logger.info(f"Используем торговую площадку по умолчанию: {default_storefront}")
 
-    # # Пример поиска товаров
-    # try:
-    #     logger.info("Поиск товаров...")
-    #     search_results = api.search_products("smartphone", limit=10)
-    #     logger.info(f"Найдено {len(search_results.get('data', []))} товаров по запросу")
-    # except Exception as e:
-    #     logger.error(f"Ошибка при поиске товаров: {e}")
+    # Пример получения информации о категориях
+    try:
+        logger.info(f"Запрос категорий для {default_storefront}...")
+        categories = api.get_categories(storefront=default_storefront, limit=5)
+        logger.info(f"Получено {len(categories.get('data', []))} категорий")
+    except Exception as e:
+        logger.error(f"Ошибка при получении категорий: {e}")
+
+    # Пример поиска товаров
+    try:
+        logger.info("Поиск товаров...")
+        search_results = api.search_products(
+            "smartphone", storefront=default_storefront, limit=10
+        )
+        logger.info(f"Найдено {len(search_results.get('data', []))} товаров по запросу")
+
+        # Если найдены товары, попробуем получить детальную информацию о первом товаре
+        if search_results.get("data"):
+            first_product = search_results["data"][0]
+            product_id = first_product["id_product"]
+            logger.info(f"Получение детальной информации о товаре ID: {product_id}")
+
+            product_details = api.get_product(
+                product_id, storefront=default_storefront, embedded="category"
+            )
+            logger.info(
+                f"Получена детальная информация о товаре: {product_details.get('data', {}).get('title', 'Неизвестно')}"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при поиске товаров: {e}")

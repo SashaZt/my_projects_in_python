@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 import queue
 import random
@@ -246,8 +247,388 @@ def process_companies(num_threads=5):
     logger.info("Обработка завершена!")
 
 
+# def format_value(value):
+#     if value is True:
+#         return "Да"
+#     elif value is False:
+#         return "Нет"
+#     else:
+#         return value
+
+
+# def process_data():
+#     all_data = []
+#     for json_file in json_directory.glob("*.json"):
+#         with open(json_file, "r", encoding="utf-8") as file:
+#             data = json.load(file)
+#         company_bin = data.get("basicInfo", {}).get("bin", None)
+#         isNds_raw = data.get("basicInfo", {}).get("isNds", {}).get("value", None)
+#         if isNds_raw is True:
+#             isNds = "Да"
+#         else:
+#             isNds = "Нет"
+#         degreeOfRisk = (
+#             data.get("basicInfo", {}).get("degreeOfRisk", {}).get("value", None)
+#         )
+#         egov_contacts = data.get("egovContacts", {})
+#         phone_list = egov_contacts.get("phone", [])
+#         phone_value = phone_list[0].get("value", None) if phone_list else None
+#         gosZakupContacts = data.get("gosZakupContacts", {})
+#         phone_list_goz = gosZakupContacts.get("phone", [])
+#         email_list_goz = gosZakupContacts.get("email", [])
+#         www_list_goz = gosZakupContacts.get("website", [])
+#         phone_value_goz = (
+#             phone_list_goz[0].get("value", None) if phone_list_goz else None
+#         )
+#         email_value_goz = (
+#             email_list_goz[0].get("value", None) if email_list_goz else None
+#         )
+#         www_value_goz = www_list_goz[0].get("value", None) if www_list_goz else None
+#         debtsInfo = data.get("debtsInfo", {})
+#         kgd = debtsInfo.get("kgd", {}).get("totalDebt", None)
+#         egov = debtsInfo.get("egov", {}).get("totalDebt", None)
+
+#         reestrs = data.get("reestrs", [])
+
+#         # Создаем пустой словарь для результатов
+#         table_reestrs = {}
+#         # Функция для преобразования булевых значений
+
+#         # Проходим по каждому элементу списка
+#         for item in reestrs:
+#             description = item.get("description", "").replace(
+#                 "Комитет государственных доходов : ", ""
+#             )
+
+#             # Приоритетные ключи для значений, в порядке предпочтения
+#             priority_keys = ["isIntruder", "isNDS", "risk", "violation", "debtSumm"]
+
+#             # Найдем первый доступный ключ
+#             for key in priority_keys:
+#                 if key in item:
+#                     # Форматируем значение и добавляем в словарь
+#                     table_reestrs[description] = format_value(item.get(key))
+#                     break
+#         taxes = data.get("taxes", {})
+#         checkDate = taxes.get("checkDate", None)
+#         taxGraph = taxes.get("taxGraph", [])
+#         # Создаем словарь год: значение
+#         tax_by_year = {}
+
+#         # Годы, которые нам нужны
+#         needed_years = [2021, 2022, 2023, 2024]
+
+#         for item in taxGraph:
+#             year = item.get("year")
+#             value = item.get("value")
+#             if year in needed_years:  # Проверяем, что год в нашем списке нужных годов
+#                 tax_by_year[year] = value
+#         result = {
+#             "БИН": company_bin,
+#             "Плательщик НДС": isNds,
+#             "Степень риска налогоплательщика": degreeOfRisk,
+#             "Телефон": phone_value,
+#             "Телефон гоc. закупок": phone_value_goz,
+#             "E-mail гоc. закупок": email_value_goz,
+#             "Веб-сайт гоc. закупок": www_value_goz,
+#             "Задолженность Комитет государственных доходов": kgd,
+#             "Задолженность Электронное правительство": egov,
+#             "Благонадежность предприятия": table_reestrs,
+#             "Проверено:Комитет государственных доходов: уплата налогов": checkDate,
+#             "Налоговые отчисления": tax_by_year,
+#         }
+
+#         all_data.append(result)
+
+#     return all_data
+
+
+# # Функция для преобразования вложенных словарей в плоскую структуру
+# def flatten_nested_data(data_list):
+#     flattened_data = []
+
+#     for item in data_list:
+#         flat_item = {}
+
+#         # Обрабатываем простые поля
+#         for key, value in item.items():
+#             if not isinstance(value, dict):
+#                 flat_item[key] = value
+
+#         # Обрабатываем "Благонадежность предприятия"
+#         if "Благонадежность предприятия" in item:
+#             for subkey, subvalue in item["Благонадежность предприятия"].items():
+#                 flat_item[f"Благонадежность_{subkey}"] = subvalue
+
+#         # Обрабатываем "Налоговые отчисления"
+#         if "Налоговые отчисления" in item:
+#             for year, amount in item["Налоговые отчисления"].items():
+#                 flat_item[f"Налоги_{year}"] = amount
+
+#         flattened_data.append(flat_item)
+
+#     return flattened_data
+
+
+# def write_csv(data):
+#     # Создаем DataFrame
+#     df = pd.DataFrame(data)
+
+#     # Сохраняем в CSV
+#     df.to_csv("company_data.csv", index=False, encoding="utf-8")
+
+
+def format_value(value):
+    if value is True:
+        return "Да"
+    elif value is False:
+        return "Нет"
+    else:
+        return value
+
+
+def process_single_file(json_file):
+    """Обрабатывает один JSON-файл и возвращает результат"""
+    try:
+        with open(json_file, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        # Проверяем, что data не None
+        if data is None:
+            logger.error(f"Данные в файле {json_file} отсутствуют")
+            return None
+
+        # Получаем basicInfo с дополнительной проверкой
+        basicInfo = data.get("basicInfo", {})
+        if basicInfo is None:
+            basicInfo = {}
+
+        company_bin = basicInfo.get("bin", None)
+
+        # Проверка isNds
+        isNds_obj = basicInfo.get("isNds")
+        if isNds_obj is None:
+            isNds = "Нет"
+        else:
+            isNds_raw = isNds_obj.get("value", None)
+            if isNds_raw is True:
+                isNds = "Да"
+            else:
+                isNds = "Нет"
+
+        # Проверка degreeOfRisk
+        degreeOfRisk_obj = basicInfo.get("degreeOfRisk")
+        if degreeOfRisk_obj is None:
+            degreeOfRisk = None
+        else:
+            degreeOfRisk = degreeOfRisk_obj.get("value", None)
+
+        # Проверка egovContacts
+        egov_contacts = data.get("egovContacts", {})
+        if egov_contacts is None:
+            egov_contacts = {}
+
+        phone_list = egov_contacts.get("phone", [])
+        if phone_list is None:
+            phone_list = []
+
+        phone_value = phone_list[0].get("value", None) if phone_list else None
+
+        # Проверка gosZakupContacts
+        gosZakupContacts = data.get("gosZakupContacts", {})
+        if gosZakupContacts is None:
+            gosZakupContacts = {}
+
+        phone_list_goz = gosZakupContacts.get("phone", [])
+        if phone_list_goz is None:
+            phone_list_goz = []
+
+        email_list_goz = gosZakupContacts.get("email", [])
+        if email_list_goz is None:
+            email_list_goz = []
+
+        www_list_goz = gosZakupContacts.get("website", [])
+        if www_list_goz is None:
+            www_list_goz = []
+
+        phone_value_goz = (
+            phone_list_goz[0].get("value", None) if phone_list_goz else None
+        )
+        email_value_goz = (
+            email_list_goz[0].get("value", None) if email_list_goz else None
+        )
+        www_value_goz = www_list_goz[0].get("value", None) if www_list_goz else None
+
+        # Проверка debtsInfo
+        debtsInfo = data.get("debtsInfo", {})
+        if debtsInfo is None:
+            debtsInfo = {}
+
+        kgd_obj = debtsInfo.get("kgd", {})
+        if kgd_obj is None:
+            kgd_obj = {}
+
+        egov_obj = debtsInfo.get("egov", {})
+        if egov_obj is None:
+            egov_obj = {}
+
+        kgd = kgd_obj.get("totalDebt", None)
+        egov = egov_obj.get("totalDebt", None)
+
+        # Проверка reestrs
+        reestrs = data.get("reestrs", [])
+        if reestrs is None:
+            reestrs = []
+
+        table_reestrs = {}
+
+        for item in reestrs:
+            if item is None:
+                continue
+
+            description = item.get("description", "")
+            if description is None:
+                description = ""
+            else:
+                description = description.replace(
+                    "Комитет государственных доходов : ", ""
+                )
+
+            priority_keys = ["isIntruder", "isNDS", "risk", "violation", "debtSumm"]
+
+            for key in priority_keys:
+                if key in item:
+                    table_reestrs[description] = format_value(item.get(key))
+                    break
+
+        # Проверка taxes
+        taxes = data.get("taxes", {})
+        if taxes is None:
+            taxes = {}
+
+        checkDate = taxes.get("checkDate", None)
+        taxGraph = taxes.get("taxGraph", [])
+        if taxGraph is None:
+            taxGraph = []
+
+        tax_by_year = {}
+        needed_years = [2021, 2022, 2023, 2024]
+
+        for item in taxGraph:
+            if item is None:
+                continue
+
+            year = item.get("year")
+            value = item.get("value")
+            if year in needed_years:
+                tax_by_year[year] = value
+
+        result = {
+            "БИН": company_bin,
+            "Плательщик НДС": isNds,
+            "Степень риска налогоплательщика": degreeOfRisk,
+            "Телефон": phone_value,
+            "Телефон гоc. закупок": phone_value_goz,
+            "E-mail гоc. закупок": email_value_goz,
+            "Веб-сайт гоc. закупок": www_value_goz,
+            "Задолженность Комитет государственных доходов": kgd,
+            "Задолженность Электронное правительство": egov,
+            "Благонадежность предприятия": table_reestrs,
+            "Проверено:Комитет государственных доходов: уплата налогов": checkDate,
+            "Налоговые отчисления": tax_by_year,
+        }
+        logger.info(f"Обработан файл {json_file}")
+        return result
+    except Exception as e:
+        logger.warning(f"Ошибка при обработке файла {json_file}: {str(e)}")
+        return None
+
+
+def process_data_parallel(json_directory, max_workers=10):
+    """Параллельная обработка JSON-файлов"""
+    json_files = list(Path(json_directory).glob("*.json"))
+    all_data = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Запускаем обработку файлов параллельно
+        future_to_file = {
+            executor.submit(process_single_file, file): file for file in json_files
+        }
+
+        # Собираем результаты по мере их готовности
+        for future in concurrent.futures.as_completed(future_to_file):
+            file = future_to_file[future]
+            try:
+                result = future.result()
+                if result:
+                    all_data.append(result)
+            except Exception as e:
+                logger.warning(f"Ошибка при обработке файла {file}: {str(e)}")
+
+    return all_data
+
+
+def flatten_nested_data(data_list):
+    flattened_data = []
+
+    for item in data_list:
+        flat_item = {}
+
+        # Обрабатываем простые поля
+        for key, value in item.items():
+            if not isinstance(value, dict):
+                flat_item[key] = value
+
+        # Обрабатываем "Благонадежность предприятия"
+        if "Благонадежность предприятия" in item:
+            for subkey, subvalue in item["Благонадежность предприятия"].items():
+                flat_item[f"Благонадежность_{subkey}"] = subvalue
+
+        # Обрабатываем "Налоговые отчисления"
+        if "Налоговые отчисления" in item:
+            for year, amount in item["Налоговые отчисления"].items():
+                flat_item[f"Налоги_{year}"] = amount
+
+        flattened_data.append(flat_item)
+
+    return flattened_data
+
+
+def write_csv(data, output_file="company_data.csv"):
+    # Создаем DataFrame
+    df = pd.DataFrame(data)
+    # Сохраняем в CSV
+    df.to_csv(output_file, index=False, encoding="utf-8")
+    logger.info(f"Данные успешно записаны в {output_file}")
+
+
+def main():
+    import time
+
+    start_time = time.time()
+
+    max_workers = 50  # Количество потоков
+
+    logger.info(f"Начинаем обработку с использованием {max_workers} потоков...")
+    data_list = process_data_parallel(json_directory, max_workers)
+    logger.info(f"Обработано {len(data_list)} файлов")
+
+    logger.info("Преобразование данных в плоскую структуру...")
+    flat_data = flatten_nested_data(data_list)
+
+    logger.info("Запись данных в CSV...")
+    write_csv(flat_data)
+
+    elapsed_time = time.time() - start_time
+    logger.info(f"Задача выполнена за {elapsed_time:.2f} секунд")
+
+
 # Пример использования
 if __name__ == "__main__":
-    num_threads = 50  # Укажите желаемое количество потоков
+    # Скачиванние json
+    num_threads = 50
 
     process_companies(num_threads)
+
+    # Парсинг json файлов и записьв csv
+    main()

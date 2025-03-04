@@ -2171,24 +2171,218 @@ def get_ids_from_column_a(spreadsheet, sheet_name):
         return []
 
 
+async def update_analytics_table():
+    """Создает и обновляет улучшенную аналитическую таблицу продаж с учетом скидок"""
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            # Добавляем поля для скидок в аналитическую таблицу
+            await db.execute(
+                """
+            CREATE TABLE IF NOT EXISTS sales_analytics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER,
+                product_id INTEGER,
+                product_name TEXT,
+                quantity INTEGER,
+                price REAL,               -- Исходная цена (без скидки)
+                discount REAL,            -- Скидка на единицу товара
+                percent_discount REAL,    -- Процент скидки
+                price_with_discount REAL, -- Цена с учетом скидки
+                total_amount REAL,        -- Общая сумма (цена с учетом скидки * количество)
+                sale_date TEXT,           -- YYYY-MM-DD
+                day INTEGER,              -- День месяца (1-31)
+                month INTEGER,            -- Месяц (1-12)
+                quarter INTEGER,          -- Квартал (1-4)
+                year INTEGER,             -- Год
+                month_year TEXT,          -- MM.YYYY
+                UNIQUE(order_id, product_id)
+            )
+            """
+            )
+
+            # Получаем заказы, которые еще не обработаны
+            query = """
+            SELECT o.id, o.orderTime
+            FROM orders o
+            WHERE EXISTS (
+                SELECT 1 FROM products p WHERE p.order_id = o.id
+            )
+            AND NOT EXISTS (
+                SELECT 1 FROM sales_analytics s WHERE s.order_id = o.id
+            )
+            """
+
+            cursor = await db.execute(query)
+            orders = await cursor.fetchall()
+
+            processed_count = 0
+            skipped_count = 0
+
+            for order in orders:
+                order_id, order_time = order
+
+                # Если нет orderTime, пропускаем
+                if not order_time:
+                    continue
+
+                try:
+                    # Парсим и форматируем дату
+                    dt = datetime.strptime(order_time, "%Y-%m-%d %H:%M:%S")
+                    sale_date = dt.strftime("%Y-%m-%d")
+                    day = dt.day
+                    month = dt.month
+                    year = dt.year
+
+                    # Вычисляем квартал (1-4)
+                    quarter = (month - 1) // 3 + 1
+
+                    # Формат месяц.год
+                    month_year = dt.strftime("%m.%Y")
+                except Exception as e:
+                    logger.error(
+                        f"Ошибка при обработке даты для заказа {order_id}: {e}"
+                    )
+                    continue
+
+                # Получаем все товары для этого заказа с учетом поля discount
+                products_query = """
+                SELECT productId, text, amount, price, discount, percentDiscount
+                FROM products
+                WHERE order_id = ?
+                """
+
+                cursor = await db.execute(products_query, (order_id,))
+                products = await cursor.fetchall()
+
+                for product in products:
+                    (
+                        product_id,
+                        product_name,
+                        quantity,
+                        price,
+                        discount,
+                        percent_discount,
+                    ) = product
+
+                    # Предотвращаем ошибки с неправильными значениями
+                    if not quantity or quantity <= 0:
+                        quantity = 0
+                    if not price or price <= 0:
+                        price = 0
+                    if not discount or discount < 0:
+                        discount = 0
+                    if not percent_discount or percent_discount < 0:
+                        percent_discount = 0
+
+                    # Рассчитываем цену с учетом скидки
+                    price_with_discount = price - discount
+                    if price_with_discount < 0:
+                        price_with_discount = 0
+
+                    # Общая сумма с учетом скидки и количества
+                    total_amount = price_with_discount * quantity
+
+                    # Вставляем запись в аналитическую таблицу
+                    try:
+                        await db.execute(
+                            """
+                        INSERT OR IGNORE INTO sales_analytics
+                        (order_id, product_id, product_name, quantity, price, discount, 
+                         percent_discount, price_with_discount, total_amount, 
+                         sale_date, day, month, quarter, year, month_year)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                            (
+                                order_id,
+                                product_id,
+                                product_name,
+                                quantity,
+                                price,
+                                discount,
+                                percent_discount,
+                                price_with_discount,
+                                total_amount,
+                                sale_date,
+                                day,
+                                month,
+                                quarter,
+                                year,
+                                month_year,
+                            ),
+                        )
+
+                        # Проверяем, была ли вставка успешной
+                        changes = db.total_changes
+                        if changes > 0:
+                            processed_count += 1
+                        else:
+                            skipped_count += 1
+                    except Exception as e:
+                        logger.debug(f"Ошибка при вставке записи: {e}")
+                        skipped_count += 1
+
+            await db.commit()
+            logger.info(
+                f"Обновлена аналитическая таблица: добавлено {processed_count} записей, пропущено {skipped_count}"
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении аналитической таблицы: {e}")
+
+
+async def get_sales_summary_by_month_product():
+    """Получает сводку продаж по месяцам и товарам"""
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            db.row_factory = aiosqlite.Row
+
+            # Суммарные продажи по месяцам и товарам
+            query = """
+            SELECT 
+                year_month,
+                product_name,
+                SUM(quantity) as total_quantity,
+                SUM(total_amount) as total_sales
+            FROM sales_by_day_product
+            GROUP BY year_month, product_name
+            ORDER BY year_month DESC, total_sales DESC
+            """
+
+            cursor = await db.execute(query)
+            results = await cursor.fetchall()
+
+            # Преобразуем в список словарей
+            summary = []
+            for row in results:
+                summary.append(dict(row))
+            logger.info(summary)
+            return summary
+    except Exception as e:
+        logger.error(f"Ошибка при получении сводки продаж: {e}")
+        return []
+
+
 async def main():
-    """Основная функция для запуска процесса"""
-    # Создаем базу данных, если она не существует
+    await update_analytics_table()
+    # await get_sales_summary_by_month_product()
+
+    # """Основная функция для запуска процесса"""
+    # # Создаем базу данных, если она не существует
     await create_database()
-    # await update_order_time_look_for_existing_orders()
-    # Обработка данных из JSON строки или файла
-    # Можно раскомментировать нужный вариант
-    # await process_json_file('путь_к_файлу.json')
-    # Читаем содержимое файла
+    # # await update_order_time_look_for_existing_orders()
+    # # Обработка данных из JSON строки или файла
+    # # Можно раскомментировать нужный вариант
+    # # await process_json_file('путь_к_файлу.json')
+    # # Читаем содержимое файла
 
-    # Пример JSON строки (можно заменить на фактические данные)
-    # recordings_output_file = data_directory / f"recording_14.json"
-    # await process_order(recordings_output_file)
+    # # Пример JSON строки (можно заменить на фактические данные)
+    # # recordings_output_file = data_directory / f"recording_14.json"
+    # # await process_order(recordings_output_file)
 
-    # # Выгрузка в  Google Sheets
+    # # # Выгрузка в  Google Sheets
     await export_orders_to_sheets()
 
 
 if __name__ == "__main__":
-    get_salesdrive_orders()
+    # get_salesdrive_orders()
     asyncio.run(main())
