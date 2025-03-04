@@ -1,19 +1,21 @@
 import asyncio
 import json
-from pathlib import Path
-from typing import Optional, Dict
-import random
-import aiofiles
-from playwright.async_api import async_playwright, Response
 import logging
+import random
+from pathlib import Path
+from typing import Dict, Optional
+
+import aiofiles
+from playwright.async_api import Response, async_playwright
 
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s | %(levelname)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format="%(asctime)s | %(levelname)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
 
 class WebScraper:
     def __init__(self, url: str):
@@ -34,10 +36,12 @@ class WebScraper:
         if not self.proxy_file.exists():
             logger.info(f"Proxy file {self.proxy_file} not found. Running locally.")
             return []
-        
+
         try:
-            async with aiofiles.open(self.proxy_file, 'r', encoding='utf-8') as file:
-                proxies = [line.strip() for line in await file.readlines() if line.strip()]
+            async with aiofiles.open(self.proxy_file, "r", encoding="utf-8") as file:
+                proxies = [
+                    line.strip() for line in await file.readlines() if line.strip()
+                ]
             logger.info(f"Loaded {len(proxies)} proxies")
             return proxies
         except Exception as e:
@@ -64,7 +68,7 @@ class WebScraper:
     async def save_json_response(self, data: dict):
         """Сохранение JSON ответа в файл."""
         try:
-            async with aiofiles.open(self.json_file, 'w', encoding='utf-8') as f:
+            async with aiofiles.open(self.json_file, "w", encoding="utf-8") as f:
                 await f.write(json.dumps(data, ensure_ascii=False, indent=2))
             logger.info(f"JSON response saved to {self.json_file}")
         except Exception as e:
@@ -73,9 +77,12 @@ class WebScraper:
     async def handle_response(self, response: Response):
         """Обработка ответов от сервера."""
         try:
-            if "rrr.lt/ru/poisk?q" in response.url:
+            if (
+                "https://pk-api.adata.kz/api/v1/data/company/tax/graph/bar"
+                in response.url
+            ):
                 headers = await response.all_headers()
-                if 'application/json' in headers.get('content-type', ''):
+                if "application/json" in headers.get("content-type", ""):
                     logger.info(f"Intercepted JSON response from {response.url}")
                     json_data = await response.json()
                     await self.save_json_response(json_data)
@@ -87,7 +94,7 @@ class WebScraper:
         """Основной метод скрапинга."""
         proxies = await self.load_proxies()
         retry_count = 3
-        
+
         for attempt in range(retry_count):
             try:
                 proxy_config = None
@@ -102,62 +109,65 @@ class WebScraper:
                     browser_args = {
                         "headless": False,  # Показывать браузер
                     }
-                    
+
                     if proxy_config:
                         browser_args["proxy"] = proxy_config
-                    
+
                     browser = await p.chromium.launch(**browser_args)
                     context = await browser.new_context(
-                        viewport={'width': 1920, 'height': 1080}
+                        viewport={"width": 1920, "height": 1080}
                     )
                     page = await context.new_page()
-                    
+
                     # Подписываемся на события ответа
                     page.on("response", self.handle_response)
-                    
+
                     try:
                         logger.info(f"Navigating to URL: {self.url}")
                         response = await page.goto(
-                            self.url,
-                            timeout=30000,
-                            wait_until="networkidle"
+                            self.url, timeout=30000, wait_until="networkidle"
                         )
-                        
+
                         if response.status == 403:
                             logger.warning("Access denied (403)")
                             if proxies:
-                                logger.info(f"Retrying with different proxy. Attempt {attempt + 1}/{retry_count}")
+                                logger.info(
+                                    f"Retrying with different proxy. Attempt {attempt + 1}/{retry_count}"
+                                )
                                 continue
-                        
+
                         # Ждем загрузки контента и возможных AJAX запросов
                         await asyncio.sleep(5)
-                        
+
                         logger.info(f"Final URL: {page.url}")
                         logger.info(f"Status: {response.status}")
-                        
+
                         return True
-                        
+
                     except Exception as e:
                         logger.error(f"Error during navigation: {e}")
                         if attempt < retry_count - 1:
-                            logger.info(f"Retrying... Attempt {attempt + 2}/{retry_count}")
+                            logger.info(
+                                f"Retrying... Attempt {attempt + 2}/{retry_count}"
+                            )
                             continue
                         raise
                     finally:
                         await context.close()
                         await browser.close()
-                        
+
             except Exception as e:
                 logger.error(f"Attempt {attempt + 1} failed: {e}")
                 if attempt == retry_count - 1:
                     raise
-                
+
         return False
 
+
 def main():
-    url = "https://rrr.lt/ru/poisk?q=K6D39U438AD"
+    url = "https://pk.adata.kz/company/971240001315"
     scraper = WebScraper(url)
-    
+
     try:
         success = asyncio.run(scraper.scrape())
         if success:
@@ -166,6 +176,7 @@ def main():
             logger.error("Scraping failed after all retries")
     except Exception as e:
         logger.error(f"Fatal error: {e}")
+
 
 if __name__ == "__main__":
     main()

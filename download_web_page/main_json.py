@@ -74,20 +74,6 @@ def get_json(id_company):
     except ValueError:
         print("Ошибка: ответ не содержит JSON")
 
-    # # Проверка успешности запроса
-    # if response.status_code == 200:
-    #     json_data = response.json()
-    #     with open("rrr.json", "w", encoding="utf-8") as f:
-    #         json.dump(json_data, f, ensure_ascii=False, indent=4)  # Записываем в файл
-    #     logger.info(json_data)
-    #     time.sleep(10)
-    # else:
-    #     logger.error(response.status_code)
-
-
-# def extract_user_name(user_id, user_options):
-#     filtered_user = list(filter(lambda x: x["value"] == user_id, user_options))
-#     return filtered_user[0]["text"] if filtered_user else None
 
 
 def process_data():
