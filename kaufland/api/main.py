@@ -4,6 +4,7 @@ import json
 import sys
 import time
 from pathlib import Path
+from urllib.parse import urlencode
 
 import requests
 from loguru import logger
@@ -39,174 +40,99 @@ logger.add(
 
 class KauflandAPI:
     """
-    Клиент для работы с Kaufland Marketplace Seller API
+    Класс для работы с Kaufland Marketplace API.
+    Переписан с PHP примера на Python.
     """
 
     def __init__(
         self, client_key, secret_key, base_url="https://sellerapi.kaufland.com/v2"
     ):
-        """
-        Инициализация клиента API
-
-        :param client_key: Ключ клиента (32 символа)
-        :param secret_key: Секретный ключ (64 символа)
-        :param base_url: Базовый URL API
-        """
         self.client_key = client_key
         self.secret_key = secret_key
         self.base_url = base_url
+        self.user_agent = "Inhouse_development"
 
     def sign_request(self, method, uri, body, timestamp):
         """
-        Создание подписи для запроса
-
-        :param method: HTTP метод (GET, POST, PATCH, DELETE)
-        :param uri: Полный URI запроса
-        :param body: Тело запроса (или пустая строка)
-        :param timestamp: Unix timestamp
-        :return: HMAC подпись
+        Создание подписи для запроса в точности так, как в PHP примере.
         """
-        plain_text = "\n".join([method, uri, body, str(timestamp)])
+        # Конкатенация метода, URI, тела и timestamp с \n как разделителем
+        message = f"{method}\n{uri}\n{body}\n{timestamp}"
+        # Подпись с использованием HMAC SHA-256
+        signature = hmac.new(
+            self.secret_key.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+        return signature
 
-        digest_maker = hmac.new(self.secret_key.encode(), None, hashlib.sha256)
-        digest_maker.update(plain_text.encode())
-        return digest_maker.hexdigest()
-
-    def make_request(self, method, endpoint, params=None, data=None, save_to_file=True):
+    def make_request(self, method, endpoint, params=None, data=None):
         """
-        Выполнение запроса к API
-
-        :param method: HTTP метод (GET, POST, PATCH, DELETE)
-        :param endpoint: Конечная точка API (например, "/units/")
-        :param params: Параметры запроса для GET
-        :param data: Данные для отправки в теле запроса
-        :param save_to_file: Флаг для сохранения ответа в файл
-        :return: Ответ от API
+        Выполнение запроса к API.
         """
-        # Базовый URL
-        base_url = f"{self.base_url}{endpoint}"
+        # Формирование URL
+        url = f"{self.base_url}{endpoint}"
 
-        # Создаем сессию для использования с параметрами запроса
-        session = requests.Session()
-        request = requests.Request(method.upper(), base_url, params=params)
-        prepared_request = request.prepare()
+        # Добавление параметров к URL, если они есть
+        if params:
+            query_string = urlencode(params)
+            url = f"{url}?{query_string}"
 
-        # Полный URL включая параметры запроса
-        full_url = prepared_request.url
-
-        # Время для запроса и подписи
-        timestamp = int(time.time())
-
-        # Подготовка тела запроса
+        # Формирование тела запроса
         body = ""
         if data:
-            body = json.dumps(data)
+            body = json.dumps(data, ensure_ascii=False)
 
-        # Создание подписи с полным URL включая параметры запроса
-        signature = self.sign_request(method.upper(), full_url, body, timestamp)
+        # Timestamp - текущее время в секундах
+        timestamp = int(time.time())
 
-        # Подготовка заголовков
+        # Создание подписи
+        signature = self.sign_request(method, url, body, timestamp)
+
+        # Формирование заголовков
         headers = {
             "Accept": "application/json",
             "Shop-Client-Key": self.client_key,
             "Shop-Timestamp": str(timestamp),
             "Shop-Signature": signature,
-            "User-Agent": "Inhouse_development",
+            "User-Agent": self.user_agent,
         }
 
-        # Добавление Content-Type для POST/PATCH запросов
-        if method.upper() in ["POST", "PATCH"] and data:
-            headers["Content-Type"] = "application/json"
+        # Добавление Content-Type для запросов с телом
+        if method.upper() in ["POST", "PUT", "PATCH"] and data:
+            headers["Content-Type"] = "application/json; charset=utf-8"
 
-        logger.debug(f"Отправка {method} запроса к {full_url}")
-        logger.debug(f"Подпись создана для URL: {full_url}")
+        logger.info(f"Отправка {method} запроса к {url}")
+        logger.info(f"Заголовки: {headers}")
+        if data:
+            logger.info(f"Тело запроса: {body[:100]}...")
 
         # Выполнение запроса
-        try:
-            response = requests.request(
-                method=method.upper(),
-                url=base_url,
-                params=params,
-                data=body if body else None,
-                headers=headers,
-                timeout=30,
-            )
+        response = requests.request(
+            method=method,
+            url=url,
+            headers=headers,
+            data=body.encode("utf-8") if body else None,
+        )
 
-            # Проверка статуса ответа
-            response.raise_for_status()
+        # Вывод информации о запросе
+        logger.info(f"Статус ответа: {response.status_code}")
+        logger.info(f"Заголовки ответа: {response.headers}")
+        # Проверка на ошибки
+        response.raise_for_status()
 
-            # Обработка ответа
-            if response.content:
-                response_data = response.json()
+        # Возврат ответа в JSON, если есть содержимое
+        if response.content:
+            return response.json()
+        return None
 
-                # Сохранение ответа в файл
-                if save_to_file:
-                    self.save_response_to_file(endpoint, params, response_data)
+    # Методы для работы с товарами
 
-                return response_data
-            else:
-                logger.info(f"Получен пустой ответ от {endpoint}")
-                return response
-
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Ошибка при выполнении запроса к {endpoint}: {e}")
-            if hasattr(e, "response") and e.response is not None:
-                logger.error(f"Статус ответа: {e.response.status_code}")
-                logger.error(f"Текст ответа: {e.response.text}")
-            raise
-
-    def save_response_to_file(self, endpoint, params, response_data):
+    def get_product(self, product_id, embedded=None, storefront="de"):
         """
-        Сохранение ответа API в файл
+        Получение информации о товаре по ID.
 
-        :param endpoint: Конечная точка API
-        :param params: Параметры запроса
-        :param response_data: Данные ответа
-        """
-        # Создание имени файла на основе эндпоинта и параметров
-        endpoint_clean = endpoint.strip("/").replace("/", "_")
-
-        # Добавление параметров в имя файла
-        param_str = ""
-        if params:
-            param_str = "_" + "_".join([f"{k}-{v}" for k, v in params.items()])
-
-        # Получение текущего времени для имени файла
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-
-        # Формирование полного пути к файлу
-        filename = f"{endpoint_clean}{param_str}_{timestamp}.json"
-        file_path = data_directory / filename
-
-        # Сохранение данных в файл
-        try:
-            with open(file_path, "w", encoding="utf-8") as file:
-                json.dump(response_data, file, ensure_ascii=False, indent=2)
-            logger.info(f"Ответ успешно сохранен в файл: {file_path}")
-        except Exception as e:
-            logger.error(f"Ошибка при сохранении ответа в файл: {e}")
-
-    # Примеры методов для работы с API
-
-    def get_categories(self, storefront="de", limit=20, offset=0):
-        """
-        Получение списка категорий
-
-        :param storefront: Код страны (например, "de" для Германии)
-        :param limit: Максимальное количество записей
-        :param offset: Смещение для пагинации
-        :return: Список категорий
-        """
-        params = {"storefront": storefront, "limit": limit, "offset": offset}
-        return self.make_request("GET", "/categories/", params=params)
-
-    def get_product(self, product_id, storefront="de", embedded=None):
-        """
-        Получение информации о товаре
-
-        :param product_id: ID товара
-        :param storefront: Код страны (например, "de" для Германии)
-        :param embedded: Дополнительные поля (например, "category,units")
+        :param product_id: ID товара в Kaufland
+        :param embedded: Дополнительные данные (category, units)
+        :param storefront: Торговая площадка
         :return: Информация о товаре
         """
         params = {"storefront": storefront}
@@ -215,189 +141,273 @@ class KauflandAPI:
 
         return self.make_request("GET", f"/products/{product_id}", params=params)
 
-    def get_units(self, limit=None, offset=None):
+    def upload_product_data(self, ean, attributes, locale="de-DE"):
         """
-        Получение списка товарных единиц продавца
+        Загрузка данных о товаре.
 
-        :param limit: Максимальное количество записей
-        :param offset: Смещение для пагинации
-        :return: Список товарных единиц
+        :param ean: EAN товара
+        :param attributes: Атрибуты товара
+        :param locale: Локаль
+        :return: Результат загрузки
         """
-        params = {}
-        if limit is not None:
-            params["limit"] = limit
-        if offset is not None:
-            params["offset"] = offset
-
-        return self.make_request("GET", "/units/", params=params)
-
-    # Дополнительные методы API
-    def get_storefront_info(self):
-        """
-        Получение информации о доступных торговых площадках
-
-        :return: Список доступных торговых площадок
-        """
-        return self.make_request("GET", "/info/storefront")
-
-    def get_locale_info(self):
-        """
-        Получение информации о доступных локалях
-
-        :return: Список доступных локалей
-        """
-        return self.make_request("GET", "/info/locale")
-
-    def search_products(self, query, storefront="de", limit=20, offset=0):
-        """
-        Поиск товаров
-
-        :param query: Поисковый запрос
-        :param storefront: Торговая площадка (страна)
-        :param limit: Максимальное количество записей
-        :param offset: Смещение для пагинации
-        :return: Результаты поиска
-        """
-        params = {
-            "q": query,
-            "storefront": storefront,
-            "limit": limit,
-            "offset": offset,
+        data = {
+            "ean": [ean] if not isinstance(ean, list) else ean,
+            "attributes": attributes,
         }
-        return self.make_request("GET", "/products/search", params=params)
 
-    def get_orders(
-        self, limit=20, offset=0, status=None, ts_created_from=None, ts_created_to=None
+        return self.make_request(
+            "PUT", "/product-data", params={"locale": locale}, data=data
+        )
+
+    # def add_unit(self, unit_data, storefront="de"):
+    #     """
+    #     Добавление единицы товара (предложения).
+
+    #     :param unit_data: Данные о единице товара
+    #     :param storefront: Торговая площадка
+    #     :return: Результат добавления
+    #     """
+    #     return self.make_request(
+    #         "POST", "/units/", params={"storefront": storefront}, data=unit_data
+    #     )
+
+    def add_unit(self, unit_data, storefront="de"):
+        """
+        Добавление единицы товара (предложения)
+
+        :param unit_data: Данные о единице товара
+        :param storefront: Торговая площадка
+        :return: Результат добавления
+        """
+        try:
+            # Отправка запроса на добавление единицы товара
+            response = self.make_request(
+                method="POST",
+                endpoint="/units/",
+                params={"storefront": storefront},
+                data=unit_data,
+            )
+
+            logger.info(f"Единица товара успешно добавлена: {response}")
+            return response
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP ошибка при добавлении единицы товара: {e}")
+            if hasattr(e, "response") and e.response is not None:
+                logger.error(f"Текст ответа: {e.response.text}")
+            return None
+        except Exception as e:
+            logger.error(f"Ошибка при добавлении единицы товара: {e}")
+            return None
+
+    def delete_unit(self, unit_id, storefront="de"):
+        """
+        Удаление единицы товара.
+
+        :param unit_id: ID единицы товара
+        :param storefront: Торговая площадка
+        :return: Результат удаления
+        """
+        return self.make_request(
+            "DELETE", f"/units/{unit_id}/", params={"storefront": storefront}
+        )
+
+    def open_ticket(self, order_unit_ids, reason, message):
+        """
+        Открытие тикета на заказ.
+
+        :param order_unit_ids: ID единиц заказа
+        :param reason: Причина
+        :param message: Сообщение
+        :return: Результат открытия тикета
+        """
+        data = {
+            "id_order_unit": (
+                order_unit_ids if isinstance(order_unit_ids, list) else [order_unit_ids]
+            ),
+            "reason": reason,
+            "message": message,
+        }
+
+        return self.make_request("POST", "/tickets", data=data)
+
+    def close_ticket(self, ticket_id):
+        """
+        Закрытие тикета.
+
+        :param ticket_id: ID тикета
+        :return: Результат закрытия тикета
+        """
+        return self.make_request("PATCH", f"/tickets/{ticket_id}/close")
+
+    def get_categories(
+        self, storefront="de", query=None, parent_id=None, limit=20, offset=0
     ):
         """
-        Получение списка заказов
+        Получение списка категорий
 
+        :param storefront: Торговая площадка (страна)
+        :param query: Поисковый запрос для категорий
+        :param parent_id: ID родительской категории
         :param limit: Максимальное количество записей
         :param offset: Смещение для пагинации
-        :param status: Фильтр по статусу заказа
-        :param ts_created_from: Фильтр по дате создания (от)
-        :param ts_created_to: Фильтр по дате создания (до)
-        :return: Список заказов
+        :return: Список категорий
         """
-        params = {"limit": limit, "offset": offset}
+        params = {"storefront": storefront, "limit": limit, "offset": offset}
 
-        if status:
-            params["status"] = status
-        if ts_created_from:
-            params["ts_created:from"] = ts_created_from
-        if ts_created_to:
-            params["ts_created:to"] = ts_created_to
+        if query:
+            params["q"] = query
 
-        return self.make_request("GET", "/orders/", params=params)
+        if parent_id:
+            params["id_parent"] = parent_id
 
-    def get_inventory(self, limit=20, offset=0):
+        logger.info(f"Получение списка категорий для {storefront}")
+
+        # Формирование запроса на получение списка категорий
+        response = self.make_request(
+            method="GET", endpoint="/categories", params=params
+        )
+
+        return response
+
+    def get_category_attributes(
+        self, category_id, storefront="de", include_parent=False, include_children=False
+    ):
         """
-        Получение информации о складских запасах
+        Получение атрибутов категории.
 
-        :param limit: Максимальное количество записей
-        :param offset: Смещение для пагинации
-        :return: Информация о запасах
+        :param category_id: ID категории
+        :param storefront: Торговая площадка (страна)
+        :param include_parent: Включить родительскую категорию в ответ
+        :param include_children: Включить дочерние категории в ответ
+        :return: Информация о категории с атрибутами
         """
-        params = {"limit": limit, "offset": offset}
-        return self.make_request("GET", "/inventory/", params=params)
+        # Формируем базовый URL
+        url = f"{self.base_url}/categories/{category_id}"
 
+        # Добавляем параметры
+        url += f"?storefront={storefront}"
+        url += "&embedded=optional_attributes"
+        url += "&embedded=required_attributes"
 
-# Функция для тестирования подписи на конкретном примере из документации
-def test_signature_example():
-    """
-    Проверяет корректность создания подписи на примере из документации API
-    """
-    # Используем точно такие же значения, как в примере из документации
-    method = "POST"
-    uri = "https://sellerapi.kaufland.com/v2/units/"
-    body = ""
-    timestamp = 1411055926  # Фиксированное значение из документации
-    secret_key = "a7d0cb1da1ddbc86c96ee5fedd341b7d8ebfbb2f5c83cfe0909f4e57f05dd403"  # Ключ из примера документации
+        if include_parent:
+            url += "&embedded=parent"
 
-    # Ожидаемая подпись из документации
-    expected_signature = (
-        "da0b65f51c0716c1d3fa658b7eaf710583630a762a98c9af8e9b392bd9df2e2a"
-    )
+        if include_children:
+            url += "&embedded=children"
 
-    # Создаем временный объект API клиента с тестовым ключом
-    test_api = KauflandAPI("test_client_key", secret_key)
+        logger.info(f"Получение атрибутов для категории {category_id}: {url}")
 
-    # Получаем подпись
-    signature = test_api.sign_request(method, uri, body, timestamp)
+        # Текущее время в секундах
+        timestamp = int(time.time())
 
-    # Проверяем соответствие
-    logger.info(f"Тест подписи по примеру из документации:")
-    logger.info(
-        f"- Использованные значения: метод={method}, URI={uri}, timestamp={timestamp}"
-    )
-    logger.info(f"- Ожидаемая подпись: {expected_signature}")
-    logger.info(f"- Полученная подпись: {signature}")
-    logger.info(f"- Подписи совпадают: {signature == expected_signature}")
+        # Подпись
+        signature = self.sign_request("GET", url, "", timestamp)
 
-    return signature == expected_signature
+        # Заголовки
+        headers = {
+            "Accept": "application/json",
+            "Shop-Client-Key": self.client_key,
+            "Shop-Timestamp": str(timestamp),
+            "Shop-Signature": signature,
+            "User-Agent": self.user_agent,
+        }
+
+        # Выполнение запроса
+        response = requests.get(url, headers=headers, timeout=30)
+        logger.info(f"Статус ответа: {response.status_code}")
+
+        # Проверка на ошибки
+        response.raise_for_status()
+
+        # Возврат данных
+        return response.json()
 
 
 # Пример использования
 if __name__ == "__main__":
-    # Замените на ваши ключи
-    CLIENT_KEY = "d87e10e9e4286a12e09dfa0ab5636234"
-    SECRET_KEY = "eb38965918f5349c951d3a2ed18b58cb4fb45fcf0e247e272a83a95a618cc430"
+    # Ваши ключи API
+    CLIENT_KEY = "1db1ea9032e3cc2f128dc44d63c7e56f"
+    SECRET_KEY = "52d495269912b7c1ad3220d885b013ae819305f802c58e8d708957c74ea4fbe4"
 
-    # Сначала протестируем правильность генерации подписи
-    logger.info("Проверка корректности генерации подписи...")
-    signature_correct = test_signature_example()
-
-    if not signature_correct:
-        logger.error("Генерация подписи работает некорректно! Проверьте алгоритм.")
-    else:
-        logger.info("Генерация подписи работает корректно.")
-
-    # Создаем API клиент с реальными ключами
     api = KauflandAPI(CLIENT_KEY, SECRET_KEY)
 
-    # Пример получения информации о доступных торговых площадках
-    try:
-        logger.info("Запрос информации о торговых площадках...")
-        storefronts = api.get_storefront_info()
-        storefront_codes = storefronts.get("data", [])
-        logger.info(
-            f"Получена информация о торговых площадках: {', '.join(storefront_codes)}"
-        )
-    except Exception as e:
-        logger.error(f"Ошибка при получении информации о торговых площадках: {e}")
-        storefront_codes = ["de"]  # Значение по умолчанию
+    # # Пример 1: Получение товара
+    # try:
+    #     # Получение товара с включением категории и единиц
+    #     product = api.get_product("20574181", embedded="category,units")
+    #     logger.info(f"Получен товар: {product['data']['title']}")
+    # except Exception as e:
+    #     logger.error(f"Ошибка при получении товара: {e}")
 
-    # Используем первую доступную торговую площадку, если есть
-    default_storefront = storefront_codes[0] if storefront_codes else "de"
-    logger.info(f"Используем торговую площадку по умолчанию: {default_storefront}")
+    # # Пример 2: Загрузка данных о товаре
+    # try:
+    #     # Чтение данных о товаре из JSON-файла
+    #     with open("product.json", "r", encoding="utf-8") as file:
+    #         product_data = json.load(file)
 
-    # Пример получения информации о категориях
-    try:
-        logger.info(f"Запрос категорий для {default_storefront}...")
-        categories = api.get_categories(storefront=default_storefront, limit=5)
-        logger.info(f"Получено {len(categories.get('data', []))} категорий")
-    except Exception as e:
-        logger.error(f"Ошибка при получении категорий: {e}")
+    #     ean = product_data["ean"][0]
+    #     attributes = product_data["attributes"]
 
-    # Пример поиска товаров
-    try:
-        logger.info("Поиск товаров...")
-        search_results = api.search_products(
-            "smartphone", storefront=default_storefront, limit=10
-        )
-        logger.info(f"Найдено {len(search_results.get('data', []))} товаров по запросу")
+    #     logger.info(f"Загрузка товара с EAN: {ean}")
+    #     response = api.upload_product_data(ean, attributes)
+    #     logger.info(f"Результат загрузки товара: {response}")
+    # except Exception as e:
+    #     logger.error(f"Ошибка при загрузке товара: {e}")
 
-        # Если найдены товары, попробуем получить детальную информацию о первом товаре
-        if search_results.get("data"):
-            first_product = search_results["data"][0]
-            product_id = first_product["id_product"]
-            logger.info(f"Получение детальной информации о товаре ID: {product_id}")
+    # # Получение id категории
+    # try:
+    #     categories = api.get_categories(query="Campingzelte")
+    #     logger.info(f"Получено категорий: {len(categories.get('data', []))}")
 
-            product_details = api.get_product(
-                product_id, storefront=default_storefront, embedded="category"
-            )
-            logger.info(
-                f"Получена детальная информация о товаре: {product_details.get('data', {}).get('title', 'Неизвестно')}"
-            )
-    except Exception as e:
-        logger.error(f"Ошибка при поиске товаров: {e}")
+    #     # Вывод найденных категорий
+    #     for category in categories.get("data", []):
+    #         logger.info(
+    #             f"Категория: {category.get('title_plural')} (ID: {category.get('id_category')})"
+    #         )
+    # except Exception as e:
+    #     logger.error(f"Ошибка при получении категорий: {e}")
+
+    # # Получение атрибутов категории по id категории
+    # try:
+    #     # Получаем атрибуты для категории Campingzelte (ID: 15261)
+    #     category_id = 15261
+    #     category_attrs = api.get_category_attributes(category_id)
+    #     logger.info(category_attrs)
+    #     # Получаем списки обязательных и опциональных атрибутов
+    #     required_attrs = category_attrs.get("data", {}).get("required_attributes", [])
+    #     optional_attrs = category_attrs.get("data", {}).get("optional_attributes", [])
+
+    #     # Выводим обязательные атрибуты
+    #     logger.info(f"Обязательные атрибуты для категории {category_id}:")
+    #     for attr in required_attrs:
+    #         logger.info(
+    #             f"- {attr.get('title')} ({attr.get('name')}), тип: {attr.get('type')}"
+    #         )
+
+    #     # Выводим опциональные атрибуты
+    #     logger.info(f"Опциональные атрибуты для категории {category_id}:")
+    #     for attr in optional_attrs:
+    #         logger.info(
+    #             f"- {attr.get('title')} ({attr.get('name')}), тип: {attr.get('type')}"
+    #         )
+    # except Exception as e:
+    #     logger.error(f"Ошибка при получении атрибутов категории: {e}")
+    # Данные для добавления единицы товара
+    unit_data = {
+        "ean": "4061173125552",  # EAN товара (обязательно либо ean, либо id_product)
+        "condition": "NEW",  # Состояние товара (NEW, USED___GOOD и т.д.)
+        "listing_price": 3799,  # Цена в центах (обязательно > 0)
+        "minimum_price": 3699,  # Минимальная цена для Smart Pricing (необязательно)
+        "amount": 10,  # Количество товара на складе (ограничено до 99999)
+        "note": "",  # Примечание (до 250 символов)
+        "id_offer": "362524873",  # Получаем через products/ean/{ean} указываем ean
+        "handling_time": 2,  # Количество рабочих дней на обработку заказа
+        "vat_indicator": "standard_rate",  # Индикатор НДС
+    }
+    # unit_data = {
+    #     "ean": "4061173125552",
+    #     "condition": "NEW",
+    #     "listing_price": 3799,
+    #     "handling_time": 0,  # минимальное значение
+    # }
+    response = api.add_unit(unit_data, storefront="de")
