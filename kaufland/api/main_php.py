@@ -159,17 +159,54 @@ class KauflandAPI:
             "PUT", "/product-data", params={"locale": locale}, data=data
         )
 
-    def add_unit(self, unit_data, storefront="de"):
-        """
-        Добавление единицы товара (предложения).
+    # def add_unit(self, unit_data, storefront="de"):
+    #     """
+    #     Добавление единицы товара (предложения).
 
-        :param unit_data: Данные о единице товара
+    #     :param unit_data: Данные о единице товара
+    #     :param storefront: Торговая площадка
+    #     :return: Результат добавления
+    #     """
+    #     return self.make_request(
+    #         "POST", "/units/", params={"storefront": storefront}, data=unit_data
+    #     )
+
+    def add_unit(self, storefront="de"):
+        """
+        Добавление единицы товара (предложения)
+
         :param storefront: Торговая площадка
         :return: Результат добавления
         """
-        return self.make_request(
-            "POST", "/units/", params={"storefront": storefront}, data=unit_data
-        )
+        # Данные для добавления единицы товара
+        unit_data = {
+            "ean": "4251512197191",  # EAN товара (обязательно либо ean, либо id_product)
+            "condition": "NEW",  # Состояние товара (NEW, USED___GOOD и т.д.)
+            "listing_price": 5999,  # Цена в центах (обязательно > 0)
+            "minimum_price": 5500,  # Минимальная цена для Smart Pricing (необязательно)
+            "amount": 10,  # Количество товара на складе (ограничено до 99999)
+            "note": "Товар в отличном состоянии",  # Примечание (до 250 символов)
+            "id_warehouse": 1,  # ID склада (если не указано, используется склад по умолчанию)
+            "id_shipping_group": 1,  # ID группы доставки
+            "id_offer": "MY-OFFER-123",  # Ваш внутренний идентификатор предложения
+            "handling_time": 2,  # Количество рабочих дней на обработку заказа
+            "vat_indicator": "standard_rate",  # Индикатор НДС
+        }
+
+        try:
+            # Отправка запроса на добавление единицы товара
+            response = self.make_request(
+                method="POST",
+                endpoint="/units/",
+                params={"storefront": storefront},
+                data=unit_data,
+            )
+
+            logger.info(f"Единица товара успешно добавлена: {response}")
+            return response
+        except Exception as e:
+            logger.error(f"Ошибка при добавлении единицы товара: {e}")
+            return None
 
     def delete_unit(self, unit_id, storefront="de"):
         """

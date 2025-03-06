@@ -3,6 +3,7 @@ import json
 import os.path
 import sys
 import time
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List
@@ -27,6 +28,7 @@ log_directory = current_directory / "log"
 config_directory = current_directory / "config"
 db_directory = current_directory / "db"
 CONFIG_PATH = config_directory / "config.json"
+XML_PATH = current_directory / "export.xml"
 
 
 def load_config():
@@ -575,7 +577,9 @@ async def create_database():
             manufacturer TEXT,
             sku TEXT,
             uktzed TEXT,
+            included_in_set BOOLEAN DEFAULT FALSE,
             FOREIGN KEY (order_id) REFERENCES orders (id)
+            
         )
         """
         )
@@ -603,7 +607,33 @@ async def create_database():
         )
         """
         )
+        # Создаем таблицу категорий
+        await db.execute(
+            """
+        CREATE TABLE IF NOT EXISTS product_categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category_id INTEGER NOT NULL,
+            category_name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+        )
 
+        # Создаем таблицу связей товаров с категориями
+        await db.execute(
+            """
+        CREATE TABLE IF NOT EXISTS product_category_relations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products (productId),
+            FOREIGN KEY (category_id) REFERENCES product_categories (category_id),
+            UNIQUE(product_id, category_id)
+        )
+        """
+        )
         await db.commit()
         logger.info("База данных создана успешно")
 
@@ -2395,35 +2425,236 @@ def get_ids_from_column_a(spreadsheet, sheet_name):
 
 #     except Exception as e:
 #         logger.error(f"Ошибка при обновлении аналитической таблицы: {e}")
+# async def update_analytics_table():
+#     """Создает и обновляет улучшенную аналитическую таблицу продаж с учетом скидок и типа продажи"""
+#     try:
+#         async with aiosqlite.connect(DB_PATH) as db:
+#             # Добавляем поля для скидок в аналитическую таблицу и тип продажи
+#             await db.execute(
+#                 """
+#             CREATE TABLE IF NOT EXISTS sales_analytics (
+#                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                 order_id INTEGER,
+#                 product_id INTEGER,
+#                 product_name TEXT,
+#                 quantity INTEGER,
+#                 price REAL,               -- Исходная цена (без скидки)
+#                 discount REAL,            -- Скидка на единицу товара
+#                 percent_discount REAL,    -- Процент скидки
+#                 price_with_discount REAL, -- Цена с учетом скидки
+#                 total_amount REAL,        -- Общая сумма (цена с учетом скидки * количество)
+#                 sale_date TEXT,           -- YYYY-MM-DD
+#                 day INTEGER,              -- День месяца (1-31)
+#                 month INTEGER,            -- Месяц (1-12)
+#                 quarter INTEGER,          -- Квартал (1-4)
+#                 year INTEGER,             -- Год
+#                 month_year TEXT,          -- MM.YYYY
+#                 tip_prodazu TEXT,         -- Тип продажи
+#                 UNIQUE(order_id, product_id)
+#             )
+#             """
+#             )
+
+#             # Получаем заказы, которые еще не обработаны
+#             query = """
+#             SELECT o.id, o.orderTime
+#             FROM orders o
+#             WHERE EXISTS (
+#                 SELECT 1 FROM products p WHERE p.order_id = o.id
+#             )
+#             AND NOT EXISTS (
+#                 SELECT 1 FROM sales_analytics s WHERE s.order_id = o.id
+#             )
+#             """
+
+#             cursor = await db.execute(query)
+#             orders = await cursor.fetchall()
+
+#             processed_count = 0
+#             skipped_count = 0
+
+#             for order in orders:
+#                 order_id, order_time = order
+
+#                 # Если нет orderTime, пропускаем
+#                 if not order_time:
+#                     continue
+
+#                 # Получаем тип продажи для этого заказа
+#                 tip_prodazu_query = """
+#                 SELECT value
+#                 FROM tip_prodazu
+#                 WHERE order_id = ?
+#                 LIMIT 1
+#                 """
+
+#                 cursor_tip = await db.execute(tip_prodazu_query, (order_id,))
+#                 tip_row = await cursor_tip.fetchone()
+#                 tip_prodazu_value = tip_row[0] if tip_row else None
+
+#                 try:
+#                     # Парсим и форматируем дату
+#                     dt = datetime.strptime(order_time, "%Y-%m-%d %H:%M:%S")
+#                     sale_date = dt.strftime("%Y-%m-%d")
+#                     day = dt.day
+#                     month = dt.month
+#                     year = dt.year
+
+#                     # Вычисляем квартал (1-4)
+#                     quarter = (month - 1) // 3 + 1
+
+#                     # Формат месяц.год
+#                     month_year = dt.strftime("%m.%Y")
+#                 except Exception as e:
+#                     logger.error(
+#                         f"Ошибка при обработке даты для заказа {order_id}: {e}"
+#                     )
+#                     continue
+
+#                 # Получаем все товары для этого заказа с учетом поля discount
+#                 products_query = """
+#                 SELECT productId, text, amount, price, discount, percentDiscount
+#                 FROM products
+#                 WHERE order_id = ?
+#                 """
+
+#                 cursor = await db.execute(products_query, (order_id,))
+#                 products = await cursor.fetchall()
+
+#                 for product in products:
+#                     (
+#                         product_id,
+#                         product_name,
+#                         quantity,
+#                         price,
+#                         discount,
+#                         percent_discount,
+#                     ) = product
+
+#                     # Предотвращаем ошибки с неправильными значениями
+#                     if not quantity or quantity <= 0:
+#                         quantity = 0
+#                     if not price or price <= 0:
+#                         price = 0
+#                     if not discount or discount < 0:
+#                         discount = 0
+#                     if not percent_discount or percent_discount < 0:
+#                         percent_discount = 0
+
+#                     # Рассчитываем цену с учетом скидки
+#                     price_with_discount = price - discount
+#                     if price_with_discount < 0:
+#                         price_with_discount = 0
+
+#                     # Общая сумма с учетом скидки и количества
+#                     total_amount = price_with_discount * quantity
+
+#                     # Вставляем запись в аналитическую таблицу с учетом типа продажи
+#                     try:
+#                         await db.execute(
+#                             """
+#                         INSERT OR IGNORE INTO sales_analytics
+#                         (order_id, product_id, product_name, quantity, price, discount,
+#                          percent_discount, price_with_discount, total_amount,
+#                          sale_date, day, month, quarter, year, month_year, tip_prodazu)
+#                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+#                         """,
+#                             (
+#                                 order_id,
+#                                 product_id,
+#                                 product_name,
+#                                 quantity,
+#                                 price,
+#                                 discount,
+#                                 percent_discount,
+#                                 price_with_discount,
+#                                 total_amount,
+#                                 sale_date,
+#                                 day,
+#                                 month,
+#                                 quarter,
+#                                 year,
+#                                 month_year,
+#                                 tip_prodazu_value,
+#                             ),
+#                         )
+
+#                         # Проверяем, была ли вставка успешной
+#                         changes = db.total_changes
+#                         if changes > 0:
+#                             processed_count += 1
+#                         else:
+#                             skipped_count += 1
+#                     except Exception as e:
+#                         logger.debug(f"Ошибка при вставке записи: {e}")
+#                         skipped_count += 1
+
+#             await db.commit()
+#             logger.info(
+#                 f"Обновлена аналитическая таблица: добавлено {processed_count} записей, пропущено {skipped_count}"
+#             )
+
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при обновлении аналитической таблицы: {e}")
 async def update_analytics_table():
-    """Создает и обновляет улучшенную аналитическую таблицу продаж с учетом скидок и типа продажи"""
+    """Создает и обновляет улучшенную аналитическую таблицу продаж с учетом скидок, типа продажи и категории товара"""
     try:
         async with aiosqlite.connect(DB_PATH) as db:
-            # Добавляем поля для скидок в аналитическую таблицу и тип продажи
-            await db.execute(
+            # Проверяем существование таблицы
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='sales_analytics'"
+            )
+            table_exists = await cursor.fetchone()
+
+            if table_exists:
+                # Проверяем наличие колонки product_category
+                cursor = await db.execute("PRAGMA table_info(sales_analytics)")
+                columns = await cursor.fetchall()
+                has_category_column = any(
+                    col[1] == "product_category" for col in columns
+                )
+
+                if not has_category_column:
+                    # Добавляем колонку для категории товара
+                    logger.info(
+                        "Добавляем колонку product_category в таблицу sales_analytics"
+                    )
+                    await db.execute(
+                        "ALTER TABLE sales_analytics ADD COLUMN product_category TEXT"
+                    )
+                    await db.commit()
+            else:
+                # Создаем таблицу с новой колонкой для категории
+                await db.execute(
+                    """
+                CREATE TABLE sales_analytics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    order_id INTEGER,
+                    product_id INTEGER,
+                    product_name TEXT,
+                    product_category TEXT,       -- Категория товара
+                    quantity INTEGER,
+                    price REAL,                  -- Исходная цена (без скидки)
+                    discount REAL,               -- Скидка на единицу товара
+                    percent_discount REAL,       -- Процент скидки
+                    price_with_discount REAL,    -- Цена с учетом скидки
+                    total_amount REAL,           -- Общая сумма (цена с учетом скидки * количество)
+                    sale_date TEXT,              -- YYYY-MM-DD
+                    day INTEGER,                 -- День месяца (1-31)
+                    month INTEGER,               -- Месяц (1-12)
+                    quarter INTEGER,             -- Квартал (1-4)
+                    year INTEGER,                -- Год
+                    month_year TEXT,             -- MM.YYYY
+                    tip_prodazu TEXT,            -- Тип продажи
+                    UNIQUE(order_id, product_id)
+                )
                 """
-            CREATE TABLE IF NOT EXISTS sales_analytics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id INTEGER,
-                product_id INTEGER,
-                product_name TEXT,
-                quantity INTEGER,
-                price REAL,               -- Исходная цена (без скидки)
-                discount REAL,            -- Скидка на единицу товара
-                percent_discount REAL,    -- Процент скидки
-                price_with_discount REAL, -- Цена с учетом скидки
-                total_amount REAL,        -- Общая сумма (цена с учетом скидки * количество)
-                sale_date TEXT,           -- YYYY-MM-DD
-                day INTEGER,              -- День месяца (1-31)
-                month INTEGER,            -- Месяц (1-12)
-                quarter INTEGER,          -- Квартал (1-4)
-                year INTEGER,             -- Год
-                month_year TEXT,          -- MM.YYYY
-                tip_prodazu TEXT,         -- Тип продажи
-                UNIQUE(order_id, product_id)
-            )
-            """
-            )
+                )
+                await db.commit()
+                logger.info(
+                    "Создана новая таблица sales_analytics с колонкой категории товара"
+                )
 
             # Получаем заказы, которые еще не обработаны
             query = """
@@ -2442,6 +2673,30 @@ async def update_analytics_table():
 
             processed_count = 0
             skipped_count = 0
+
+            # Получаем словарь соответствий товар -> категория из таблицы product_category_relations
+            category_mapping = {}
+            try:
+                # Получаем связи товаров с категориями
+                category_query = """
+                SELECT pcr.product_id, pc.category_name 
+                FROM product_category_relations pcr
+                JOIN product_categories pc ON pcr.category_id = pc.id
+                """
+                cursor = await db.execute(category_query)
+                relations = await cursor.fetchall()
+
+                # Создаем словарь product_id -> category_name
+                for relation in relations:
+                    product_id, category_name = relation
+                    category_mapping[product_id] = category_name
+
+                logger.info(
+                    f"Загружено {len(category_mapping)} связей товаров с категориями"
+                )
+            except Exception as e:
+                logger.error(f"Ошибка при получении связей товаров с категориями: {e}")
+                # Продолжаем выполнение даже в случае ошибки
 
             for order in orders:
                 order_id, order_time = order
@@ -2501,6 +2756,11 @@ async def update_analytics_table():
                         percent_discount,
                     ) = product
 
+                    # Получаем категорию товара
+                    product_category = category_mapping.get(
+                        product_id, "Неизвестная категория"
+                    )
+
                     # Предотвращаем ошибки с неправильными значениями
                     if not quantity or quantity <= 0:
                         quantity = 0
@@ -2519,20 +2779,21 @@ async def update_analytics_table():
                     # Общая сумма с учетом скидки и количества
                     total_amount = price_with_discount * quantity
 
-                    # Вставляем запись в аналитическую таблицу с учетом типа продажи
+                    # Вставляем запись в аналитическую таблицу с учетом типа продажи и категории
                     try:
                         await db.execute(
                             """
                         INSERT OR IGNORE INTO sales_analytics
-                        (order_id, product_id, product_name, quantity, price, discount, 
+                        (order_id, product_id, product_name, product_category, quantity, price, discount, 
                          percent_discount, price_with_discount, total_amount, 
                          sale_date, day, month, quarter, year, month_year, tip_prodazu)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                             (
                                 order_id,
                                 product_id,
                                 product_name,
+                                product_category,
                                 quantity,
                                 price,
                                 discount,
@@ -2559,6 +2820,27 @@ async def update_analytics_table():
                         logger.debug(f"Ошибка при вставке записи: {e}")
                         skipped_count += 1
 
+            # Обновляем категории товаров для существующих записей
+            if category_mapping:
+                try:
+                    updated_records = 0
+                    for product_id, category_name in category_mapping.items():
+                        update_query = """
+                        UPDATE sales_analytics 
+                        SET product_category = ? 
+                        WHERE product_id = ? AND (product_category IS NULL OR product_category = 'Неизвестная категория')
+                        """
+                        await db.execute(update_query, (category_name, product_id))
+                        updated_records += db.total_changes
+
+                    logger.info(
+                        f"Обновлены категории для {updated_records} существующих записей"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Ошибка при обновлении категорий в существующих записях: {e}"
+                    )
+
             await db.commit()
             logger.info(
                 f"Обновлена аналитическая таблица: добавлено {processed_count} записей, пропущено {skipped_count}"
@@ -2566,6 +2848,9 @@ async def update_analytics_table():
 
     except Exception as e:
         logger.error(f"Ошибка при обновлении аналитической таблицы: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
 
 
 async def get_sales_summary_by_month_product():
@@ -2600,13 +2885,922 @@ async def get_sales_summary_by_month_product():
         return []
 
 
+async def check_table_structure():
+    """Проверяет структуру таблицы products и наличие нужных колонок"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Получаем информацию о структуре таблицы products
+        cursor = await db.execute("PRAGMA table_info(products)")
+        columns = await cursor.fetchall()
+
+        # Выводим все колонки для отладки
+        for column in columns:
+            logger.info(f"Колонка в таблице products: {column}")
+
+        # Проверяем наличие колонки Included_in_set
+        has_included_column = any(
+            column[1].lower() == "included_in_set" for column in columns
+        )
+
+        if not has_included_column:
+            logger.info("Колонка Included_in_set не найдена, добавляем её")
+            await db.execute(
+                "ALTER TABLE products ADD COLUMN Included_in_set BOOLEAN DEFAULT FALSE"
+            )
+            await db.commit()
+
+            # Проверяем, что колонка действительно добавлена
+            cursor = await db.execute("PRAGMA table_info(products)")
+            new_columns = await cursor.fetchall()
+            logger.info(f"Обновленная структура таблицы: {len(new_columns)} колонок")
+            return True
+        else:
+            logger.info("Колонка Included_in_set уже существует в таблице")
+            return False
+
+
+async def parse_xml_and_update_db():
+    """Обработка XML-выгрузки и заполнение таблиц"""
+    if not os.path.exists(XML_PATH):
+        logger.error(f"Файл XML-выгрузки не найден: {XML_PATH}")
+        return
+
+    try:
+        # Парсим XML
+        tree = ET.parse(XML_PATH)
+        root = tree.getroot()
+
+        # Получаем пространство имен
+        ns = ""
+        if "}" in root.tag:
+            ns = root.tag.split("}")[0] + "}"
+
+        # Находим категории
+        categories = []
+        for category in root.findall(f".//{ns}categories/{ns}category"):
+            category_id = int(category.get("id"))
+            category_name = category.text
+            categories.append((category_id, category_name))
+
+        logger.info(f"Найдено {len(categories)} категорий в XML-выгрузке")
+
+        # Находим товары и их категории
+        offers = []
+
+        # Собираем все данные о товарах за один проход по XML
+        for offer in root.findall(f".//{ns}offers/{ns}offer"):
+            offer_id = offer.get("id")
+            if offer_id.startswith("id_"):
+                offer_id = offer_id[3:]  # Удаляем префикс 'id_'
+
+            article = None
+            category_id = None
+            name = ""
+            description = ""
+
+            # Извлекаем все нужные данные из элемента offer
+            for child in offer:
+                tag = child.tag
+                if ns:
+                    tag = tag.replace(ns, "")
+
+                if tag == "article":
+                    article = child.text
+                elif tag == "categoryId":
+                    try:
+                        category_id = int(child.text)
+                    except (ValueError, TypeError):
+                        pass
+                elif tag == "name":
+                    name = child.text or ""
+                elif tag == "description":
+                    description = child.text or ""
+
+            # Определяем, является ли товар набором
+            is_set = "SET" in name.upper() if name else False
+
+            # Добавляем информацию о товаре в общий список
+            offers.append((offer_id, article, category_id, name, description, is_set))
+
+        logger.info(f"Найдено {len(offers)} товаров в XML-выгрузке")
+
+        # Записываем данные в БД
+        async with aiosqlite.connect(DB_PATH) as db:
+            # Сначала проверяем и при необходимости модифицируем структуру таблицы
+            await check_table_structure()
+
+            # Записываем категории
+            for category_id, category_name in categories:
+                await db.execute(
+                    "INSERT OR IGNORE INTO product_categories (category_id, category_name) VALUES (?, ?)",
+                    (category_id, category_name),
+                )
+
+            # Получаем информацию о наборах
+            set_offers = [
+                (oid, art, cat_id, name, desc)
+                for oid, art, cat_id, name, desc, is_set in offers
+                if is_set
+            ]
+            logger.info(f"Найдено {len(set_offers)} наборов товаров")
+
+            # Получаем список всех товаров из БД для поиска соответствий
+            cursor = await db.execute("SELECT productId, text, sku FROM products")
+            all_products = await cursor.fetchall()
+            product_dict = {
+                product[2]: (product[0], product[1]) for product in all_products
+            }  # sku -> (productId, text)
+
+            # Анализируем описания наборов для определения входящих в них товаров
+            included_articles = set()
+
+            for _, set_article, _, set_name, set_description in set_offers:
+                logger.info(
+                    f"Анализ набора {set_article}: {set_name} - {set_description}"
+                )
+
+                # Пропускаем, если нет описания
+                if not set_description:
+                    continue
+
+                # Поиск упоминаний товаров в наборе
+                product_types = [
+                    "Шампунь",
+                    "Кондиціонер",
+                    "Маска",
+                    "Термозахист",
+                    "Олія",
+                    "Косметичка",
+                ]
+                variants = ["Magnetisme", "Obsession", "Electrique"]
+
+                # Строим матрицу сочетаний типов продуктов и вариантов
+                for product_type in product_types:
+                    if product_type not in set_description:
+                        continue
+
+                    for variant in variants:
+                        if variant not in set_description:
+                            continue
+
+                        # Проверяем все товары на соответствие
+                        for sku, (product_id, product_name) in product_dict.items():
+                            if product_type in product_name and variant in product_name:
+                                included_articles.add(sku)
+                                logger.info(f"Товар в наборе: {sku} - {product_name}")
+
+            # Обновляем флаг Included_in_set для всех товаров
+            # Используем безопасный SQL запрос с проверкой существования колонки
+            try:
+                # Сначала сбрасываем флаг для всех товаров
+                await db.execute("UPDATE products SET Included_in_set = 0")
+
+                # Затем устанавливаем флаг для товаров, входящих в наборы
+                for sku in included_articles:
+                    await db.execute(
+                        "UPDATE products SET Included_in_set = 1 WHERE sku = ?", (sku,)
+                    )
+                    logger.info(
+                        f"Установлен флаг Included_in_set=TRUE для товара с sku={sku}"
+                    )
+
+                logger.info(
+                    f"Обновлены флаги Included_in_set для {len(included_articles)} товаров"
+                )
+            except Exception as e:
+                logger.error(f"Ошибка при обновлении флага Included_in_set: {e}")
+                logger.info("Попробуем альтернативное обновление...")
+
+                # Альтернативный вариант (с явным указанием поля)
+                for sku in included_articles:
+                    try:
+                        await db.execute(
+                            'UPDATE products SET "Included_in_set" = 1 WHERE sku = ?',
+                            (sku,),
+                        )
+                    except Exception as e2:
+                        logger.error(f"Альтернативное обновление тоже не удалось: {e2}")
+
+            # Связываем товары с категориями
+            for _, article, category_id, _, _, _ in offers:
+                if not article or not category_id:
+                    continue
+
+                # Получаем productId по артикулу (sku)
+                cursor = await db.execute(
+                    "SELECT productId FROM products WHERE sku = ?", (article,)
+                )
+                product_row = await cursor.fetchone()
+
+                if not product_row:
+                    logger.warning(f"Товар с sku={article} не найден в БД")
+                    continue
+
+                product_id = product_row[0]
+
+                # Получаем id категории из таблицы product_categories
+                cursor = await db.execute(
+                    "SELECT id FROM product_categories WHERE category_id = ?",
+                    (category_id,),
+                )
+                category_row = await cursor.fetchone()
+
+                if not category_row:
+                    logger.warning(f"Категория с id={category_id} не найдена в БД")
+                    continue
+
+                category_db_id = category_row[0]
+
+                # Связываем товар с категорией
+                await db.execute(
+                    "INSERT OR IGNORE INTO product_category_relations (product_id, category_id) VALUES (?, ?)",
+                    (product_id, category_db_id),
+                )
+
+            await db.commit()
+
+            # Проверяем результаты
+            cursor = await db.execute("SELECT COUNT(*) FROM product_categories")
+            cat_count = (await cursor.fetchone())[0]
+
+            cursor = await db.execute("SELECT COUNT(*) FROM product_category_relations")
+            rel_count = (await cursor.fetchone())[0]
+            logger.info(
+                f"Всего связей в таблице product_category_relations: {rel_count}"
+            )
+
+            # Пробуем получить количество товаров в наборах разными способами
+            try:
+                cursor = await db.execute(
+                    "SELECT COUNT(*) FROM products WHERE Included_in_set = 1"
+                )
+                included_count = (await cursor.fetchone())[0]
+            except Exception as e:
+                logger.error(f"Ошибка при подсчете товаров в наборах: {e}")
+                included_count = len(included_articles)
+
+            logger.info(
+                f"Результаты: {cat_count} категорий, {rel_count} связей, {included_count} товаров в наборах"
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке XML: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+
+
+async def check_structure():
+    """Проверяет структуру таблиц и при необходимости корректирует ее"""
+    async with aiosqlite.connect(DB_PATH) as db:
+        # Проверяем структуру таблицы product_category_relations
+        logger.info("Проверка структуры таблицы product_category_relations")
+        cursor = await db.execute("PRAGMA table_info(product_category_relations)")
+        columns = await cursor.fetchall()
+
+        for col in columns:
+            logger.info(f"Колонка: {col}")
+
+        # Проверяем внешние ключи
+        logger.info("Проверка внешних ключей")
+        cursor = await db.execute("PRAGMA foreign_key_list(product_category_relations)")
+        fkeys = await cursor.fetchall()
+
+        for fk in fkeys:
+            logger.info(f"Внешний ключ: {fk}")
+
+        # Проверяем структуру таблицы products
+        logger.info("Проверка первых 5 записей из таблицы products")
+        cursor = await db.execute(
+            "SELECT id, productId, sku, text FROM products LIMIT 5"
+        )
+        products = await cursor.fetchall()
+
+        for prod in products:
+            logger.info(f"Товар: {prod}")
+
+
+async def recreate_tables():
+    """Пересоздает таблицы для устранения проблем с внешними ключами"""
+    try:
+        logger.info("Начинаем пересоздание таблицы product_category_relations")
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            # Проверяем существование базы данных
+            logger.info(f"Подключились к базе данных: {DB_PATH}")
+
+            # Проверяем наличие таблицы до удаления
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='product_category_relations'"
+            )
+            table_exists = await cursor.fetchone()
+            if table_exists:
+                logger.info(
+                    "Таблица product_category_relations существует, будет удалена"
+                )
+            else:
+                logger.info("Таблица product_category_relations не существует")
+
+            # Отключаем внешние ключи
+            await db.execute("PRAGMA foreign_keys = OFF")
+            logger.info("Внешние ключи отключены")
+
+            # Удаляем таблицу если она существует
+            await db.execute("DROP TABLE IF EXISTS product_category_relations")
+            logger.info("DROP TABLE выполнен")
+
+            # Создаем таблицу заново с правильными внешними ключами
+            create_table_sql = """
+            CREATE TABLE product_category_relations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER NOT NULL,
+                category_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (product_id) REFERENCES products (id),
+                FOREIGN KEY (category_id) REFERENCES product_categories (id),
+                UNIQUE(product_id, category_id)
+            )
+            """
+            logger.info(f"Выполняем SQL: {create_table_sql}")
+            await db.execute(create_table_sql)
+            logger.info("CREATE TABLE выполнен")
+
+            # Фиксируем изменения
+            await db.commit()
+            logger.info("Изменения зафиксированы (COMMIT)")
+
+            # Проверяем, что таблица создана
+            cursor = await db.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='product_category_relations'"
+            )
+            table_created = await cursor.fetchone()
+            if table_created:
+                logger.info("Таблица product_category_relations успешно создана")
+            else:
+                logger.error(
+                    "ОШИБКА: Таблица product_category_relations НЕ была создана!"
+                )
+
+            # Проверяем структуру созданной таблицы
+            cursor = await db.execute("PRAGMA table_info(product_category_relations)")
+            columns = await cursor.fetchall()
+            logger.info(f"Колонки созданной таблицы: {columns}")
+
+            # Проверяем внешние ключи
+            cursor = await db.execute(
+                "PRAGMA foreign_key_list(product_category_relations)"
+            )
+            fkeys = await cursor.fetchall()
+            logger.info(f"Внешние ключи созданной таблицы: {fkeys}")
+
+            # Включаем внешние ключи
+            await db.execute("PRAGMA foreign_keys = ON")
+            logger.info("Внешние ключи включены")
+
+            logger.info(
+                "Пересоздание таблицы product_category_relations завершено успешно"
+            )
+            return True
+
+    except Exception as e:
+        logger.error(f"Ошибка при пересоздании таблицы: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+        return False
+
+
+async def import_relations():
+    """Импортирует связи между товарами и категориями напрямую из XML в базу данных"""
+
+    if not os.path.exists(XML_PATH):
+        print(f"Ошибка: XML-файл не найден: {XML_PATH}")
+        return False
+
+    if not os.path.exists(DB_PATH):
+        print(f"Ошибка: База данных не найдена: {DB_PATH}")
+        return False
+
+    try:
+        # Парсим XML
+        tree = ET.parse(XML_PATH)
+        root = tree.getroot()
+
+        # Получаем пространство имен (если есть)
+        ns = ""
+        if "}" in root.tag:
+            ns = root.tag.split("}")[0] + "}"
+
+        # Извлекаем данные о товарах и категориях
+        products_data = []
+
+        for offer in root.findall(f".//{ns}offers/{ns}offer"):
+            article = next((item.text for item in offer.findall(f"{ns}article")), None)
+            category_id = next(
+                (item.text for item in offer.findall(f"{ns}categoryId")), None
+            )
+
+            if article and category_id:
+                try:
+                    category_id = int(category_id)
+                    products_data.append((article, category_id))
+                except (ValueError, TypeError):
+                    print(
+                        f"Предупреждение: Некорректный categoryId для товара {article}"
+                    )
+
+        # Подключаемся к базе данных
+        async with aiosqlite.connect(DB_PATH) as db:
+            # Отключаем внешние ключи
+            await db.execute("PRAGMA foreign_keys = OFF")
+
+            # Очищаем таблицу связей
+            await db.execute("DELETE FROM product_category_relations")
+            print("Таблица product_category_relations очищена")
+
+            # Проверяем наличие данных в таблицах
+            cursor = await db.execute("SELECT COUNT(*) FROM products")
+            products_count = (await cursor.fetchone())[0]
+
+            cursor = await db.execute("SELECT COUNT(*) FROM product_categories")
+            categories_count = (await cursor.fetchone())[0]
+
+            print(
+                f"В базе данных: {products_count} товаров и {categories_count} категорий"
+            )
+
+            # Импортируем связи
+            relations_created = 0
+            failed_relations = 0
+
+            for article, category_id in products_data:
+                # Получаем ID товара
+                cursor = await db.execute(
+                    "SELECT id FROM products WHERE sku = ?", (article,)
+                )
+                product_row = await cursor.fetchone()
+
+                if not product_row:
+                    print(f"Товар с артикулом {article} не найден в базе данных")
+                    failed_relations += 1
+                    continue
+
+                product_id = product_row[0]
+
+                # Получаем ID категории
+                cursor = await db.execute(
+                    "SELECT id FROM product_categories WHERE category_id = ?",
+                    (category_id,),
+                )
+                category_row = await cursor.fetchone()
+
+                if not category_row:
+                    print(f"Категория с ID {category_id} не найдена в базе данных")
+                    failed_relations += 1
+                    continue
+
+                category_db_id = category_row[0]
+
+                # Создаем связь
+                try:
+                    await db.execute(
+                        "INSERT INTO product_category_relations (product_id, category_id) VALUES (?, ?)",
+                        (product_id, category_db_id),
+                    )
+                    relations_created += 1
+                except aiosqlite.Error as e:
+                    print(
+                        f"Ошибка при создании связи для товара {article} и категории {category_id}: {e}"
+                    )
+                    failed_relations += 1
+
+            # Сохраняем изменения
+            await db.commit()
+
+            # Проверяем результат
+            cursor = await db.execute("SELECT COUNT(*) FROM product_category_relations")
+            relations_count = (await cursor.fetchone())[0]
+
+            print(f"\nРезультаты импорта:")
+            print(f"- Создано связей: {relations_created}")
+            print(f"- Не удалось создать связей: {failed_relations}")
+            print(f"- Всего связей в базе данных: {relations_count}")
+
+            # Выводим примеры связей
+            cursor = await db.execute(
+                """
+                SELECT 
+                    p.id, p.sku, p.text, 
+                    pc.id, pc.category_id, pc.category_name
+                FROM 
+                    product_category_relations pcr
+                JOIN 
+                    products p ON pcr.product_id = p.id
+                JOIN 
+                    product_categories pc ON pcr.category_id = pc.id
+                LIMIT 5
+            """
+            )
+
+            examples = await cursor.fetchall()
+
+            if examples:
+                print("\nПримеры созданных связей:")
+                for ex in examples:
+                    print(f"Товар: {ex[1]} ({ex[2]}) -> Категория: {ex[4]} ({ex[5]})")
+
+            # Включаем внешние ключи
+            await db.execute("PRAGMA foreign_keys = ON")
+
+        return True
+
+    except Exception as e:
+        print(f"Ошибка при импорте связей: {e}")
+        import traceback
+
+        print(traceback.format_exc())
+        return False
+
+
 async def main():
-    await update_analytics_table()
+    if await import_relations():
+        print("\nИмпорт связей успешно завершен.")
+    else:
+        print("\nИмпорт связей не удался из-за ошибок.")
+
+
+# async def check_table_structure():
+#     """Проверяет структуру таблицы products и наличие нужных колонок"""
+#     async with aiosqlite.connect(DB_PATH) as db:
+#         # Получаем информацию о структуре таблицы products
+#         cursor = await db.execute("PRAGMA table_info(products)")
+#         columns = await cursor.fetchall()
+
+#         # Выводим все колонки для отладки
+#         for column in columns:
+#             logger.info(f"Колонка в таблице products: {column}")
+
+#         # Проверяем наличие колонки included_in_set (в нижнем регистре)
+#         column_names = [column[1].lower() for column in columns]
+#         has_included_column = "included_in_set" in column_names
+
+#         if not has_included_column:
+#             logger.info("Колонка included_in_set не найдена, добавляем её")
+#             await db.execute(
+#                 "ALTER TABLE products ADD COLUMN included_in_set BOOLEAN DEFAULT FALSE"
+#             )
+#             await db.commit()
+#             return True
+#         else:
+#             logger.info("Колонка included_in_set уже существует в таблице")
+#             return False
+
+
+# async def import_products_from_xml():
+#     """Импортирует товары из XML-выгрузки в таблицу products"""
+#     if not os.path.exists(XML_PATH):
+#         logger.error(f"Файл XML-выгрузки не найден: {XML_PATH}")
+#         return False
+
+#     try:
+#         # Парсим XML
+#         tree = ET.parse(XML_PATH)
+#         root = tree.getroot()
+
+#         # Получаем пространство имен
+#         ns = ""
+#         if "}" in root.tag:
+#             ns = root.tag.split("}")[0] + "}"
+
+#         # Находим товары
+#         products_imported = 0
+
+#         async with aiosqlite.connect(DB_PATH) as db:
+#             # Собираем все данные о товарах за один проход по XML
+#             for offer in root.findall(f".//{ns}offers/{ns}offer"):
+#                 offer_id = offer.get("id")
+#                 if offer_id.startswith("id_"):
+#                     offer_id = offer_id[3:]  # Удаляем префикс 'id_'
+
+#                 # Извлекаем все нужные данные из элемента offer
+#                 productId = int(offer_id) if offer_id.isdigit() else None
+#                 name = None
+#                 article = None
+#                 barcode = None
+#                 price = None
+#                 category_id = None
+#                 description = None
+
+#                 for child in offer:
+#                     tag = child.tag
+#                     if ns:
+#                         tag = tag.replace(ns, "")
+
+#                     if tag == "name":
+#                         name = child.text
+#                     elif tag == "article":
+#                         article = child.text
+#                     elif tag == "barcode":
+#                         barcode = child.text
+#                     elif tag == "price":
+#                         try:
+#                             price = float(child.text)
+#                         except (ValueError, TypeError):
+#                             price = 0
+#                     elif tag == "categoryId":
+#                         try:
+#                             category_id = int(child.text)
+#                         except (ValueError, TypeError):
+#                             pass
+#                     elif tag == "description":
+#                         description = child.text
+
+#                 # Проверяем наличие товара в БД
+#                 cursor = await db.execute(
+#                     "SELECT id FROM products WHERE sku = ?", (article,)
+#                 )
+#                 existing_product = await cursor.fetchone()
+
+#                 if existing_product:
+#                     # Товар уже существует, обновляем его
+#                     await db.execute(
+#                         """
+#                         UPDATE products
+#                         SET text = ?, barcode = ?, price = ?, description = ?
+#                         WHERE sku = ?
+#                     """,
+#                         (name, barcode, price, description, article),
+#                     )
+#                     logger.info(f"Обновлен товар: {article} - {name}")
+#                 else:
+#                     # Товар не существует, добавляем его
+#                     await db.execute(
+#                         """
+#                         INSERT INTO products
+#                         (productId, text, sku, barcode, price, description)
+#                         VALUES (?, ?, ?, ?, ?, ?)
+#                     """,
+#                         (productId, name, article, barcode, price, description),
+#                     )
+#                     products_imported += 1
+#                     logger.info(f"Добавлен новый товар: {article} - {name}")
+
+#             await db.commit()
+#             logger.info(f"Импортировано {products_imported} новых товаров из XML")
+#             return True
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при импорте товаров из XML: {e}")
+#         import traceback
+
+#         logger.error(traceback.format_exc())
+#         return False
+
+
+# async def parse_xml_and_update_db():
+#     """Обработка XML-выгрузки и заполнение таблиц"""
+#     if not os.path.exists(XML_PATH):
+#         logger.error(f"Файл XML-выгрузки не найден: {XML_PATH}")
+#         return
+
+#     try:
+#         # Парсим XML
+#         tree = ET.parse(XML_PATH)
+#         root = tree.getroot()
+
+#         # Получаем пространство имен
+#         ns = ""
+#         if "}" in root.tag:
+#             ns = root.tag.split("}")[0] + "}"
+
+#         # Находим категории
+#         categories = []
+#         for category in root.findall(f".//{ns}categories/{ns}category"):
+#             category_id = int(category.get("id"))
+#             category_name = category.text
+#             categories.append((category_id, category_name))
+
+#         logger.info(f"Найдено {len(categories)} категорий в XML-выгрузке")
+
+#         # Находим товары и их категории
+#         offers = []
+
+#         # Собираем все данные о товарах за один проход по XML
+#         for offer in root.findall(f".//{ns}offers/{ns}offer"):
+#             offer_id = offer.get("id")
+#             if offer_id.startswith("id_"):
+#                 offer_id = offer_id[3:]  # Удаляем префикс 'id_'
+
+#             article = None
+#             category_id = None
+#             name = ""
+#             description = ""
+
+#             # Извлекаем все нужные данные из элемента offer
+#             for child in offer:
+#                 tag = child.tag
+#                 if ns:
+#                     tag = tag.replace(ns, "")
+
+#                 if tag == "article":
+#                     article = child.text
+#                 elif tag == "categoryId":
+#                     try:
+#                         category_id = int(child.text)
+#                     except (ValueError, TypeError):
+#                         pass
+#                 elif tag == "name":
+#                     name = child.text or ""
+#                 elif tag == "description":
+#                     description = child.text or ""
+
+#             # Определяем, является ли товар набором
+#             is_set = "SET" in name.upper() if name else False
+
+#             # Добавляем информацию о товаре в общий список
+#             offers.append((offer_id, article, category_id, name, description, is_set))
+
+#         logger.info(f"Найдено {len(offers)} товаров в XML-выгрузке")
+
+#         # Записываем данные в БД
+#         async with aiosqlite.connect(DB_PATH) as db:
+#             # Сначала проверяем и при необходимости модифицируем структуру таблицы
+#             await check_table_structure()
+
+#             # Сначала импортируем товары, чтобы избежать ошибок с отсутствующими товарами
+#             await import_products_from_xml()
+
+#             # Записываем категории
+#             for category_id, category_name in categories:
+#                 await db.execute(
+#                     "INSERT OR IGNORE INTO product_categories (category_id, category_name) VALUES (?, ?)",
+#                     (category_id, category_name),
+#                 )
+
+#             # Получаем информацию о наборах
+#             set_offers = [
+#                 (oid, art, cat_id, name, desc)
+#                 for oid, art, cat_id, name, desc, is_set in offers
+#                 if is_set
+#             ]
+#             logger.info(f"Найдено {len(set_offers)} наборов товаров")
+
+#             # Получаем список всех товаров из БД для поиска соответствий
+#             cursor = await db.execute("SELECT productId, text, sku FROM products")
+#             all_products = await cursor.fetchall()
+#             product_dict = {
+#                 product[2]: (product[0], product[1]) for product in all_products
+#             }  # sku -> (productId, text)
+
+#             # Анализируем описания наборов для определения входящих в них товаров
+#             included_articles = set()
+
+#             for _, set_article, _, set_name, set_description in set_offers:
+#                 logger.info(
+#                     f"Анализ набора {set_article}: {set_name} - {set_description}"
+#                 )
+
+#                 # Пропускаем, если нет описания
+#                 if not set_description:
+#                     continue
+
+#                 # Поиск упоминаний товаров в наборе
+#                 product_types = [
+#                     "Шампунь",
+#                     "Кондиціонер",
+#                     "Маска",
+#                     "Термозахист",
+#                     "Олія",
+#                     "Косметичка",
+#                 ]
+#                 variants = ["Magnetisme", "Obsession", "Electrique"]
+
+#                 # Строим матрицу сочетаний типов продуктов и вариантов
+#                 for product_type in product_types:
+#                     if product_type not in set_description:
+#                         continue
+
+#                     for variant in variants:
+#                         if variant not in set_description:
+#                             continue
+
+#                         # Проверяем все товары на соответствие
+#                         for sku, (product_id, product_name) in product_dict.items():
+#                             if product_type in product_name and variant in product_name:
+#                                 included_articles.add(sku)
+#                                 logger.info(f"Товар в наборе: {sku} - {product_name}")
+
+#             # Обновляем флаг included_in_set (нижний регистр!) для всех товаров
+#             try:
+#                 # Сначала сбрасываем флаг для всех товаров
+#                 await db.execute("UPDATE products SET included_in_set = 0")
+
+#                 # Затем устанавливаем флаг для товаров, входящих в наборы
+#                 for sku in included_articles:
+#                     await db.execute(
+#                         "UPDATE products SET included_in_set = 1 WHERE sku = ?", (sku,)
+#                     )
+#                     logger.info(
+#                         f"Установлен флаг included_in_set=TRUE для товара с sku={sku}"
+#                     )
+
+#                 logger.info(
+#                     f"Обновлены флаги included_in_set для {len(included_articles)} товаров"
+#                 )
+#             except Exception as e:
+#                 logger.error(f"Ошибка при обновлении флага included_in_set: {e}")
+#                 logger.info("Попробуем альтернативное обновление...")
+
+#                 # Альтернативный вариант (с кавычками вокруг имени поля)
+#                 for sku in included_articles:
+#                     try:
+#                         await db.execute(
+#                             'UPDATE products SET "included_in_set" = 1 WHERE sku = ?',
+#                             (sku,),
+#                         )
+#                     except Exception as e2:
+#                         logger.error(f"Альтернативное обновление тоже не удалось: {e2}")
+
+#             # Связываем товары с категориями
+#             for _, article, category_id, _, _, _ in offers:
+#                 if not article or not category_id:
+#                     continue
+
+#                 # Получаем productId по артикулу (sku)
+#                 cursor = await db.execute(
+#                     "SELECT id FROM products WHERE sku = ?", (article,)
+#                 )
+#                 product_row = await cursor.fetchone()
+
+#                 if not product_row:
+#                     logger.warning(f"Товар с sku={article} не найден в БД")
+#                     continue
+
+#                 product_id = product_row[0]
+
+#                 # Получаем id категории из таблицы product_categories
+#                 cursor = await db.execute(
+#                     "SELECT id FROM product_categories WHERE category_id = ?",
+#                     (category_id,),
+#                 )
+#                 category_row = await cursor.fetchone()
+
+#                 if not category_row:
+#                     logger.warning(f"Категория с id={category_id} не найдена в БД")
+#                     continue
+
+#                 category_db_id = category_row[0]
+
+#                 # Связываем товар с категорией
+#                 await db.execute(
+#                     "INSERT OR IGNORE INTO product_category_relations (product_id, category_id) VALUES (?, ?)",
+#                     (product_id, category_db_id),
+#                 )
+
+#             await db.commit()
+
+#             # Проверяем результаты
+#             cursor = await db.execute("SELECT COUNT(*) FROM product_categories")
+#             cat_count = (await cursor.fetchone())[0]
+
+#             cursor = await db.execute("SELECT COUNT(*) FROM product_category_relations")
+#             rel_count = (await cursor.fetchone())[0]
+
+#             # Пробуем получить количество товаров в наборах
+#             try:
+#                 cursor = await db.execute(
+#                     "SELECT COUNT(*) FROM products WHERE included_in_set = 1"
+#                 )
+#                 included_count = (await cursor.fetchone())[0]
+#             except Exception as e:
+#                 logger.error(f"Ошибка при подсчете товаров в наборах: {e}")
+#                 included_count = len(included_articles)
+
+#             logger.info(
+#                 f"Результаты: {cat_count} категорий, {rel_count} связей, {included_count} товаров в наборах"
+#             )
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при обработке XML: {e}")
+#         import traceback
+
+#         logger.error(traceback.format_exc())
+
+
+async def main():
+    
+    
     # await get_sales_summary_by_month_product()
 
     # """Основная функция для запуска процесса"""
     # # Создаем базу данных, если она не существует
-    await create_database()
+
+    ## Создание БД
+    # await create_database()
+    
+    # # Парсинг категорий
+    # await parse_xml_and_update_db()
+
+
     # # await update_order_time_look_for_existing_orders()
     # # Обработка данных из JSON строки или файла
     # # Можно раскомментировать нужный вариант
@@ -2616,7 +3810,11 @@ async def main():
     # # Загрузка старых данных
     # recordings_output_file = data_directory / f"recording_014.json"
     # await process_order(recordings_output_file)
-
+    
+    
+    ## Аналитеческая таблица
+    # await update_analytics_table()
+    
     # # # Выгрузка в  Google Sheets
     # await export_orders_to_sheets()
 
