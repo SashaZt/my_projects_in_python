@@ -5,6 +5,7 @@ import traceback
 from html import unescape
 from pathlib import Path
 
+from bs4 import BeautifulSoup
 from loguru import logger
 
 current_directory = Path.cwd()
@@ -259,13 +260,57 @@ def extract_product_data(script_content):
     return product_data
 
 
+def extract_script_content(html_file_path):
+    """
+    Извлекает содержимое скрипта, содержащего 'APP_SHELL_SSR_STATE_@mf\u002Fpdp-frontend' из HTML-файла.
+
+    Args:
+        html_file_path (str): Путь к HTML-файлу
+
+    Returns:
+        str: Содержимое скрипта или None, если скрипт не найден
+    """
+    try:
+        # Чтение HTML-файла
+        with open(html_file_path, "r", encoding="utf-8") as file:
+            html_content = file.read()
+
+        # Метод 1: Используем BeautifulSoup для извлечения всех скриптов
+        soup = BeautifulSoup(html_content, "html.parser")
+        scripts = soup.find_all("script")
+
+        target_script = None
+        target_pattern = r'window\["APP_SHELL_SSR_STATE_@mf\\u002Fpdp-frontend"\]'
+
+        # Проверяем каждый скрипт на наличие целевого идентификатора
+        for script in scripts:
+            if script.string and re.search(target_pattern, script.string):
+                target_script = script.string
+                break
+
+        # Метод 2: Если BeautifulSoup не нашел скрипт, используем регулярные выражения
+        if target_script is None:
+            pattern = r'<script[^>]*>(.*?window\["APP_SHELL_SSR_STATE_@mf\\u002Fpdp-frontend"\].*?)</script>'
+            match = re.search(pattern, html_content, re.DOTALL)
+            if match:
+                target_script = match.group(1)
+
+        return target_script
+
+    except Exception as e:
+        print(f"Произошла ошибка при извлечении скрипта: {e}")
+        return None
+
+
 def main():
     try:
         logger.info("Читаем файл скрипта...")
-        with open("found_script.txt", "r", encoding="utf-8") as f:
-            script_content = f.read()
-
-        logger.info("Извлекаем данные о продукте...")
+        # with open("found_script.txt", "r", encoding="utf-8") as f:
+        #     script_content = f.read()
+        script_content = extract_script_content(
+            "Astschere, Baumschere, Gartenschere, _ Kaufland.de.html"
+        )
+        logger.info(Astschere, Baumschere, Gartenschere, _ Kaufland.de.html)
         product_data = extract_product_data(script_content)
 
         logger.info("\nСохраняем результат...")
