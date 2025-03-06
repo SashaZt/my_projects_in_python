@@ -26,6 +26,9 @@ configuration_directory.mkdir(parents=True, exist_ok=True)
 
 
 def get_json(dr_common_data):
+    """
+    "signature": "3390047773fec4fc0a417135a3bf79ac14cd4634", - прверять, из-за него может не работать
+    """
 
     cookies = {
         "_csrf": "c1e6328d4d1a00430f580954cd699bfcb582e349d7cdb35b0fc25fc69f79504fa%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%22sPIghgsE62pvjuIdspysobQGcw1EBt3j%22%3B%7D",

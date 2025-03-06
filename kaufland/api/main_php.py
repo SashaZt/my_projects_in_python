@@ -116,7 +116,6 @@ class KauflandAPI:
         # Вывод информации о запросе
         logger.info(f"Статус ответа: {response.status_code}")
         logger.info(f"Заголовки ответа: {response.headers}")
-        logger.error(f"Текст ответа: {response.text}")  # Добавьте эту строку здесь
         # Проверка на ошибки
         response.raise_for_status()
 
@@ -212,6 +211,89 @@ class KauflandAPI:
         """
         return self.make_request("PATCH", f"/tickets/{ticket_id}/close")
 
+    def get_categories(
+        self, storefront="de", query=None, parent_id=None, limit=20, offset=0
+    ):
+        """
+        Получение списка категорий
+
+        :param storefront: Торговая площадка (страна)
+        :param query: Поисковый запрос для категорий
+        :param parent_id: ID родительской категории
+        :param limit: Максимальное количество записей
+        :param offset: Смещение для пагинации
+        :return: Список категорий
+        """
+        params = {"storefront": storefront, "limit": limit, "offset": offset}
+
+        if query:
+            params["q"] = query
+
+        if parent_id:
+            params["id_parent"] = parent_id
+
+        logger.info(f"Получение списка категорий для {storefront}")
+
+        # Формирование запроса на получение списка категорий
+        response = self.make_request(
+            method="GET", endpoint="/categories", params=params
+        )
+
+        return response
+
+    def get_category_attributes(
+        self, category_id, storefront="de", include_parent=False, include_children=False
+    ):
+        """
+        Получение атрибутов категории.
+
+        :param category_id: ID категории
+        :param storefront: Торговая площадка (страна)
+        :param include_parent: Включить родительскую категорию в ответ
+        :param include_children: Включить дочерние категории в ответ
+        :return: Информация о категории с атрибутами
+        """
+        # Формируем базовый URL
+        url = f"{self.base_url}/categories/{category_id}"
+
+        # Добавляем параметры
+        url += f"?storefront={storefront}"
+        url += "&embedded=optional_attributes"
+        url += "&embedded=required_attributes"
+
+        if include_parent:
+            url += "&embedded=parent"
+
+        if include_children:
+            url += "&embedded=children"
+
+        logger.info(f"Получение атрибутов для категории {category_id}: {url}")
+
+        # Текущее время в секундах
+        timestamp = int(time.time())
+
+        # Подпись
+        signature = self.sign_request("GET", url, "", timestamp)
+
+        # Заголовки
+        headers = {
+            "Accept": "application/json",
+            "Shop-Client-Key": self.client_key,
+            "Shop-Timestamp": str(timestamp),
+            "Shop-Signature": signature,
+            "User-Agent": self.user_agent,
+        }
+
+        # Выполнение запроса
+        response = requests.get(url, headers=headers, timeout=30)
+        logger.info(f"Статус ответа: {response.status_code}")
+
+        # Проверка на ошибки
+        response.raise_for_status()
+
+        # Возврат данных
+        return response.json()
+
 
 # Пример использования
 if __name__ == "__main__":
@@ -244,32 +326,41 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Ошибка при загрузке товара: {e}")
 
-    # # Пример 3: Добавление единицы товара
+    # # Получение id категории
     # try:
-    #     unit_data = {
-    #         "ean": "9780470527580",
-    #         "condition": "NEW",
-    #         "listing_price": 4550,
-    #         "minimum_price": 3990,
-    #         "amount": 9,
-    #         "note": "My example note",
-    #         "id_shipping_group": 1,
-    #         "id_warehouse": 1,
-    #         "id_product": 1,
-    #         "id_offer": "My own unit identifier",
-    #         "handling_time": 1,
-    #     }
+    #     categories = api.get_categories(query="Campingzelte")
+    #     logger.info(f"Получено категорий: {len(categories.get('data', []))}")
 
-    #     response = api.add_unit(unit_data)
-    #     logger.info(f"Результат добавления единицы товара: {response}")
-
-    #     # Получаем ID созданной единицы товара из заголовка Location
-    #     unit_id = response.get("headers", {}).get("Location", "").split("/")[-2]
-    #     logger.info(f"ID созданной единицы товара: {unit_id}")
-
-    #     # Удаление единицы товара
-    #     if unit_id:
-    #         response = api.delete_unit(unit_id)
-    #         logger.info(f"Результат удаления единицы товара: {response}")
+    #     # Вывод найденных категорий
+    #     for category in categories.get("data", []):
+    #         logger.info(
+    #             f"Категория: {category.get('title_plural')} (ID: {category.get('id_category')})"
+    #         )
     # except Exception as e:
-    #     logger.error(f"Ошибка при работе с единицами товара: {e}")
+    #     logger.error(f"Ошибка при получении категорий: {e}")
+
+    # # Получение атрибутов категории по id категории
+    # try:
+    #     # Получаем атрибуты для категории Campingzelte (ID: 15261)
+    #     category_id = 15261
+    #     category_attrs = api.get_category_attributes(category_id)
+    #     logger.info(category_attrs)
+    #     # Получаем списки обязательных и опциональных атрибутов
+    #     required_attrs = category_attrs.get("data", {}).get("required_attributes", [])
+    #     optional_attrs = category_attrs.get("data", {}).get("optional_attributes", [])
+
+    #     # Выводим обязательные атрибуты
+    #     logger.info(f"Обязательные атрибуты для категории {category_id}:")
+    #     for attr in required_attrs:
+    #         logger.info(
+    #             f"- {attr.get('title')} ({attr.get('name')}), тип: {attr.get('type')}"
+    #         )
+
+    #     # Выводим опциональные атрибуты
+    #     logger.info(f"Опциональные атрибуты для категории {category_id}:")
+    #     for attr in optional_attrs:
+    #         logger.info(
+    #             f"- {attr.get('title')} ({attr.get('name')}), тип: {attr.get('type')}"
+    #         )
+    # except Exception as e:
+    #     logger.error(f"Ошибка при получении атрибутов категории: {e}")

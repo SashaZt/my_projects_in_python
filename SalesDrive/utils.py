@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from loguru import logger
-from models import Config, Metadata
+from SalesDrive.server.models import Config, Metadata
 
 # Пути к директориям и файлам
 current_directory = Path.cwd()

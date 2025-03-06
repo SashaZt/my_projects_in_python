@@ -403,43 +403,43 @@ def read_product_data_from_json(file_path):
 # Пример использования API для загрузки товаров
 if __name__ == "__main__":
     # Замените на ваши ключи API
-    CLIENT_KEY = "d87e10e9e4286a12e09dfa0ab5636234"
-    SECRET_KEY = "eb38965918f5349c951d3a2ed18b58cb4fb45fcf0e247e272a83a95a618cc430"
+    CLIENT_KEY = "1db1ea9032e3cc2f128dc44d63c7e56f"
+    SECRET_KEY = "52d495269912b7c1ad3220d885b013ae819305f802c58e8d708957c74ea4fbe4"
 
     # Создание клиента API
     api = KauflandProductAPI(CLIENT_KEY, SECRET_KEY)
-    product_data = read_product_data_from_json("product.json")
-    if product_data:
-        # Загрузка данных о товаре
-        try:
-            ean = product_data["ean"][0]
-            attributes = product_data["attributes"]
+    # product_data = read_product_data_from_json("product.json")
+    # if product_data:
+    #     # Загрузка данных о товаре
+    #     try:
+    #         ean = product_data["ean"][0]
+    #         attributes = product_data["attributes"]
 
-            logger.info(f"Загрузка товара с EAN: {ean}")
+    #         logger.info(f"Загрузка товара с EAN: {ean}")
 
-            response = api.upload_product_data(ean, attributes)
-            logger.info(f"Ответ API при загрузке товара: {response}")
+    #         response = api.upload_product_data(ean, attributes)
+    #         logger.info(f"Ответ API при загрузке товара: {response}")
 
-            # Проверка статуса загрузки
-            status_response = api.get_product_data_status(ean)
-            logger.info(f"Статус загрузки товара: {status_response}")
-        except Exception as e:
-            logger.error(f"Ошибка при загрузке товара: {e}")
-    else:
-        logger.error("Не удалось прочитать данные о товаре из JSON-файла")
+    #         # Проверка статуса загрузки
+    #         status_response = api.get_product_data_status(ean)
+    #         logger.info(f"Статус загрузки товара: {status_response}")
+    #     except Exception as e:
+    #         logger.error(f"Ошибка при загрузке товара: {e}")
+    # else:
+    #     logger.error("Не удалось прочитать данные о товаре из JSON-файла")
 
-    # # Получение списка категорий
-    # try:
-    #     categories = api.get_categories(query="handtasche")
-    #     logger.info(f"Получено категорий: {len(categories.get('data', []))}")
+    # Получение списка категорий
+    try:
+        categories = api.get_categories(query="Campingzelte")
+        logger.info(f"Получено категорий: {len(categories.get('data', []))}")
 
-    #     # Вывод найденных категорий
-    #     for category in categories.get("data", []):
-    #         logger.info(
-    #             f"Категория: {category.get('title_plural')} (ID: {category.get('id_category')})"
-    #         )
-    # except Exception as e:
-    #     logger.error(f"Ошибка при получении категорий: {e}")
+        # Вывод найденных категорий
+        for category in categories.get("data", []):
+            logger.info(
+                f"Категория: {category.get('title_plural')} (ID: {category.get('id_category')})"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при получении категорий: {e}")
 
     # # Предположим, что мы нашли нужную категорию с ID 25671 (Handtasche)
     # try:

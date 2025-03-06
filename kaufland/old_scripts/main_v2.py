@@ -310,7 +310,6 @@ def main():
         script_content = extract_script_content(
             "Astschere, Baumschere, Gartenschere, _ Kaufland.de.html"
         )
-        logger.info(Astschere, Baumschere, Gartenschere, _ Kaufland.de.html)
         product_data = extract_product_data(script_content)
 
         logger.info("\nСохраняем результат...")
