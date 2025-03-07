@@ -293,24 +293,17 @@ def process_url(session, url, account_number):
             )
             if output_html_file.exists():
                 return True
-
             # Сначала загружаем основной URL для установки нужного контекста в сессии
-            logger.info(
-                f"Попытка {attempt}/{MAX_RETRIES} для аккаунта {account_number}"
-            )
             main_response = session.get(url)
 
             if (
-                "Error" in main_response.text
-                or "No Records Found" in main_response.text
+                "Either no search has been executed or your session has timed out"
+                in main_response.text
+                or main_response.status_code != 200
             ):
                 logger.error(
                     f"Ошибка при загрузке основной страницы для аккаунта {account_number}"
                 )
-                if attempt < MAX_RETRIES:
-                    logger.info(f"Повторная попытка через {RETRY_DELAY} секунд...")
-                    time.sleep(RETRY_DELAY)
-                    continue
                 return False
 
             # Теперь запрашиваем содержимое фрейма summary-bottom.asp
@@ -324,18 +317,10 @@ def process_url(session, url, account_number):
                 logger.error(
                     f"Ошибка сессии для аккаунта {account_number}. Требуется обновление куки."
                 )
-                if attempt < MAX_RETRIES:
-                    # Создаем новую сессию для следующей попытки
-                    session = create_session()
-                    if not session:
-                        logger.error("Не удалось создать новую сессию")
-                        return False
-                    logger.info(
-                        f"Повторная попытка с новой сессией через {RETRY_DELAY} секунд..."
-                    )
-                    time.sleep(RETRY_DELAY)
-                    continue
-                return False
+                # Выбрасываем исключение вместо возврата True/False
+                raise SessionExpiredException(
+                    f"Сессия истекла для аккаунта {account_number}"
+                )
 
             # Сохраняем первую страницу
             save_response(response.text, output_html_file)
@@ -346,106 +331,105 @@ def process_url(session, url, account_number):
                 "body > table > tbody > tr > td:nth-child(3) > p"
             )
 
-            if not card_info:
-                logger.error(
+            # Переменная для хранения общего количества карточек
+            total_cards = 1  # По умолчанию предполагаем, что карточка только одна
+
+            try:
+                card_text = card_info.text.strip()
+
+                # Получаем общее количество карточек, например, из "Card 1 of 4"
+                if "of" in card_text:
+                    try:
+                        current_card, total_cards = map(
+                            int, re.findall(r"\d+", card_text)
+                        )
+                    except Exception as e:
+                        logger.error(f"Ошибка при разборе информации о карточках: {e}")
+                        if attempt < MAX_RETRIES:
+                            logger.info(
+                                f"Повторная попытка через {RETRY_DELAY} секунд..."
+                            )
+                            time.sleep(RETRY_DELAY)
+                            continue
+                        return False
+                else:
+                    logger.warning(
+                        f"Не удалось определить количество карточек из текста: '{card_text}'"
+                    )
+                    return True  # Предполагаем, что это единичная карточка
+            except AttributeError:
+                logger.warning(
                     f"Не удалось найти информацию о карточках для аккаунта {account_number}"
                 )
-                if attempt < MAX_RETRIES:
-                    logger.info(f"Повторная попытка через {RETRY_DELAY} секунд...")
-                    time.sleep(RETRY_DELAY)
+                return True  # Предполагаем, что это единичная карточка
+
+            # Если только одна карточка, то уже сохранили
+            if total_cards == 1:
+                return True
+
+            # Если больше одной карточки, скачиваем остальные
+            all_cards_success = True
+            for card_num in range(2, total_cards + 1):
+                # Параметры для следующей карточки
+                params = {"ValCard": "0", "Card": str(card_num)}
+                card_output_html_file = (
+                    html_product_directory / f"{account_number}_{card_num}.html"
+                )
+                if card_output_html_file.exists():
                     continue
-                return True  # Страница сохранена, но нет информации о карточках
 
-            card_text = card_info.text.strip()
-
-            # Получаем общее количество карточек, например, из "Card 1 of 4"
-            if "of" in card_text:
-                try:
-                    current_card, total_cards = map(int, re.findall(r"\d+", card_text))
-                except Exception as e:
-                    logger.error(f"Ошибка при разборе информации о карточках: {e}")
-                    if attempt < MAX_RETRIES:
-                        logger.info(f"Повторная попытка через {RETRY_DELAY} секунд...")
-                        time.sleep(RETRY_DELAY)
-                        continue
-                    return False
-
-                # Если только одна карточка, то уже сохранили
-                if total_cards == 1:
-                    return True
-
-                # Если больше одной карточки, скачиваем остальные
-                all_cards_success = True
-                for card_num in range(2, total_cards + 1):
-                    # Параметры для следующей карточки
-                    params = {"ValCard": "0", "Card": str(card_num)}
-                    card_output_html_file = (
-                        html_product_directory / f"{account_number}_{card_num}.html"
+                card_success = False
+                for card_attempt in range(1, MAX_RETRIES + 1):
+                    # Запрос на следующую карточку
+                    logger.info(
+                        f"Загрузка карточки {card_num}, попытка {card_attempt}/{MAX_RETRIES}"
                     )
-                    if card_output_html_file.exists():
-                        continue
+                    next_response = session.get(
+                        f"{BASE_URL}/Summary-bottom.asp", params=params
+                    )
 
-                    card_success = False
-                    for card_attempt in range(1, MAX_RETRIES + 1):
-                        # Запрос на следующую карточку
-                        logger.info(
-                            f"Загрузка карточки {card_num}, попытка {card_attempt}/{MAX_RETRIES}"
+                    if (
+                        "Either no search has been executed or your session has timed out"
+                        in next_response.text
+                    ):
+                        logger.error(
+                            f"Ошибка сессии при получении карточки {card_num} для аккаунта {account_number}"
                         )
-                        next_response = session.get(
-                            f"{BASE_URL}/Summary-bottom.asp", params=params
-                        )
-
-                        if (
-                            "Either no search has been executed or your session has timed out"
-                            in next_response.text
-                        ):
-                            logger.error(
-                                f"Ошибка сессии при получении карточки {card_num} для аккаунта {account_number}"
+                        if card_attempt < MAX_RETRIES:
+                            # Создаем новую сессию и загружаем основной URL снова
+                            session = create_session()
+                            if not session:
+                                logger.error("Не удалось создать новую сессию")
+                                break
+                            session.get(url)  # Устанавливаем контекст
+                            logger.info(
+                                f"Повторная попытка с новой сессией через {RETRY_DELAY} секунд..."
                             )
-                            if card_attempt < MAX_RETRIES:
-                                # Создаем новую сессию и загружаем основной URL снова
-                                session = create_session()
-                                if not session:
-                                    logger.error("Не удалось создать новую сессию")
-                                    break
-                                session.get(url)  # Устанавливаем контекст
-                                logger.info(
-                                    f"Повторная попытка с новой сессией через {RETRY_DELAY} секунд..."
-                                )
-                                time.sleep(RETRY_DELAY)
-                                continue
-                            break
-
-                        # Сохраняем карточку
-                        save_response(next_response.text, card_output_html_file)
-                        logger.info(
-                            f"Сохранена карточка {card_num} из {total_cards} для аккаунта {account_number}"
-                        )
-                        card_success = True
+                            time.sleep(RETRY_DELAY)
+                            continue
                         break
 
-                    if not card_success:
-                        all_cards_success = False
-                        logger.error(
-                            f"Не удалось получить карточку {card_num} для аккаунта {account_number} после {MAX_RETRIES} попыток"
-                        )
+                    # Сохраняем карточку
+                    save_response(next_response.text, card_output_html_file)
+                    logger.info(
+                        f"Сохранена карточка {card_num} из {total_cards} для аккаунта {account_number}"
+                    )
+                    card_success = True
+                    break
 
-                return all_cards_success
-            else:
-                logger.error(
-                    f"Не удалось определить количество карточек из текста: '{card_text}'"
-                )
-                if attempt < MAX_RETRIES:
-                    logger.info(f"Повторная попытка через {RETRY_DELAY} секунд...")
-                    time.sleep(RETRY_DELAY)
-                    continue
-                return True  # Первая страница сохранена
+                if not card_success:
+                    all_cards_success = False
+                    logger.error(
+                        f"Не удалось получить карточку {card_num} для аккаунта {account_number} после {MAX_RETRIES} попыток"
+                    )
+
+            return all_cards_success
 
         except Exception as e:
             logger.error(
                 f"Ошибка при обработке URL {url} для аккаунта {account_number}: {e}"
             )
-            if attempt < max_retries:
+            if attempt < MAX_RETRIES:
                 logger.info(f"Повторная попытка через {RETRY_DELAY} секунд...")
                 time.sleep(RETRY_DELAY)
                 continue
@@ -460,6 +444,12 @@ def save_response(html_content, file_name):
     """
     with open(file_name, "w", encoding="utf-8") as file:
         file.write(html_content)
+
+
+class SessionExpiredException(Exception):
+    """Исключение, которое возникает при истечении сессии"""
+
+    pass
 
 
 def process_url_list():
@@ -486,33 +476,21 @@ def process_url_list():
 
             account_number = account_match.group(1)
 
-            if process_url(session, url, account_number):
-                success_count += 1
-                logger.info(f"Успешно обработан URL для аккаунта {account_number}")
-            else:
-                # Если произошла ошибка сессии, создаем новую сессию и пытаемся снова
-                logger.info(
-                    f"Пробуем создать новую сессию для аккаунта {account_number}"
-                )
-                session = create_session()
-
-                if not session:
-                    logger.error(
-                        "Не удалось создать новую сессию. Обработка остановлена."
-                    )
-                    return False
-
-                # Повторная попытка с новой сессией
+            try:
                 if process_url(session, url, account_number):
                     success_count += 1
-                    logger.info(
-                        f"Успешно обработан URL со второй попытки для аккаунта {account_number}"
-                    )
+                    logger.info(f"Успешно обработан URL для аккаунта {account_number}")
                 else:
                     failed_count += 1
                     logger.error(
-                        f"Не удалось обработать URL даже с новой сессией для аккаунта {account_number}"
+                        f"Не удалось обработать URL для аккаунта {account_number}"
                     )
+            except SessionExpiredException as see:
+                logger.critical(f"{see}. Завершение всей обработки.")
+                logger.critical(
+                    "Пожалуйста, обновите куки в конфигурационном файле и перезапустите скрипт."
+                )
+                return False  # Прерываем всю обработку при ошибке сессии
 
         except Exception as e:
             failed_count += 1
