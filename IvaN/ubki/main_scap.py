@@ -49,8 +49,7 @@ def find_tax_debt(soup):
     debt_div = soup.find(
         "div",
         class_="dr_value_subtitle",
-        string=lambda text: text and text.startswith(
-            "Податковий борг станом на"),
+        string=lambda text: text and text.startswith("Податковий борг станом на"),
     )
     if debt_div:
         date = debt_div.text.split("на")[1].strip()
@@ -121,7 +120,7 @@ def find_registration(soup):
     #         return title_div.text.strip()
     selectors = [
         "#edrpou_main_conatiner .dr_value_state.dr_green",
-        "#edrpou_main_conatiner .dr_value_state.dr_orange"
+        "#edrpou_main_conatiner .dr_value_state.dr_orange",
     ]
 
     for selector in selectors:
@@ -139,61 +138,62 @@ def find_registration(soup):
 
 
 def get_registration_date(soup):
-    date_element = soup.find('div', string='Дата реєстрації')
+    date_element = soup.find("div", string="Дата реєстрації")
     if date_element:
-        date_value = date_element.find_next('div', class_='dr_value')
+        date_value = date_element.find_next("div", class_="dr_value")
         return date_value.text.strip() if date_value else None
     return None
 
 
 def get_authorized_person(soup):
-    person_element = soup.find('div', string='Уповноважені особи')
+    person_element = soup.find("div", string="Уповноважені особи")
     if person_element:
-        name_span = person_element.find_next('span')
+        name_span = person_element.find_next("span")
         return name_span.text.strip() if name_span else None
     return None
 
 
 def get_inn(soup):
-    person_element = soup.find('div', string='Індивідуальний податковий номер')
+    person_element = soup.find("div", string="Індивідуальний податковий номер")
     if person_element:
-        name_span = person_element.find_next('div')
+        name_span = person_element.find_next("div")
         return name_span.text.strip() if name_span else None
     return None
 
 
 def get_founder(soup):
     founder_element = soup.find(
-        'div', class_='dr_value_subtitle', id='anchor_zasovniki')
+        "div", class_="dr_value_subtitle", id="anchor_zasovniki"
+    )
     if founder_element:
-        founder_value = founder_element.find_next('div', class_='dr_value')
+        founder_value = founder_element.find_next("div", class_="dr_value")
         return founder_value.text.strip() if founder_value else None
     return None
 
 
 def get_statutory_fund(soup):
     # Ищем сначала div с классом dr_value_small
-    fund_elements = soup.find_all('div', class_='dr_value_small')
+    fund_elements = soup.find_all("div", class_="dr_value_small")
 
     for element in fund_elements:
         # Проверяем, есть ли нужный текст в элементе
-        if 'Розмір внеску до статутного фонду:' in element.text:
+        if "Розмір внеску до статутного фонду:" in element.text:
             # Находим тег b внутри этого элемента
-            b_tag = element.find('b')
+            b_tag = element.find("b")
             if b_tag:
                 # Извлекаем текст до (100%)
-                amount = b_tag.text.split('(')[0].strip()
+                amount = b_tag.text.split("(")[0].strip()
                 # Убираем лишние пробелы
-                return ' '.join(amount.split())
+                return " ".join(amount.split())
     return None
 
 
 def get_mini_title(soup):
-    title = soup.find('h1', class_='dr_title_3')
+    title = soup.find("h1", class_="dr_title_3")
     if title:
         # Получаем весь текст и разбиваем его на части
-        full_text = title.text.replace('\xa0', ' ').strip()
-        parts = full_text.split('ЄДРПОУ')
+        full_text = title.text.replace("\xa0", " ").strip()
+        parts = full_text.split("ЄДРПОУ")
 
         if len(parts) == 2:
             company_name = parts[0].strip()
@@ -219,16 +219,14 @@ def process_html_file(file_path, combined_data):
     title = find_title(soup)
     registration = find_registration(soup)
     registration_date = get_registration_date(soup)  # '13.11.1996'
-    authorized_person = get_authorized_person(
-        soup)  # 'ЧЕРЕВАТИЙ СЕРГІЙ ВОЛОДИМИРОВИЧ'
+    authorized_person = get_authorized_person(soup)  # 'ЧЕРЕВАТИЙ СЕРГІЙ ВОЛОДИМИРОВИЧ'
     # 'МІНІСТЕРСТВО КУЛЬТУРИ ТА ІНФОРМАЦІЙНОЇ ПОЛІТИКИ УКРАЇНИ'
     founder = get_founder(soup)
     statutory_fund = get_statutory_fund(soup)  # '4 879 059,81 грн'
     bankruptcy_info = get_bankruptcy_info(soup)
-    year, assets, liabilities, employees, profit, income = get_financial_info(
-        soup)
+    year, assets, liabilities, employees, profit, income = get_financial_info(soup)
     inn = get_inn(soup)
-    title_mini,edrpo_new  = get_mini_title(soup)
+    title_mini, edrpo_new = get_mini_title(soup)
     if edrpo is None:
         edrpo = edrpo_new
     if title is None:
@@ -259,7 +257,6 @@ def process_html_file(file_path, combined_data):
         "profit": profit,
         "income": income,
         "inn": inn,
-
     }
     return all_data
 
@@ -276,16 +273,17 @@ def process_html_file(file_path, combined_data):
 #             return bankruptcy_info.text.strip()
 #     return None
 
+
 def get_bankruptcy_info(soup):
     # Находим элемент с заголовком "Процедура банкрутства"
     bankruptcy_element = soup.find(
-        'div', class_='dr_value_title', string='Процедура банкрутства')
+        "div", class_="dr_value_title", string="Процедура банкрутства"
+    )
     if not bankruptcy_element:
         return None
 
     # Проверяем наличие информации о банкротстве
-    bankruptcy_info = bankruptcy_element.find_next(
-        'div', class_='dr_value_state')
+    bankruptcy_info = bankruptcy_element.find_next("div", class_="dr_value_state")
     if bankruptcy_info:
         return bankruptcy_info.text.strip()
 
@@ -293,32 +291,32 @@ def get_bankruptcy_info(soup):
     detailed_info = []
 
     # Ищем дату начала
-    date_element = bankruptcy_element.find_next('div', class_='dr_value_subtitle',
-                                                style=lambda x: x and 'display: flex' in x)
+    date_element = bankruptcy_element.find_next(
+        "div", class_="dr_value_subtitle", style=lambda x: x and "display: flex" in x
+    )
     if date_element:
         detailed_info.append(date_element.text.strip())
 
     # Ищем описание
-    description = bankruptcy_element.find_next(
-        'div', class_='dr_value_subtitle_2')
+    description = bankruptcy_element.find_next("div", class_="dr_value_subtitle_2")
     if description:
         detailed_info.append(description.text.strip())
 
     # Ищем информацию о деле
-    case_info = bankruptcy_element.find_next('div', string='Справа:')
+    case_info = bankruptcy_element.find_next("div", string="Справа:")
     if case_info:
-        detailed_info.append('Справа:')
-        case_number = case_info.find_next('div', class_='dr_value')
+        detailed_info.append("Справа:")
+        case_number = case_info.find_next("div", class_="dr_value")
         if case_number:
             detailed_info.append(case_number.text.strip())
             # Ищем дату дела
-            case_date = case_number.find_next('div')
+            case_date = case_number.find_next("div")
             if case_date:
                 detailed_info.append(case_date.text.strip())
 
     # Если нашли детальную информацию, возвращаем её
     if detailed_info:
-        return '\n'.join(detailed_info)
+        return "\n".join(detailed_info)
 
     return None
 
@@ -327,21 +325,35 @@ def get_financial_info(soup):
     try:
         # Находим все div с классом dr_value_subtitle и их соответствующие значения
         values = {}
-        for subtitle in soup.find_all('div', class_='dr_value_subtitle'):
+        for subtitle in soup.find_all("div", class_="dr_value_subtitle"):
             subtitle_text = subtitle.text.strip()
-            if subtitle_text in ['Рік', 'Активи', "Зобов’язання", 'Кількість співробітників', 'Чистий прибуток', 'Дохід']:
-                value = subtitle.find_next('div', class_='dr_value')
+            if subtitle_text in [
+                "Рік",
+                "Активи",
+                "Зобов’язання",
+                "Кількість співробітників",
+                "Чистий прибуток",
+                "Дохід",
+            ]:
+                value = subtitle.find_next("div", class_="dr_value")
                 if value:
-                    values[subtitle_text] = value.text.strip().replace('\xa0', ' ').replace(
-                        '                                                            ', '').replace('                            ', '')
+                    values[subtitle_text] = (
+                        value.text.strip()
+                        .replace("\xa0", " ")
+                        .replace(
+                            "                                                            ",
+                            "",
+                        )
+                        .replace("                            ", "")
+                    )
 
         # Извлекаем значения в нужном порядке
-        year = values.get('Рік')
-        assets = values.get('Активи')
+        year = values.get("Рік")
+        assets = values.get("Активи")
         liabilities = values.get("Зобов’язання")
-        employees = values.get('Кількість співробітників')
-        profit = values.get('Чистий прибуток')
-        income = values.get('Дохід')
+        employees = values.get("Кількість співробітників")
+        profit = values.get("Чистий прибуток")
+        income = values.get("Дохід")
 
         return year, assets, liabilities, employees, profit, income
 
@@ -367,8 +379,7 @@ def extract_kved_codes(soup):
             "div", string=lambda text: text and "Код КВЕД" in text
         )
         if main_kved_div:
-            main_code = main_kved_div.text.split(
-                "Код КВЕД")[1].strip().split()[0]
+            main_code = main_kved_div.text.split("Код КВЕД")[1].strip().split()[0]
         else:
             main_code = None
     else:

@@ -1,34 +1,47 @@
 import concurrent.futures
-import csv
 import json
-import os
-import random
-import re
+import sys
 import time
 from pathlib import Path
 
 import pandas as pd
 import requests
-from configuration.logger_setup import logger
+from loguru import logger
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
 html_directory = current_directory / "html"
+log_directory = current_directory / "log"
 json_directory = current_directory / "json"
-configuration_directory = current_directory / "configuration"
 # Пути к файлам
 output_csv_file = current_directory / "urls.csv"
-txt_file_proxies = configuration_directory / "proxies.txt"
 # Создание директорий, если их нет
+log_directory.mkdir(parents=True, exist_ok=True)
 html_directory.mkdir(parents=True, exist_ok=True)
 json_directory.mkdir(parents=True, exist_ok=True)
-configuration_directory.mkdir(parents=True, exist_ok=True)
+log_file_path = log_directory / "log_message.log"
+
+logger.remove()
+# 🔹 Логирование в файл
+logger.add(
+    log_file_path,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {line} | {message}",
+    level="DEBUG",
+    encoding="utf-8",
+    rotation="10 MB",
+    retention="7 days",
+)
+
+# 🔹 Логирование в консоль (цветной вывод)
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{line}</cyan> | <cyan>{message}</cyan>",
+    level="DEBUG",
+    enqueue=True,
+)
 
 
 def get_json(dr_common_data):
-    """
-    "signature": "3390047773fec4fc0a417135a3bf79ac14cd4634", - прверять, из-за него может не работать
-    """
 
     cookies = {
         "_csrf": "c1e6328d4d1a00430f580954cd699bfcb582e349d7cdb35b0fc25fc69f79504fa%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%22sPIghgsE62pvjuIdspysobQGcw1EBt3j%22%3B%7D",
@@ -92,16 +105,15 @@ def get_json(dr_common_data):
         timeout=30,
     )
     if response.status_code == 200:
-        logger.info(f"{response.status_code} для {dr_common_data}")
+        # logger.info(f"{response.status_code} для {dr_common_data}")
         json_data = response.json()
 
         if json_data.get("clients") and len(json_data["clients"]) > 0:
             try:
                 client = json_data["clients"][0]["taxNumber"]
                 with open(json_files, "w", encoding="utf-8") as f:
-                    json.dump(
-                        json_data, f, ensure_ascii=False, indent=4
-                    )  # Записываем в файл
+                    json.dump(json_data, f, ensure_ascii=False, indent=4)
+                logger.info(json_files)
                 return client
             except KeyError:
                 logger.error(f"Ошибка: нет ключа 'taxNumber' для {dr_common_data}")
@@ -160,6 +172,7 @@ def get_html(taxNumber):
         # Сохранение HTML-страницы целиком
         with open(html_files, "w", encoding="utf-8") as file:
             file.write(response.text)
+        logger.info(html_files)
 
 
 def read_cities_from_csv(input_csv_file):
@@ -171,7 +184,7 @@ def main():
     urls = read_cities_from_csv(output_csv_file)  # Берём все URL
 
     # Здесь укажите количество потоков, которое вы хотите использовать
-    num_threads = 20  # Например, 5 потоков
+    num_threads = 5  # Например, 5 потоков
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         # Создаем список задач для get_json
@@ -193,4 +206,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    while True:
+        logger.info("Запуск обработки...")
+        main()
+        logger.info("Обработка завершена. Ожидание 300 секунд...")
+        time.sleep(300)  # Пауза на 5 минут (300 секунд)

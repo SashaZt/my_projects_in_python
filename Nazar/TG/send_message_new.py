@@ -1,3 +1,4 @@
+# Рабочий код от 07032025
 import asyncio
 import re
 from pathlib import Path
@@ -53,7 +54,13 @@ async def main():
         phone_number = validate_phone_number(phone_number)
 
     session_name = session_path / f"{phone_number}.session"
-    client = TelegramClient(str(session_name), API_ID, API_HASH)
+    client = TelegramClient(
+        str(session_name),
+        API_ID,
+        API_HASH,
+        connection_retries=None,  # Бесконечные попытки переподключения
+        retry_delay=1,  # Задержка между попытками в секундах
+    )
 
     try:
         await client.start(phone=lambda: phone_number)

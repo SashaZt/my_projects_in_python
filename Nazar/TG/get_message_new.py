@@ -1,3 +1,4 @@
+# Рабочий код от 07032025
 import asyncio
 import re
 from pathlib import Path
@@ -33,31 +34,45 @@ def get_session_name() -> tuple[str, Path]:
 
 
 async def send_to_api(data: dict, endpoint: str = "/telegram/message"):
-    async with httpx.AsyncClient(verify=False) as client:
+    async with httpx.AsyncClient(
+        verify=False, timeout=10.0
+    ) as client:  # Добавьте таймаут
         try:
             url = f"{API_URL}{endpoint}"
-            # logger.info(f"URL: {url}")
+            logger.info(f"URL: {url}")
             response = await client.post(url, json=data)
             response.raise_for_status()
             logger.info(f"Данные успешно отправлены: {response.json()}")
+            return True
         except httpx.HTTPError as e:
-            logger.error(f"Ошибка при отправке данных на API: {e}")
+            logger.error(f"Ошибка HTTP при отправке данных на API: {e}")
+        except Exception as e:
+            logger.error(f"Неожиданная ошибка при отправке данных: {e}")
+        return False
 
 
 phone_number, session_name = get_session_name()
-client = TelegramClient(LockedSQLiteSession(str(session_name)), API_ID, API_HASH)
+client = TelegramClient(
+    LockedSQLiteSession(str(session_name)),
+    API_ID,
+    API_HASH,
+    connection_retries=None,
+    retry_delay=1,
+)
 
 
 @client.on(events.NewMessage)
 async def handle_message(event):
+    # Запускаем обработку в отдельной задаче
+    asyncio.create_task(process_message(event))
+
+
+# @client.on(events.NewMessage)
+async def process_message(event):
     try:
         chat = await event.get_chat()
         me = await client.get_me()
         sender = await event.get_sender()
-
-        # logger.info(f"Chat info: {chat}")
-        # logger.info(f"Sender: {sender}")
-        # logger.info(f"Me: {me}")
 
         # Определяем получателя для личного чата
         recipient = chat if sender.id == me.id else me
@@ -122,9 +137,23 @@ async def handle_message_read(event):
 
 
 async def main():
-    await client.start(phone=lambda: phone_number)
-    logger.info("Клиент запущен. Ожидаем сообщения...")
-    await client.run_until_disconnected()
+    try:
+        await client.start(phone=lambda: phone_number)
+        logger.info("Клиент запущен. Ожидаем сообщения...")
+
+        # Добавьте простую задачу для проверки работоспособности
+        async def keep_alive():
+            while True:
+                logger.debug("Client is alive")
+                await asyncio.sleep(60)  # Проверка каждую минуту
+
+        keep_alive_task = asyncio.create_task(keep_alive())
+
+        await client.run_until_disconnected()
+    except Exception as e:
+        logger.error(f"Критическая ошибка в main: {e}", exc_info=True)
+    finally:
+        logger.info("Завершение работы клиента")
 
 
 if __name__ == "__main__":

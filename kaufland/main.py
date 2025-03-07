@@ -9,7 +9,9 @@ from loguru import logger
 
 current_directory = Path.cwd()
 log_directory = current_directory / "log"
+json_directory = current_directory / "json"
 log_directory.mkdir(parents=True, exist_ok=True)
+json_directory.mkdir(parents=True, exist_ok=True)
 
 log_file_path = log_directory / "log_message.log"
 logger.remove()
@@ -359,9 +361,57 @@ def extract_product_data(input_content, output_file=None):
     return product_data
 
 
+def parse_to_custom_structure(input_file):
+    """
+    Парсит HTML файл и сохраняет данные в заданной структуре JSON
+
+    Args:
+        input_file (str): Путь к HTML файлу
+        output_file (str, optional): Путь для сохранения результатов в JSON. По умолчанию "product.json"
+
+    Returns:
+        dict: Данные о товаре в заданной структуре
+    """
+    # Получаем данные из существующей функции
+    product_data = extract_product_data(input_file)
+
+    if not product_data:
+        logger.warning("Не удалось получить данные о товаре")
+        return None
+    ean = product_data.get("ean", "")
+    # Создаем структуру согласно требованию
+    custom_structure = {
+        "ean": [product_data.get("ean", "")],
+        "attributes": {
+            "title": [product_data.get("title", "")],
+            "manufacturer": [product_data.get("manufacturer", "")],
+            "category": [product_data.get("mainCategoryTitle", "")],
+            "description": [product_data.get("description", "")],
+            "picture": [],
+        },
+    }
+
+    # Добавляем URL изображений, если они доступны
+    if "directImageHashes" in product_data and product_data["directImageHashes"]:
+        custom_structure["attributes"]["picture"] = product_data["directImageHashes"]
+
+    json_file = json_directory / f"{ean}.json"
+    # Сохраняем результат в JSON файл
+    with open(json_file, "w", encoding="utf-8") as f:
+        json.dump(custom_structure, f, ensure_ascii=False, indent=4)
+
+    logger.info(f"Данные в кастомной структуре сохранены в {json_file}")
+
+    return custom_structure
+
+
 # Пример использования
 if __name__ == "__main__":
     input_file = "product.html"  # Путь к HTML файлу
     output_file = "product_data.json"  # Путь для сохранения результатов
 
-    product_data = extract_product_data(input_file, output_file)
+    # Полнеый парсер htmlфайла
+    # product_data = extract_product_data(input_file, output_file)
+
+    ## Готовит специальный файл для выгрузки через API
+    parse_to_custom_structure(input_file)
