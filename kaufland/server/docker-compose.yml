@@ -1,0 +1,41 @@
+services:
+  postgres:
+    build: ./postgres
+    container_name: postgres_kaufland
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data/pgdata
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_DB: kaufland
+      PGDATA: /var/lib/postgresql/data/pgdata
+    networks:
+      - postgres_fastapi_network
+
+  web:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    container_name: fastapi_kaufland
+    working_dir: /root
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./app:/root/app # монтируем директорию app в /root/app
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres_user:postgres_password@postgres:5432/kaufland"
+    depends_on:
+      - postgres
+    restart: always
+    networks:
+      - postgres_fastapi_network
+
+networks:
+  postgres_fastapi_network:
+    name: postgres_fastapi_network

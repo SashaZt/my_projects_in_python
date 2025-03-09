@@ -3808,12 +3808,12 @@ async def main():
     # # Читаем содержимое файла
 
     # # Загрузка старых данных
-    # recordings_output_file = data_directory / f"recording_014.json"
-    # await process_order(recordings_output_file)
+    recordings_output_file = data_directory / f"recording_014.json"
+    await process_order(recordings_output_file)
     
     
     ## Аналитеческая таблица
-    # await update_analytics_table()
+    await update_analytics_table()
     
     # # # Выгрузка в  Google Sheets
     # await export_orders_to_sheets()

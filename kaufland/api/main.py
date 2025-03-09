@@ -339,7 +339,48 @@ if __name__ == "__main__":
     # except Exception as e:
     #     logger.error(f"Ошибка при получении товара: {e}")
 
-    # # Пример 2: Загрузка данных о товаре
+    # # Получение id категории
+    # try:
+    #     categories = api.get_categories(query="Käfige und Zwinger")
+    #     logger.info(f"Получено категорий: {len(categories.get('data', []))}")
+
+    #     # Вывод найденных категорий
+    #     for category in categories.get("data", []):
+    #         logger.info(
+    #             f"Категория: {category.get('title_plural')} (ID: {category.get('id_category')})"
+    #         )
+    # except Exception as e:
+    #     logger.error(f"Ошибка при получении категорий: {e}")
+
+    # # Получение атрибутов категории по id категории
+    # try:
+    #     # Получаем атрибуты для категории Campingzelte (ID: 15261)
+    #     category_id = 50551
+    #     category_attrs = api.get_category_attributes(category_id)
+    #     # logger.info(category_attrs)
+    #     # Получаем списки обязательных и опциональных атрибутов
+    #     required_attrs = category_attrs.get("data", {}).get("required_attributes", [])
+    #     optional_attrs = category_attrs.get("data", {}).get("optional_attributes", [])
+    #     title_attrs = category_attrs.get("data", {}).get("name", None)
+
+    #     # Выводим обязательные атрибуты
+    #     logger.info(f"Обязательные атрибуты для категории {category_id}:")
+    #     logger.info(f"Название категории {title_attrs}:")
+    #     for attr in required_attrs:
+    #         logger.info(
+    #             f"- {attr.get('title')} ({attr.get('name')}), тип: {attr.get('type')}"
+    #         )
+
+    #     # Выводим опциональные атрибуты
+    #     logger.info(f"Опциональные атрибуты для категории {category_id}:")
+    #     for attr in optional_attrs:
+    #         logger.info(
+    #             f"- {attr.get('title')} ({attr.get('name')}), тип: {attr.get('type')}"
+    #         )
+    # except Exception as e:
+    #     logger.error(f"Ошибка при получении атрибутов категории: {e}")
+
+    # Пример 2: Загрузка данных о товаре
     # try:
     #     # Чтение данных о товаре из JSON-файла
     #     with open("product.json", "r", encoding="utf-8") as file:
@@ -354,60 +395,16 @@ if __name__ == "__main__":
     # except Exception as e:
     #     logger.error(f"Ошибка при загрузке товара: {e}")
 
-    # # Получение id категории
-    # try:
-    #     categories = api.get_categories(query="Campingzelte")
-    #     logger.info(f"Получено категорий: {len(categories.get('data', []))}")
-
-    #     # Вывод найденных категорий
-    #     for category in categories.get("data", []):
-    #         logger.info(
-    #             f"Категория: {category.get('title_plural')} (ID: {category.get('id_category')})"
-    #         )
-    # except Exception as e:
-    #     logger.error(f"Ошибка при получении категорий: {e}")
-
-    # # Получение атрибутов категории по id категории
-    # try:
-    #     # Получаем атрибуты для категории Campingzelte (ID: 15261)
-    #     category_id = 15261
-    #     category_attrs = api.get_category_attributes(category_id)
-    #     logger.info(category_attrs)
-    #     # Получаем списки обязательных и опциональных атрибутов
-    #     required_attrs = category_attrs.get("data", {}).get("required_attributes", [])
-    #     optional_attrs = category_attrs.get("data", {}).get("optional_attributes", [])
-
-    #     # Выводим обязательные атрибуты
-    #     logger.info(f"Обязательные атрибуты для категории {category_id}:")
-    #     for attr in required_attrs:
-    #         logger.info(
-    #             f"- {attr.get('title')} ({attr.get('name')}), тип: {attr.get('type')}"
-    #         )
-
-    #     # Выводим опциональные атрибуты
-    #     logger.info(f"Опциональные атрибуты для категории {category_id}:")
-    #     for attr in optional_attrs:
-    #         logger.info(
-    #             f"- {attr.get('title')} ({attr.get('name')}), тип: {attr.get('type')}"
-    #         )
-    # except Exception as e:
-    #     logger.error(f"Ошибка при получении атрибутов категории: {e}")
     # Данные для добавления единицы товара
     unit_data = {
-        "ean": "4061173125552",  # EAN товара (обязательно либо ean, либо id_product)
+        "ean": "5903858130217",  # EAN товара (обязательно либо ean, либо id_product)
         "condition": "NEW",  # Состояние товара (NEW, USED___GOOD и т.д.)
-        "listing_price": 3799,  # Цена в центах (обязательно > 0)
-        "minimum_price": 3699,  # Минимальная цена для Smart Pricing (необязательно)
+        "listing_price": 6000,  # Цена в центах (обязательно > 0)
+        "minimum_price": 5000,  # Минимальная цена для Smart Pricing (необязательно)
         "amount": 10,  # Количество товара на складе (ограничено до 99999)
         "note": "",  # Примечание (до 250 символов)
-        "id_offer": "362524873",  # Получаем через products/ean/{ean} указываем ean
+        "id_offer": "512763334",  # Получаем через products/ean/{ean} указываем ean
         "handling_time": 2,  # Количество рабочих дней на обработку заказа
         "vat_indicator": "standard_rate",  # Индикатор НДС
     }
-    # unit_data = {
-    #     "ean": "4061173125552",
-    #     "condition": "NEW",
-    #     "listing_price": 3799,
-    #     "handling_time": 0,  # минимальное значение
-    # }
     response = api.add_unit(unit_data, storefront="de")

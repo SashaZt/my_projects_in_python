@@ -28,6 +28,8 @@ output_xlsx_file = data_directory / "output.xlsx"
 output_csv_file = data_directory / "output.csv"
 log_file_path = log_directory / "log_message.log"
 CONFIG_PATH = config_directory / "config.json"
+PROXIES_PATH = config_directory / "proxies.json"
+cache_file = data_directory / "downloaded_accounts.json"
 
 
 BASE_URL = "https://auburnmaine.patriotproperties.com/"
@@ -42,6 +44,7 @@ logger.add(
     retention="7 days",
 )
 
+
 # 🔹 Логирование в консоль (цветной вывод)
 logger.add(
     sys.stderr,
@@ -49,6 +52,18 @@ logger.add(
     level="DEBUG",
     enqueue=True,
 )
+
+
+class SessionExpiredException(Exception):
+    """Исключение, которое возникает при истечении сессии"""
+
+    pass
+
+
+class StopProcessingException(Exception):
+    """Исключение для принудительной остановки обработки всех URL"""
+
+    pass
 
 
 def load_config():
@@ -82,6 +97,24 @@ def load_config():
     except Exception as e:
         logger.error(f"Непредвиденная ошибка при загрузке конфигурации: {e}")
         sys.exit(1)
+
+
+def load_proxies():
+    """Загружает список прокси из файла JSON"""
+    try:
+        if not PROXIES_PATH.exists():
+            logger.error(f"Файл с прокси не найден: {PROXIES_PATH}")
+            return []
+
+        with open(PROXIES_PATH, "r", encoding="utf-8") as f:
+            proxies = json.load(f)
+            return proxies
+    except json.JSONDecodeError as e:
+        logger.error(f"Ошибка формата JSON при загрузке прокси: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке прокси: {e}")
+        return []
 
 
 def get_html():
@@ -236,7 +269,65 @@ def read_cities_from_csv():
     return df["URL"].tolist()
 
 
-def create_session():
+def update_download_cache():
+    """Обновляет кеш-файл со скачанными аккаунтами"""
+    downloaded = set()
+    pattern = re.compile(r"(\d+)_\d+\.html")
+
+    for file_path in html_product_directory.glob("*.html"):
+        match = pattern.match(file_path.name)
+        if match:
+            downloaded.add(match.group(1))
+
+    with open(cache_file, "w") as f:
+        json.dump(list(downloaded), f)
+
+    logger.info(f"Кеш обновлен: {len(downloaded)} аккаунтов")
+
+
+def get_downloaded_accounts():
+    """Возвращает множество аккаунтов, для которых уже скачаны файлы"""
+
+    # Если кеш-файл существует и актуален, используем его
+    if cache_file.exists():
+        cache_mtime = cache_file.stat().st_mtime
+        dir_mtime = max(
+            [p.stat().st_mtime for p in html_product_directory.glob("*.html")],
+            default=0,
+        )
+
+        # Если директория не изменялась после создания кеша, используем кеш
+        if dir_mtime <= cache_mtime:
+            try:
+                with open(cache_file, "r") as f:
+                    downloaded = set(json.load(f))
+                logger.info(f"Загружено {len(downloaded)} аккаунтов из кеша")
+                return downloaded
+            except Exception as e:
+                logger.warning(f"Ошибка чтения кеш-файла: {e}")
+
+    # Иначе перечитываем директорию
+    downloaded = set()
+    pattern = re.compile(r"(\d+)_\d+\.html")
+
+    for file_path in html_product_directory.glob("*.html"):
+        match = pattern.match(file_path.name)
+        if match:
+            downloaded.add(match.group(1))
+
+    # Сохраняем результат в кеш
+    try:
+        with open(cache_file, "w") as f:
+            json.dump(list(downloaded), f)
+    except Exception as e:
+        logger.warning(f"Ошибка записи кеш-файла: {e}")
+
+    logger.info(f"Найдено {len(downloaded)} скачанных аккаунтов")
+    return downloaded
+
+
+def create_session(proxy=None):
+    """Создает сессию с прокси (если указан)"""
     session = requests.Session()
     config = load_config()
 
@@ -244,27 +335,29 @@ def create_session():
     if "headers" in config and isinstance(config["headers"], dict):
         session.headers.update(config["headers"])
 
-    # Проверяем наличие куки в конфиге (учитываем возможность пробела в ключе)
+    # Проверяем наличие куки в конфиге
     cookies_key = "cookies"
     if cookies_key not in config:
-        # Проверяем вариант с пробелом
         cookies_key = "cookies "
 
     if cookies_key in config and isinstance(config[cookies_key], dict):
-        # Добавляем куки в сессию
         for cookie_name, cookie_value in config[cookies_key].items():
             session.cookies.set(cookie_name, cookie_value)
 
-    # Инициализируем сессию, посетив главную страницу для получения дополнительных куки
+    # Применяем прокси, если он указан
+    if proxy:
+        session.proxies = {"http": proxy, "https": proxy}
+
+    # Инициализируем сессию, посетив главную страницу
     try:
-        response = session.get("https://auburnmaine.patriotproperties.com/")
+        response = session.get("https://auburnmaine.patriotproperties.com/", timeout=30)
         if response.status_code != 200:
-            logger.info(
-                f"Предупреждение: статус ответа при инициализации сессии: {response.status_code}"
+            logger.warning(
+                f"Статус ответа при инициализации сессии: {response.status_code}"
             )
         return session
     except Exception as e:
-        logger.error(f"Ошибка при создании сессии: {e}")
+        logger.error(f"Ошибка при создании сессии (прокси: {proxy}): {e}")
         return None
 
 
@@ -291,20 +384,23 @@ def process_url(session, url, account_number):
             output_html_file = (
                 html_product_directory / f"{account_number}_{card_number}.html"
             )
-            if output_html_file.exists():
-                return True
+            # if output_html_file.exists():
+            #     return True
             # Сначала загружаем основной URL для установки нужного контекста в сессии
             main_response = session.get(url)
-
+            logger.info(main_response.status_code)
             if (
                 "Either no search has been executed or your session has timed out"
                 in main_response.text
-                or main_response.status_code != 200
             ):
                 logger.error(
                     f"Ошибка при загрузке основной страницы для аккаунта {account_number}"
                 )
-                return False
+                raise StopProcessingException(
+                    f"Не удалось загрузить основную страницу для аккаунта {account_number}"
+                )
+            if main_response.status_code == 403:
+                time.sleep(300)
 
             # Теперь запрашиваем содержимое фрейма summary-bottom.asp
             bottom_url = f"{BASE_URL}/summary-bottom.asp"
@@ -331,37 +427,79 @@ def process_url(session, url, account_number):
                 "body > table > tbody > tr > td:nth-child(3) > p"
             )
 
+            # Метод 2: Поиск любого тега <p>, содержащего текст "Card X of Y"
+            if not card_info:
+                for p_tag in soup.find_all("p"):
+                    if "Card" in p_tag.text and "of" in p_tag.text:
+                        card_info = p_tag
+                        break
+
+            # Метод 3: Проверяем наличие ссылки Next Card
+            has_next_card = False
+            next_card_link = soup.find("a", string="Next Card")
+            if not next_card_link:
+                # Попробуем найти любую ссылку, содержащую "Next Card"
+                for a_tag in soup.find_all("a"):
+                    if "Next Card" in a_tag.text:
+                        next_card_link = a_tag
+                        has_next_card = True
+                        break
+            else:
+                has_next_card = True
+
             # Переменная для хранения общего количества карточек
             total_cards = 1  # По умолчанию предполагаем, что карточка только одна
 
             try:
-                card_text = card_info.text.strip()
+                if card_info:
+                    card_text = card_info.text.strip()
 
-                # Получаем общее количество карточек, например, из "Card 1 of 4"
-                if "of" in card_text:
-                    try:
-                        current_card, total_cards = map(
-                            int, re.findall(r"\d+", card_text)
-                        )
-                    except Exception as e:
-                        logger.error(f"Ошибка при разборе информации о карточках: {e}")
-                        if attempt < MAX_RETRIES:
-                            logger.info(
-                                f"Повторная попытка через {RETRY_DELAY} секунд..."
+                    # Получаем общее количество карточек, например, из "Card 1 of 4"
+                    if "of" in card_text:
+                        try:
+                            current_card, total_cards = map(
+                                int, re.findall(r"\d+", card_text)
                             )
-                            time.sleep(RETRY_DELAY)
-                            continue
-                        return False
+                            logger.info(
+                                f"Найдено {total_cards} карточек для аккаунта {account_number}"
+                            )
+                        except Exception as e:
+                            logger.error(
+                                f"Ошибка при разборе информации о карточках: {e}"
+                            )
+                            if attempt < MAX_RETRIES:
+                                logger.info(
+                                    f"Повторная попытка через {RETRY_DELAY} секунд..."
+                                )
+                                time.sleep(RETRY_DELAY)
+                                continue
+                            return False
+                    else:
+                        logger.warning(
+                            f"Не удалось определить количество карточек из текста: '{card_text}'"
+                        )
+
+                        # Если есть ссылка на следующую карточку, но не удалось определить общее число карточек
+                        if has_next_card:
+                            total_cards = 2  # Минимум 2 карточки
+                            logger.info(
+                                f"Обнаружена ссылка 'Next Card', предполагаем минимум 2 карточки"
+                            )
                 else:
-                    logger.warning(
-                        f"Не удалось определить количество карточек из текста: '{card_text}'"
-                    )
-                    return True  # Предполагаем, что это единичная карточка
+                    # Если не удалось найти текст с информацией о карточках, проверяем наличие ссылки Next Card
+                    if has_next_card:
+                        total_cards = 2  # Минимум 2 карточки
+                        logger.info(
+                            f"Обнаружена ссылка 'Next Card', предполагаем минимум 2 карточки"
+                        )
+                    else:
+                        logger.warning(
+                            f"Не удалось найти информацию о карточках для аккаунта {account_number}"
+                        )
             except AttributeError:
                 logger.warning(
                     f"Не удалось найти информацию о карточках для аккаунта {account_number}"
                 )
-                return True  # Предполагаем, что это единичная карточка
 
             # Если только одна карточка, то уже сохранили
             if total_cards == 1:
@@ -446,17 +584,25 @@ def save_response(html_content, file_name):
         file.write(html_content)
 
 
-class SessionExpiredException(Exception):
-    """Исключение, которое возникает при истечении сессии"""
-
-    pass
-
-
-def process_url_list():
+def process_url_list(skip_downloaded=True):
     """
-    Обрабатывает список URL из CSV файла
+    Обрабатывает список URL из CSV файла, используя разные прокси
     """
-    session = create_session()
+    # Получаем список уже скачанных аккаунтов
+    downloaded_accounts = get_downloaded_accounts() if skip_downloaded else set()
+    # Загружаем прокси
+    proxies = load_proxies()
+    if not proxies:
+        logger.warning(
+            "Не удалось загрузить прокси, будет использовано прямое соединение"
+        )
+
+    proxy_index = 0
+    proxy_count = len(proxies)
+
+    # Выбираем прокси для начальной сессии
+    current_proxy = proxies[proxy_index] if proxy_count > 0 else None
+    session = create_session(current_proxy)
 
     if not session:
         logger.error("Не удалось создать сессию. Обработка остановлена.")
@@ -465,8 +611,23 @@ def process_url_list():
     success_count = 0
     failed_count = 0
     urls = read_cities_from_csv()
-    for url in urls:
+
+    for url_index, url in enumerate(urls):
         try:
+            # Меняем прокси при каждом новом URL, если есть прокси
+            if proxy_count > 0 and url_index > 0:
+                proxy_index = (proxy_index + 1) % proxy_count
+                current_proxy = proxies[proxy_index]
+                session = create_session(current_proxy)
+
+                if not session:
+                    logger.error(
+                        f"Не удалось создать сессию с прокси {current_proxy}. Пробуем следующий."
+                    )
+                    # Пропускаем эту итерацию и продолжаем следующую
+                    failed_count += 1
+                    continue
+
             # Извлекаем AccountNumber из URL
             account_match = re.search(r"AccountNumber=(\d+)", url)
             if not account_match:
@@ -475,11 +636,17 @@ def process_url_list():
                 continue
 
             account_number = account_match.group(1)
-
+            # Пропускаем уже скачанные аккаунты
+            if account_number in downloaded_accounts:
+                logger.info(f"Пропускаем аккаунт {account_number}, уже скачан")
+                success_count += 1
+                continue
             try:
                 if process_url(session, url, account_number):
                     success_count += 1
-                    logger.info(f"Успешно обработан URL для аккаунта {account_number}")
+                    logger.info(
+                        f"Успешно обработан URL для аккаунта {account_number} (прокси: {current_proxy})"
+                    )
                 else:
                     failed_count += 1
                     logger.error(
@@ -490,11 +657,16 @@ def process_url_list():
                 logger.critical(
                     "Пожалуйста, обновите куки в конфигурационном файле и перезапустите скрипт."
                 )
-                return False  # Прерываем всю обработку при ошибке сессии
+                return False  # Завершаем функцию при истечении сессии
+            except StopProcessingException as spe:
+                logger.critical(f"{spe}. Завершение всей обработки.")
+                return False  # Завершаем функцию при критической ошибке
 
         except Exception as e:
-            failed_count += 1
-            logger.error(f"Ошибка при обработке URL {url}: {e}")
+            logger.critical(
+                f"Неожиданная ошибка при обработке URL {url}: {e}. Завершение всей обработки."
+            )
+            return False
 
     logger.info(
         f"Обработка завершена. Успешно: {success_count}, Ошибок: {failed_count}"
