@@ -15,7 +15,7 @@
 # data = {"data": {}}
 
 # # URL API
-# api_url = "https://marketplace-api.emag.ro/api-3"
+# api_url = "https:#marketplace-api.emag.ro/api-3"
 
 # # Отправляем тестовый запрос
 # response = requests.get(f"{api_url}/category/read", headers=headers, timeout=30)
@@ -41,13 +41,13 @@
 
 # data = {"data": {"currentPage": 1, "itemsPerPage": 10}}
 
-# api_url = "https://marketplace-api.emag.ro/api-3"
+# api_url = "https:#marketplace-api.emag.ro/api-3"
 
 # session = requests.Session()
 # retry = Retry(connect=3, backoff_factor=0.5)
 # adapter = HTTPAdapter(max_retries=retry)
-# session.mount("http://", adapter)
-# session.mount("https://", adapter)
+# session.mount("http:#", adapter)
+# session.mount("https:#", adapter)
 
 # response = session.post(
 #     f"{api_url}/category/read", headers=headers, json=data, timeout=30
@@ -76,13 +76,13 @@ base64_auth = base64.b64encode(auth_string.encode()).decode()
 # Заголовки запроса
 headers = {"Authorization": f"Basic {base64_auth}", "Content-Type": "application/json"}
 
-api_url = "https://marketplace-api.emag.ro/api-3"
+api_url = "https:#marketplace-api.emag.ro/api-3"
 # Настройка сессии с повторными попытками
 session = requests.Session()
 retry = Retry(connect=3, backoff_factor=0.5)
 adapter = HTTPAdapter(max_retries=retry)
-session.mount("http://", adapter)
-session.mount("https://", adapter)
+session.mount("http:#", adapter)
+session.mount("https:#", adapter)
 
 
 def get_category():
@@ -158,54 +158,82 @@ def product_offer_save():
     # Массив с данными о товаре для отправки в API
     product_data = [
         {
-            "id": 17006903216,  # Уникальный идентификатор товара, целое число между 1 и 16777215
-            "category_id": 2768,  # ID категории в eMAG, в данном случае "Manicure and pedicure machines"
-            "part_number": "A8-1106-A7085",  # Уникальный артикул производителя, строка 1-25 символов
-            "name": "3,5-calowa konsola D22 HD Large Screen - przenośna gra zręcznościowa",  # Название товара, строка 1-255 символов
-            "brand": "No brand",  # Бренд товара, строка 1-255 символов
-            "description": '<section class="section"><div class="item item-6">Przenośna konsola do gier D22 HD z dużym ekranem 3,5 cala</div></section>',  # HTML-описание товара
-            "url": "https://your-shop.com/A8-1106-A7085",  # URL товара на вашем сайте, строка 1-1024 символов
-            "status": 1,  # Статус товара: 1 = активен, 0 = неактивен, 2 = end of life
-            "sale_price": 153.0,  # Цена продажи без НДС, десятичное число >0, до 4 знаков после запятой
-            "vat_id": 4003,  # ID ставки НДС из справочника /vat/read
-            "warranty": 24,  # Гарантия в месяцах, целое число 0-255
-            "images": [  # Массив изображений товара
+            "id": 1234567,  # Твой внутренний ID продукта
+            "category_id": 1868,  # ID категории Treadmills
+            "name": "Banda de alergat electrica FitTronic  D100",  # Название продукта
+            "brand": "FitTronic",  # Бренд
+            "part_number": "XR500-2023",  # Уникальный идентификатор продукта от производителя
+            "description": "Cumpara Banda de alergat electrica FitTronic® D100, motor 2.5 CP, Bluetooth, Kinomap, Zwift, Newrunway, Self oil - ungere automata, sistem de amortizare in 6 puncte + arcuri, pliabila cu cilindru, intrare mp3 si USB pt muzica, cheie siguranta de la eMAG! Ai libertatea sa platesti in rate, beneficiezi de promotiile zilei, deschiderea coletului la livrare, easybox, retur gratuit in 30 de zile si Instant Money Back.",  # Описание
+            "ean": ["1234567890123"],  # EAN код (обязательный для данной категории)
+            "status": 1,  # 1 = активный
+            "sale_price": 1999.99,  # Цена продажи без НДС
+            "recommended_price": 2499.99,  # Рекомендованная цена (если есть скидка)
+            "min_sale_price": 1899.99,  # Минимальная цена продажи
+            "max_sale_price": 2599.99,  # Максимальная цена продажи
+            "vat_id": 1,  # ID НДС (получи через /vat/read)
+            "warranty": 24,  # Гарантия в месяцах
+            "characteristics": [
+                {
+                    "id": 7764,  # Maximum supported weight (обязательная характеристика)
+                    "value": "140 kg",
+                },
+                {
+                    "id": 8147,  # Number of programs (обязательная характеристика)
+                    "value": "12",
+                },
+                {
+                    "id": 9080,  # Leg length (обязательная характеристика)
+                    "value": "Standard",
+                },
+                {"id": 5401, "value": "Black"},  # Color
+                {"id": 6779, "value": "130 cm"},  # Height
+                {"id": 6780, "value": "85 cm"},  # Width
+                {"id": 6862, "value": "180 cm"},  # Length
+                {"id": 6878, "value": "120 kg"},  # Weight
+                {"id": 7163, "value": "20 km/h"},  # Maximum speed
+                {"id": 7442, "value": "2.5 HP"},  # Power engine
+                {"id": 9082, "value": "Running"},  # Sport
+                {"id": 9083, "value": "Professional"},  # Ability level
+                {"id": 9275, "value": "Electric"},  # Incline type
+                {"id": 9277, "value": "15"},  # Incline percentage
+                {"id": 9280, "value": "20"},  # Levels of speed
+                {"id": 9281, "value": "10"},  # Levels of incline
+                {"id": 9282, "value": "0.5 km/h"},  # Minimum speed
+                {"id": 9283, "value": "Yes"},  # Training computer
+                {"id": 9286, "value": "500 x 1400"},  # Running surface
+                {
+                    "id": 9139,  # Functions
+                    "value": "Heart rate monitor, Bluetooth, LCD display, Speakers",
+                },
+                {
+                    "id": 8382,  # Measured values
+                    "value": "Heart rate, Distance, Calories, Speed, Time",
+                },
+            ],
+            "images": [
                 {
                     "display_type": 1,  # 1 = главное изображение
-                    "url": "https://...",  # URL изображения, строка 1-1024 символов, макс 6000x6000px, 8Mb
+                    "url": "https:#example.com/images/treadmill-main.jpg",
                 },
                 {
-                    "display_type": 0,  # 0 = дополнительное изображение
-                    "url": "https://...",
+                    "display_type": 2,  # 2 = дополнительное изображение
+                    "url": "https:#example.com/images/treadmill-side.jpg",
                 },
                 {
-                    "display_type": 0,
-                    "url": "https://...",
-                },
-            ],
-            "stock": [  # Массив данных о наличии товара
-                {
-                    "warehouse_id": 1,  # ID склада (1 для единственного склада)
-                    "value": 199,  # Количество товара, целое число 0-65535
-                }
-            ],
-            "characteristics": [  # Массив характеристик товара согласно категории
-                {
-                    "id": 9623,  # ID характеристики "Zona corporala"
-                    "value": "Maini",  # Значение характеристики "руки"
-                },
-                {
-                    "id": 5704,  # ID характеристики "Tip produs"
-                    "value": "Freza electrica",  # Значение "электрическая фреза"
+                    "display_type": 0,  # 0 = другое изображение
+                    "url": "https:#example.com/images/treadmill-angle.jpg",
                 },
             ],
-            "ean": [
-                valid_ean
-            ],  # Массив с EAN кодами (штрихкодами), сгенерированный валидный EAN-13
-            "handling_time": [  # Массив времени обработки заказа
+            "stock": [{"warehouse_id": 1, "value": 10}],  # Количество на складе
+            "handling_time": [
+                {"warehouse_id": 1, "value": 2}  # Время обработки в днях
+            ],
+            "safety_information": "Перед использованием прочтите инструкцию. Не подходит для детей младше 14 лет.",
+            "manufacturer": [
                 {
-                    "warehouse_id": 1,  # ID склада
-                    "value": 1,  # Время обработки в днях, 0 = отправка в тот же день
+                    "name": "FitnessExpert Manufacturing Ltd.",
+                    "address": "123 Industrial Park, Manufacturing City, Country",
+                    "email": "info@fitnessexpert-manufacturing.com",
                 }
             ],
         }

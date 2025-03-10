@@ -437,5 +437,44 @@ def main():
     logger.info("Скрипт завершил работу")
 
 
+def write_csv(data, output_file="company_data.csv"):
+    # Создаем DataFrame
+    df = pd.DataFrame(data)
+    # Сохраняем в CSV
+    df.to_csv(output_file, index=False, encoding="utf-8")
+    logger.info(f"Данные успешно записаны в {output_file}")
+
+
+def scrap_json():
+    all_data = []
+    for json_file in json_directory.glob("*.json"):
+        with open(json_file, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        company_bin = json_file.stem
+        json_result = data["data"]["result"]
+        json_meta = data["data"]["meta"]
+        relevance = json_meta["relevance"]
+
+        for data_year in json_result:
+            result = {
+                "company_bin": company_bin,
+                "Год": data_year["year"],
+                "Сумма отчислений, ₸": data_year["amount"],
+                "Сумма отчислений, %": data_year["percentage"],
+                "Обязательные платежи с ФОТ, ₸": data_year["amount_fot"],
+                "Обязательные платежи с ФОТ, %": data_year["percentage_fot"],
+                "Налоги, ₸": data_year["amount_other"],
+                "Налоги, %": data_year["percentage_other"],
+                "relevance": relevance,
+            }
+            all_data.append(result)
+
+    return all_data
+
+
 if __name__ == "__main__":
-    main()
+    # # Сбор данных с сайта
+    # main()
+    data = scrap_json()
+    write_csv(data)
