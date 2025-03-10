@@ -1,27 +1,8 @@
-# src/models.py
-from sqlalchemy import Column, Integer, String, ForeignKey
+# app/models/product.py
+from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
 
-"""
-    Manufacturer (Производители):
-    Отдельная таблица с уникальными именами производителей (name).
-    Связь "один-ко-многим" с таблицей products через manufacturer_id.
-    Category (Категории):
-    Отдельная таблица с уникальными именами категорий (name).
-    Связь "один-ко-многим" с таблицей products через category_id.
-    Product (Товары):
-    Основная таблица с уникальным ean как идентификатором.
-    title — обязательное поле.
-    description — опциональное.
-    Внешние ключи manufacturer_id и category_id связывают товар с производителем и категорией.
-    Связь "один-ко-многим" с таблицей pictures через relationship.
-    Picture (Изображения):
-    Отдельная таблица для хранения URL-адресов изображений.
-    Связь "многие-к-одному" с таблицей products через product_id.
-    Каждый товар может иметь несколько изображений.
-"""
-Base = declarative_base()
+from app.models.base import Base
 
 
 class Manufacturer(Base):

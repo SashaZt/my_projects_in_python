@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 import os
 from pathlib import Path
@@ -108,16 +109,6 @@ def find_wage_arrears(soup):
 
 
 def find_registration(soup):
-    # selectors = [
-    #     "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(8) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_green",
-    #     "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(9) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_green",
-    #     "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(8) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_orange"
-    #     "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(9) > div > div:nth-child(1) > div > div:nth-child(2) > div.dr_value_state.dr_orange"
-    # ]
-    # for selector in selectors:
-    #     title_div = soup.select_one(selector)
-    #     if title_div:
-    #         return title_div.text.strip()
     selectors = [
         "#edrpou_main_conatiner .dr_value_state.dr_green",
         "#edrpou_main_conatiner .dr_value_state.dr_orange",
@@ -131,10 +122,6 @@ def find_registration(soup):
             return text
 
     return None
-    # if registration_tag is None:
-    #     return None  # Возвращаем None, если элемент не найден
-    # registration = registration_tag.get_text(strip=True)
-    # return registration
 
 
 def get_registration_date(soup):
@@ -204,74 +191,66 @@ def get_mini_title(soup):
 
 
 def process_html_file(file_path, combined_data):
+    try:
+        with open(file_path, "r", encoding="utf-8") as file:
+            html_content = file.read()
+        soup = BeautifulSoup(html_content, "html.parser")
+        main_code, additional_codes = extract_kved_codes(soup)
+        # Получаем имя файла без расширения
+        filename = get_filename_without_extension(file_path)
 
-    with open(file_path, "r", encoding="utf-8") as file:
-        html_content = file.read()
-    soup = BeautifulSoup(html_content, "html.parser")
-    main_code, additional_codes = extract_kved_codes(soup)
-    # Получаем имя файла без расширения
-    filename = get_filename_without_extension(file_path)
-
-    # Ищем соответствие в combined_data
-    edrpo, address = find_edrpo_and_address(combined_data, filename)
-    tax_debt_date, tax_debt_status = find_tax_debt(soup)
-    arrears_date, arrears_status = find_wage_arrears(soup)
-    title = find_title(soup)
-    registration = find_registration(soup)
-    registration_date = get_registration_date(soup)  # '13.11.1996'
-    authorized_person = get_authorized_person(soup)  # 'ЧЕРЕВАТИЙ СЕРГІЙ ВОЛОДИМИРОВИЧ'
-    # 'МІНІСТЕРСТВО КУЛЬТУРИ ТА ІНФОРМАЦІЙНОЇ ПОЛІТИКИ УКРАЇНИ'
-    founder = get_founder(soup)
-    statutory_fund = get_statutory_fund(soup)  # '4 879 059,81 грн'
-    bankruptcy_info = get_bankruptcy_info(soup)
-    year, assets, liabilities, employees, profit, income = get_financial_info(soup)
-    inn = get_inn(soup)
-    title_mini, edrpo_new = get_mini_title(soup)
-    if edrpo is None:
-        edrpo = edrpo_new
-    if title is None:
+        # Ищем соответствие в combined_data
+        edrpo, address = find_edrpo_and_address(combined_data, filename)
+        tax_debt_date, tax_debt_status = find_tax_debt(soup)
+        arrears_date, arrears_status = find_wage_arrears(soup)
+        title = find_title(soup)
+        registration = find_registration(soup)
+        registration_date = get_registration_date(soup)  # '13.11.1996'
+        authorized_person = get_authorized_person(
+            soup
+        )  # 'ЧЕРЕВАТИЙ СЕРГІЙ ВОЛОДИМИРОВИЧ'
+        # 'МІНІСТЕРСТВО КУЛЬТУРИ ТА ІНФОРМАЦІЙНОЇ ПОЛІТИКИ УКРАЇНИ'
+        founder = get_founder(soup)
+        statutory_fund = get_statutory_fund(soup)  # '4 879 059,81 грн'
+        bankruptcy_info = get_bankruptcy_info(soup)
+        year, assets, liabilities, employees, profit, income = get_financial_info(soup)
+        inn = get_inn(soup)
+        title_mini, edrpo_new = get_mini_title(soup)
+        if edrpo is None:
+            edrpo = edrpo_new
+        if title is None:
+            return None
+        all_data = {
+            "title": title,
+            "title_mini": title_mini,
+            "registration": registration,
+            "data_registr": find_data_registr(soup),
+            "record_number": find_record_number(soup),
+            "tax_debt_date": tax_debt_date,
+            "tax_debt_status": tax_debt_status,
+            "arrears_date": arrears_date,
+            "arrears_status": arrears_status,
+            "main_code": main_code,
+            "additional_codes": additional_codes,
+            "edrpo": edrpo,
+            "address": address,
+            "registration_date": registration_date,
+            "authorized_person": authorized_person,
+            "founder": founder,
+            "statutory_fund": statutory_fund,
+            "bankruptcy_info": bankruptcy_info,
+            "year": year,
+            "assets": assets,
+            "liabilities": liabilities,
+            "employees": employees,
+            "profit": profit,
+            "income": income,
+            "inn": inn,
+        }
+        return all_data
+    except Exception as e:
+        print(f"Ошибка при обработке файла {file_path}: {e}")
         return None
-    all_data = {
-        "title": title,
-        "title_mini": title_mini,
-        "registration": registration,
-        "data_registr": find_data_registr(soup),
-        "record_number": find_record_number(soup),
-        "tax_debt_date": tax_debt_date,
-        "tax_debt_status": tax_debt_status,
-        "arrears_date": arrears_date,
-        "arrears_status": arrears_status,
-        "main_code": main_code,
-        "additional_codes": additional_codes,
-        "edrpo": edrpo,
-        "address": address,
-        "registration_date": registration_date,
-        "authorized_person": authorized_person,
-        "founder": founder,
-        "statutory_fund": statutory_fund,
-        "bankruptcy_info": bankruptcy_info,
-        "year": year,
-        "assets": assets,
-        "liabilities": liabilities,
-        "employees": employees,
-        "profit": profit,
-        "income": income,
-        "inn": inn,
-    }
-    return all_data
-
-
-# def get_bankruptcy_info(soup):
-#     # Находим элемент с текстом "Процедура банкрутства"
-#     bankruptcy_element = soup.find('div', string='Процедура банкрутства')
-#     if bankruptcy_element:
-#         # Находим следующий div с классом dr_value_state
-#         bankruptcy_info = bankruptcy_element.find_next(
-#             'div', class_='dr_value_state')
-#         if bankruptcy_info:
-#             # Извлекаем текст и очищаем от лишних пробелов
-#             return bankruptcy_info.text.strip()
-#     return None
 
 
 def get_bankruptcy_info(soup):
@@ -330,7 +309,7 @@ def get_financial_info(soup):
             if subtitle_text in [
                 "Рік",
                 "Активи",
-                "Зобов’язання",
+                "Зобов'язання",
                 "Кількість співробітників",
                 "Чистий прибуток",
                 "Дохід",
@@ -350,7 +329,7 @@ def get_financial_info(soup):
         # Извлекаем значения в нужном порядке
         year = values.get("Рік")
         assets = values.get("Активи")
-        liabilities = values.get("Зобов’язання")
+        liabilities = values.get("Зобов'язання")
         employees = values.get("Кількість співробітників")
         profit = values.get("Чистий прибуток")
         income = values.get("Дохід")
@@ -427,27 +406,57 @@ def save_to_excel(results):
 
     # Сохраняем DataFrame в Excel файл
     df.to_excel(excel_file, index=False)
+    print(f"Сохранено {len(results)} записей в файл {excel_file}")
 
 
 def main():
-    current_directory = Path.cwd()
-    html_directory = current_directory / "html"
     combined_data_file = current_directory / "combined_data.json"
 
     # Загрузка combined_data.json
     combined_data = load_combined_data(combined_data_file)
 
+    # Получаем список всех HTML файлов
+    all_html_files = list(html_directory.glob("*.html"))
+    total_files = len(all_html_files)
+    print(f"Найдено {total_files} HTML файлов для обработки")
+
     results = []
+    processed_count = 0
 
-    # for html_file in list(html_directory.glob("*.html"))[:500]:
-    for html_file in html_directory.glob("*.html"):
-        # print(html_file)
-        data = process_html_file(html_file, combined_data)
-        if data:  # Проверяем, что данные не пустые
-            results.append(data)
+    # Используем ThreadPoolExecutor для многопоточной обработки
+    # Задаем максимальное количество потоков - 10
+    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        # Создаем список задач
+        future_to_file = {
+            executor.submit(process_html_file, html_file, combined_data): html_file
+            for html_file in all_html_files
+        }
 
-    # Здесь вы можете добавить логику для записи или дальнейшей обработки результатов
+        # Обрабатываем результаты по мере их завершения
+        for future in concurrent.futures.as_completed(future_to_file):
+            file = future_to_file[future]
+            try:
+                data = future.result()
+                processed_count += 1
+
+                # Показываем прогресс каждые 100 файлов
+                if processed_count % 100 == 0 or processed_count == total_files:
+                    print(
+                        f"Обработано {processed_count}/{total_files} файлов ({processed_count/total_files*100:.1f}%)"
+                    )
+
+                if data:
+                    results.append(data)
+            except Exception as e:
+                print(f"Ошибка при обработке файла {file}: {e}")
+
+    print(
+        f"Обработка завершена. Получено {len(results)} результатов из {total_files} файлов"
+    )
+
+    # Сохраняем результаты в Excel
     save_to_excel(results)
+    print("Работа программы завершена")
 
 
 if __name__ == "__main__":

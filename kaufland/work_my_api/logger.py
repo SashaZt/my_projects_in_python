@@ -1,4 +1,3 @@
-# app/logger.py
 import sys
 from pathlib import Path
 
