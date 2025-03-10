@@ -1,3 +1,4 @@
+#app/models/telegram_users.py
 from sqlalchemy import Column, Integer, BigInteger, String
 from app.core.base import Base
 

@@ -1,3 +1,4 @@
+#app/schenas/telegram.py
 from pydantic import BaseModel
 from typing import Optional
 
@@ -34,3 +35,13 @@ class MessageQuerySchema(BaseModel):
     recipient_id: int  # telegram_id получателя
     limit: int = 20
     offset: int = 0
+
+class DialogsQuerySchema(BaseModel):
+    user_id: int  # telegram_id пользователя, для которого получаем список диалогов
+    limit: int = 20
+    offset: int = 0
+
+class DialogSchema(BaseModel):
+    user: UserSchema  # Собеседник
+    last_message: MessageSchema  # Последнее сообщение в диалоге
+    unread_count: int  # Количество непрочитанных сообщений

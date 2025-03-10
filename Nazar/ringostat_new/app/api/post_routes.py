@@ -1,3 +1,4 @@
+#app/api/post_routes.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.dependencies import get_db
@@ -13,7 +14,7 @@ from app.models.telegram_message import TelegramMessage
 from app.models.telegram_users import TelegramUser
 from sqlalchemy import update
 from sqlalchemy import update, select, or_, and_
-from app.schemas.telegram import MessageQuerySchema, UserSchema, MessageSchema
+from app.schemas.telegram import MessageQuerySchema, UserSchema, MessageSchema, DialogSchema, DialogsQuerySchema
 from sqlalchemy.orm import joinedload
 
 
@@ -438,4 +439,147 @@ async def get_chat_messages(
         logger.error(f"Ошибка при получении сообщений чата: {e}")
         raise HTTPException(
             status_code=500, detail=f"Ошибка при получении сообщений чата: {e}"
+        )
+
+@router.post("/telegram/dialogs", response_model=list[DialogSchema])
+async def get_user_dialogs(
+    query_params: DialogsQuerySchema, db: AsyncSession = Depends(get_db)
+):
+    """
+    Получить список диалогов пользователя с пагинацией.
+    
+    :param query_params: Параметры запроса (telegram_id пользователя, лимит, смещение)
+    :param db: Асинхронная сессия базы данных
+    :return: Список диалогов с информацией о последнем сообщении
+    """
+    try:
+        logger.info(f"Запрос на получение диалогов: {query_params.model_dump()}")
+        
+        # Получаем пользователя по telegram_id
+        user_query = select(TelegramUser).where(
+            TelegramUser.telegram_id == query_params.user_id
+        )
+        user_result = await db.execute(user_query)
+        user = user_result.scalar_one_or_none()
+        
+        if user is None:
+            logger.warning(f"Пользователь не найден: telegram_id={query_params.user_id}")
+            raise HTTPException(
+                status_code=404,
+                detail="User not found in the database",
+            )
+        
+        # Получаем все диалоги пользователя
+        # Используем другой подход без подзапроса
+        # Сначала находим всех собеседников
+        interlocutors_query = (
+            select(
+                func.if_(
+                    TelegramMessage.sender_id == user.id,
+                    TelegramMessage.recipient_id,
+                    TelegramMessage.sender_id
+                ).label("interlocutor_id")
+            )
+            .where(
+                or_(
+                    TelegramMessage.sender_id == user.id,
+                    TelegramMessage.recipient_id == user.id
+                )
+            )
+            .group_by("interlocutor_id")
+            .order_by(func.max(TelegramMessage.created_at).desc())
+        )
+        
+        result = await db.execute(interlocutors_query)
+        interlocutor_ids = [row[0] for row in result.all()]
+        
+        # Если нет диалогов, возвращаем пустой список
+        if not interlocutor_ids:
+            logger.info("Диалоги не найдены.")
+            return []
+        
+        # Применяем пагинацию к списку собеседников
+        paginated_interlocutor_ids = interlocutor_ids[query_params.offset:query_params.offset + query_params.limit]
+        
+        dialogs = []
+        
+        # Для каждого собеседника получаем последнее сообщение
+        for interlocutor_id in paginated_interlocutor_ids:
+            # Получаем собеседника
+            interlocutor_query = select(TelegramUser).where(
+                TelegramUser.id == interlocutor_id
+            )
+            interlocutor_result = await db.execute(interlocutor_query)
+            interlocutor = interlocutor_result.scalar_one_or_none()
+            
+            if not interlocutor:
+                continue
+            
+            # Получаем последнее сообщение в диалоге
+            last_message_query = (
+                select(TelegramMessage)
+                .where(
+                    or_(
+                        and_(
+                            TelegramMessage.sender_id == user.id,
+                            TelegramMessage.recipient_id == interlocutor_id
+                        ),
+                        and_(
+                            TelegramMessage.sender_id == interlocutor_id,
+                            TelegramMessage.recipient_id == user.id
+                        )
+                    )
+                )
+                .order_by(TelegramMessage.created_at.desc())
+                .limit(1)
+            )
+            
+            last_message_result = await db.execute(last_message_query)
+            last_message = last_message_result.scalar_one_or_none()
+            
+            if not last_message:
+                continue
+            
+            # Подсчитываем непрочитанные сообщения
+            unread_query = (
+                select(func.count())
+                .select_from(TelegramMessage)
+                .where(
+                    TelegramMessage.sender_id == interlocutor_id,
+                    TelegramMessage.recipient_id == user.id,
+                    TelegramMessage.is_read == False
+                )
+            )
+            
+            unread_result = await db.execute(unread_query)
+            unread_count = unread_result.scalar_one()
+            
+            dialogs.append(
+                {
+                    "user": UserSchema(
+                        name=interlocutor.name,
+                        username=interlocutor.username,
+                        telegram_id=interlocutor.telegram_id,
+                        phone=interlocutor.phone
+                    ),
+                    "last_message": MessageSchema(
+                        message_id=last_message.message_id,
+                        text=last_message.message,
+                        is_reply=last_message.is_reply,
+                        reply_to=last_message.reply_to,
+                        read=last_message.is_read,
+                        direction=last_message.direction
+                    ),
+                    "unread_count": unread_count
+                }
+            )
+        
+        logger.info(f"Найдено {len(dialogs)} диалогов.")
+        return dialogs
+    
+    except Exception as e:
+        logger.error(f"Ошибка при получении списка диалогов: {e}")
+        await db.rollback()  # Добавлен rollback в случае ошибки
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка при получении списка диалогов: {e}"
         )
