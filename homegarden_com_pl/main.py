@@ -25,32 +25,34 @@ html_directory = current_directory / "html"
 html_directory.mkdir(parents=True, exist_ok=True)
 config_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
-output_xml_file = data_directory / "output.xml"
+# output_xml_file = data_directory / "output.xml"
 output_csv_file = data_directory / "output.csv"
 output_csv_file = data_directory / "output.csv"
 config_file = config_directory / "config.json"
 service_account_file = config_file / "credentials.json"
 
 cookies = {
-    "PHPSESSID": "34p6gltkfskqsq7g1nacpf4ele",
-    "cookieconsent": '{"g":{"personal":true,"statistics":true,"marketing":true},"v":1,"s":1}',
+    "WELLSESSID": "cat8ii70qffcs5ss0eiese6gak",
+    "_gcl_au": "1.1.1815884540.1741706393",
 }
 
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "accept-language": "ru,en;q=0.9,uk;q=0.8",
-    "cache-control": "max-age=0",
+    "cache-control": "no-cache",
     "dnt": "1",
+    "pragma": "no-cache",
     "priority": "u=0, i",
     "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": '"Windows"',
     "sec-fetch-dest": "document",
     "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "none",
+    "sec-fetch-site": "cross-site",
     "sec-fetch-user": "?1",
     "upgrade-insecure-requests": "1",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+    # 'cookie': 'WELLSESSID=cat8ii70qffcs5ss0eiese6gak; _gcl_au=1.1.1815884540.1741706393',
 }
 
 
@@ -98,58 +100,63 @@ def get_google_sheet():
 
 
 def download_xml():
-
-    response = requests.get(
-        "https://www.insportline.eu/sitemap.xml",
-        cookies=cookies,
-        headers=headers,
-        timeout=30,
-    )
-
-    # Проверка успешности запроса
-    if response.status_code == 200:
-        # Сохранение содержимого в файл
-        with open(output_xml_file, "wb") as file:
-            file.write(response.content)
-        logger.info(f"Файл успешно сохранен в: {output_xml_file}")
-    else:
-        logger.error(f"Ошибка при скачивании файла: {response.status_code}")
+    for page in range(1, 3):
+        response = requests.get(
+            f"https://homegarden.com.pl/sitemap.products.{page}.xml",
+            cookies=cookies,
+            headers=headers,
+            timeout=30,
+        )
+        output_xml_file = data_directory / f"output_{page}.xml"
+        # Проверка успешности запроса
+        if response.status_code == 200:
+            # Сохранение содержимого в файл
+            with open(output_xml_file, "wb") as file:
+                file.write(response.content)
+            logger.info(f"Файл успешно сохранен в: {output_xml_file}")
+        else:
+            logger.error(f"Ошибка при скачивании файла: {response.status_code}")
 
 
 def parse_sitemap():
     download_xml()
     try:
-        # Чтение XML файла
-        with open(output_xml_file, "r", encoding="utf-8") as file:
-            xml_content = file.read()
-
-        # Парсинг XML
-        root = ET.fromstring(xml_content)
-
-        # Указание правильного пространства имен
-        namespace = {"ns": "http://www.google.com/schemas/sitemap/0.84"}
-
-        # Шаблон для фильтрации URL'ов: https://www.insportline.eu/число/что-угодно
-        pattern = r"^https://www\.insportline\.eu/\d+/.*$"
-
-        # Извлечение URL, соответствующих шаблону
         urls = []
-        for url_elem in root.findall(".//ns:url", namespace):
-            loc_elem = url_elem.find("ns:loc", namespace)
-            if loc_elem is not None and loc_elem.text:
-                url = loc_elem.text.strip()
-                if re.match(pattern, url):
+        for page in range(1, 3):
+            output_xml_file = data_directory / f"output_{page}.xml"
+            # Чтение XML файла
+            with open(output_xml_file, "r", encoding="utf-8") as file:
+                xml_content = file.read()
+
+            # Парсинг XML
+            root = ET.fromstring(xml_content)
+
+            # Регистрация пространств имен
+            namespaces = {
+                "ns": "http://www.sitemaps.org/schemas/sitemap/0.9",
+                "image": "http://www.google.com/schemas/sitemap-image/1.1",
+            }
+
+            # Извлечение только URL из тегов loc, непосредственно внутри url
+            # Важно: используем XPath, который выбирает только прямые дочерние элементы loc тега url
+            # ./ns:loc - выбирает только прямые loc теги, игнорируя image:loc
+            urls = []
+
+            for url_elem in root.findall(".//ns:url", namespaces):
+                loc_elem = url_elem.find("./ns:loc", namespaces)
+                if loc_elem is not None and loc_elem.text:
+                    url = loc_elem.text.strip()
                     urls.append(url)
 
-        # Вывод количества найденных URL
-        logger.info(f"Найдено {len(urls)} URL, соответствующих шаблону")
+            # Вывод количества найденных URL
+            logger.info(f"Найдено {len(urls)} URL, соответствующих шаблону")
 
-        # Сохранение в CSV
-        url_data = pd.DataFrame(urls, columns=["url"])
-        url_data.to_csv(output_csv_file, index=False)
-        logger.info(f"URL адреса сохранены в {output_csv_file}")
+            # Сохранение в CSV
+            url_data = pd.DataFrame(urls, columns=["url"])
+            url_data.to_csv(output_csv_file, index=False)
+            logger.info(f"URL адреса сохранены в {output_csv_file}")
 
-        return urls
+            return urls
 
     except FileNotFoundError:
         logger.error(f"Ошибка: Файл {output_xml_file} не найден")
@@ -250,7 +257,7 @@ def pars_htmls():
                 product_data = json.loads(product_script.string)
                 # Извлекаем имя продукта из корневого объекта
                 product_name = product_data.get("name")
-                sku = product_data.get("mpn")
+                sku = product_data.get("sku")
 
                 # Извлекаем данные из offers
                 offers = product_data.get("offers", {})
@@ -259,7 +266,7 @@ def pars_htmls():
                     offer_price = str(offer_price).replace(".", ",")
                 data_json = {
                     "name": product_name,
-                    "sku": f"INS{sku}",
+                    "sku": f"HG-{sku}",
                     "price": offer_price,
                 }
                 all_data.append(data_json)
@@ -310,5 +317,5 @@ def update_sheet_with_data(sheet, data, total_rows=8000):
 
 if __name__ == "__main__":
     # parse_sitemap()
-    main_th()
-    # pars_htmls()
+    # main_th()
+    pars_htmls()
