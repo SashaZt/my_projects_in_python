@@ -1,43 +1,103 @@
+import csv
+import hashlib
 import json
+import os
 import re
+import shutil
+import sys
+import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import gspread
 import pandas as pd
 import requests
-from logger import logger
+from bs4 import BeautifulSoup
+from config.logger import logger
+from dotenv import load_dotenv
+from oauth2client.service_account import ServiceAccountCredentials
 
 current_directory = Path.cwd()
+config_directory = current_directory / "config"
 data_directory = current_directory / "data"
+html_directory = current_directory / "html"
+html_directory.mkdir(parents=True, exist_ok=True)
+config_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 output_xml_file = data_directory / "output.xml"
 output_csv_file = data_directory / "output.csv"
+output_csv_file = data_directory / "output.csv"
+config_file = config_directory / "config.json"
+service_account_file = config_file / "credentials.json"
+
+cookies = {
+    "PHPSESSID": "34p6gltkfskqsq7g1nacpf4ele",
+    "cookieconsent": '{"g":{"personal":true,"statistics":true,"marketing":true},"v":1,"s":1}',
+}
+
+headers = {
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    "cache-control": "max-age=0",
+    "dnt": "1",
+    "priority": "u=0, i",
+    "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "none",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+}
+
+
+def get_config():
+    with open(config_file, "r", encoding="utf-8") as file:
+        data = json.load(file)
+    return data
+
+
+config = get_config()
+SPREADSHEET = config["google"]["spreadsheet"]
+SHEET = config["google"]["sheet"]
+
+
+def get_google_sheet():
+    """Подключается к Google Sheets и возвращает указанный лист."""
+    try:
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive.file",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds = ServiceAccountCredentials.from_json_keyfile_name(
+            service_account_file, scope
+        )
+        client = gspread.authorize(creds)
+
+        # Открываем таблицу по ключу и возвращаем лист
+        spreadsheet = client.open_by_key(SPREADSHEET)
+        logger.info("Успешное подключение к Google Spreadsheet.")
+        return spreadsheet.worksheet(SHEET)
+    except FileNotFoundError:
+        raise FileNotFoundError("Файл credentials.json не найден. Проверьте путь.")
+    except gspread.exceptions.APIError as e:
+        logger.error(f"Ошибка API Google Sheets: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Произошла ошибка: {e}")
+        raise
+
+
+# Получение листа Google Sheets
+# sheet = get_google_sheet()
 
 
 def download_xml():
-
-    cookies = {
-        "PHPSESSID": "34p6gltkfskqsq7g1nacpf4ele",
-        "cookieconsent": '{"g":{"personal":true,"statistics":true,"marketing":true},"v":1,"s":1}',
-    }
-
-    headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "max-age=0",
-        "dnt": "1",
-        "priority": "u=0, i",
-        "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "none",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-        # 'cookie': 'PHPSESSID=34p6gltkfskqsq7g1nacpf4ele; cookieconsent={"g":{"personal":true,"statistics":true,"marketing":true},"v":1,"s":1}',
-    }
 
     response = requests.get(
         "https://www.insportline.eu/sitemap.xml",
@@ -57,6 +117,7 @@ def download_xml():
 
 
 def parse_sitemap():
+    download_xml()
     try:
         # Чтение XML файла
         with open(output_xml_file, "r", encoding="utf-8") as file:
@@ -101,6 +162,136 @@ def parse_sitemap():
         return []
 
 
+def main_th():
+    if not os.path.exists(html_directory):
+        html_directory.mkdir(parents=True, exist_ok=True)
+    urls = []
+    with open(output_csv_file, newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            urls.append(row["url"])
+
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        futures = []
+        for url in urls:
+            output_html_file = (
+                html_directory / f"html_{hashlib.md5(url.encode()).hexdigest()}.html"
+            )
+
+            if not os.path.exists(output_html_file):
+                futures.append(executor.submit(get_html, url, output_html_file))
+            else:
+                logger.info(f"Файл для {url} уже существует, пропускаем.")
+
+        results = []
+        for future in as_completed(futures):
+            # Здесь вы можете обрабатывать результаты по мере их завершения
+            results.append(future.result())
+
+
+def fetch(url):
+    response = requests.get(url, cookies=cookies, headers=headers, timeout=30)
+    response.raise_for_status()
+    return response.text
+
+
+def get_html(url, html_file):
+    src = fetch(url)
+    with open(html_file, "w", encoding="utf-8") as file:
+        file.write(src)
+    logger.info(html_file)
+    # time.sleep(5)
+
+
+def ensure_row_limit(sheet, required_rows=10000):
+    """Увеличивает количество строк в листе Google Sheets, если их меньше требуемого количества."""
+    current_rows = len(sheet.get_all_values())
+    if current_rows < required_rows:
+        sheet.add_rows(required_rows - current_rows)
+
+
+def pars_htmls():
+    logger.info("Собираем данные со страниц html")
+    all_data = []
+
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
+
+        # Парсим HTML с помощью BeautifulSoup
+        soup = BeautifulSoup(content, "lxml")
+        # Поиск скрипта с типом application/ld+json и типом Product
+        product_script = soup.find(
+            "script",
+            type="application/ld+json",
+            string=lambda text: text and '"@type": "Product"' in text,
+        )
+
+        if product_script:
+            try:
+                product_data = json.loads(product_script.string)
+                # Извлекаем имя продукта из корневого объекта
+                product_name = product_data.get("name")
+                sku = product_data.get("mpn")
+
+                # Извлекаем данные из offers
+                offers = product_data.get("offers", {})
+                offer_price = offers.get("price")
+                if offer_price:
+                    offer_price = str(offer_price).replace(".", ",")
+                data_json = {
+                    "name": product_name,
+                    "sku": sku,
+                    "price": offer_price,
+                }
+                all_data.append(data_json)
+
+                # results теперь содержит список словарей для каждого предложения
+                # logger.info(results)
+            except json.JSONDecodeError as e:
+                logger.error(f"Ошибка парсинга JSON: {e}")
+                # Или можно использовать print:
+                logger.info(f"Ошибка парсинга JSON: {e}")
+        else:
+            logger.error("Product JSON не найден.")
+            # Или можно использовать print:
+            logger.info("Product JSON не найден.")
+
+    # update_sheet_with_data(sheet, all_data)
+
+
+# ensure_row_limit(sheet, 1000)
+
+
+def update_sheet_with_data(sheet, data, total_rows=8000):
+    """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
+    if not data:
+        raise ValueError("Данные для обновления отсутствуют.")
+
+    # Заголовки из ключей словаря
+    headers = list(data[0].keys())
+
+    # Запись заголовков в первую строку
+    sheet.update(values=[headers], range_name="A1", value_input_option="RAW")
+
+    # Формирование строк для записи
+    rows = [[entry.get(header, "") for header in headers] for entry in data]
+
+    # Добавление пустых строк до общего количества total_rows
+    if len(rows) < total_rows:
+        empty_row = [""] * len(headers)
+        rows.extend([empty_row] * (total_rows - len(rows)))
+
+    # Определение диапазона для записи данных
+    end_col = chr(65 + len(headers) - 1)  # Преобразование индекса в букву (A, B, C...)
+    range_name = f"A2:{end_col}{total_rows + 1}"
+
+    # Запись данных в лист
+    sheet.update(values=rows, range_name=range_name, value_input_option="USER_ENTERED")
+
+
 if __name__ == "__main__":
-    # download_xml()
-    parse_sitemap()
+    # parse_sitemap()
+    main_th()
+    # pars_htmls()
