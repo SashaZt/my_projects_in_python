@@ -207,14 +207,6 @@ def check_auth():
 if __name__ == "__main__":
     # Пример использования
     try:
-        # # В основном блоке перед отправкой продукта
-        # if not check_category_access(1868):
-        #     logger.warning("No access to category 1868 (Treadmills), but trying anyway")
-        # # Проверка авторизации
-        # auth_check = check_auth()
-        # if not auth_check:
-        #     logger.error("Authentication failed, cannot proceed")
-        #     sys.exit(1)
         # Данные продукта
         product_data = {
             "data": [
