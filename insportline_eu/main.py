@@ -29,7 +29,7 @@ output_xml_file = data_directory / "output.xml"
 output_csv_file = data_directory / "output.csv"
 output_csv_file = data_directory / "output.csv"
 config_file = config_directory / "config.json"
-service_account_file = config_file / "credentials.json"
+service_account_file = config_directory / "credentials.json"
 
 cookies = {
     "PHPSESSID": "34p6gltkfskqsq7g1nacpf4ele",
@@ -94,7 +94,7 @@ def get_google_sheet():
 
 
 # Получение листа Google Sheets
-# sheet = get_google_sheet()
+sheet = get_google_sheet()
 
 
 def download_xml():
@@ -257,15 +257,26 @@ def pars_htmls():
                 offer_price = offers.get("price")
                 if offer_price:
                     offer_price = str(offer_price).replace(".", ",")
+                availability = offers.get("availability")
+                all_availability = {
+                    "PreOrder": "Попереднє замовлення",
+                    "InStock": "В наявності",
+                    "OutOfStock": "Немає в наявності",
+                }
+                result_availability = None  # По умолчанию None, если ничего не найдено
+                for term in all_availability:
+                    if availability and term in availability:
+                        result_availability = all_availability[term]
+                        break
+
                 data_json = {
-                    "name": product_name,
-                    "sku": f"INS{sku}",
-                    "price": offer_price,
+                    "Назва": product_name,
+                    "Код товару (INS)": f"INS{sku}",
+                    "Ціна": offer_price,
+                    "Наявність": result_availability,
                 }
                 all_data.append(data_json)
 
-                # results теперь содержит список словарей для каждого предложения
-                # logger.info(results)
             except json.JSONDecodeError as e:
                 logger.error(f"Ошибка парсинга JSON: {e}")
                 # Или можно использовать print:
@@ -275,13 +286,13 @@ def pars_htmls():
             # Или можно использовать print:
             logger.info("Product JSON не найден.")
 
-    # update_sheet_with_data(sheet, all_data)
+    update_sheet_with_data(sheet, all_data)
 
 
 # ensure_row_limit(sheet, 1000)
 
 
-def update_sheet_with_data(sheet, data, total_rows=8000):
+def update_sheet_with_data(sheet, data, total_rows=10000):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
     if not data:
         raise ValueError("Данные для обновления отсутствуют.")
@@ -309,6 +320,6 @@ def update_sheet_with_data(sheet, data, total_rows=8000):
 
 
 if __name__ == "__main__":
-    # parse_sitemap()
+    parse_sitemap()
     main_th()
-    # pars_htmls()
+    pars_htmls()

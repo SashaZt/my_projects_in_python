@@ -452,23 +452,26 @@ def scrap_json():
             data = json.load(file)
 
         company_bin = json_file.stem
-        json_result = data["data"]["result"]
-        json_meta = data["data"]["meta"]
-        relevance = json_meta["relevance"]
 
-        for data_year in json_result:
-            result = {
-                "company_bin": company_bin,
-                "Год": data_year["year"],
-                "Сумма отчислений, ₸": data_year["amount"],
-                "Сумма отчислений, %": data_year["percentage"],
-                "Обязательные платежи с ФОТ, ₸": data_year["amount_fot"],
-                "Обязательные платежи с ФОТ, %": data_year["percentage_fot"],
-                "Налоги, ₸": data_year["amount_other"],
-                "Налоги, %": data_year["percentage_other"],
-                "relevance": relevance,
-            }
-            all_data.append(result)
+        json_result_data = data.get("data", [])
+        if json_result_data:
+            json_result = data["data"]["result"]
+            json_meta = data["data"]["meta"]
+            relevance = json_meta["relevance"]
+
+            for data_year in json_result:
+                result = {
+                    "company_bin": company_bin,
+                    "Год": data_year["year"],
+                    "Сумма отчислений, ₸": data_year["amount"],
+                    "Сумма отчислений, %": data_year["percentage"],
+                    "Обязательные платежи с ФОТ, ₸": data_year["amount_fot"],
+                    "Обязательные платежи с ФОТ, %": data_year["percentage_fot"],
+                    "Налоги, ₸": data_year["amount_other"],
+                    "Налоги, %": data_year["percentage_other"],
+                    "relevance": relevance,
+                }
+                all_data.append(result)
 
     return all_data
 

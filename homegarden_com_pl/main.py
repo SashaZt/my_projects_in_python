@@ -29,7 +29,7 @@ data_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
 output_csv_file = data_directory / "output.csv"
 config_file = config_directory / "config.json"
-service_account_file = config_file / "credentials.json"
+service_account_file = config_directory / "credentials.json"
 
 cookies = {
     "WELLSESSID": "cat8ii70qffcs5ss0eiese6gak",
@@ -96,7 +96,7 @@ def get_google_sheet():
 
 
 # Получение листа Google Sheets
-# sheet = get_google_sheet()
+sheet = get_google_sheet()
 
 
 def download_xml():
@@ -234,6 +234,67 @@ def ensure_row_limit(sheet, required_rows=10000):
         sheet.add_rows(required_rows - current_rows)
 
 
+def extract_product_data(product_json):
+    """
+    Извлекает данные продукта из JSON структуры
+
+    Args:
+        product_json (dict): JSON структура продукта
+
+    Returns:
+        dict: Извлеченные данные продукта
+    """
+    try:
+        product_name = product_json.get("name")
+        sku = product_json.get("sku")
+
+        # Извлекаем данные из offers
+        offers = product_json.get("offers", {})
+        offer_price = offers.get("price")
+        if offer_price:
+            offer_price = str(offer_price).replace(".", ",")
+        availability = offers.get("availability")
+        schema_terms = (
+            r"(InStock|Discontinued|BackOrder|OutOfStock)"  # Шаблон для поиска
+        )
+        all_availability = {
+            "Discontinued": "Припинено",
+            "BackOrder": "Зворотне замовлення",
+            "InStock": "В наявності",
+            "OutOfStock": "Немає в наявності",
+        }
+
+        matches = re.findall(schema_terms, availability or "")  # Проверяем на None
+
+        if matches:
+            last_term = matches[-1]
+            result_availability = all_availability[last_term]
+        data_json = {
+            "Назва": product_name,
+            "Код товару(HG-)": f"HG-{sku}",
+            "Ціна": offer_price,
+            "Наявність": result_availability,
+        }
+        return data_json
+    except Exception as e:
+        logger.error(f"Ошибка при извлечении данных продукта: {e}")
+        return None
+
+
+def sanitize_json(json_str):
+    # Удаляем управляющие символы
+    json_str = re.sub(r"[\x00-\x1F\x7F]", "", json_str)
+
+    # Корректируем HTML-сущности
+    json_str = json_str.replace("&amp;", "&")
+    json_str = json_str.replace("&nbsp;", " ")
+    json_str = json_str.replace("&times;", "x")
+    json_str = json_str.replace("&quot;", '"')
+    json_str = json_str.replace("&#39;", "'")
+
+    return json_str
+
+
 def pars_htmls():
     logger.info("Собираем данные со страниц html")
     all_data = []
@@ -242,50 +303,55 @@ def pars_htmls():
     for html_file in html_directory.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             content = file.read()
-
+        # logger.debug(html_file)
         # Парсим HTML с помощью BeautifulSoup
         soup = BeautifulSoup(content, "lxml")
-        # Поиск скрипта с типом application/ld+json и типом Product
-        product_script = soup.find(
-            "script",
-            type="application/ld+json",
-            string=lambda text: text and '"@type": "Product"' in text,
-        )
+        # Находим все скрипты с типом application/ld+json
+        scripts = soup.find_all("script", type="application/ld+json")
 
-        if product_script:
+        if not scripts:
+            logger.warning(
+                f"В файле {html_file.name} не найдено скриптов с типом application/ld+json"
+            )
+            continue
+
+        # Флаг для отслеживания, был ли найден продукт
+        product_found = False
+
+        # Перебираем все скрипты JSON-LD
+        for script in scripts:
             try:
-                product_data = json.loads(product_script.string)
-                # Извлекаем имя продукта из корневого объекта
-                product_name = product_data.get("name")
-                sku = product_data.get("sku")
+                # Получаем текст скрипта и проверяем его наличие
+                script_text = script.string
+                if not script_text or not script_text.strip():
+                    continue
+                # Очищаем JSON от проблемных символов
+                script_text = sanitize_json(script_text)
 
-                # Извлекаем данные из offers
-                offers = product_data.get("offers", {})
-                offer_price = offers.get("price")
-                if offer_price:
-                    offer_price = str(offer_price).replace(".", ",")
-                data_json = {
-                    "name": product_name,
-                    "sku": f"HG-{sku}",
-                    "price": offer_price,
-                }
-                all_data.append(data_json)
+                # Парсим JSON
+                json_data = json.loads(script_text)
 
-                # results теперь содержит список словарей для каждого предложения
-                # logger.info(results)
+                # Проверяем, является ли это продуктом
+                if isinstance(json_data, dict) and json_data.get("@type") == "Product":
+                    # logger.info("Найдена структура Product JSON-LD")
+                    product_found = True
+
+                    # Извлекаем данные основного продукта
+                    main_product = extract_product_data(json_data)
+                    if main_product:
+                        all_data.append(main_product)
+
+                    break
             except json.JSONDecodeError as e:
                 logger.error(f"Ошибка парсинга JSON: {e}")
                 # Или можно использовать print:
                 logger.info(f"Ошибка парсинга JSON: {e}")
         else:
             logger.error("Product JSON не найден.")
-            # Или можно использовать print:
-            logger.info("Product JSON не найден.")
-
-    # update_sheet_with_data(sheet, all_data)
+    update_sheet_with_data(sheet, all_data)
 
 
-# ensure_row_limit(sheet, 1000)
+ensure_row_limit(sheet, 1000)
 
 
 def update_sheet_with_data(sheet, data, total_rows=8000):
