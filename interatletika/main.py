@@ -1,5 +1,6 @@
 import csv
 import hashlib
+import html
 import json
 import os
 import re
@@ -14,9 +15,10 @@ import gspread
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from config.logger import logger
 from dotenv import load_dotenv
 from oauth2client.service_account import ServiceAccountCredentials
+
+from config.logger import logger
 
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
@@ -27,7 +29,7 @@ config_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 output_xml_file = data_directory / "output.xml"
 output_csv_file = data_directory / "output.csv"
-output_csv_file = data_directory / "output.csv"
+output_json_file = data_directory / "output.json"
 config_file = config_directory / "config.json"
 service_account_file = config_directory / "credentials.json"
 
@@ -247,21 +249,25 @@ def extract_product_data(product_json):
 
         # Извлекаем данные из offers
         offers = product_json.get("offers", {})
-        offer_price = offers.get("price")
-        if offer_price:
-            offer_price = str(offer_price).replace(".", ",")
-        availability = offers.get(
-            "availability"
-        )  # Предполагается, что offers определен
-        schema_terms = r"(InStock|PreOrder|OutOfStock)"  # Шаблон для поиска
+        offer_price = None
+        if "price" in offers:
+            offer_price = offers.get("price")
+        elif "lowPrice" in offers:
+            offer_price = offers.get("lowPrice")
+        offer_price = str(offer_price).replace(".", ",")
+        availability = offers.get("availability")
+        schema_terms = (
+            r"(InStock|PreOrder|OutOfStock|Discontinued)"  # Шаблон для поиска
+        )
         all_availability = {
             "PreOrder": "Попереднє замовлення",
             "InStock": "В наявності",
             "OutOfStock": "Немає в наявності",
+            "Discontinued": "Припинено",
         }
 
         matches = re.findall(schema_terms, availability or "")  # Проверяем на None
-
+        result_availability = None
         if matches:
             last_term = matches[-1]
             result_availability = all_availability[last_term]
@@ -269,7 +275,7 @@ def extract_product_data(product_json):
             "Назва": product_name,
             "Код товару(INT-)": f"INT-{sku}",
             "Ціна": offer_price,
-            "наявність": result_availability,
+            "Наявність": result_availability,
         }
         return data_json
     except Exception as e:
@@ -277,18 +283,75 @@ def extract_product_data(product_json):
         return None
 
 
-def sanitize_json(json_str):
-    # Удаляем управляющие символы
-    json_str = re.sub(r"[\x00-\x1F\x7F]", "", json_str)
+def sanitize_json(json_text):
+    """
+    Очищает JSON-текст от проблемных символов и форматирования
+    """
+    if not json_text:
+        return json_text
 
-    # Корректируем HTML-сущности
-    json_str = json_str.replace("&amp;", "&")
-    json_str = json_str.replace("&nbsp;", " ")
-    json_str = json_str.replace("&times;", "x")
-    json_str = json_str.replace("&quot;", '"')
-    json_str = json_str.replace("&#39;", "'")
+    # Базовая очистка от HTML-сущностей
+    replacements = {
+        "&nbsp;": " ",
+        "&ndash;": "-",
+        "&quot;": '"',
+        "&shy;": "",
+        "&amp;": "&",
+    }
 
-    return json_str
+    for old, new in replacements.items():
+        json_text = json_text.replace(old, new)
+
+    # Используем html.unescape для обработки всех других HTML-сущностей
+    json_text = html.unescape(json_text)
+
+    # Очистка от комментариев
+    json_text = re.sub(r"//.*?(\n|$)", "", json_text)
+
+    # Удаляем лишние пробелы и переносы строк
+    # Сначала заменим все пробельные символы на один пробел
+    json_text = re.sub(r"\s+", " ", json_text)
+
+    # Восстановим форматирование для важных элементов JSON
+    json_text = json_text.replace("{ ", "{").replace(" }", "}")
+    json_text = json_text.replace("[ ", "[").replace(" ]", "]")
+    json_text = json_text.replace(", ", ",").replace(" ,", ",")
+    json_text = json_text.replace(": ", ":").replace(" :", ":")
+
+    # Удаляем запятые перед закрывающими скобками
+    json_text = re.sub(r",\s*}", "}", json_text)
+    json_text = re.sub(r",\s*]", "]", json_text)
+
+    # Пробуем парсить
+    try:
+        parsed_json = json.loads(json_text)
+        return json.dumps(parsed_json, ensure_ascii=False)
+    except json.JSONDecodeError as e:
+        logger.error(f"Ошибка парсинга после очистки: {str(e)}")
+
+        # Дополнительные попытки очистки
+        # 1. Исправляем кавычки
+        json_text = json_text.replace("'", '"')
+
+        # 2. Проверяем, нет ли несбалансированных кавычек
+        quote_count = json_text.count('"')
+        if quote_count % 2 != 0:
+            logger.error("Несбалансированные кавычки в JSON")
+
+        # 3. Исправляем числа с запятыми
+        json_text = re.sub(r"(\d+),(\d+)", r"\1.\2", json_text)
+
+        try:
+            return json.dumps(json.loads(json_text), ensure_ascii=False)
+        except json.JSONDecodeError:
+            # Если всё еще не работает, используем более прямолинейный подход
+            # Пытаемся построить JSON заново, извлекая ключевые поля
+
+            # Для отладки:
+            logger.error(f"Не удалось очистить JSON даже после дополнительных попыток")
+
+            # Возвращаем минимально преобразованный текст
+            return json_text
 
 
 def pars_htmls():
@@ -312,9 +375,10 @@ def pars_htmls():
             )
             continue
 
-        # Флаг для отслеживания, был ли найден продукт
+            # Флаг для отслеживания, был ли найден продукт
         product_found = False
-        logger.info(html_file)
+        # logger.info(f"Обработка файла: {html_file}")
+
         # Перебираем все скрипты JSON-LD
         for script in scripts:
             try:
@@ -322,30 +386,77 @@ def pars_htmls():
                 script_text = script.string
                 if not script_text or not script_text.strip():
                     continue
-                # Очищаем JSON от проблемных символов
-                script_text = sanitize_json(script_text)
 
+                # Проверим, что это скрипт JSON-LD
+                if "application/ld+json" not in script.get("type", ""):
+                    continue
+
+                # # Логируем первые 100 символов скрипта перед очисткой
+                # logger.debug(
+                #     f"Обрабатываемый скрипт (первые 100 символов): {script_text[:100]}..."
+                # )
+
+                # # Очищаем JSON от проблемных символов
+                # cleaned_script = sanitize_json(script_text)
+
+                # # Логируем результат очистки для отладки
+                # if cleaned_script != script_text:
+                #     logger.debug("Скрипт был очищен")
+                # logger.info(script_text)
                 # Парсим JSON
                 json_data = json.loads(script_text)
 
                 # Проверяем, является ли это продуктом
-                if isinstance(json_data, dict) and json_data.get("@type") == "Product":
-                    # logger.info("Найдена структура Product JSON-LD")
-                    product_found = True
+                if isinstance(json_data, dict):
+                    # Проверяем тип - может быть строкой или списком типов
+                    product_type = json_data.get("@type")
+                    is_product = False
 
-                    # Извлекаем данные основного продукта
-                    main_product = extract_product_data(json_data)
-                    if main_product:
-                        all_data.append(main_product)
+                    if isinstance(product_type, str) and product_type == "Product":
+                        is_product = True
+                    elif isinstance(product_type, list) and "Product" in product_type:
+                        is_product = True
 
-                    break
+                    if is_product:
+                        # logger.info("Найдена структура Product JSON-LD")
+                        product_found = True
+
+                        # Извлекаем данные основного продукта
+                        main_product = extract_product_data(json_data)
+                        if main_product:
+                            # main_product["file_name"] = html_file
+                            all_data.append(main_product)
+
+                        # Если нашли продукт, можно прекратить поиск
+                        break
             except json.JSONDecodeError as e:
-                logger.error(f"Ошибка парсинга JSON: {e}")
-                # Или можно использовать print:
-                logger.info(f"Ошибка парсинга JSON: {e}")
+                logger.error(html_file)
+                error_position = (
+                    str(e).split(":")[-1].strip()
+                    if ":" in str(e)
+                    else "неизвестной позиции"
+                )
+                logger.error(f"Ошибка парсинга JSON в позиции {error_position}")
+                # Для отладки можно вывести часть текста вокруг ошибки
+                if ":" in str(e) and "position" in str(e):
+                    try:
+                        pos = int(error_position)
+                        start = max(0, pos - 20)
+                        end = min(len(script_text), pos + 20)
+                        logger.error(
+                            f"Текст вокруг ошибки: ...{script_text[start:end]}..."
+                        )
+                    except (ValueError, IndexError):
+                        pass
+            except Exception as e:
+                logger.error(f"Непредвиденная ошибка при обработке скрипта: {str(e)}")
         else:
+            pass
             # Или можно использовать print:
-            logger.info("Product JSON не найден.")
+            # logger.info("Product JSON не найден.")
+    # logger.info(all_data)
+    with open(output_json_file, "w", encoding="utf-8") as json_file:
+        json.dump(all_data, json_file, ensure_ascii=False, indent=4)
 
     update_sheet_with_data(sheet, all_data)
 

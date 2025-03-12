@@ -250,10 +250,27 @@ def extract_product_data(product_json):
 
         # Извлекаем данные из offers
         offers = product_json.get("offers", {})
-        offer_price = offers.get("price")
+
+        # Обработка случая, когда offers может быть списком
+        if isinstance(offers, list) and offers:
+            offers = offers[0]
+
+        # Пробуем получить цену разными способами
+        offer_price = None
+        if isinstance(offers, dict):
+            if "price" in offers:
+                offer_price = offers.get("price")
+            elif "lowPrice" in offers:
+                offer_price = offers.get("lowPrice")
+
+        # Форматируем цену, если она найдена
         if offer_price:
             offer_price = str(offer_price).replace(".", ",")
-        availability = offers.get("availability")
+
+        # Обработка доступности
+        availability = (
+            offers.get("availability", "") if isinstance(offers, dict) else ""
+        )
         schema_terms = (
             r"(InStock|Discontinued|BackOrder|OutOfStock)"  # Шаблон для поиска
         )
@@ -264,17 +281,24 @@ def extract_product_data(product_json):
             "OutOfStock": "Немає в наявності",
         }
 
-        matches = re.findall(schema_terms, availability or "")  # Проверяем на None
+        # Поиск значений доступности
+        matches = re.findall(schema_terms, availability or "")
+
+        # Устанавливаем значение по умолчанию на случай, если не найдено совпадений
+        result_availability = "Невідомо"
 
         if matches:
             last_term = matches[-1]
-            result_availability = all_availability[last_term]
+            result_availability = all_availability.get(last_term, "Невідомо")
+
+        # Создаем итоговый словарь с данными продукта
         data_json = {
             "Назва": product_name,
-            "Код товару(HG-)": f"HG-{sku}",
-            "Ціна": offer_price,
+            "Код товару(HG-)": f"HG-{sku}" if sku else "HG-unknown",
+            "Ціна": offer_price or "",
             "Наявність": result_availability,
         }
+
         return data_json
     except Exception as e:
         logger.error(f"Ошибка при извлечении данных продукта: {e}")
