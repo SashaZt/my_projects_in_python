@@ -382,6 +382,6 @@ def update_sheet_with_data(sheet, data, total_rows=8000):
 
 
 if __name__ == "__main__":
-    # parse_sitemap()
-    # main_th()
+    parse_sitemap()
+    main_th()
     pars_htmls()
