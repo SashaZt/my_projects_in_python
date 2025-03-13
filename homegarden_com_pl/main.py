@@ -119,6 +119,8 @@ def download_xml():
 
 
 def parse_sitemap():
+    if os.path.exists(html_directory):
+        shutil.rmtree(html_directory)
     download_xml()
     try:
         urls = []

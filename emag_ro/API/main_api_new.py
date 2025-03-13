@@ -191,7 +191,6 @@ def check_category_access(category_id):
         with open(output_json_file, "w", encoding="utf-8") as json_file:
             json.dump(data, json_file, ensure_ascii=False, indent=4)
 
-        logger.debug(f"Category access check response: {data}")
         return data.get("is_allowed", 0) == 1
     except Exception as e:
         logger.error(f"Category access check failed: {str(e)}")
@@ -213,6 +212,9 @@ def check_auth():
 if __name__ == "__main__":
     # Пример использования
     try:
+        # Чтение данных о товаре из JSON-файла
+        with open("product.json", "r", encoding="utf-8") as file:
+            product_data = json.load(file)
         # Данные продукта
         # product_data = {
         #     "data": [

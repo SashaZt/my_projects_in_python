@@ -5,8 +5,6 @@ import json
 import os
 import re
 import shutil
-import sys
-import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -15,10 +13,8 @@ import gspread
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
-from oauth2client.service_account import ServiceAccountCredentials
-
 from config.logger import logger
+from oauth2client.service_account import ServiceAccountCredentials
 
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
@@ -123,6 +119,8 @@ def download_xml():
 
 
 def parse_sitemap():
+    if os.path.exists(html_directory):
+        shutil.rmtree(html_directory)
     download_xml()
     try:
         # Чтение XML файла

@@ -382,9 +382,9 @@ if __name__ == "__main__":
 
     # Пример 2: Загрузка данных о товаре
     # try:
-    #     # Чтение данных о товаре из JSON-файла
-    #     with open("product.json", "r", encoding="utf-8") as file:
-    #         product_data = json.load(file)
+        # # Чтение данных о товаре из JSON-файла
+        # with open("product.json", "r", encoding="utf-8") as file:
+        #     product_data = json.load(file)
 
     #     ean = product_data["ean"][0]
     #     attributes = product_data["attributes"]
