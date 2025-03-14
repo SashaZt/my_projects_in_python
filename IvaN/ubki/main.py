@@ -73,7 +73,7 @@ def get_json(dr_common_data):
     params = {
         "dr_common_data": dr_common_data,
         "dr_search_type": "1",
-        "signature": "3390047773fec4fc0a417135a3bf79ac14cd4634",
+        "signature": "25402fae5ebef254d9441c23ad8792283c3f73d1",
         "scheme": "cki",
         "reqid": "",
     }
@@ -184,7 +184,7 @@ def main():
     urls = read_cities_from_csv(output_csv_file)  # Берём все URL
 
     # Здесь укажите количество потоков, которое вы хотите использовать
-    num_threads = 5  # Например, 5 потоков
+    num_threads = 50  # Например, 5 потоков
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         # Создаем список задач для get_json

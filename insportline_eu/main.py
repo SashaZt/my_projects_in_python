@@ -8,9 +8,8 @@ from pathlib import Path
 
 import gspread
 import requests
-from oauth2client.service_account import ServiceAccountCredentials
-
 from config.logger import logger
+from oauth2client.service_account import ServiceAccountCredentials
 
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
@@ -582,5 +581,5 @@ if __name__ == "__main__":
     # parse_sitemap()
     # main_th()
     # pars_htmls()
-    # download_xml()
+    download_xml()
     parse_shop_xml()

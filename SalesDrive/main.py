@@ -3787,8 +3787,7 @@ async def main():
 
 
 async def main():
-    
-    
+
     # await get_sales_summary_by_month_product()
 
     # """Основная функция для запуска процесса"""
@@ -3796,10 +3795,9 @@ async def main():
 
     ## Создание БД
     # await create_database()
-    
+
     # # Парсинг категорий
     # await parse_xml_and_update_db()
-
 
     # # await update_order_time_look_for_existing_orders()
     # # Обработка данных из JSON строки или файла
@@ -3808,13 +3806,12 @@ async def main():
     # # Читаем содержимое файла
 
     # # Загрузка старых данных
-    recordings_output_file = data_directory / f"recording_014.json"
-    await process_order(recordings_output_file)
-    
-    
+    # recordings_output_file = data_directory / f"recording_014.json"
+    # await process_order(recordings_output_file)
+
     ## Аналитеческая таблица
     await update_analytics_table()
-    
+
     # # # Выгрузка в  Google Sheets
     # await export_orders_to_sheets()
 
