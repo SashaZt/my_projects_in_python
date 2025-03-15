@@ -329,7 +329,7 @@ def get_salesdrive_orders_old_data():
             [f"filter[statusId][]={status}" for status in [1, 2, 3, 4]]
         )
 
-        page = 14
+        page = 16
         query_string = f"filter[orderTime][from]={requests.utils.quote(date_from_str)}&filter[orderTime][to]={requests.utils.quote(date_to_str)}&page={page}&limit=100"
         full_url = f"{base_url}?{query_string}"
 
@@ -3794,7 +3794,7 @@ async def main():
     # # Создаем базу данных, если она не существует
 
     ## Создание БД
-    # await create_database()
+    await create_database()
 
     # # Парсинг категорий
     # await parse_xml_and_update_db()
@@ -3805,11 +3805,11 @@ async def main():
     # # await process_json_file('путь_к_файлу.json')
     # # Читаем содержимое файла
 
-    # # Загрузка старых данных
-    # recordings_output_file = data_directory / f"recording_014.json"
-    # await process_order(recordings_output_file)
+    # Загрузка старых данных
+    # for json_file in data_directory.glob("*.json"):
+    #     await process_order(json_file)
 
-    ## Аналитеческая таблица
+    # # Аналитеческая таблица
     await update_analytics_table()
 
     # # # Выгрузка в  Google Sheets

@@ -88,6 +88,69 @@ class EbayInventoryClient:
             self.access_token = self.auth.user_token["access_token"]
             return True
 
+    def create_location(self, merchant_location_key, location_data=None):
+        """
+        Создание местоположения продавца на eBay
+
+        Args:
+            merchant_location_key (str): Уникальный ключ местоположения
+            location_data (dict, optional): Данные о местоположении
+
+        Returns:
+            dict: Результат выполнения запроса
+        """
+        if not self.authenticate():
+            logger.error("Не удалось аутентифицироваться для создания местоположения")
+            return {"error": "Ошибка аутентификации"}
+
+        endpoint = f"sell/inventory/v1/location/{merchant_location_key}"
+
+        # Если данные не предоставлены, используем минимальный набор обязательных полей
+        if not location_data:
+            location_data = {
+                "location": {
+                    "address": {
+                        "addressLine1": "123 Example St",
+                        "city": "Berlin",
+                        "country": "DE",
+                        "postalCode": "10115",
+                        "stateOrProvince": "Berlin",
+                    },
+                    "name": "Main Warehouse",
+                    "merchantLocationStatus": "ENABLED",
+                },
+                "locationTypes": ["WAREHOUSE"],
+                # Не дублируем merchantLocationKey в теле запроса
+            }
+
+        # Добавляем необходимые заголовки для API eBay
+        headers = {"Content-Language": "en-US", "Accept-Language": "en-US"}
+
+        logger.info(f"Создание местоположения с ключом: {merchant_location_key}")
+        logger.debug(f"Полный URL запроса: {self.base_url}/{endpoint}")
+        logger.debug(f"Данные запроса: {json.dumps(location_data, indent=2)}")
+
+        # Непосредственно перед отправкой запроса проверяем токен
+        if not self.access_token:
+            logger.error("Отсутствует токен доступа")
+            return {"error": "Токен доступа отсутствует"}
+
+        # Используем PUT запрос для создания/обновления местоположения
+        result = self._call_api(endpoint, "PUT", data=location_data, headers=headers)
+
+        # Код 204 означает успешное создание без содержимого в ответе
+        if isinstance(result, dict) and result.get("success", False):
+            logger.info(f"Местоположение {merchant_location_key} успешно создано")
+            return {"success": True, "merchantLocationKey": merchant_location_key}
+
+        # Если получили ошибку, логируем подробную информацию
+        if isinstance(result, dict) and "error" in result:
+            logger.error(f"Не удалось создать местоположение: {result['error']}")
+        else:
+            logger.error(f"Не удалось создать местоположение: {result}")
+
+        return result
+
     def ensure_default_location(self):
         """Создание местоположения по умолчанию, если оно не существует"""
         endpoint = "sell/inventory/v1/location/default"
@@ -115,67 +178,121 @@ class EbayInventoryClient:
         method: str = "GET",
         params: Optional[Dict[str, Any]] = None,
         data: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Базовый метод для вызова API eBay Inventory"""
         if not self.access_token and not self.authenticate():
             logger.error("Не удалось аутентифицироваться. Невозможно выполнить запрос.")
-            return {}
+            return {"error": "Ошибка аутентификации"}
 
         url = f"{self.base_url}/{endpoint}"
 
-        headers = {
+        request_headers = {
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
 
+        # Добавляем дополнительные заголовки, если они предоставлены
+        if headers:
+            request_headers.update(headers)
+
         try:
+            logger.debug(f"Отправка {method} запроса на {url}")
+            logger.debug(f"Заголовки: {request_headers}")
+
             if method.upper() == "GET":
-                response = requests.get(url, headers=headers, params=params, timeout=30)
+                logger.debug(f"Параметры запроса: {params}")
+                response = requests.get(
+                    url, headers=request_headers, params=params, timeout=30
+                )
             elif method.upper() == "POST":
+                logger.debug(f"Данные запроса: {data}")
                 response = requests.post(
-                    url, headers=headers, json=data, params=params, timeout=30
+                    url, headers=request_headers, json=data, params=params, timeout=30
                 )
             elif method.upper() == "PUT":
+                logger.debug(f"Данные запроса: {data}")
                 response = requests.put(
-                    url, headers=headers, json=data, params=params, timeout=30
+                    url, headers=request_headers, json=data, params=params, timeout=30
                 )
             elif method.upper() == "DELETE":
+                logger.debug(f"Параметры запроса: {params}")
                 response = requests.delete(
-                    url, headers=headers, params=params, timeout=30
+                    url, headers=request_headers, params=params, timeout=30
                 )
             else:
                 logger.error(f"Неподдерживаемый HTTP метод: {method}")
-                return {}
+                return {"error": f"Неподдерживаемый HTTP метод: {method}"}
+
+            logger.debug(f"Код ответа: {response.status_code}")
 
             # Обработка кодов ответа
             if response.status_code == 204:  # No Content
+                logger.info(f"Успешный запрос с кодом 204 (No Content)")
                 return {"success": True}
 
+            # Для всех остальных кодов пытаемся получить содержимое ответа
             response.raise_for_status()
 
             # Проверка на пустой ответ
             if not response.content:
-                return {}
+                logger.warning("Получен пустой ответ")
+                return {"success": True}  # Предполагаем успех при пустом ответе
 
-            return response.json()
+            response_data = response.json()
+            logger.debug(f"Получен ответ: {response_data}")
+            return response_data
+
         except requests.exceptions.HTTPError as e:
             logger.error(f"HTTP ошибка при вызове API: {e}")
             if hasattr(e, "response") and e.response is not None:
                 logger.error(f"Код ошибки: {e.response.status_code}")
-                logger.error(f"Ответ сервера: {e.response.text}")
+
+                # Более подробное логирование ошибок eBay
+                try:
+                    error_data = e.response.json()
+                    if "errors" in error_data:
+                        for error in error_data["errors"]:
+                            logger.error(
+                                f"Ошибка eBay: {error.get('message', 'Неизвестная ошибка')}"
+                            )
+                            if "longMessage" in error:
+                                logger.error(
+                                    f"Подробное описание: {error['longMessage']}"
+                                )
+                            if "parameters" in error:
+                                logger.error(f"Параметры ошибки: {error['parameters']}")
+
+                    logger.error(f"Полное содержание ответа: {error_data}")
+                except Exception as json_error:
+                    logger.error(f"Ответ сервера (не JSON): {e.response.text}")
 
                 # Попытка обновления токена при ошибке авторизации
                 if e.response.status_code == 401:
                     logger.info("Попытка обновления токена...")
                     if self.authenticate():
                         logger.info("Токен обновлен, повторная попытка вызова API...")
-                        return self._call_api(endpoint, method, params, data)
+                        return self._call_api(endpoint, method, params, data, headers)
 
-            return {"error": str(e)}
+            return {
+                "error": str(e),
+                "details": (
+                    e.response.text
+                    if hasattr(e, "response") and e.response is not None
+                    else ""
+                ),
+            }
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Ошибка при вызове API: {e}")
             return {"error": str(e)}
+        except Exception as e:
+            logger.error(f"Непредвиденная ошибка при вызове API: {e}")
+            import traceback
+
+            logger.error(f"Трассировка: {traceback.format_exc()}")
+            return {"error": f"Непредвиденная ошибка: {str(e)}"}
 
     def create_inventory_item(
         self, sku: str, inventory_data: Dict[str, Any]

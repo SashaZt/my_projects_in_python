@@ -20,98 +20,50 @@ html_directory = current_directory / "html"
 html_directory.mkdir(parents=True, exist_ok=True)
 
 
-
-
-
-
-
 def get_html():
-    timeout = 60
-    max_attempts = 10
-    delay_seconds = 5
+    cookies = {
+        "PHPSESSID": "1iq7edk4jk2cjg9vobo0hmi780",
+        "after_login": "1",
+        "nav_stack": "%5B%5D",
+        "last_op": "produkt",
+        "last_viewed": "DNXGHHPMKRMMMO",
+        "lng": "ru",
+    }
 
-    for page in range(1, 194):
-        output_html_file = data_directory / f"auburnmaine_0{page}.csv"
-
-        for attempt in range(max_attempts):
-            try:
-                if page == 1:
-                    data = {
-                        "SearchParcel": "%",
-                        "SearchBuildingType": "",
-                        "SearchLotSize": "",
-                        "SearchLotSizeThru": "",
-                        "SearchTotalValue": "",
-                        "SearchTotalValueThru": "",
-                        "SearchOwner": "",
-                        "SearchYearBuilt": "",
-                        "SearchYearBuiltThru": "",
-                        "SearchFinSize": "",
-                        "SearchFinSizeThru": "",
-                        "SearchSalePrice": "",
-                        "SearchSalePriceThru": "",
-                        "SearchStreetName": "",
-                        "SearchBedrooms": "",
-                        "SearchBedroomsThru": "",
-                        "SearchNeighborhood": "",
-                        "SearchNBHDescription": "",
-                        "SearchSaleDate": "",
-                        "SearchSaleDateThru": "",
-                        "SearchStreetNumber": "",
-                        "SearchBathrooms": "",
-                        "SearchBathroomsThru": "",
-                        "SearchLUC": "",
-                        "SearchLUCDescription": "",
-                        "SearchBook": "",
-                        "SearchPage": "",
-                        "SearchSubmitted": "yes",
-                        "cmdGo": "Go",
-                    }
-
-                    response = requests.post(
-                        "https://auburnmaine.patriotproperties.com/SearchResults.asp",
-                        cookies=cookies,
-                        headers=headers,
-                        data=data,
-                        timeout=timeout,
-                    )
-                else:
-                    params = {
-                        "page": page,
-                    }
-                    response = requests.get(
-                        "https://auburnmaine.patriotproperties.com/SearchResults.asp",
-                        params=params,
-                        cookies=cookies,
-                        headers=headers,
-                        timeout=timeout,
-                    )
-
-                # Проверка кода ответа
-                if response.status_code == 200:
-                    # Сохранение HTML-страницы целиком
-                    with open(output_html_file, "w", encoding="utf-8") as file:
-                        file.write(response.text)
-                    logger.info(f"Successfully saved {output_html_file}")
-                    break  # Выходим из цикла попыток при успехе
-                else:
-                    logger.warning(
-                        f"Attempt {attempt + 1} failed for page {page} with status {response.status_code}"
-                    )
-                    if attempt < max_attempts - 1:  # Если не последняя попытка
-                        time.sleep(delay_seconds)
-                    continue
-
-            except requests.RequestException as e:
-                logger.error(
-                    f"Error on attempt {attempt + 1} for page {page}: {str(e)}"
-                )
-                if attempt < max_attempts - 1:  # Если не последняя попытка
-                    time.sleep(delay_seconds)
-                continue
-
-        else:  # Выполняется, если цикл попыток завершился без break
-            logger.error(f"Failed to get page {page} after {max_attempts} attempts")
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Referer": "https://b2b.batna24.com/?op=produkty&id_grg=DNXJISPJE&id_gre=DNXEGQQOOHTMM",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        # 'Cookie': 'PHPSESSID=1iq7edk4jk2cjg9vobo0hmi780; after_login=1; nav_stack=%5B%5D; last_op=produkt; last_viewed=DNXGHHPMKRMMMO; lng=ru',
+    }
+    output_html_file = html_directory / "batna24.html"
+    response = requests.get(
+        "https://b2b.batna24.com/product/kingsmith_mc21_walking_pad_grey",
+        cookies=cookies,
+        headers=headers,
+        timeout=30,
+    )
+    # Проверка кода ответа
+    if response.status_code == 200:
+        # Сохранение HTML-страницы целиком
+        with open(output_html_file, "w", encoding="utf-8") as file:
+            file.write(response.text)
+        logger.info(f"Successfully saved {output_html_file}")
+    else:
+        logger.error(f"Failed to get HTML. Status code: {response.status_code}")
 
 
 def scrap_html():
@@ -148,7 +100,7 @@ def scrap_html():
 
 
 if __name__ == "__main__":
-    scrap_html()
+    # scrap_html()
     # main_realoem()
     # get_htmls()
     get_html()

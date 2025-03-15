@@ -1,12 +1,14 @@
 import json
 import os
 from datetime import datetime, timedelta
+from config import BASE_URL
 
 
 class TokenStorage:
     def __init__(self, file_path="config/tokens.json"):
         self.file_path = file_path
         self.tokens = self._load_tokens()
+        self.base_url = BASE_URL
 
     def _load_tokens(self):
         """Загрузка токенов из файла"""
@@ -56,19 +58,23 @@ class TokenStorage:
         # Сохраняем токены
         self.tokens = {
             "access_token": token_data.get("access_token"),
-            "refresh_token": token_data.get("refresh_token"),
+            "refresh_token": token_data.get(
+                "refresh_token", self.tokens.get("refresh_token")
+            ),
             "expires_in": token_data.get("expires_in"),
             "expires_at": (
                 datetime.now() + timedelta(seconds=token_data.get("expires_in", 7200))
             ).isoformat(),
-            "refresh_token_expires_in": token_data.get("refresh_token_expires_in"),
+            "refresh_token_expires_in": token_data.get(
+                "refresh_token_expires_in", self.tokens.get("refresh_token_expires_in")
+            ),
             "refresh_token_expires_at": (
                 (
                     datetime.now()
                     + timedelta(seconds=token_data.get("refresh_token_expires_in", 0))
                 ).isoformat()
                 if token_data.get("refresh_token_expires_in")
-                else None
+                else self.tokens.get("refresh_token_expires_at")
             ),
         }
 
@@ -76,3 +82,7 @@ class TokenStorage:
         self.save_tokens(self.tokens)
 
         return self.tokens
+
+    def get_base_url(self):
+        """Получение базового URL для API"""
+        return self.base_url

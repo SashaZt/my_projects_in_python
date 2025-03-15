@@ -383,7 +383,7 @@ def ensure_row_limit(sheet, required_rows=10000):
 # ensure_row_limit(sheet, 1000)
 
 
-def update_sheet_with_data(sheet, data, total_rows=10000):
+def update_sheet_with_data(sheet, data, total_rows=20000):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
     if not data:
         raise ValueError("Данные для обновления отсутствуют.")
@@ -408,6 +408,7 @@ def update_sheet_with_data(sheet, data, total_rows=10000):
 
     # Запись данных в лист
     sheet.update(values=rows, range_name=range_name, value_input_option="USER_ENTERED")
+    logger.info(f"Данные успешно записаны в Google Sheets")
 
 
 def download_xml():
@@ -492,9 +493,94 @@ def clean_text(text):
     return text
 
 
+# def parse_shop_xml():
+#     """
+#     Парсит XML-файл магазина и возвращает список словарей с выбранными данными продуктов.
+
+#     Возвращает:
+#         Список словарей с пользовательскими полями
+#     """
+#     try:
+#         # Словарь соответствия значений наличия
+#         all_availability = {
+#             "1": "В наявності",
+#             "0": "Немає в наявності",
+#         }
+
+#         # Парсим XML-файл
+#         tree = ET.parse(output_xml_file)
+#         root = tree.getroot()
+
+#         # Список для хранения продуктов
+#         products = []
+
+#         # Общее количество обработанных элементов
+#         total_items = 0
+
+#         # Обработка каждого SHOPITEM
+#         for shopitem in root.findall("SHOPITEM"):
+#             total_items += 1
+
+#             # Извлекаем необходимые поля
+#             product_element = shopitem.find("PRODUCT")
+#             productno_element = shopitem.find("PRODUCTNO")
+#             price_element = shopitem.find("PURCHASE_PRICE")
+#             instock_element = shopitem.find("IN_STOCK")
+
+#             product = (
+#                 product_element.text.replace('"', "")
+#                 if product_element is not None and product_element.text
+#                 else None
+#             )
+#             productno = (
+#                 productno_element.text
+#                 if productno_element is not None and productno_element.text
+#                 else None
+#             )
+#             price = (
+#                 price_element.text.replace(".", ",")
+#                 if price_element is not None and price_element.text
+#                 else None
+#             )
+#             instock = (
+#                 instock_element.text
+#                 if instock_element is not None and instock_element.text
+#                 else None
+#             )
+
+#             # Преобразуем значение наличия
+#             availability = all_availability.get(instock, instock)
+
+#             # Создаем словарь с нашими собственными ключами
+#             data_json = {
+#                 "Назва": product,
+#                 "Код товару (INS)": f"INS{productno}",
+#                 "Ціна": price,
+#                 "Наявність": availability,
+#             }
+#             # Добавляем продукт в список
+#             products.append(data_json)
+
+#         # Сохраняем в JSON-файл
+#         with open(output_json_file, "w", encoding="utf-8") as json_file:
+#             json.dump(products, json_file, ensure_ascii=False, indent=4)
+#         update_sheet_with_data(sheet, products)
+#         logger.info(
+#             f"Обработано {total_items} товаров, сохранено {len(products)} товаров"
+#         )
+#         return products
+
+
+#     except ET.ParseError as e:
+#         logger.error(f"Ошибка парсинга XML: {e}")
+#         return []
+#     except Exception as e:
+#         logger.error(f"Произошла ошибка: {e}")
+#         return []
 def parse_shop_xml():
     """
-    Парсит XML-файл магазина и возвращает список словарей с выбранными данными продуктов.
+    Парсит XML-файл магазина и возвращает список словарей с выбранными данными продуктов,
+    включая обработку вариантов товаров.
 
     Возвращает:
         Список словарей с пользовательскими полями
@@ -520,7 +606,7 @@ def parse_shop_xml():
         for shopitem in root.findall("SHOPITEM"):
             total_items += 1
 
-            # Извлекаем необходимые поля
+            # Извлекаем необходимые поля основного товара
             product_element = shopitem.find("PRODUCT")
             productno_element = shopitem.find("PRODUCTNO")
             price_element = shopitem.find("PURCHASE_PRICE")
@@ -550,22 +636,64 @@ def parse_shop_xml():
             # Преобразуем значение наличия
             availability = all_availability.get(instock, instock)
 
-            # Создаем словарь с нашими собственными ключами
+            # Создаем словарь с основным товаром
             data_json = {
                 "Назва": product,
                 "Код товару (INS)": f"INS{productno}",
                 "Ціна": price,
                 "Наявність": availability,
             }
-            # Добавляем продукт в список
+            # Добавляем основной продукт в список
             products.append(data_json)
+
+            # Обработка вариантов товара
+            variants = shopitem.findall("VARIANT")
+            for variant in variants:
+                # Извлекаем данные варианта
+                variant_productno_element = variant.find("PRODUCTNO")
+                variant_productno = (
+                    variant_productno_element.text
+                    if variant_productno_element is not None
+                    and variant_productno_element.text
+                    else None
+                )
+
+                # Извлекаем наличие варианта
+                variant_instock_element = variant.find("IN_STOCK")
+                variant_instock = (
+                    variant_instock_element.text
+                    if variant_instock_element is not None
+                    and variant_instock_element.text
+                    else None
+                )
+
+                # Дополнительная информация о варианте (например, цвет)
+                variant_name_element = variant.find("PRODUCTNAMEEXT")
+                variant_name = (
+                    variant_name_element.text
+                    if variant_name_element is not None and variant_name_element.text
+                    else None
+                )
+
+                # Создаем словарь для варианта
+                variant_data_json = {
+                    "Назва": f"{product} ({variant_name})" if variant_name else product,
+                    "Код товару (INS)": f"INS{variant_productno}",
+                    "Ціна": price,  # Цена берется с основного товара
+                    "Наявність": all_availability.get(variant_instock, variant_instock),
+                }
+
+                # Добавляем вариант в список продуктов
+                products.append(variant_data_json)
 
         # Сохраняем в JSON-файл
         with open(output_json_file, "w", encoding="utf-8") as json_file:
             json.dump(products, json_file, ensure_ascii=False, indent=4)
+
         update_sheet_with_data(sheet, products)
+
         logger.info(
-            f"Обработано {total_items} товаров, сохранено {len(products)} товаров"
+            f"Обработано {total_items} товаров, сохранено {len(products)} товаров (включая варианты)"
         )
         return products
 
