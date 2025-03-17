@@ -1,3 +1,4 @@
+# Рабочий код для сбора данных с сайта https://edrpou.ubki.ua/ua
 import concurrent.futures
 import json
 import sys
@@ -184,7 +185,7 @@ def main():
     urls = read_cities_from_csv(output_csv_file)  # Берём все URL
 
     # Здесь укажите количество потоков, которое вы хотите использовать
-    num_threads = 50  # Например, 5 потоков
+    num_threads = 20  # Например, 5 потоков
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         # Создаем список задач для get_json
