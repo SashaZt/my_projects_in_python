@@ -1,0 +1,48 @@
+services:
+  # MinIO - S3-совместимое хранилище
+  minio:
+    build:
+      context: ./minio
+      dockerfile: Dockerfile
+    container_name: marketplace-minio
+    volumes:
+      - ./storage/minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    networks:
+      - marketplace-network
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx - обратный прокси и обработчик запросов
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: marketplace-nginx
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/logs:/var/log/nginx
+      - ./nginx/html:/usr/share/nginx/html
+    ports:
+      - "80:80"
+    environment:
+      - USE_DOMAIN=${USE_DOMAIN}
+      - SERVER_NAME=${SERVER_NAME}
+    networks:
+      - marketplace-network
+    depends_on:
+      - minio
+    restart: unless-stopped
+
+networks:
+  marketplace-network:
+    driver: bridge

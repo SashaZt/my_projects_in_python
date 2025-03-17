@@ -159,156 +159,156 @@ sheet = get_google_sheet()
 #         return []
 
 
-# def create_authenticated_session(email, password):
-#     """
-#     Создает авторизованную сессию для работы с сайтом.
+def create_authenticated_session(email, password):
+    """
+    Создает авторизованную сессию для работы с сайтом.
 
-#     Args:
-#         email (str): Email для авторизации
-#         password (str): Пароль для авторизации
+    Args:
+        email (str): Email для авторизации
+        password (str): Пароль для авторизации
 
-#     Returns:
-#         requests.Session or None: Авторизованная сессия или None в случае ошибки
-#     """
-#     session = requests.Session()
-#     # Устанавливаем начальные куки, которые должны быть до авторизации
-#     initial_cookies = {
-#         "cookieconsent": '{"g":{"personal":true,"statistics":true,"marketing":true},"v":1,"s":1}'
-#     }
+    Returns:
+        requests.Session or None: Авторизованная сессия или None в случае ошибки
+    """
+    session = requests.Session()
+    # Устанавливаем начальные куки, которые должны быть до авторизации
+    initial_cookies = {
+        "cookieconsent": '{"g":{"personal":true,"statistics":true,"marketing":true},"v":1,"s":1}'
+    }
 
-#     # Применяем куки к сессии
-#     for key, value in initial_cookies.items():
-#         session.cookies.set(key, value, domain="www.insportline.eu")
-#     login_url = "https://www.insportline.eu/scripts/login.php"
-#     login_payload = {"customer_email": email, "customer_password": password}
-#     login_headers = {
-#         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-#         "accept-language": "ru,en;q=0.9,uk;q=0.8",
-#         "content-type": "application/x-www-form-urlencoded",
-#         "origin": "https://www.insportline.eu",
-#         "referer": "https://www.insportline.eu/login",
-#         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-#     }
+    # Применяем куки к сессии
+    for key, value in initial_cookies.items():
+        session.cookies.set(key, value, domain="www.insportline.eu")
+    login_url = "https://www.insportline.eu/scripts/login.php"
+    login_payload = {"customer_email": email, "customer_password": password}
+    login_headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "content-type": "application/x-www-form-urlencoded",
+        "origin": "https://www.insportline.eu",
+        "referer": "https://www.insportline.eu/login",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+    }
 
-#     try:
-#         response = session.post(
-#             login_url, data=login_payload, headers=login_headers, timeout=30
-#         )
+    try:
+        response = session.post(
+            login_url, data=login_payload, headers=login_headers, timeout=30
+        )
 
-#         # Проверка статуса ответа
-#         if response.status_code != 200:
-#             logger.error(f"Ошибка авторизации, статус: {response.status_code}")
-#             return None
+        # Проверка статуса ответа
+        if response.status_code != 200:
+            logger.error(f"Ошибка авторизации, статус: {response.status_code}")
+            return None
 
-#         # Дополнительная проверка успешности авторизации
-#         # Здесь можно добавить проверку содержимого страницы, например,
-#         # поиск определенного элемента, который появляется только после успешного логина
-#         if "Вход в систему" in response.text or "login failed" in response.text.lower():
-#             logger.error("Авторизация не удалась: неверные учетные данные")
-#             return None
+        # Дополнительная проверка успешности авторизации
+        # Здесь можно добавить проверку содержимого страницы, например,
+        # поиск определенного элемента, который появляется только после успешного логина
+        if "Вход в систему" in response.text or "login failed" in response.text.lower():
+            logger.error("Авторизация не удалась: неверные учетные данные")
+            return None
 
-#         logger.info("Авторизация успешна")
-#         return session
+        logger.info("Авторизация успешна")
+        return session
 
-#     except requests.exceptions.RequestException as e:
-#         logger.error(f"Ошибка при авторизации: {str(e)}")
-#         return None
-
-
-# def main_th():
-#     if not os.path.exists(html_directory):
-#         html_directory.mkdir(parents=True, exist_ok=True)
-#     urls = []
-#     with open(output_csv_file, newline="", encoding="utf-8") as csvfile:
-#         reader = csv.DictReader(csvfile)
-#         for row in reader:
-#             urls.append(row["url"])
-#     # Создаем сессию
-#     # Создаем авторизованную сессию
-#     session = create_authenticated_session(EMAIL, PASSWORD)
-#     if session is None:
-#         logger.error("Не удалось создать авторизованную сессию. Прерываем выполнение.")
-#         return
-
-#     with ThreadPoolExecutor(max_workers=1) as executor:
-#         futures = []
-#         for url in urls:
-#             output_html_file = (
-#                 html_directory / f"html_{hashlib.md5(url.encode()).hexdigest()}.html"
-#             )
-
-#             if not os.path.exists(output_html_file):
-#                 futures.append(
-#                     executor.submit(get_html, url, output_html_file, session)
-#                 )
-#             else:
-#                 logger.info(f"Файл для {url} уже существует, пропускаем.")
-
-#         results = []
-#         for future in as_completed(futures):
-#             # Здесь вы можете обрабатывать результаты по мере их завершения
-#             results.append(future.result())
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка при авторизации: {str(e)}")
+        return None
 
 
-# def fetch(url, session):
-#     protected_headers = {
-#         "referer": "https://www.insportline.eu/login",
-#         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-#     }
+def main_th():
+    if not os.path.exists(html_directory):
+        html_directory.mkdir(parents=True, exist_ok=True)
+    urls = []
+    with open(output_csv_file, newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            urls.append(row["url"])
+    # Создаем сессию
+    # Создаем авторизованную сессию
+    session = create_authenticated_session(EMAIL, PASSWORD)
+    if session is None:
+        logger.error("Не удалось создать авторизованную сессию. Прерываем выполнение.")
+        return
 
-#     # Проверяем, есть ли в сессии нужные куки
-#     if "PHPSESSID" not in session.cookies:
-#         logger.warning(
-#             "Сессия не содержит нужных куки (PHPSESSID). Возможно, авторизация не работает."
-#         )
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        futures = []
+        for url in urls:
+            output_html_file = (
+                html_directory / f"html_{hashlib.md5(url.encode()).hexdigest()}.html"
+            )
 
-#     try:
-#         logger.debug(f"Запрос к {url} с куками: {dict(session.cookies)}")
-#         response = session.get(url, headers=protected_headers, timeout=30)
+            if not os.path.exists(output_html_file):
+                futures.append(
+                    executor.submit(get_html, url, output_html_file, session)
+                )
+            else:
+                logger.info(f"Файл для {url} уже существует, пропускаем.")
 
-#         # Проверяем, не произошло ли перенаправление на страницу логина
-#         if "login" in response.url.lower() and "login" not in url.lower():
-#             logger.warning(
-#                 f"Произошло перенаправление на страницу логина. Сессия, возможно, недействительна."
-#             )
-#             return None
-
-#         # Проверка статуса ответа
-#         if response.status_code != 200:
-#             logger.warning(
-#                 f"Статус не 200 для {url}. Получен статус: {response.status_code}. Пропускаем."
-#             )
-#             return None
-
-#         # Проверка на наличие признаков авторизованного пользователя в ответе
-#         # Это зависит от конкретного сайта - нужно найти элемент, который виден только авторизованным пользователям
-#         # Например, ссылка на личный кабинет, имя пользователя и т.п.
-#         if "login" in response.text.lower() and "logout" not in response.text.lower():
-#             logger.warning(
-#                 "В ответе есть форма логина, но нет кнопки выхода. Возможно, сессия недействительна."
-#             )
-
-#         if "logout" in response.text.lower() or "account" in response.text.lower():
-#             logger.debug("Обнаружены признаки авторизованного пользователя в ответе.")
-
-#         return response.text
-
-#     except requests.exceptions.RequestException as e:
-#         logger.error(f"Ошибка при загрузке {url}: {str(e)}")
-#         return None
+        results = []
+        for future in as_completed(futures):
+            # Здесь вы можете обрабатывать результаты по мере их завершения
+            results.append(future.result())
 
 
-# def get_html(url, html_file, session):
-#     src = fetch(url, session)
+def fetch(url, session):
+    protected_headers = {
+        "referer": "https://www.insportline.eu/login",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+    }
 
-#     if src is None:
-#         return url, html_file, False
+    # Проверяем, есть ли в сессии нужные куки
+    if "PHPSESSID" not in session.cookies:
+        logger.warning(
+            "Сессия не содержит нужных куки (PHPSESSID). Возможно, авторизация не работает."
+        )
 
-#     with open(html_file, "w", encoding="utf-8") as file:
-#         file.write(src)
+    try:
+        logger.debug(f"Запрос к {url} с куками: {dict(session.cookies)}")
+        response = session.get(url, headers=protected_headers, timeout=30)
 
-#     logger.info(f"Успешно загружен и сохранен: {html_file}")
-#     return url, html_file, True
+        # Проверяем, не произошло ли перенаправление на страницу логина
+        if "login" in response.url.lower() and "login" not in url.lower():
+            logger.warning(
+                f"Произошло перенаправление на страницу логина. Сессия, возможно, недействительна."
+            )
+            return None
+
+        # Проверка статуса ответа
+        if response.status_code != 200:
+            logger.warning(
+                f"Статус не 200 для {url}. Получен статус: {response.status_code}. Пропускаем."
+            )
+            return None
+
+        # Проверка на наличие признаков авторизованного пользователя в ответе
+        # Это зависит от конкретного сайта - нужно найти элемент, который виден только авторизованным пользователям
+        # Например, ссылка на личный кабинет, имя пользователя и т.п.
+        if "login" in response.text.lower() and "logout" not in response.text.lower():
+            logger.warning(
+                "В ответе есть форма логина, но нет кнопки выхода. Возможно, сессия недействительна."
+            )
+
+        if "logout" in response.text.lower() or "account" in response.text.lower():
+            logger.debug("Обнаружены признаки авторизованного пользователя в ответе.")
+
+        return response.text
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка при загрузке {url}: {str(e)}")
+        return None
+
+
+def get_html(url, html_file, session):
+    src = fetch(url, session)
+
+    if src is None:
+        return url, html_file, False
+
+    with open(html_file, "w", encoding="utf-8") as file:
+        file.write(src)
+
+    logger.info(f"Успешно загружен и сохранен: {html_file}")
+    return url, html_file, True
 
 
 def ensure_row_limit(sheet, required_rows=10000):
