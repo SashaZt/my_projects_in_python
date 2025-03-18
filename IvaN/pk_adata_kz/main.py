@@ -437,11 +437,72 @@ def main():
     logger.info("Скрипт завершил работу")
 
 
-def write_csv(data, output_file="company_data.csv"):
-    # Создаем DataFrame
+# def write_csv(data, output_file="company_data.csv"):
+#     # Создаем DataFrame
+#     df = pd.DataFrame(data)
+#     # Сохраняем в CSV
+#     df.to_csv(output_file, index=False, encoding="utf-8")
+#     logger.info(f"Данные успешно записаны в {output_file}")
+
+
+# def scrap_json():
+#     all_data = []
+#     for json_file in json_directory.glob("*.json"):
+#         with open(json_file, "r", encoding="utf-8") as file:
+#             data = json.load(file)
+
+#         company_bin = json_file.stem
+
+#         json_result_data = data.get("data", [])
+#         if json_result_data:
+#             json_result = data["data"]["result"]
+#             json_meta = data["data"]["meta"]
+#             relevance = json_meta["relevance"]
+
+
+#             for data_year in json_result[-5:]:
+#                 result = {
+#                     "company_bin": company_bin,
+#                     "Год": data_year["year"],
+#                     "Сумма отчислений, ₸": data_year["amount"],
+#                     "Сумма отчислений, %": data_year["percentage"],
+#                     "Обязательные платежи с ФОТ, ₸": data_year["amount_fot"],
+#                     "Обязательные платежи с ФОТ, %": data_year["percentage_fot"],
+#                     "Налоги, ₸": data_year["amount_other"],
+#                     "Налоги, %": data_year["percentage_other"],
+#                     "relevance": relevance,
+#                 }
+#                 all_data.append(result)
+#     logger.info(all_data)
+#     return all_data
+def write_csv(data, output_file="company_data_pivot.csv"):
+    # Создаем DataFrame из всех данных
     df = pd.DataFrame(data)
+
+    # Создаем сводную таблицу
+    pivot_df = pd.pivot_table(
+        df,
+        index=["company_bin", "relevance"],  # Строки - компании и relevance
+        columns="Год",  # Колонки - годы
+        values=[
+            "Сумма отчислений, ₸",
+            "Сумма отчислений, %",
+            "Обязательные платежи с ФОТ, ₸",
+            "Обязательные платежи с ФОТ, %",
+            "Налоги, ₸",
+            "Налоги, %",
+        ],
+        fill_value=0,  # Заполняем пропуски нулями
+    )
+
+    # Преобразуем многоуровневые заголовки в плоские
+    pivot_df.columns = [f"{year} {metric}" for metric, year in pivot_df.columns]
+
+    # Сбрасываем индекс, чтобы company_bin и relevance стали колонками
+    pivot_df = pivot_df.reset_index()
+
     # Сохраняем в CSV
-    df.to_csv(output_file, index=False, encoding="utf-8")
+    pivot_df.to_csv(output_file, index=False, encoding="utf-8")
     logger.info(f"Данные успешно записаны в {output_file}")
 
 
@@ -452,14 +513,13 @@ def scrap_json():
             data = json.load(file)
 
         company_bin = json_file.stem
-
         json_result_data = data.get("data", [])
         if json_result_data:
             json_result = data["data"]["result"]
             json_meta = data["data"]["meta"]
             relevance = json_meta["relevance"]
 
-            for data_year in json_result:
+            for data_year in json_result[-5:]:
                 result = {
                     "company_bin": company_bin,
                     "Год": data_year["year"],
@@ -472,7 +532,7 @@ def scrap_json():
                     "relevance": relevance,
                 }
                 all_data.append(result)
-
+    logger.info(all_data)
     return all_data
 
 
