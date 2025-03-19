@@ -24,9 +24,9 @@ def get_html():
     cookies = {
         "tow_list_style": "Z",
         "lng": "ua",
-        "PHPSESSID": "vlkbkk2hi1f936kqubfq8hh7mf",
         "after_login": "1",
         "last_op": "produkty",
+        "PHPSESSID": "5pp79hukqs8krkj440iohq9a3c",
     }
 
     headers = {
@@ -45,26 +45,20 @@ def get_html():
         "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
-        # 'Cookie': 'tow_list_style=Z; last_viewed=DNXGGHIOERMLNM%5EDNXGGKKOGRMMIM%5EDNXGHHPMKRMMMO; lng=ua; PHPSESSID=vlkbkk2hi1f936kqubfq8hh7mf; after_login=1; last_op=produkty',
     }
-
     params = {
         "op": "produkty",
         "id_grg": "DNXJISPJE",
         "grg_name": "Продукти",
         "id_gre": "DNXAESONI",
     }
-    output_html_file = html_directory / "batna24.html"
     response = requests.get(
-        "https://b2b.batna24.com/",
-        params=params,
-        cookies=cookies,
-        headers=headers,
-        timeout=30,
+        "https://b2b.batna24.com/", params=params, cookies=cookies, headers=headers
     )
 
     # Проверка кода ответа
     if response.status_code == 200:
+        output_html_file = html_directory / "batna24.html"
         # Сохранение HTML-страницы целиком
         with open(output_html_file, "w", encoding="utf-8") as file:
             file.write(response.text)

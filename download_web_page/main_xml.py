@@ -121,6 +121,6 @@ def xml_temp():
 
 
 if __name__ == "__main__":
-    # download_xml()
+    download_xml()
     parsin_xml()
     # xml_temp()

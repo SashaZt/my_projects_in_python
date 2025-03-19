@@ -182,6 +182,8 @@ def upload_product(product_data):
 
 
 def check_category_access(category_id):
+    # В файле находим is_mandatory": 1 - категория обязательная
+
     try:
         response = session.post(
             f"{api_url}/category/read", headers=headers, json={"id": category_id}
@@ -190,6 +192,7 @@ def check_category_access(category_id):
         output_json_file = data_directory / f"category_{category_id}.json"
         with open(output_json_file, "w", encoding="utf-8") as json_file:
             json.dump(data, json_file, ensure_ascii=False, indent=4)
+        logger.info(f"Category data saved to {output_json_file}")
 
         return data.get("is_allowed", 0) == 1
     except Exception as e:
@@ -209,100 +212,12 @@ def check_auth():
         return None
 
 
-if __name__ == "__main__":
-    # Пример использования
+def main():
+    # Выгрузка товара
     try:
         # Чтение данных о товаре из JSON-файла
         with open("product.json", "r", encoding="utf-8") as file:
             product_data = json.load(file)
-        # Данные продукта
-        # product_data = {
-        #     "data": [
-        #         {
-        #             "id": 1234567,
-        #             "category_id": 1868,
-        #             "name": "Banda de alergat electrica FitTronic D100",
-        #             "brand": "FitTronic",
-        #             "part_number": "XR500-2023",
-        #             "description": "Cumpara Banda de alergat electrica FitTronic® D100, motor 2.5 CP, Bluetooth, Kinomap, Zwift, Newrunway, Self oil - ungere automata, sistem de amortizare in 6 puncte + arcuri, pliabila cu cilindru, intrare mp3 si USB pt muzica, cheie siguranta de la eMAG! Ai libertatea sa platesti in rate, beneficiezi de promotiile zilei, deschiderea coletului la livrare, easybox, retur gratuit in 30 de zile si Instant Money Back.",
-        #             "ean": ["5948004020165"],
-        #             "status": 1,
-        #             "sale_price": 1999.99,
-        #             "recommended_price": 2499.99,
-        #             "min_sale_price": 1899.99,
-        #             "max_sale_price": 2599.99,
-        #             "vat_id": 1,
-        #             "warranty": 24,
-        #             # "family": {
-        #             #     "id": 219,
-        #             #     "name": "Culoare (visible)",
-        #             #     "family_type_id": 219,
-        #             # },
-        #             "characteristics": [
-        #                 {
-        #                     "id": 7764,  # Maximum supported weight (обязательная характеристика)
-        #                     "value": "140 kg",
-        #                 },
-        #                 {
-        #                     "id": 8147,  # Number of programs (обязательная характеристика)
-        #                     "value": "12",
-        #                 },
-        #                 {
-        #                     "id": 9080,  # Leg length (обязательная характеристика)
-        #                     "value": "Electric",
-        #                 },
-        #                 # {"id": 5401, "value": "Black"},  # Color
-        #                 # {"id": 6779, "value": "130 cm"},  # Height
-        #                 # {"id": 6780, "value": "85 cm"},  # Width
-        #                 # {"id": 6862, "value": "180 cm"},  # Length
-        #                 # {"id": 6878, "value": "120 kg"},  # Weight
-        #                 # {"id": 7163, "value": "20 km/h"},  # Maximum speed
-        #                 # {"id": 7442, "value": "2.50 W"},  # Power engine
-        #                 # {"id": 9082, "value": "Running"},  # Sport
-        #                 # {"id": 9083, "value": "Professional"},  # Ability level
-        #                 # {"id": 9275, "value": "Electric"},  # Incline type
-        #                 # {"id": 9277, "value": "15"},  # Incline percentage
-        #                 # {"id": 9280, "value": "20"},  # Levels of speed
-        #                 # {"id": 9281, "value": "10"},  # Levels of incline
-        #                 # {"id": 9282, "value": "0.5 km/h"},  # Minimum speed
-        #                 # {"id": 9283, "value": "Yes"},  # Training computer
-        #                 # {"id": 9286, "value": "500 x 1400"},  # Running surface
-        #                 # {
-        #                 #     "id": 9139,  # Functions
-        #                 #     "value": "Heart rate monitor, Bluetooth, LCD display, Speakers",
-        #                 # },
-        #                 # {
-        #                 #     "id": 8382,  # Measured values
-        #                 #     "value": "Heart rate, Distance, Calories, Speed, Time",
-        #                 # },
-        #             ],
-        #             "images": [
-        #                 {
-        #                     "display_type": 1,  # 1 = главное изображение
-        #                     "url": "https://static.efitness.ro/i/imagini-produse/banda-de-alergat-electrica-fittronic-d100-10.jpg",
-        #                 },
-        #                 {
-        #                     "display_type": 2,  # 2 = дополнительное изображение
-        #                     "url": "https://static.efitness.ro/i/imagini-produse/banda-de-alergat-electrica-fittronic-d100-2.jpg",
-        #                 },
-        #                 {
-        #                     "display_type": 0,  # 0 = другое изображение
-        #                     "url": "https://static.efitness.ro/i/imagini-produse/banda-de-alergat-electrica-fittronic-d100-3.png",
-        #                 },
-        #             ],
-        #             "stock": [{"warehouse_id": 1, "value": 10}],
-        #             "handling_time": [{"warehouse_id": 1, "value": 2}],
-        #             # "safety_information": "Перед использованием прочтите инструкцию. Не подходит для детей младше 14 лет.",
-        #             # "manufacturer": [
-        #             #     {
-        #             #         "name": "FitnessExpert Manufacturing Ltd.",
-        #             #         "address": "123 Industrial Park, Manufacturing City, Country",
-        #             #         "email": "info@fitnessexpert-manufacturing.com",
-        #             #     }
-        #             # ],
-        #         }
-        #     ]
-        # }
         # Очистка описания
         product_data["data"][0]["description"] = clean_description(
             product_data["data"][0]["description"]
@@ -315,4 +230,96 @@ if __name__ == "__main__":
 
     except Exception as e:
         logger.error(f"Error uploading product: {str(e)}")
-    # check_category_access(346)
+    # Данные продукта
+    # product_data = {
+    #     "data": [
+    #         {
+    #             "id": 1234567,
+    #             "category_id": 1868,
+    #             "name": "Banda de alergat electrica FitTronic D100",
+    #             "brand": "FitTronic",
+    #             "part_number": "XR500-2023",
+    #             "description": "Cumpara Banda de alergat electrica FitTronic® D100, motor 2.5 CP, Bluetooth, Kinomap, Zwift, Newrunway, Self oil - ungere automata, sistem de amortizare in 6 puncte + arcuri, pliabila cu cilindru, intrare mp3 si USB pt muzica, cheie siguranta de la eMAG! Ai libertatea sa platesti in rate, beneficiezi de promotiile zilei, deschiderea coletului la livrare, easybox, retur gratuit in 30 de zile si Instant Money Back.",
+    #             "ean": ["5948004020165"],
+    #             "status": 1,
+    #             "sale_price": 1999.99,
+    #             "recommended_price": 2499.99,
+    #             "min_sale_price": 1899.99,
+    #             "max_sale_price": 2599.99,
+    #             "vat_id": 1,
+    #             "warranty": 24,
+    #             # "family": {
+    #             #     "id": 219,
+    #             #     "name": "Culoare (visible)",
+    #             #     "family_type_id": 219,
+    #             # },
+    #             "characteristics": [
+    #                 {
+    #                     "id": 7764,  # Maximum supported weight (обязательная характеристика)
+    #                     "value": "140 kg",
+    #                 },
+    #                 {
+    #                     "id": 8147,  # Number of programs (обязательная характеристика)
+    #                     "value": "12",
+    #                 },
+    #                 {
+    #                     "id": 9080,  # Leg length (обязательная характеристика)
+    #                     "value": "Electric",
+    #                 },
+    #                 # {"id": 5401, "value": "Black"},  # Color
+    #                 # {"id": 6779, "value": "130 cm"},  # Height
+    #                 # {"id": 6780, "value": "85 cm"},  # Width
+    #                 # {"id": 6862, "value": "180 cm"},  # Length
+    #                 # {"id": 6878, "value": "120 kg"},  # Weight
+    #                 # {"id": 7163, "value": "20 km/h"},  # Maximum speed
+    #                 # {"id": 7442, "value": "2.50 W"},  # Power engine
+    #                 # {"id": 9082, "value": "Running"},  # Sport
+    #                 # {"id": 9083, "value": "Professional"},  # Ability level
+    #                 # {"id": 9275, "value": "Electric"},  # Incline type
+    #                 # {"id": 9277, "value": "15"},  # Incline percentage
+    #                 # {"id": 9280, "value": "20"},  # Levels of speed
+    #                 # {"id": 9281, "value": "10"},  # Levels of incline
+    #                 # {"id": 9282, "value": "0.5 km/h"},  # Minimum speed
+    #                 # {"id": 9283, "value": "Yes"},  # Training computer
+    #                 # {"id": 9286, "value": "500 x 1400"},  # Running surface
+    #                 # {
+    #                 #     "id": 9139,  # Functions
+    #                 #     "value": "Heart rate monitor, Bluetooth, LCD display, Speakers",
+    #                 # },
+    #                 # {
+    #                 #     "id": 8382,  # Measured values
+    #                 #     "value": "Heart rate, Distance, Calories, Speed, Time",
+    #                 # },
+    #             ],
+    #             "images": [
+    #                 {
+    #                     "display_type": 1,  # 1 = главное изображение
+    #                     "url": "https://static.efitness.ro/i/imagini-produse/banda-de-alergat-electrica-fittronic-d100-10.jpg",
+    #                 },
+    #                 {
+    #                     "display_type": 2,  # 2 = дополнительное изображение
+    #                     "url": "https://static.efitness.ro/i/imagini-produse/banda-de-alergat-electrica-fittronic-d100-2.jpg",
+    #                 },
+    #                 {
+    #                     "display_type": 0,  # 0 = другое изображение
+    #                     "url": "https://static.efitness.ro/i/imagini-produse/banda-de-alergat-electrica-fittronic-d100-3.png",
+    #                 },
+    #             ],
+    #             "stock": [{"warehouse_id": 1, "value": 10}],
+    #             "handling_time": [{"warehouse_id": 1, "value": 2}],
+    #             # "safety_information": "Перед использованием прочтите инструкцию. Не подходит для детей младше 14 лет.",
+    #             # "manufacturer": [
+    #             #     {
+    #             #         "name": "FitnessExpert Manufacturing Ltd.",
+    #             #         "address": "123 Industrial Park, Manufacturing City, Country",
+    #             #         "email": "info@fitnessexpert-manufacturing.com",
+    #             #     }
+    #             # ],
+    #         }
+    #     ]
+    # }
+
+
+if __name__ == "__main__":
+    main()
+    # check_category_access(3698)
