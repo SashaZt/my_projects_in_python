@@ -22,43 +22,40 @@ html_directory.mkdir(parents=True, exist_ok=True)
 
 def get_html():
     cookies = {
-        "tow_list_style": "Z",
-        "lng": "ua",
-        "after_login": "1",
-        "last_op": "produkty",
-        "PHPSESSID": "5pp79hukqs8krkj440iohq9a3c",
+        "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
+        "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
+        "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
+        "language": "uk-ua",
+        "currency": "UAH",
     }
 
     headers = {
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        "DNT": "1",
-        "Pragma": "no-cache",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "referer": "https://altstar.ua/vtyaguyuche-rele-startera",
         "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        # 'cookie': 'PHPSESSID=4u34v9cjpr22r449jev8j5ho40; PHPSESSID=4u34v9cjpr22r449jev8j5ho40; PHPSESSID=4u34v9cjpr22r449jev8j5ho40; language=uk-ua; currency=UAH',
     }
-    params = {
-        "op": "produkty",
-        "id_grg": "DNXJISPJE",
-        "grg_name": "Продукти",
-        "id_gre": "DNXAESONI",
-    }
+
     response = requests.get(
-        "https://b2b.batna24.com/", params=params, cookies=cookies, headers=headers
+        "https://altstar.ua/zm599/zm", cookies=cookies, headers=headers, timeout=30
     )
 
     # Проверка кода ответа
     if response.status_code == 200:
-        output_html_file = html_directory / "batna24.html"
+        output_html_file = html_directory / "altstar.html"
         # Сохранение HTML-страницы целиком
         with open(output_html_file, "w", encoding="utf-8") as file:
             file.write(response.text)
