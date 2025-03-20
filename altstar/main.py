@@ -9,15 +9,19 @@ from loguru import logger
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
+html_directory = current_directory / "html"
 log_directory = current_directory / "log"
+img_directory = current_directory / "img"
+
+img_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
-html_directory = current_directory / "html"
+
 html_directory.mkdir(parents=True, exist_ok=True)
 log_file_path = log_directory / "log_message.log"
 output_html_file = html_directory / "output.html"
-output_csv_file = html_directory / "output.csv"
+output_csv_file = data_directory / "output.csv"
 output_json_file = data_directory / "output.json"
 BASE_URL = "https://altstar.ua/"
 
@@ -319,6 +323,59 @@ def scrap_html():
     # Если нужно сохранить в список словарей или файл, вот пример:
 
 
+def get_img(img_url, product_name):
+    headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "none",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        # 'cookie': 'PHPSESSID=4u34v9cjpr22r449jev8j5ho40; PHPSESSID=4u34v9cjpr22r449jev8j5ho40; language=uk-ua; currency=UAH',
+    }
+    """
+    Скачивает изображения по списку URL и возвращает список имен файлов.
+    Пропускает скачивание, если файл уже существует.
+    """
+    all_data = []
+
+    for i, url in enumerate(img_url):
+        output_img_file = img_directory / f"{product_name}_{i}.jpg"
+        name_img = f"{product_name}_{i}.jpg"
+
+        # Проверяем, существует ли файл
+        if output_img_file.exists():
+            logger.info(f"Файл уже существует, пропускаю скачивание: {output_img_file}")
+            all_data.append(name_img)
+            continue  # Пропускаем запрос и переходим к следующему URL
+
+        # Если файл не существует, скачиваем его
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            if response.status_code == 200:
+                with open(output_img_file, "wb") as file:
+                    file.write(response.content)
+                logger.info(f"Сохранил: {output_img_file}")
+                all_data.append(name_img)
+            else:
+                logger.error(
+                    f"Failed to get image {i}. Status code: {response.status_code}"
+                )
+        except Exception as e:
+            logger.error(f"Ошибка при скачивании изображения {i}: {str(e)}")
+
+    return all_data
+
+
 def convert_json_to_csv():
     """
     Convert JSON product data to CSV format
@@ -340,7 +397,10 @@ def convert_json_to_csv():
     row_data = {}
 
     # Add product name and price
-    row_data["Артикул"] = left_column.get("product_name", "")
+    product_name = left_column.get("product_name", "")
+    row_data["Артикул"] = product_name
+    img_url = left_column.get("image_links", "")
+    img_list = get_img(img_url, product_name)
     # For analogs, join all entries
     row_data["Номера аналогів"] = right_column.get("Номери аналогів", "")
 
@@ -358,6 +418,7 @@ def convert_json_to_csv():
     brand = middle_column.get("brand", None)
     row_data["Виробник"] = brand
     row_data["Ціна"] = left_column.get("price", "")
+    row_data["Фото"] = ",".join(img_list)
 
     # Add all characteristics as separate columns
     characteristics = middle_column.get("characteristics", {})
