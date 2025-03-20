@@ -253,6 +253,7 @@ def extract_product_data(product_json):
         elif "lowPrice" in offers:
             offer_price = offers.get("lowPrice")
         offer_price = str(offer_price).replace(".", ",")
+        id_product = f'INT-{product_json.get("mpn")}'
         availability = offers.get("availability")
         schema_terms = (
             r"(InStock|PreOrder|OutOfStock|Discontinued)"  # Шаблон для поиска
@@ -274,6 +275,7 @@ def extract_product_data(product_json):
             "Код товару(INT-)": f"INT-{sku}",
             "Ціна": offer_price,
             "Наявність": result_availability,
+            "ID(INT-)": id_product,
         }
         return data_json
     except Exception as e:
