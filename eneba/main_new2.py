@@ -1,13 +1,14 @@
-# Рабочий код от 20.03.2025
+# Рабочий код от 21.03.2025
 # Скрипт для сбора данных с сайта eneba.com и обновления цен в Excel файле
 # Скрипт собирает данные о товарах с сайта eneba.com, сохраняет их в Excel файл и обновляет цены в указанном диапазоне на указанный процент в Excel файле
 # Скрипт использует библиотеки requests, pandas, beautifulsoup4, loguru и json
-# Скрипт использует файл конфигурации config.json в формате:
+# Скрипт использует файл конфигурации config.json в формате
+
 import json
 import os
 import random
+import re
 import shutil
-import sys
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -33,25 +34,6 @@ log_file_path = log_directory / "log_message.log"
 
 BASE_URL = "https://www.eneba.com/"
 
-logger.remove()
-# 🔹 Логирование в файл
-logger.add(
-    log_file_path,
-    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {line} | {message}",
-    level="DEBUG",
-    encoding="utf-8",
-    rotation="10 MB",
-    retention="7 days",
-)
-
-# 🔹 Логирование в консоль (цветной вывод)
-logger.add(
-    sys.stderr,
-    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{line}</cyan> | <cyan>{message}</cyan>",
-    level="DEBUG",
-    enqueue=True,
-)
-
 
 def load_config():
     """
@@ -68,6 +50,18 @@ def load_config():
     except Exception as e:
         logger.error(f"Ошибка при загрузке конфигурации: {str(e)}")
         # Возвращаем значения по умолчанию, если файл не найден
+        return {
+            "site": {
+                "url": "https://www.eneba.com/store/games?drms[]=xbox&regions[]=argentina&regions[]=united_states&regions[]=turkey&sortBy=POPULARITY_DESC&types[]=game",
+                "start": "1",
+                "pages": "1",
+                "delay": "2",
+            },
+            "cookies": {},
+            "headers": {
+                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
+            },
+        }
 
 
 def extract_url_params(url):
@@ -134,7 +128,6 @@ def get_html(url, output_file, cookies, headers, delay=2):
     Returns:
         bool: True, если загрузка успешна, иначе False
     """
-
     # Небольшая задержка перед запросом для избежания блокировки
     time.sleep(delay)
 
@@ -235,8 +228,12 @@ def process_apollo_data(apollo_data):
 
     # Для каждого продукта находим соответствующий аукцион и формируем запись
     for product_key, product in products.items():
+
         # Проверяем, есть ли у продукта ссылка на аукцион
-        cheapest_auction_ref = product.get("cheapestAuction", {}).get("__ref")
+        cheapest_auction = product.get("cheapestAuction", {})
+        if not cheapest_auction:
+            continue
+        cheapest_auction_ref = cheapest_auction.get("__ref")
 
         if not cheapest_auction_ref:
             continue
@@ -269,7 +266,6 @@ def process_apollo_data(apollo_data):
 
             if "regions" in product and isinstance(product["regions"], list):
                 for region in product["regions"]:
-
                     if isinstance(region, dict) and "name" in region:
                         # Добавляем название региона и его вариант в верхнем регистре
                         regions.append(region["name"].upper())
@@ -291,7 +287,6 @@ def process_apollo_data(apollo_data):
         if cover_data and "src" in cover_data:
             img_url = cover_data["src"]
 
-        # Формируем запись
         # Формируем запись согласно требуемым заголовкам
         item = {
             "Код_товару": product_name[:24],
@@ -351,127 +346,6 @@ def process_apollo_data(apollo_data):
         result.append(item)
 
     return result
-
-
-def get_html(url, output_file, cookies, headers, delay=2):
-    """
-    Загружает HTML-страницу по указанному URL и сохраняет в файл
-
-    Args:
-        url (str): URL для загрузки
-        output_file (Path): Путь для сохранения HTML
-        cookies (dict): Куки для запроса
-        headers (dict): Заголовки для запроса
-        delay (int): Задержка в секундах перед запросом (для избежания блокировки)
-
-    Returns:
-        bool: True, если загрузка успешна, иначе False
-    """
-    # Небольшая задержка перед запросом для избежания блокировки
-    time.sleep(delay)
-
-    try:
-        logger.info(f"Загрузка страницы: {url}")
-        response = requests.get(
-            url,
-            cookies=cookies,
-            headers=headers,
-            timeout=30,
-        )
-
-        # Проверка кода ответа
-        if response.status_code == 200:
-            # Сохранение HTML-страницы целиком
-            with open(output_file, "w", encoding="utf-8") as file:
-                file.write(response.text)
-            logger.info(f"Успешно сохранен {output_file}")
-            return True
-        else:
-            logger.error(
-                f"Не удалось получить HTML. Код ответа: {response.status_code}"
-            )
-            return False
-    except Exception as e:
-        logger.error(f"Ошибка при получении HTML: {str(e)}")
-        return False
-
-
-def scrape_pages(base_url, start_page, num_pages, cookies, headers, delay):
-    """
-    Выполняет скрапинг указанного количества страниц
-
-    Args:
-        base_url (str): Базовый URL с фильтрами
-        start_page (int): Начальная страница
-        num_pages (int): Количество страниц для скрапинга
-        cookies (dict): Куки для запроса
-        headers (dict): Заголовки для запроса
-        delay (int): Задержка между запросами в секундах
-
-    Returns:
-        list: Список всех товаров
-    """
-    all_products = []
-
-    for page in range(start_page, start_page + num_pages):
-        logger.info(f"Обработка страницы {page}...")
-
-        # Создаем имя файла для текущей страницы
-        page_html_file = html_directory / f"eneba_page_{page}.html"
-
-        # Собираем URL для текущей страницы
-        page_url = build_url_for_page(base_url, page)
-        logger.info(f"URL: {page_url}")
-
-        # Загружаем HTML страницы
-        if get_html(page_url, page_html_file, cookies, headers, delay):
-            # Извлекаем данные Apollo State
-            apollo_data = scrap_html(page_html_file)
-
-            if apollo_data:
-                # Обрабатываем данные Apollo State
-                page_products = process_apollo_data(apollo_data)
-
-                # Добавляем продукты к общему списку
-                all_products.extend(page_products)
-
-                logger.info(f"Найдено товаров на странице {page}: {len(page_products)}")
-                # Добавляем случайную задержку между страницами
-                if page < start_page + num_pages - 1:
-                    sleep_time = random.randint(delay, delay + 5)
-                    logger.info(
-                        f"Случайная задержка между страницами: {sleep_time} секунд"
-                    )
-                    time.sleep(sleep_time)
-
-            else:
-                logger.error(
-                    f"Не удалось извлечь данные Apollo State со страницы {page}"
-                )
-
-        else:
-            logger.error(f"Не удалось загрузить страницу {page}")
-
-    # # Создаем DataFrame из всех собранных продуктов
-    # if all_products:
-    #     df = pd.DataFrame(all_products)
-
-    #     # Сохраняем в Excel
-    #     df.to_excel(output_xlsx_file, index=False)
-    #     logger.info(f"Данные успешно сохранены в {output_xlsx_file}")
-    #     logger.info(f"Всего собрано товаров: {len(all_products)}")
-    # else:
-    #     logger.error("Не найдено товаров для сохранения")
-
-    # return all_products
-    # Обрабатываем и сохраняем все собранные продукты
-    if all_products:
-        # Используем новую функцию для обработки дублей и сохранения в Excel
-        save_products_to_excel(all_products, output_xlsx_file)
-    else:
-        logger.error("Не найдено товаров для сохранения")
-
-    return all_products
 
 
 def remove_duplicates_by_price(df):
@@ -557,7 +431,6 @@ def remove_duplicates_by_price(df):
     return df_filtered
 
 
-# Обновленная функция сохранения данных
 def save_products_to_excel(all_products, output_file):
     """
     Преобразует список товаров в DataFrame, удаляет дубли и сохраняет в Excel
@@ -585,6 +458,124 @@ def save_products_to_excel(all_products, output_file):
     logger.info(f"Данные успешно сохранены в {output_file}")
 
     return df_filtered
+
+
+def download_pages(base_url, start_page, num_pages, cookies, headers, delay):
+    """
+    Скачивает HTML-страницы с сайта и сохраняет их в директорию html
+
+    Args:
+        base_url (str): Базовый URL с фильтрами
+        start_page (int): Начальная страница
+        num_pages (int): Количество страниц для скачивания
+        cookies (dict): Куки для запроса
+        headers (dict): Заголовки для запроса
+        delay (int): Задержка между запросами в секундах
+
+    Returns:
+        int: Количество успешно скачанных страниц
+    """
+    # Проверяем существующие файлы HTML
+    existing_files = []
+    page_pattern = re.compile(r"eneba_page_(\d+)\.html")
+
+    for file in html_directory.glob("eneba_page_*.html"):
+        match = page_pattern.search(file.name)
+        if match:
+            existing_files.append(int(match.group(1)))
+
+    # Сортируем номера страниц
+    existing_files.sort()
+
+    logger.info(f"Найдено существующих HTML-файлов: {len(existing_files)}")
+
+    # Определяем, какие страницы нужно скачать
+    pages_to_download = []
+    for page in range(start_page, start_page + num_pages):
+        if page not in existing_files:
+            pages_to_download.append(page)
+
+    logger.info(f"Страниц для скачивания: {len(pages_to_download)}")
+
+    # Если все страницы уже скачаны, возвращаем их количество
+    if not pages_to_download:
+        logger.info("Все страницы уже скачаны")
+        return len(existing_files)
+
+    # Скачиваем недостающие страницы
+    successful_downloads = 0
+
+    for page in pages_to_download:
+        logger.info(f"Скачивание страницы {page}...")
+
+        # Создаем имя файла для текущей страницы
+        page_html_file = html_directory / f"eneba_page_{page}.html"
+
+        # Собираем URL для текущей страницы
+        page_url = build_url_for_page(base_url, page)
+        logger.info(f"URL: {page_url}")
+
+        # Загружаем HTML страницы
+        if get_html(page_url, page_html_file, cookies, headers, delay):
+            successful_downloads += 1
+
+            # Добавляем случайную задержку между страницами
+            if pages_to_download.index(page) < len(pages_to_download) - 1:
+                sleep_time = random.randint(delay, delay + 5)
+                logger.info(f"Случайная задержка между страницами: {sleep_time} секунд")
+                time.sleep(sleep_time)
+        else:
+            logger.error(f"Не удалось загрузить страницу {page}")
+
+    logger.info(
+        f"Скачивание завершено. Успешно скачано страниц: {successful_downloads}"
+    )
+
+    # Возвращаем общее количество страниц (существующие + новые)
+    return len(existing_files) + successful_downloads
+
+
+def process_html_files():
+    """
+    Обрабатывает HTML-файлы в директории html и создает Excel-файл с товарами
+
+    Returns:
+        list: Список всех товаров
+    """
+    logger.info("Начинаем обработку HTML-файлов...")
+
+    all_products = []
+
+    # logger.info(
+    #     f"Найдено HTML-файлов для обработки: {len(html_directory.glob("*.html"))}"
+    # )
+
+    for html_file in html_directory.glob("*.html"):
+        logger.info(f"Обработка файла: {html_file.name}")
+
+        # Извлекаем данные Apollo State
+        apollo_data = scrap_html(html_file)
+
+        if apollo_data:
+            # Обрабатываем данные Apollo State
+            page_products = process_apollo_data(apollo_data)
+
+            # Добавляем продукты к общему списку
+            all_products.extend(page_products)
+
+            logger.info(f"Извлечено товаров из {html_file.name}: {len(page_products)}")
+        else:
+            logger.error(
+                f"Не удалось извлечь данные Apollo State из файла {html_file.name}"
+            )
+
+    # Сохраняем результат в Excel
+    if all_products:
+        save_products_to_excel(all_products, output_xlsx_file)
+    else:
+        logger.error("Не найдено товаров для сохранения")
+
+    return all_products
 
 
 def update_prices(price_min, price_max, percentage):
@@ -684,40 +675,43 @@ def main():
     logger.info(f"Количество страниц: {num_pages}")
     logger.info(f"Задержка: {delay} сек.")
 
-    # Запускаем скрапинг
-    scrape_pages(url, start_page, num_pages, cookies, headers, delay)
+    # Запрашиваем пользователя, какую операцию выполнить
+    print("\nВыберите операцию:")
+    print("1. Только скачать HTML-страницы")
+    print("2. Только обработать существующие HTML-страницы")
+    print("3. Работа с ценами на товар")
+    print("4. Очистить временные файла")
+    print("0. Выход")
 
+    choice = input("Введите номер операции (1-3): ").strip()
 
-def main_loop():
-    while True:
-        print(
-            "\nВыберите действие:\n"
-            "1. Скачивание страниц, и получение файла Excel \n"
-            "2. Работа с ценами на товар\n"
-            "3. Очистить временные файла\n"
-            "0. Выход"
-        )
-        choice = input("Введите номер действия: ")
-        if choice == "1":
-            main()
-            time.sleep(2)
-        elif choice == "2":
-            print("\nВведите следующие данные\n")
-            price_min = float(input("Минимальная цена: "))
-            price_max = float(input("Максимальная цена: "))
-            percentage = float(input("Процент увеличения цены: "))
-            update_prices(price_min, price_max, percentage)
-            time.sleep(2)
-        elif choice == "3":
-            if os.path.exists(html_directory):
-                shutil.rmtree(html_directory)
-            html_directory.mkdir(parents=True, exist_ok=True)
-        elif choice == "0":
-            break
-        else:
-            logger.info("Неверный выбор. Пожалуйста, попробуйте снова.")
+    if choice == "1":
+        # Только скачиваем страницы
+        download_pages(url, start_page, num_pages, cookies, headers, delay)
+        time.sleep(2)
+    elif choice == "2":
+        # Только обрабатываем существующие страницы
+        process_html_files()
+        time.sleep(2)
+    elif choice == "3":
+        print("\nВведите следующие данные\n")
+        price_min = float(input("Минимальная цена: "))
+        price_max = float(input("Максимальная цена: "))
+        percentage = float(input("Процент увеличения цены: "))
+        update_prices(price_min, price_max, percentage)
+        time.sleep(2)
+    elif choice == "4":
+        if os.path.exists(html_directory):
+            shutil.rmtree(html_directory)
+        html_directory.mkdir(parents=True, exist_ok=True)
+
+    else:
+        logger.error("Некорректный выбор операции")
 
 
 if __name__ == "__main__":
     # Настраиваем логгер
-    main_loop()
+    logger.add(data_directory / "scraper.log", rotation="10 MB", level="INFO")
+    logger.info("Запуск скрапера")
+
+    main()
