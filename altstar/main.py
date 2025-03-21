@@ -431,7 +431,7 @@ def convert_json_to_csv():
     df = pd.DataFrame([row_data])
 
     # Save to CSV
-    df.to_csv(output_csv_file, index=False, encoding="utf-8")
+    df.to_csv(output_csv_file, index=False, encoding="windows-1251", sep=";")
 
     logger.info(f"CSV file created: {output_csv_file}")
 

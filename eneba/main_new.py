@@ -1,3 +1,8 @@
+# Рабочий код от 20.03.2025
+# Скрипт для сбора данных с сайта eneba.com и обновления цен в Excel файле
+# Скрипт собирает данные о товарах с сайта eneba.com, сохраняет их в Excel файл и обновляет цены в указанном диапазоне на указанный процент в Excel файле
+# Скрипт использует библиотеки requests, pandas, beautifulsoup4, loguru и json
+# Скрипт использует файл конфигурации config.json в формате:
 import json
 import os
 import random
@@ -404,18 +409,139 @@ def scrape_pages(base_url, start_page, num_pages, cookies, headers, delay):
         else:
             logger.error(f"Не удалось загрузить страницу {page}")
 
-    # Создаем DataFrame из всех собранных продуктов
-    if all_products:
-        df = pd.DataFrame(all_products)
+    # # Создаем DataFrame из всех собранных продуктов
+    # if all_products:
+    #     df = pd.DataFrame(all_products)
 
-        # Сохраняем в Excel
-        df.to_excel(output_xlsx_file, index=False)
-        logger.info(f"Данные успешно сохранены в {output_xlsx_file}")
-        logger.info(f"Всего собрано товаров: {len(all_products)}")
+    #     # Сохраняем в Excel
+    #     df.to_excel(output_xlsx_file, index=False)
+    #     logger.info(f"Данные успешно сохранены в {output_xlsx_file}")
+    #     logger.info(f"Всего собрано товаров: {len(all_products)}")
+    # else:
+    #     logger.error("Не найдено товаров для сохранения")
+
+    # return all_products
+    # Обрабатываем и сохраняем все собранные продукты
+    if all_products:
+        # Используем новую функцию для обработки дублей и сохранения в Excel
+        save_products_to_excel(all_products, output_xlsx_file)
     else:
         logger.error("Не найдено товаров для сохранения")
 
     return all_products
+
+
+def remove_duplicates_by_price(df):
+    """
+    Удаляет дубли товаров, оставляя только позиции с наименьшей ценой
+
+    Args:
+        df (pandas.DataFrame): Датафрейм с товарами
+
+    Returns:
+        pandas.DataFrame: Обработанный датафрейм без дублей
+    """
+    logger.info("Начинаем проверку и удаление дублей по наименованию товара...")
+
+    # Проверяем наличие необходимых колонок
+    if "Назва_позиції" not in df.columns or "Ціна" not in df.columns:
+        logger.error(
+            "В данных отсутствуют необходимые колонки 'Назва_позиції' или 'Ціна'"
+        )
+        return df
+
+    # Сохраняем исходное количество строк
+    initial_count = len(df)
+    logger.info(f"Всего товаров до обработки: {initial_count}")
+
+    # Конвертируем цены из строкового формата с запятой в числовой формат
+    df["Ціна_числовая"] = df["Ціна"].apply(
+        lambda x: (
+            float(str(x).replace(",", ".")) if pd.notna(x) and str(x).strip() else None
+        )
+    )
+
+    # Находим дубли по наименованию
+    duplicates = df[df.duplicated(subset=["Назва_позиції"], keep=False)]
+
+    if duplicates.empty:
+        logger.info("Дублей не обнаружено")
+        # Удаляем временную колонку
+        if "Ціна_числовая" in df.columns:
+            df = df.drop("Ціна_числовая", axis=1)
+        return df
+
+    # Группируем дублирующиеся позиции
+    duplicate_groups = duplicates.groupby("Назва_позиції")
+
+    # Создаем список индексов строк для удаления
+    indices_to_remove = []
+
+    # Перебираем группы дублей
+    for name, group in duplicate_groups:
+        if len(group) <= 1:
+            continue
+
+        # Сортируем группу по цене (от меньшей к большей)
+        sorted_group = group.sort_values("Ціна_числовая")
+
+        # Получаем минимальную цену
+        min_price = sorted_group["Ціна"].iloc[0]
+
+        # Логируем информацию о дублях
+        logger.info(f"Найдены дубли: '{name}'")
+
+        for idx, row in sorted_group.iterrows():
+            price = row["Ціна"]
+            if idx == sorted_group.index[0]:  # Это строка с минимальной ценой
+                logger.info(f"  - ОСТАВЛЕНА: Цена {price}")
+            else:
+                logger.info(f"  - УДАЛЕНА: Цена {price}")
+                indices_to_remove.append(idx)
+
+    # Удаляем дубли с более высокой ценой
+    df_filtered = df.drop(indices_to_remove)
+
+    # Удаляем временную колонку
+    if "Ціна_числовая" in df_filtered.columns:
+        df_filtered = df_filtered.drop("Ціна_числовая", axis=1)
+
+    # Выводим итоговую статистику
+    removed_count = initial_count - len(df_filtered)
+    logger.info(f"Удалено дублирующихся позиций: {removed_count}")
+    logger.info(f"Всего товаров после обработки: {len(df_filtered)}")
+
+    return df_filtered
+
+
+# Обновленная функция сохранения данных
+def save_products_to_excel(all_products, output_file):
+    """
+    Преобразует список товаров в DataFrame, удаляет дубли и сохраняет в Excel
+
+    Args:
+        all_products (list): Список словарей с товарами
+        output_file (str): Путь для сохранения результата
+
+    Returns:
+        pandas.DataFrame: Обработанный DataFrame с товарами
+    """
+    if not all_products:
+        logger.error("Не найдено товаров для сохранения")
+        return None
+
+    # Создаем DataFrame
+    df = pd.DataFrame(all_products)
+    logger.info(f"Создан DataFrame из {len(df)} товаров")
+
+    # Удаляем дубли, оставляя позиции с минимальной ценой
+    df_filtered = remove_duplicates_by_price(df)
+
+    # Сохраняем в Excel
+    df_filtered.to_excel(output_file, index=False)
+    logger.info(f"Данные успешно сохранены в {output_file}")
+
+    return df_filtered
 
 
 def update_prices(price_min, price_max, percentage):
