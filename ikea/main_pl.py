@@ -234,7 +234,7 @@ async def setup_browser_context():
 
     # Запускаем браузер
     browser = await p.chromium.launch(
-        headless=False
+        headless=True
     )  # headless=True для работы без интерфейса
 
     # Создаем новый контекст с оптимизациями
@@ -415,7 +415,7 @@ def process_excel_files():
     try:
         # Загружаем данные из Пром.xlsx
         logger.info(f"Загрузка файла {prom_file}...")
-        prom_df = pd.read_excel(prom_file)
+        prom_df = pd.read_excel(prom_file, sheet_name=0)  # Первый лист
 
         # Проверяем наличие колонки 'Код_товару'
         if "Код_товару" not in prom_df.columns:
@@ -427,7 +427,7 @@ def process_excel_files():
 
         # Загружаем данные из Розетка.xlsx
         logger.info(f"Загрузка файла {rozetka_file}...")
-        rozetka_df = pd.read_excel(rozetka_file)
+        rozetka_df = pd.read_excel(rozetka_file, sheet_name=0)  # Первый лист
 
         # Проверяем наличие колонки 'Артикул'
         if "Артикул" not in rozetka_df.columns:
@@ -504,14 +504,13 @@ def process_excel_files():
     return None
 
 
-# Функция для сопоставления кодов IKEA с URL из CSV
+# Функция для сопоставления кодов IKEA с URL из CSV с удалением дубликатов
 def match_codes_with_urls(codes_data):
     if not codes_data:
         logger.error("Нет данных о кодах для сопоставления.")
         return
 
     try:
-
         if not all_urls_csv_file.exists():
             logger.error(f"Файл {all_urls_csv_file} не найден.")
             return
@@ -556,26 +555,364 @@ def match_codes_with_urls(codes_data):
                     }
                 )
 
-        logger.info(
-            f"Найдено {len(matches)} совпадений. Сохранение в {matches_file}..."
-        )
+        logger.info(f"Найдено {len(matches)} совпадений.")
 
+        # Сохраняем результаты в JSON
+        logger.info(f"Сохранение результатов в {matches_file}...")
         with open(matches_file, "w", encoding="utf-8") as f:
             json.dump(matches, f, ensure_ascii=False, indent=4)
 
-        # Создаем CSV с найденными URL
-        find_urls_df = pd.DataFrame(find_urls, columns=["url"])
+        # Создаем DataFrame с найденными URL
+        find_urls_df = pd.DataFrame(find_urls)
+
+        # Удаляем дубликаты URL
+        original_count = len(find_urls_df)
+        find_urls_df = find_urls_df.drop_duplicates(subset=["url"])
+        unique_count = len(find_urls_df)
+
+        # Логируем информацию об удаленных дубликатах
+        duplicates_removed = original_count - unique_count
+        logger.info(
+            f"Удалено дубликатов URL: {duplicates_removed} ({duplicates_removed/original_count*100:.2f}% от общего числа)"
+        )
+
+        # Сохраняем только уникальные URL в CSV
         find_urls_df.to_csv(find_urls_csv_file, index=False)
 
         logger.info(
             f"Сопоставление завершено. Результаты сохранены в {matches_file} и {find_urls_csv_file}."
         )
+        logger.info(
+            f"В файл {find_urls_csv_file} записано {unique_count} уникальных URL."
+        )
 
-        return matches, find_urls
+        return matches, find_urls_df.to_dict("records")
 
     except Exception as e:
         logger.error(f"Ошибка при сопоставлении кодов с URL: {e}")
         return None, None
+
+
+def pars_htmls():
+    logger.info("Собираем данные со страниц html")
+    extracted_data = []
+
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
+
+        # Парсим HTML с помощью BeautifulSoup
+        soup = BeautifulSoup(content, "lxml")
+        # 1. Извлечь заголовок продукта
+        product_title = soup.find("script", attrs={"id": "pip-range-json-ld"})
+        json_string = product_title.string
+        json_data = None
+        # Убеждаемся, что содержимое не None
+        if json_string:
+            try:
+                # Парсим строку как JSON
+                json_data = json.loads(json_string)
+            except json.JSONDecodeError as e:
+                logger.error(f"Ошибка при парсинге JSON: {e}")
+        mpn = json_data.get("mpn") if json_data else None
+
+        # Извлечение цены
+        price = None
+        # Сначала пытаемся взять lowPrice
+        price = json_data.get("offers", {}).get("lowPrice")
+        # Если lowPrice нет (None), берем price
+        if price is None:
+            price = json_data.get("offers", {}).get("price")
+        price = float(price) * -100 if price else None
+        # Пытаемся найти конкретно элемент с "Sklep - Dostępne w magazynie"
+        sklep_element = soup.select_one(
+            "div.pip-store-section__button.js-stockcheck-section"
+        )
+
+        # Также ищем все элементы со статусом доступности, чтобы в случае отсутствия "Sklep" найти альтернативный
+        all_status_elements = soup.select(
+            "span.pip-status__label div.pip-store-section__button"
+        )
+
+        # Проверяем наличие элемента "Sklep"
+        if sklep_element and "Sklep" in sklep_element.text:
+            availability_text = sklep_element.text.strip()
+
+        elif all_status_elements:
+            # Если не нашли явно "Sklep", но есть другие статусы, используем первый из них
+            availability_text = all_status_elements[0].text.strip()
+            logger.info(
+                f"Файл {mpn}: Найден альтернативный статус: {availability_text}"
+            )
+        else:
+            # Если не найден никакой элемент, попробуем найти похожие
+            alt_availability_element = soup.select_one(".pip-status__label")
+            if alt_availability_element:
+                availability_text = alt_availability_element.text.strip()
+                logger.info(
+                    f"Файл {mpn}: Найден альтернативный статус: {availability_text}"
+                )
+            else:
+                availability_text = "Статус доступности не найден"
+                logger.warning(f"Файл {mpn}: Не удалось найти информацию о доступности")
+        # Проверяем, есть ли конкретная фраза "Sklep - Dostępne w magazynie"
+        has_in_store = "Sklep - Dostępne w magazynie" in availability_text
+        all_data = {
+            "mpn": mpn,
+            "price": price,
+            "product_in_stock": has_in_store,
+        }
+        logger.info(all_data)
+        extracted_data.append(all_data)
+    with open(output_json_file, "w", encoding="utf-8") as json_file:
+        json.dump(extracted_data, json_file, ensure_ascii=False, indent=4)
+    # Добавьте этот вызов
+    update_ikea_matches_with_parsed_data(extracted_data)
+
+
+def update_ikea_matches_with_parsed_data(extracted_data):
+    """
+    Обновляет данные о товарах в ikea_matches.json, добавляя информацию о цене и наличии.
+
+    Args:
+        extracted_data: Список словарей с данными о товарах, полученный из функции pars_htmls()
+    """
+
+    # Проверяем, существует ли файл с совпадениями
+    if not matches_file.exists():
+        logger.error(f"Файл {matches_file} не найден.")
+        return
+
+    # Загружаем существующие данные о товарах
+    try:
+        with open(matches_file, "r", encoding="utf-8") as f:
+            ikea_matches = json.load(f)
+        logger.info(f"Загружено {len(ikea_matches)} товаров из {matches_file}")
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке JSON-файла {matches_file}: {e}")
+        return
+
+    # Создаем словарь для быстрого поиска данных по MPN
+    mpn_to_data = {}
+    for item in extracted_data:
+        if item["mpn"]:  # Проверяем, что MPN не пустой
+            mpn_to_data[item["mpn"]] = item
+
+    logger.info(f"Создан словарь с {len(mpn_to_data)} товарами для поиска по MPN")
+
+    # Счетчики для статистики
+    updated_count = 0
+    not_found_count = 0
+
+    # Обновляем данные о товарах
+    for ikea_item in ikea_matches:
+        id_ikea = ikea_item["id_ikea"]
+
+        # Проверяем, есть ли данные для этого MPN
+        if id_ikea in mpn_to_data:
+            # Извлекаем информацию о наличии и цене
+            data_item = mpn_to_data[id_ikea]
+
+            # Добавляем информацию о наличии и цене
+            ikea_item["product_in_stock"] = data_item["product_in_stock"]
+            ikea_item["price"] = data_item["price"]
+
+            logger.info(
+                f"Обновлены данные для товара {id_ikea}: цена={data_item['price']}, наличие={data_item['product_in_stock']}"
+            )
+            updated_count += 1
+        else:
+            # Если товар не найден, добавляем флаги о недоступности
+            ikea_item["product_in_stock"] = False
+            ikea_item["price"] = None
+            logger.warning(f"Не найдены данные для товара {id_ikea}")
+            not_found_count += 1
+
+    # Сохраняем обновленные данные
+    try:
+        with open(matches_file, "w", encoding="utf-8") as f:
+            json.dump(ikea_matches, f, ensure_ascii=False, indent=4)
+        logger.info(
+            f"Данные сохранены в {matches_file}. Обновлено: {updated_count}, не найдено: {not_found_count}"
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении обновленных данных: {e}")
+
+
+def update_excel_files_with_availability_info():
+    """
+    Обновляет файлы Excel на основе данных из ikea_matches.json.
+
+    Для товаров из Розетки:
+    - Ищет товар по id_ikea в колонке D (Артикул)
+    - Обновляет колонку M (Наявність): "В наявності" или "Не в наявності"
+    - Обновляет колонку H (Ціна) с ценой
+
+    Для товаров из Prom:
+    - Ищет товар по id_ikea в колонке A (Код_товару)
+    - Обновляет колонку P (Наявність): "7" если в наличии, "-" если нет
+    - Обновляет колонку I (Ціна) с ценой
+    """
+    matches_file = data_directory / "ikea_matches.json"
+    prom_file = current_directory / "Пром.xlsx"
+    rozetka_file = current_directory / "Розетка.xlsx"
+
+    # Проверяем наличие файлов
+    if not matches_file.exists():
+        logger.error(f"Файл {matches_file} не найден.")
+        return
+
+    if not prom_file.exists():
+        logger.error(f"Файл {prom_file} не найден.")
+        return
+
+    if not rozetka_file.exists():
+        logger.error(f"Файл {rozetka_file} не найден.")
+        return
+
+    # Загружаем данные из ikea_matches.json
+    try:
+        with open(matches_file, "r", encoding="utf-8") as f:
+            ikea_matches = json.load(f)
+        logger.info(f"Загружено {len(ikea_matches)} товаров из {matches_file}")
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке JSON-файла {matches_file}: {e}")
+        return
+
+    # Разделяем товары по источнику
+    rozetka_items = [item for item in ikea_matches if item.get("source") == "rozetka"]
+    prom_items = [item for item in ikea_matches if item.get("source") == "prom"]
+
+    logger.info(
+        f"Товаров для Розетки: {len(rozetka_items)}, для Prom: {len(prom_items)}"
+    )
+
+    # Обновляем файл Розетки
+    try:
+        # Загружаем Excel файл
+        rozetka_df = pd.read_excel(rozetka_file)
+        logger.info(f"Загружен файл Розетка.xlsx, размер: {rozetka_df.shape}")
+
+        # Проверяем наличие нужных колонок
+        if "Артикул" not in rozetka_df.columns:
+            # Если колонки нет или она имеет другое название, пробуем колонку D
+            try:
+                column_D_name = rozetka_df.columns[3]  # 4-й столбец (индекс 3) - это D
+                rozetka_df = rozetka_df.rename(columns={column_D_name: "Артикул"})
+                logger.info(f"Переименована колонка D '{column_D_name}' в 'Артикул'")
+            except IndexError:
+                logger.error(f"В файле {rozetka_file} нет колонки D.")
+                return
+
+        # Колонка M (Наявність) - это индекс 12
+        availability_column_idx = 12
+        availability_column_name = rozetka_df.columns[availability_column_idx]
+
+        # Колонка H (Ціна) - это индекс 7
+        price_column_idx = 7
+        price_column_name = rozetka_df.columns[price_column_idx]
+
+        logger.info(
+            f"Колонка наличия: {availability_column_name} (M), колонка цены: {price_column_name} (H)"
+        )
+
+        # Преобразуем артикулы в строки для сравнения
+        rozetka_df["Артикул"] = rozetka_df["Артикул"].astype(str)
+
+        # Обновляем данные для каждого товара
+        updated_count = 0
+        for item in rozetka_items:
+            # Находим строки, где Артикул совпадает с id_ikea
+            mask = rozetka_df["Артикул"] == item["id_ikea"]
+            if mask.any():
+                # Обновляем наличие
+                avail_value = (
+                    "В наявності"
+                    if item.get("product_in_stock", False)
+                    else "Не в наявності"
+                )
+                rozetka_df.loc[mask, availability_column_name] = avail_value
+
+                # Обновляем цену, если она есть
+                if item.get("price") is not None:
+                    price_value = abs(
+                        float(item["price"])
+                    )  # Берем абсолютное значение цены
+                    rozetka_df.loc[mask, price_column_name] = price_value
+
+                updated_count += sum(mask)
+
+        logger.info(f"Обновлено {updated_count} товаров в файле Розетка.xlsx")
+
+        # Сохраняем обновленный файл
+        output_rozetka_file = current_directory / "Розетка_обновленный.xlsx"
+        rozetka_df.to_excel(output_rozetka_file, index=False)
+        logger.info(f"Обновленный файл сохранен: {output_rozetka_file}")
+
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении файла Розетка.xlsx: {e}")
+
+    # Обновляем файл Prom
+    try:
+        # Загружаем Excel файл
+        prom_df = pd.read_excel(prom_file)
+        logger.info(f"Загружен файл Пром.xlsx, размер: {prom_df.shape}")
+
+        # Проверяем наличие нужных колонок
+        if "Код_товару" not in prom_df.columns:
+            # Если колонки нет или она имеет другое название, пробуем колонку A
+            try:
+                column_A_name = prom_df.columns[0]  # 1-й столбец (индекс 0) - это A
+                prom_df = prom_df.rename(columns={column_A_name: "Код_товару"})
+                logger.info(f"Переименована колонка A '{column_A_name}' в 'Код_товару'")
+            except IndexError:
+                logger.error(f"В файле {prom_file} нет колонки A.")
+                return
+
+        # Колонка P (Наявність) - это индекс 15
+        availability_column_idx = 15
+        availability_column_name = prom_df.columns[availability_column_idx]
+
+        # Колонка I (Ціна) - это индекс 8
+        price_column_idx = 8
+        price_column_name = prom_df.columns[price_column_idx]
+
+        logger.info(
+            f"Колонка наличия: {availability_column_name} (P), колонка цены: {price_column_name} (I)"
+        )
+
+        # Преобразуем коды товаров в строки для сравнения
+        prom_df["Код_товару"] = prom_df["Код_товару"].astype(str)
+
+        # Обновляем данные для каждого товара
+        updated_count = 0
+        for item in prom_items:
+            # Находим строки, где Код_товару совпадает с id_ikea
+            mask = prom_df["Код_товару"] == item["id_ikea"]
+            if mask.any():
+                # Обновляем наличие
+                avail_value = "7" if item.get("product_in_stock", False) else "-"
+                prom_df.loc[mask, availability_column_name] = avail_value
+
+                # Обновляем цену, если она есть
+                if item.get("price") is not None:
+                    price_value = abs(
+                        float(item["price"])
+                    )  # Берем абсолютное значение цены
+                    prom_df.loc[mask, price_column_name] = price_value
+
+                updated_count += sum(mask)
+
+        logger.info(f"Обновлено {updated_count} товаров в файле Пром.xlsx")
+
+        # Сохраняем обновленный файл
+        output_prom_file = current_directory / "Пром_обновленный.xlsx"
+        prom_df.to_excel(output_prom_file, index=False)
+        logger.info(f"Обновленный файл сохранен: {output_prom_file}")
+
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении файла Пром.xlsx: {e}")
 
 
 def main_loop():
@@ -591,11 +928,13 @@ def main_loop():
 
         if user_input == 1:
             download_all_xml()
+            codes_data = process_excel_files()
+            match_codes_with_urls(codes_data)
         elif user_input == 2:
             asyncio.run(main_pl())
         elif user_input == 3:
-            pass
-        #     asyncio.run(parsing_page())
+            pars_htmls()
+            update_excel_files_with_availability_info()
         elif user_input == 0:
             print("Программа завершена.")
             break  # Выход из цикла, завершение программы
@@ -604,12 +943,4 @@ def main_loop():
 
 
 if __name__ == "__main__":
-    # main_loop()
-    codes_data = process_excel_files()
-    match_codes_with_urls(codes_data)
-
-
-if __name__ == "__main__":
-    # main_loop()
-    codes_data = process_excel_files()
-    match_codes_with_urls(codes_data)
+    main_loop()
