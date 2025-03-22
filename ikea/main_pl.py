@@ -593,7 +593,7 @@ def match_codes_with_urls(codes_data):
         return None, None
 
 
-def pars_htmls():
+def pars_htmls(exchange_rate):
     logger.info("Собираем данные со страниц html")
     extracted_data = []
 
@@ -624,7 +624,7 @@ def pars_htmls():
         # Если lowPrice нет (None), берем price
         if price is None:
             price = json_data.get("offers", {}).get("price")
-        price = float(price) * -100 if price else None
+        price = float(price) * exchange_rate if price else None
         # Пытаемся найти конкретно элемент с "Sklep - Dostępne w magazynie"
         sklep_element = soup.select_one(
             "div.pip-store-section__button.js-stockcheck-section"
@@ -933,7 +933,9 @@ def main_loop():
         elif user_input == 2:
             asyncio.run(main_pl())
         elif user_input == 3:
-            pars_htmls()
+            logger.info("Введите курс")
+            exchange_rate = float(input())
+            pars_htmls(exchange_rate)
             update_excel_files_with_availability_info()
         elif user_input == 0:
             print("Программа завершена.")

@@ -105,26 +105,10 @@ class EbayInventoryClient:
 
         endpoint = f"sell/inventory/v1/location/{merchant_location_key}"
 
-        # Если данные не предоставлены, используем минимальный набор обязательных полей
-        if not location_data:
-            location_data = {
-                "location": {
-                    "address": {
-                        "addressLine1": "123 Example St",
-                        "city": "Berlin",
-                        "country": "DE",
-                        "postalCode": "10115",
-                        "stateOrProvince": "Berlin",
-                    },
-                    "name": "Main Warehouse",
-                    "merchantLocationStatus": "ENABLED",
-                },
-                "locationTypes": ["WAREHOUSE"],
-                # Не дублируем merchantLocationKey в теле запроса
-            }
-
         # Добавляем необходимые заголовки для API eBay
-        headers = {"Content-Language": "en-US", "Accept-Language": "en-US"}
+        headers = {
+            "Content-Type": "application/json",
+        }
 
         logger.info(f"Создание местоположения с ключом: {merchant_location_key}")
         logger.debug(f"Полный URL запроса: {self.base_url}/{endpoint}")
@@ -136,7 +120,7 @@ class EbayInventoryClient:
             return {"error": "Токен доступа отсутствует"}
 
         # Используем PUT запрос для создания/обновления местоположения
-        result = self._call_api(endpoint, "PUT", data=location_data, headers=headers)
+        result = self._call_api(endpoint, "POST", data=location_data, headers=headers)
 
         # Код 204 означает успешное создание без содержимого в ответе
         if isinstance(result, dict) and result.get("success", False):
@@ -151,26 +135,26 @@ class EbayInventoryClient:
 
         return result
 
-    def ensure_default_location(self):
-        """Создание местоположения по умолчанию, если оно не существует"""
-        endpoint = "sell/inventory/v1/location/default"
+    # def ensure_default_location(self):
+    #     """Создание местоположения по умолчанию, если оно не существует"""
+    #     endpoint = "sell/inventory/v1/location/default"
 
-        location_data = {
-            "location": {
-                "address": {
-                    "addressLine1": "123 Main Street",
-                    "city": "Berlin",
-                    "country": "DE",
-                    "postalCode": "10115",
-                    "stateOrProvince": "Berlin",
-                }
-            },
-            "locationInstructions": "Default location",
-            "name": "Default Location",
-            "merchantLocationStatus": "ENABLED",
-        }
+    #     location_data = {
+    #         "location": {
+    #             "address": {
+    #                 "addressLine1": "123 Main Street",
+    #                 "city": "Berlin",
+    #                 "country": "DE",
+    #                 "postalCode": "10115",
+    #                 "stateOrProvince": "Berlin",
+    #             }
+    #         },
+    #         "locationInstructions": "Default location",
+    #         "name": "Default Location",
+    #         "merchantLocationStatus": "ENABLED",
+    #     }
 
-        return self._call_api(endpoint, "PUT", data=location_data)
+    #     return self._call_api(endpoint, "PUT", data=location_data)
 
     def _call_api(
         self,
@@ -229,7 +213,7 @@ class EbayInventoryClient:
 
             # Обработка кодов ответа
             if response.status_code == 204:  # No Content
-                logger.info(f"Успешный запрос с кодом 204 (No Content)")
+                logger.info("Успешный запрос с кодом 204 (No Content)")
                 return {"success": True}
 
             # Для всех остальных кодов пытаемся получить содержимое ответа
@@ -329,8 +313,14 @@ class EbayInventoryClient:
                 "Brand", [""]
             )[0]
 
+        # Добавляем обязательные заголовки для API eBay
+        headers = {
+            "Content-Type": "application/json",
+            "Content-Language": "de-DE",  # или другой язык, например "de-DE" для немецкого
+        }
+
         # Запрос на создание/обновление товара в инвентаре
-        return self._call_api(endpoint, "PUT", data=inventory_item)
+        return self._call_api(endpoint, "PUT", data=inventory_item, headers=headers)
 
     def create_offer(self, sku: str, offer_data: Dict[str, Any]) -> Dict[str, Any]:
         """Создание предложения (Offer) для товара"""

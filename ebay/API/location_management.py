@@ -1,4 +1,8 @@
 # location_management.py
+# Модуль для управления местоположениями продавца на eBay
+# Позволяет получить список местоположений и создать новое местоположение
+# Для работы требуется наличие файла конфигурации location_warehouse.json
+# Последние изменения 2025-03-22
 import json
 
 from inventory_client import EbayInventoryClient
@@ -41,54 +45,32 @@ def get_locations():
     return locations
 
 
+def load_product_data(file_path):
+    """Загрузка данных товара из JSON файла"""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке данных товара: {e}")
+        return None
+
+
 def create_sample_location():
     """Попытка создать тестовое местоположение на основе существующих шаблонов"""
     client = EbayInventoryClient()
 
+    # Проверяем, что клиент аутентифицирован
     if not client.authenticate():
-        logger.error("Не удалось аутентифицироваться")
+        logger.error("Не удалось аутентифицироваться для создания местоположения")
         return False
 
-    # Получаем существующие местоположения для анализа
-    locations = get_locations()
+    # Создаем уникальный ключ местоположения с новым значением
+    # Поскольку может быть конфликт с существующим ключом
+    merchant_location_key = "warehouseberlin002"
 
-    if not locations:
-        logger.warning("Нет существующих местоположений для анализа структуры")
-        # Пробуем создать с минимальной структурой по документации
-        location_data = {
-            "location": {
-                "address": {
-                    "addressLine1": "123 Example St",
-                    "city": "Berlin",
-                    "country": "DE",
-                    "postalCode": "10115",
-                    "stateOrProvince": "Berlin",
-                },
-                "name": "Test Warehouse Berlin",
-                "merchantLocationStatus": "ENABLED",
-            },
-            "locationTypes": ["WAREHOUSE"],
-        }
-    else:
-        # Берем первое местоположение как шаблон
-        template = locations[0]
-        # Создаем копию без ключа
-        location_data = {
-            "location": template.get("location", {}),
-            "locationTypes": template.get("locationTypes", ["WAREHOUSE"]),
-        }
-        # Обновляем имя, чтобы отличать
-        location_data["location"]["name"] = "Test Warehouse Based on Template"
+    location_data = load_product_data("location_warehouse.json")
 
-    # Генерируем уникальный ключ
-    import random
-
-    merchant_location_key = f"test-warehouse-{random.randint(1000, 9999)}"
-
-    logger.info(f"Попытка создания местоположения с ключом: {merchant_location_key}")
-    logger.debug(f"Данные: {json.dumps(location_data, indent=2)}")
-
-    # Пробуем создать
+    # Создаем местоположение
     result = client.create_location(merchant_location_key, location_data)
 
     if isinstance(result, dict) and (

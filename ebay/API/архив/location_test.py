@@ -1,6 +1,18 @@
 # location_test.py
+import json
+
 from inventory_client import EbayInventoryClient
 from logger import logger
+
+
+def load_product_data(file_path):
+    """Загрузка данных товара из JSON файла"""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке данных товара: {e}")
+        return None
 
 
 def test_create_location():
@@ -13,24 +25,9 @@ def test_create_location():
 
     # Создаем уникальный ключ местоположения с новым значением
     # Поскольку может быть конфликт с существующим ключом
-    merchant_location_key = "warehouse-berlin-002"
+    merchant_location_key = "warehouseberlin002"
 
-    # Данные о местоположении - строго следуем документации API eBay
-    location_data = {
-        "location": {
-            "address": {
-                "addressLine1": "123 Example St",
-                "city": "Berlin",
-                "country": "DE",
-                "postalCode": "10115",
-                "stateOrProvince": "Berlin",
-            },
-            "name": "Main Warehouse Berlin",
-            "merchantLocationStatus": "ENABLED",
-        },
-        "locationTypes": ["WAREHOUSE"],
-        # Удалили поле merchantLocationKey из тела запроса, так как оно уже есть в URL
-    }
+    location_data = load_product_data("location_warehouse.json")
 
     # Создаем местоположение
     result = client.create_location(merchant_location_key, location_data)
