@@ -593,7 +593,7 @@ def match_codes_with_urls(codes_data):
         return None, None
 
 
-def pars_htmls(exchange_rate):
+def pars_htmls():
     logger.info("Собираем данные со страниц html")
     extracted_data = []
 
@@ -624,7 +624,7 @@ def pars_htmls(exchange_rate):
         # Если lowPrice нет (None), берем price
         if price is None:
             price = json_data.get("offers", {}).get("price")
-        price = float(price) * exchange_rate if price else None
+
         # Пытаемся найти конкретно элемент с "Sklep - Dostępne w magazynie"
         sklep_element = soup.select_one(
             "div.pip-store-section__button.js-stockcheck-section"
@@ -740,7 +740,9 @@ def update_ikea_matches_with_parsed_data(extracted_data):
         logger.error(f"Ошибка при сохранении обновленных данных: {e}")
 
 
-def update_excel_files_with_availability_info():
+def update_excel_files_with_availability_info(
+    exchange_rate_rozetka, exchange_rate_prom
+):
     """
     Обновляет файлы Excel на основе данных из ikea_matches.json.
 
@@ -836,9 +838,7 @@ def update_excel_files_with_availability_info():
 
                 # Обновляем цену, если она есть
                 if item.get("price") is not None:
-                    price_value = abs(
-                        float(item["price"])
-                    )  # Берем абсолютное значение цены
+                    price_value = abs(float(item["price"])) * exchange_rate_rozetka
                     rozetka_df.loc[mask, price_column_name] = price_value
 
                 updated_count += sum(mask)
@@ -897,9 +897,7 @@ def update_excel_files_with_availability_info():
 
                 # Обновляем цену, если она есть
                 if item.get("price") is not None:
-                    price_value = abs(
-                        float(item["price"])
-                    )  # Берем абсолютное значение цены
+                    price_value = abs(float(item["price"])) * exchange_rate_prom
                     prom_df.loc[mask, price_column_name] = price_value
 
                 updated_count += sum(mask)
@@ -933,10 +931,14 @@ def main_loop():
         elif user_input == 2:
             asyncio.run(main_pl())
         elif user_input == 3:
-            logger.info("Введите курс")
-            exchange_rate = float(input())
-            pars_htmls(exchange_rate)
-            update_excel_files_with_availability_info()
+            logger.info("Введите курс для rozetka")
+            exchange_rate_rozetka = float(input())
+            logger.info("Введите курс для prom")
+            exchange_rate_prom = float(input())
+            pars_htmls()
+            update_excel_files_with_availability_info(
+                exchange_rate_rozetka, exchange_rate_prom
+            )
         elif user_input == 0:
             print("Программа завершена.")
             break  # Выход из цикла, завершение программы

@@ -5,6 +5,7 @@
 """
 
 import json
+import os
 import time
 from typing import Any, Dict
 
@@ -13,7 +14,12 @@ from auth import EbayAuth
 from inventory_client import EbayInventoryClient
 from logger import logger
 
-from config import MERCHANT_LOCATION_KEY
+from config import (
+    MERCHANT_LOCATION_KEY,
+    PAYMENT_POLICY_ID,
+    RETURN_POLICY_ID,
+    SHIPPING_POLICY_ID,
+)
 
 
 def load_product_data(json_file: str) -> Dict[str, Any]:
@@ -193,6 +199,156 @@ def upload_product_to_ebay(json_file: str) -> bool:
         return False
 
 
+def prepare_and_create_offer_from_json(json_file="offer.json"):
+    """
+    Подготовка и создание предложения из JSON-файла
+
+    Args:
+        json_file (str): Путь к JSON-файлу с данными предложения
+
+    Returns:
+        bool: Результат операции
+    """
+    logger.info(f"Подготовка и создание предложения из файла {json_file}")
+
+    # Проверка доступа к API
+    if not check_inventory_api_access():
+        logger.error("Нет доступа к Inventory API. Создание предложения невозможно.")
+        return False
+
+    # Получаем актуальные ID политик продавца
+    from ebay.API.config.setup_policies import get_seller_policies
+
+    logger.info("Получение актуальных ID политик продавца...")
+
+    # Создаем клиент для вызова API
+    client = EbayInventoryClient()
+    if not client.authenticate():
+        logger.error("Не удалось аутентифицироваться")
+        return False
+
+    # Получаем политики продавца
+    policy_result = get_seller_policies()
+    if not policy_result:
+        logger.error(
+            "Не удалось получить ID политик продавца. Запуск создания политик..."
+        )
+        from ebay.API.config.setup_policies import create_seller_policies
+
+        if not create_seller_policies():
+            logger.error("Не удалось создать политики продавца")
+            return False
+        else:
+            logger.info("Политики продавца успешно созданы")
+
+    # Загружаем конфигурационный файл с актуальными ID политик
+    config_file = "config/policy_ids.json"
+    if not os.path.exists(config_file):
+        logger.error(f"Файл конфигурации {config_file} не найден")
+        return False
+
+    try:
+        with open(config_file, "r", encoding="utf-8") as f:
+            policy_ids = json.load(f)
+    except Exception as e:
+        logger.error(f"Ошибка при чтении файла {config_file}: {e}")
+        return False
+
+    # Проверяем наличие всех необходимых ID политик
+    required_policies = [
+        "PAYMENT_POLICY_ID",
+        "RETURN_POLICY_ID",
+        "SHIPPING_POLICY_ID",
+        "MERCHANT_LOCATION_KEY",
+    ]
+    missing_policies = [
+        policy for policy in required_policies if policy not in policy_ids
+    ]
+    if missing_policies:
+        logger.error(
+            f"В файле {config_file} отсутствуют ID некоторых политик: {', '.join(missing_policies)}"
+        )
+        return False
+
+    # Загрузка данных предложения из файла
+    offer_data = load_product_data(json_file)
+    if not offer_data:
+        logger.error(f"Не удалось загрузить данные предложения из файла {json_file}")
+        return False
+
+    # Обновляем данные предложения актуальными ID политик
+    if "listingPolicies" in offer_data:
+        offer_data["listingPolicies"]["fulfillmentPolicyId"] = policy_ids[
+            "SHIPPING_POLICY_ID"
+        ]
+        offer_data["listingPolicies"]["paymentPolicyId"] = policy_ids[
+            "PAYMENT_POLICY_ID"
+        ]
+        offer_data["listingPolicies"]["returnPolicyId"] = policy_ids["RETURN_POLICY_ID"]
+    else:
+        offer_data["listingPolicies"] = {
+            "fulfillmentPolicyId": policy_ids["SHIPPING_POLICY_ID"],
+            "paymentPolicyId": policy_ids["PAYMENT_POLICY_ID"],
+            "returnPolicyId": policy_ids["RETURN_POLICY_ID"],
+        }
+
+    # Обновляем ключ местоположения
+    offer_data["merchantLocationKey"] = policy_ids["MERCHANT_LOCATION_KEY"]
+
+    logger.info(
+        f"Данные предложения с актуальными ID политик: {json.dumps(offer_data, indent=2)}"
+    )
+
+    # Создание предложения
+    headers = {
+        "Content-Type": "application/json",
+        "Content-Language": "de-DE",
+        "Accept-Language": "de-DE",
+    }
+
+    # Создание предложения через API eBay
+    endpoint = "sell/inventory/v1/offer"
+
+    logger.info(
+        f"Отправка запроса на создание предложения: {json.dumps(offer_data, indent=2)}"
+    )
+    result = client._call_api(endpoint, "POST", data=offer_data, headers=headers)
+
+    if isinstance(result, dict) and "errors" in result:
+        logger.error(f"Ошибка при создании предложения: {result['errors']}")
+        return False
+
+    if isinstance(result, dict) and "error" in result:
+        logger.error(f"Ошибка при создании предложения: {result['error']}")
+        return False
+
+    if not isinstance(result, dict) or "offerId" not in result:
+        logger.error("Не удалось получить ID предложения")
+        return False
+
+    offer_id = result["offerId"]
+    logger.info(f"Предложение успешно создано, ID: {offer_id}")
+
+    # Публикация предложения
+    publish_result = client.publish_offer(offer_id)
+
+    if isinstance(publish_result, dict) and "listingId" in publish_result:
+        listing_id = publish_result["listingId"]
+        logger.info(f"Предложение успешно опубликовано! ID объявления: {listing_id}")
+        logger.info(f"URL объявления: https://www.sandbox.ebay.de/itm/{listing_id}")
+        return True
+    else:
+        logger.error("Не удалось опубликовать предложение")
+        if isinstance(publish_result, dict) and "error" in publish_result:
+            logger.error(f"Ошибка: {publish_result['error']}")
+        if isinstance(publish_result, dict) and "errors" in publish_result:
+            for error in publish_result.get("errors", []):
+                logger.error(f"Ошибка eBay: {error.get('message', '')}")
+                if "longMessage" in error:
+                    logger.error(f"Подробности: {error['longMessage']}")
+        return False
+
+
 def main():
     """Основная функция для работы с модулем"""
     print("=== Загрузка товаров на eBay ===")
@@ -200,6 +356,7 @@ def main():
     print("2. Загрузить товар из product_template_mattress.json")
     print("3. Загрузить товар из другого файла")
     print("4. Проверить доступ к Inventory API")
+    print("5. Создать предложение из файла offer.json")
     print("0. Выход")
 
     choice = input("Выберите действие: ")
@@ -236,6 +393,13 @@ def main():
             print("Доступ к Inventory API подтвержден.")
         else:
             print("Нет доступа к Inventory API. Проверьте настройки и токены.")
+
+    elif choice == "5":
+        result = prepare_and_create_offer_from_json()
+        if result:
+            print("Предложение успешно создано и опубликовано на eBay!")
+        else:
+            print("Не удалось создать или опубликовать предложение.")
 
     else:
         print("Выход из программы")

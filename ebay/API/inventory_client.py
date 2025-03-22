@@ -316,50 +316,49 @@ class EbayInventoryClient:
         # Добавляем обязательные заголовки для API eBay
         headers = {
             "Content-Type": "application/json",
-            "Content-Language": "de-DE",  # или другой язык, например "de-DE" для немецкого
+            "Content-Language": "de-DE",
         }
 
         # Запрос на создание/обновление товара в инвентаре
         return self._call_api(endpoint, "PUT", data=inventory_item, headers=headers)
 
-    def create_offer(self, sku: str, offer_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Создание предложения (Offer) для товара"""
+    def create_offer_from_json(self, offer_json_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Создание предложения из JSON данных
+
+        Args:
+            offer_json_data (Dict[str, Any]): Данные предложения в формате JSON
+
+        Returns:
+            Dict[str, Any]: Результат создания предложения
+        """
+        if not self.authenticate():
+            logger.error("Не удалось аутентифицироваться для создания предложения")
+            return {"error": "Ошибка аутентификации"}
+
+        # Проверка обязательных полей
+        required_fields = ["sku", "marketplaceId", "format"]
+        missing_fields = [
+            field for field in required_fields if field not in offer_json_data
+        ]
+        if missing_fields:
+            logger.error(
+                f"В данных предложения отсутствуют обязательные поля: {', '.join(missing_fields)}"
+            )
+            return {
+                "error": f"Отсутствуют обязательные поля: {', '.join(missing_fields)}"
+            }
+
+        # Создание предложения через API eBay
         endpoint = "sell/inventory/v1/offer"
-
-        # Подготовка данных предложения (второй шаг - создание предложения для товара)
-        offer = {
-            "sku": sku,
-            "marketplaceId": "EBAY_DE",
-            "format": "FIXED_PRICE",
-            "availableQuantity": offer_data.get("quantity", 1),
-            "categoryId": offer_data.get("category_id", ""),
-            "listingDescription": offer_data.get("description", ""),
-            "listingPolicies": {
-                "paymentPolicyId": PAYMENT_POLICY_ID,
-                "returnPolicyId": RETURN_POLICY_ID,
-                "fulfillmentPolicyId": SHIPPING_POLICY_ID,
-            },
-            "pricingSummary": {
-                "price": {
-                    "value": str(offer_data.get("price", {}).get("value", 0)),
-                    "currency": offer_data.get("price", {}).get("currency", "EUR"),
-                }
-            },
-            "merchantLocationKey": MERCHANT_LOCATION_KEY,
+        headers = {
+            "Content-Type": "application/json",
+            "Content-Language": "de-DE",
         }
-
-        # Добавление настроек объявления
-        if "listing_policies" in offer_data:
-            policies = offer_data["listing_policies"]
-            if "best_offer_enabled" in policies:
-                offer["listingPolicies"]["bestOfferEnabled"] = policies[
-                    "best_offer_enabled"
-                ]
-            if "listing_duration" in policies:
-                offer["listingDuration"] = policies["listing_duration"]
-
-        # Запрос на создание предложения
-        return self._call_api(endpoint, "POST", data=offer)
+        logger.info(
+            f"Отправка запроса на создание предложения для SKU: {offer_json_data['sku']}"
+        )
+        return self._call_api(endpoint, "POST", data=offer_json_data, headers=headers)
 
     def publish_offer(self, offer_id: str) -> Dict[str, Any]:
         """Публикация предложения (Offer) на eBay"""
