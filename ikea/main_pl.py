@@ -38,6 +38,7 @@ matches_file = data_directory / "ikea_matches.json"
 output_json_file = data_directory / "output.json"
 prom_file = current_directory / "Пром.xlsx"
 rozetka_file = current_directory / "Розетка.xlsx"
+exclusion_file = current_directory / "exclusion_products.txt"
 
 logger.remove()
 # 🔹 Логирование в файл
@@ -759,7 +760,7 @@ def update_excel_files_with_availability_info(
     matches_file = data_directory / "ikea_matches.json"
     prom_file = current_directory / "Пром.xlsx"
     rozetka_file = current_directory / "Розетка.xlsx"
-
+    skipped_count = 0
     # Проверяем наличие файлов
     if not matches_file.exists():
         logger.error(f"Файл {matches_file} не найден.")
@@ -789,7 +790,24 @@ def update_excel_files_with_availability_info(
     logger.info(
         f"Товаров для Розетки: {len(rozetka_items)}, для Prom: {len(prom_items)}"
     )
-
+    # Загружаем список исключений
+    excluded_products = set()
+    if exclusion_file.exists():
+        try:
+            with open(exclusion_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        excluded_products.add(line)
+            logger.info(
+                f"Загружено {len(excluded_products)} товаров в список исключений"
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке списка исключений: {e}")
+    else:
+        logger.warning(
+            f"Файл исключений {exclusion_file} не найден. Продолжаем без исключений."
+        )
     # Обновляем файл Розетки
     try:
         # Загружаем Excel файл
@@ -825,6 +843,11 @@ def update_excel_files_with_availability_info(
         # Обновляем данные для каждого товара
         updated_count = 0
         for item in rozetka_items:
+            if item["id_ikea"] in excluded_products:
+                logger.info(f"Товар {item['id_ikea']} в списке исключений, пропускаем")
+                skipped_count += 1
+                continue
+
             # Находим строки, где Артикул совпадает с id_ikea
             mask = rozetka_df["Артикул"] == item["id_ikea"]
             if mask.any():
@@ -888,6 +911,10 @@ def update_excel_files_with_availability_info(
         # Обновляем данные для каждого товара
         updated_count = 0
         for item in prom_items:
+            if item["id_ikea"] in excluded_products:
+                logger.info(f"Товар {item['id_ikea']} в списке исключений, пропускаем")
+                skipped_count += 1
+                continue
             # Находим строки, где Код_товару совпадает с id_ikea
             mask = prom_df["Код_товару"] == item["id_ikea"]
             if mask.any():
@@ -908,6 +935,9 @@ def update_excel_files_with_availability_info(
         output_prom_file = current_directory / "Пром_обновленный.xlsx"
         prom_df.to_excel(output_prom_file, index=False)
         logger.info(f"Обновленный файл сохранен: {output_prom_file}")
+        logger.info(
+            f"Обновлено {updated_count} товаров в файле Пром.xlsx, пропущено {skipped_count} из списка исключений"
+        )
 
     except Exception as e:
         logger.error(f"Ошибка при обновлении файла Пром.xlsx: {e}")

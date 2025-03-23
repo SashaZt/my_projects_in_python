@@ -1,16 +1,22 @@
 import asyncio
 import datetime
 import json
-import os
+import sqlite3
 import sys
+import time
 from pathlib import Path
 
+import gspread
 import nodriver as uc
+import schedule
 from bs4 import BeautifulSoup
+from google.oauth2.service_account import Credentials
 from loguru import logger
 
 # Настройка директорий и логирования
+# Настройка путей
 current_directory = Path.cwd()
+config_directory = current_directory / "config"
 html_directory = current_directory / "html"
 data_directory = current_directory / "data"
 log_directory = current_directory / "log"
@@ -18,9 +24,12 @@ log_directory = current_directory / "log"
 data_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
 html_directory.mkdir(parents=True, exist_ok=True)
-
+output_json_file = data_directory / "output.json"
+config_file = config_directory / "config.json"
+service_account_file = config_directory / "credentials.json"
 log_file_path = log_directory / "log_message.log"
 output_xlsx_file = data_directory / "output.xlsx"
+db_path = data_directory / "tikleap_users.db"
 
 logger.remove()
 # 🔹 Логирование в файл
@@ -41,6 +50,64 @@ logger.add(
     level="DEBUG",
     enqueue=True,
 )
+
+
+def get_config():
+    """Загружает конфигурацию из JSON файла."""
+    with open(config_file, "r", encoding="utf-8") as file:
+        data = json.load(file)
+    return data
+
+
+# Загрузка конфигурации
+config = get_config()
+SPREADSHEET = config["google"]["spreadsheet"]
+SHEET = config["google"]["sheet"]
+
+
+def get_google_sheet():
+    """Подключается к Google Sheets и возвращает указанный лист."""
+    try:
+        # Новый способ аутентификации с google-auth
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+
+        credentials = Credentials.from_service_account_file(
+            service_account_file, scopes=scopes
+        )
+
+        # Авторизация в gspread с новыми учетными данными
+        client = gspread.authorize(credentials)
+
+        # Открываем таблицу по ключу и возвращаем лист
+        spreadsheet = client.open_by_key(SPREADSHEET)
+        logger.info("Успешное подключение к Google Spreadsheet.")
+        return spreadsheet.worksheet(SHEET)
+    except FileNotFoundError:
+        logger.error("Файл учетных данных не найден. Проверьте путь.")
+        raise FileNotFoundError("Файл учетных данных не найден. Проверьте путь.")
+    except gspread.exceptions.APIError as e:
+        logger.error(f"Ошибка API Google Sheets: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Произошла ошибка: {e}")
+        raise
+
+
+# Получение листа Google Sheets
+sheet = get_google_sheet()
+
+
+def ensure_row_limit(sheet, required_rows=10000):
+    """Увеличивает количество строк в листе Google Sheets, если их меньше требуемого количества."""
+    current_rows = len(sheet.get_all_values())
+    if current_rows < required_rows:
+        sheet.add_rows(required_rows - current_rows)
+
+
+ensure_row_limit(sheet, 1000)
 
 
 async def process_country(browser, country_code):
@@ -129,9 +196,8 @@ async def process_country(browser, country_code):
 async def main():
     # Загружаем список стран из JSON-файла
     try:
-        with open("country.json", "r", encoding="utf-8") as f:
-            country_data = json.load(f)
-            country_list = country_data.get("country", [])
+
+        country_list = config.get("country", [])
 
         if not country_list:
             logger.error("Список стран пуст или не найден в файле country.json")
@@ -296,7 +362,6 @@ def process_all_html_files():
                 processed_files += 1
 
         # Сохраняем все данные в один общий файл
-        output_json_file = data_directory / "output.json"
         with open(output_json_file, "w", encoding="utf-8") as f:
             json.dump(all_users_data, f, ensure_ascii=False, indent=4)
         logger.success(f"Все данные успешно сохранены в общий файл: {output_json_file}")
@@ -304,9 +369,15 @@ def process_all_html_files():
         logger.success(
             f"Обработка завершена. Успешно обработано {processed_files} из {len(html_files)} файлов."
         )
-        save_users_to_excel(all_users_data)
+
+        save_users_to_sqlite(all_users_data, db_path)
+
+        # Экспортируем данные в Google Sheets
+        export_unloaded_users_to_google_sheets()
+
     except Exception as e:
         logger.error(f"Ошибка при обработке HTML-файлов: {str(e)}")
+        logger.exception("Подробная информация об ошибке:")
 
 
 def save_user_data(users_data, country_code):
@@ -368,40 +439,36 @@ def parse_html_file(file_path):
                 # Извлекаем нужные данные
                 profile_link = row.get("href", "")
 
-                # Находим место в рейтинге
-                rank = row.select_one(".ranklist-place-wrapper span").text.strip()
+                # Проверяем, что ссылка существует и не пуста
+                if not profile_link:
+                    logger.warning(f"Пропуск строки - отсутствует ссылка на профиль")
+                    continue
 
-                # Находим имя пользователя
-                username = row.select_one(".ranklist-username").text.strip()
+                # Находим место в рейтинге с проверкой
+                rank_element = row.select_one(".ranklist-place-wrapper span")
+                if not rank_element:
+                    logger.warning(
+                        f"Пропуск профиля {profile_link} - отсутствует элемент ранга"
+                    )
+                    continue
+                rank = rank_element.text.strip()
 
-                # Находим заработок
-                earning = row.select_one(
-                    ".ranklist-earning-wrapper span.price"
-                ).text.strip()
-
-                # Находим количество бриллиантов
-                diamonds = row.select_one(
-                    ".ranklist-diamonds-wrapper span"
-                ).text.strip()
-
-                # Проверяем, активен ли стрим сейчас
-                is_live = bool(row.select_one(".ranklist-live-badge"))
-
-                # Получаем аватар
-                avatar_img = row.select_one(".avatar-wrapper img")
-                avatar_url = avatar_img.get("src", "") if avatar_img else ""
+                # Находим заработок с проверкой
+                earning_element = row.select_one(".ranklist-earning-wrapper span.price")
+                if not earning_element:
+                    logger.warning(
+                        f"Пропуск профиля {profile_link} - отсутствует элемент заработка"
+                    )
+                    continue
+                earning = earning_element.text.strip()
 
                 # Создаем объект с данными пользователя
                 user_data = {
-                    "дата добавления": current_datetime,
-                    "источник": country_code,
-                    "ссылка": profile_link,
-                    "место в рейтинге на момент добавления": rank,
-                    # "username": username,
-                    "заработок на момент добавления": earning,
-                    # "diamonds": diamonds,
-                    # "is_live": is_live,
-                    # "avatar_url": avatar_url,
+                    "current_datetime": current_datetime,
+                    "country_code": country_code,
+                    "profile_link": profile_link,
+                    "rank": rank,
+                    "earning": earning,
                 }
 
                 users_data.append(user_data)
@@ -420,73 +487,280 @@ def parse_html_file(file_path):
         return []
 
 
-def save_users_to_excel(users_data):
+def save_users_to_sqlite(users_data, db_path=None):
     """
-    Функция для сохранения данных о пользователях в Excel файл
+    Функция для сохранения данных о пользователях в SQLite базу данных
 
     Args:
         users_data (list): Список словарей с данными пользователей
-        output_file (str or Path, optional): Путь к выходному файлу Excel.
-                    По умолчанию None (будет создан файл users_data.xlsx в директории data)
+        db_path (str or Path, optional): Путь к файлу базы данных
     """
     try:
-        import pandas as pd
-        from openpyxl import Workbook
-        from openpyxl.styles import Alignment, Font, PatternFill
-        from openpyxl.utils import get_column_letter
-
         if not users_data:
-            logger.warning("Нет данных для сохранения в Excel")
+            logger.warning("Нет данных для сохранения в базу данных")
             return
 
-        # Создаем DataFrame из данных пользователей
-        df = pd.DataFrame(users_data)
+        # Устанавливаем путь к базе данных по умолчанию, если не указан
+        if db_path is None:
+            db_path = data_directory / "tikleap_users.db"
 
-        # Создаем новую книгу Excel
-        wb = Workbook()
-        ws = wb.active
-        ws.title = "Users Data"
+        logger.info(f"Сохранение данных в базу данных: {db_path}")
 
-        # Добавляем заголовки
-        headers = list(users_data[0].keys())
-        for col_num, header in enumerate(headers, 1):
-            cell = ws.cell(row=1, column=col_num)
-            cell.value = header
-            cell.font = Font(bold=True)
-            cell.alignment = Alignment(horizontal="center")
-            cell.fill = PatternFill(
-                start_color="DDDDDD", end_color="DDDDDD", fill_type="solid"
+        # Подключаемся к БД
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+
+        # Создаем таблицу, если она не существует
+        cursor.execute(
+            """
+        CREATE TABLE IF NOT EXISTS tikleap_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            current_datetime TEXT,
+            country_code TEXT,
+            profile_link TEXT UNIQUE,
+            rank INTEGER,
+            earning TEXT,
+            loading_table BOOLEAN DEFAULT 0
+        )
+        """
+        )
+
+        # Добавляем или обновляем данные пользователей
+        added_count = 0
+        updated_count = 0
+
+        for user in users_data:
+            try:
+                # Проверяем валидность данных
+                if not user.get("profile_link"):
+                    logger.warning("Пропуск записи: отсутствует profile_link")
+                    continue
+
+                # Преобразуем rank в int с обработкой ошибок
+                try:
+                    rank = int(user.get("rank", 0))
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Неверный формат rank для {user.get('profile_link')}, устанавливаем 0"
+                    )
+                    rank = 0
+
+                # Проверяем, существует ли уже такой пользователь
+                cursor.execute(
+                    "SELECT * FROM tikleap_users WHERE profile_link = ?",
+                    (user["profile_link"],),
+                )
+                existing_user = cursor.fetchone()
+
+                if existing_user:
+                    # Обновляем информацию о пользователе
+                    cursor.execute(
+                        """
+                    UPDATE tikleap_users SET 
+                        current_datetime = ?,
+                        country_code = ?,
+                        rank = ?,
+                        earning = ?
+                    WHERE profile_link = ?
+                    """,
+                        (
+                            user["current_datetime"],
+                            user["country_code"],
+                            rank,
+                            user["earning"],
+                            user["profile_link"],
+                        ),
+                    )
+                    updated_count += 1
+                else:
+                    # Добавляем нового пользователя
+                    cursor.execute(
+                        """
+                    INSERT INTO tikleap_users 
+                    (current_datetime, country_code, profile_link, rank, earning, loading_table) 
+                    VALUES (?, ?, ?, ?, ?, 0)
+                    """,
+                        (
+                            user["current_datetime"],
+                            user["country_code"],
+                            user["profile_link"],
+                            rank,
+                            user["earning"],
+                        ),
+                    )
+                    added_count += 1
+            except Exception as e:
+                logger.error(
+                    f"Ошибка при обработке пользователя {user.get('profile_link', 'Unknown')}: {e}"
+                )
+
+        # Сохраняем изменения
+        conn.commit()
+
+        # Выводим статистику
+        logger.success(
+            f"Данные успешно сохранены в БД: добавлено {added_count}, обновлено {updated_count} записей"
+        )
+
+        # Получаем общее количество записей в базе
+        cursor.execute("SELECT COUNT(*) FROM tikleap_users")
+        total_count = cursor.fetchone()[0]
+        logger.info(f"Всего записей в базе данных: {total_count}")
+
+        # Получаем количество записей, готовых к выгрузке
+        cursor.execute("SELECT COUNT(*) FROM tikleap_users WHERE loading_table = 0")
+        unloaded_count = cursor.fetchone()[0]
+        logger.info(f"Ожидают выгрузки в Google Sheets: {unloaded_count} записей")
+
+        # Закрываем соединение с БД
+        conn.close()
+
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении данных в базу данных: {e}")
+        logger.exception("Подробная информация об ошибке:")
+
+
+def export_unloaded_users_to_google_sheets():
+    """
+    Функция для выгрузки пользователей, у которых loading_table = False, в Google Sheets
+    """
+    try:
+        logger.info("Выгрузка данных в Google Sheets...")
+        if not db_path.exists():
+            logger.error(f"База данных не найдена по пути: {db_path}")
+            return
+
+        # Подключаемся к БД
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+
+        # Получаем все записи с loading_table = False
+        cursor.execute(
+            """
+        SELECT current_datetime, country_code, profile_link, rank, earning
+        FROM tikleap_users
+        WHERE loading_table = 0
+        ORDER BY country_code, rank
+        """
+        )
+
+        unloaded_users = cursor.fetchall()
+
+        if not unloaded_users:
+            logger.info("Нет новых записей для выгрузки в Google Sheets")
+            conn.close()
+            return
+
+        logger.info(
+            f"Найдено {len(unloaded_users)} записей для выгрузки в Google Sheets"
+        )
+
+        # Получаем лист Google Sheets
+        sheet = get_google_sheet()
+
+        # Проверяем, есть ли заголовки
+        headers = sheet.row_values(1)
+        expected_headers = [
+            "Дата добавления",
+            "Источник",
+            "Ссылка",
+            "Место в рейтинге",
+            "Заработок",
+        ]
+
+        # Если нет заголовков или они не соответствуют ожидаемым, добавляем их
+        if not headers or headers != expected_headers:
+            sheet.clear()  # Очищаем лист для установки заголовков
+            sheet.update(values=[expected_headers], range_name="A1:E1")
+            logger.info("Добавлены заголовки в Google Sheets")
+
+        # Находим первую пустую строку
+        existing_data = sheet.get_all_values()
+        next_row = len(existing_data) + 1
+
+        # Подготавливаем данные для записи
+        rows_to_insert = []
+        updated_user_ids = []
+
+        for user in unloaded_users:
+            rows_to_insert.append(list(user))
+
+            # Получаем ID пользователя для последующего обновления loading_table
+            cursor.execute(
+                """
+            SELECT id FROM tikleap_users 
+            WHERE profile_link = ?
+            """,
+                (user[2],),
             )
 
-        # Добавляем данные
-        for row_num, user in enumerate(users_data, 2):
-            for col_num, field in enumerate(headers, 1):
-                cell = ws.cell(row=row_num, column=col_num)
-                cell.value = user.get(field, "")
-                cell.alignment = Alignment(horizontal="left")
+            user_id = cursor.fetchone()
+            if user_id:
+                updated_user_ids.append(user_id[0])
 
-        # Автоподбор ширины столбцов
-        for col_num, header in enumerate(headers, 1):
-            column_letter = get_column_letter(col_num)
-            # Устанавливаем минимальную ширину для всех столбцов
-            ws.column_dimensions[column_letter].width = max(12, len(header) + 2)
+        # Записываем данные в Google Sheets
+        if rows_to_insert:
+            # Определяем диапазон для записи (A{next_row}:E{next_row+len(rows_to_insert)-1})
+            range_to_update = f"A{next_row}:E{next_row+len(rows_to_insert)-1}"
 
-            # Если это URL столбец, делаем его шире
-            if "link" in header or "url" in header:
-                ws.column_dimensions[column_letter].width = 40
+            # Исправлено: сначала values, потом range_name
+            sheet.update(values=rows_to_insert, range_name=range_to_update)
 
-        # Сохраняем книгу
-        wb.save(output_xlsx_file)
-        logger.success(f"Данные успешно сохранены в Excel-файл: {output_xlsx_file}")
+            logger.success(
+                f"Успешно выгружено {len(rows_to_insert)} записей в Google Sheets"
+            )
 
-    except ImportError:
-        logger.error(
-            "Не установлены необходимые библиотеки. Установите pandas и openpyxl: pip install pandas openpyxl"
-        )
+            # Обновляем флаг loading_table для выгруженных записей
+            for user_id in updated_user_ids:
+                cursor.execute(
+                    """
+                UPDATE tikleap_users
+                SET loading_table = 1
+                WHERE id = ?
+                """,
+                    (user_id,),
+                )
+
+            conn.commit()
+            logger.info(
+                f"Обновлен статус loading_table для {len(updated_user_ids)} записей"
+            )
+
+        # Закрываем соединение с БД
+        conn.close()
+
     except Exception as e:
-        logger.error(f"Ошибка при сохранении данных в Excel: {e}")
+        logger.error(f"Ошибка при выгрузке данных в Google Sheets: {e}")
+        logger.exception("Подробная информация об ошибке:")
+        # Если возникла ошибка, пытаемся закрыть соединение с БД
+        try:
+            if "conn" in locals() and conn:
+                conn.close()
+        except:
+            pass
 
 
 if __name__ == "__main__":
-    # uc.loop().run_until_complete(main())
-    process_all_html_files()
+
+    def job():
+        logger.info("Запуск плановой задачи...")
+        try:
+            uc.loop().run_until_complete(main())
+            process_all_html_files()
+            export_unloaded_users_to_google_sheets()
+            logger.success("Плановая задача успешно выполнена.")
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении плановой задачи: {e}")
+
+    # Запускаем задачу сразу при старте программы
+    job()
+
+    # Планируем выполнение задачи каждые 5 минут
+    schedule.every(5).minutes.do(job)
+
+    logger.info("Планировщик запущен. Задача будет выполняться каждые 5 минут.")
+
+    # Бесконечный цикл для выполнения запланированных задач
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
