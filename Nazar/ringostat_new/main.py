@@ -1,22 +1,24 @@
 import os
-from fastapi import FastAPI, Request
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
+
+import uvicorn  # Запуск сервера.
+from app.api.get_routes import router as get_routes  # Роутер для GET-запросов.
+from app.api.olx_message_routes import router as olx_message_router
+from app.api.olx_routes import router as olx_router
+from app.api.olx_token_routes import router as olx_token_router
+from app.api.post_routes import router as post_router  # Роутер для POST-запросов.
+from app.api.reservation_routes import (
+    router as reservation_router,  # Добавляем роутер для бронирований
+)
+from app.core.config import SSL_CERTFILE, SSL_KEYFILE  # Настройки SSL.
 from app.core.database import engine  # Подключение к базе данных.
 from app.core.dependencies import get_db  # Зависимость для работы с базой.
-from app.api.post_routes import router as post_router  # Роутер для POST-запросов.
-from app.api.get_routes import router as get_routes  # Роутер для GET-запросов.
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware  # Для настройки CORS.
 from fastapi.responses import JSONResponse  # Формат ответа в JSON.
-from app.core.config import SSL_KEYFILE, SSL_CERTFILE  # Настройки SSL.
 from loguru import logger
-from pathlib import Path
-import sys
-import uvicorn  # Запуск сервера.
-from app.api.olx_routes import router as olx_router  
-from app.api.olx_message_routes import router as olx_message_router
-from app.api.olx_token_routes import router as olx_token_router
-
-
 
 current_directory = Path.cwd()
 log_directory = current_directory / "log"
@@ -91,7 +93,7 @@ app.include_router(get_routes)  # Роутер для GET-запросов.
 app.include_router(olx_router)  # Добавляем OLX роутер
 app.include_router(olx_message_router)
 app.include_router(olx_token_router)
-
+app.include_router(reservation_router)  # Добавляем роутер для бронирований
 
 
 # Выводим все зарегистрированные маршруты
