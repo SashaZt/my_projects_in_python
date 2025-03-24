@@ -21,8 +21,6 @@ data_directory.mkdir(parents=True, exist_ok=True)
 
 html_directory.mkdir(parents=True, exist_ok=True)
 log_file_path = log_directory / "log_message.log"
-output_html_file = html_directory / "output.html"
-output_csv_file = data_directory / "output.csv"
 output_json_file = data_directory / "output.json"
 BASE_URL = "https://altstar.ua/"
 
@@ -49,8 +47,6 @@ logger.add(
 def get_html():
     cookies = {
         "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
-        "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
-        "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
         "language": "uk-ua",
         "currency": "UAH",
     }
@@ -75,7 +71,10 @@ def get_html():
     }
 
     response = requests.get(
-        "https://altstar.ua/1986se3754/bosch", cookies=cookies, headers=headers
+        "https://altstar.ua/1986se3754/bosch",
+        cookies=cookies,
+        headers=headers,
+        timeout=30,
     )
     # Проверка кода ответа
     if response.status_code == 200:
@@ -612,6 +611,16 @@ def scrap_html():
     return all_products
 
 
+def sanitize_filename(filename: str) -> str:
+    """Заменяет запрещённые символы в имени файла на подчёркивание."""
+    # Список запрещённых символов в Windows
+    forbidden_chars = r'\/:*?"<>|'
+    # Создаём регулярное выражение для замены любого из этих символов
+    # Заменяем каждый запрещённый символ на '_'
+    sanitized = re.sub(f"[{re.escape(forbidden_chars)}]", "_", filename)
+    return sanitized
+
+
 def get_img(img_url, product_name):
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -638,8 +647,9 @@ def get_img(img_url, product_name):
     all_data = []
 
     for i, url in enumerate(img_url):
-        output_img_file = img_directory / f"{product_name}_{i}.jpg"
-        name_img = f"{product_name}_{i}.jpg"
+        product_result = sanitize_filename(product_name)
+        output_img_file = img_directory / f"{product_result}_{i}.jpg"
+        name_img = f"{product_result}_{i}.jpg"
 
         # Проверяем, существует ли файл
         if output_img_file.exists():

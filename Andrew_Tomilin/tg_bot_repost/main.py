@@ -344,12 +344,52 @@ async def update_reposted_messages(message_ids):
         await session.commit()
 
 
-# 🔹 Пересылка сообщений
+# Рабочий код
+# # 🔹 Пересылка сообщений
+# async def get_and_forward_messages(category: str, limit: int):
+#     """Пересылает указанное количество сообщений."""
+#     message_ids = await fetch_pending_messages(category, limit)
+
+#     if not message_ids:
+#         return
+
+#     to_channel = (
+#         CHANNEL_ID_MATERIALS_FREE
+#         if category == "materials_pro"
+#         else CHANNEL_ID_MODELS_FREE
+#     )
+#     from_channel = (
+#         CHANNEL_ID_MATERIALS_PRO
+#         if category == "materials_pro"
+#         else CHANNEL_ID_MODELS_PRO
+#     )
+#     async with TelegramClient(session_name, API_ID, API_HASH) as client:
+#         await client.start(phone=phone_number, password=password)
+#         success_ids = []
+#         for msg_id in message_ids:
+#             try:
+#                 await client.forward_messages(
+#                     to_channel, msg_id, from_peer=from_channel
+#                 )
+#                 success_ids.append(msg_id)
+#                 # 🔹 Добавляем случайную паузу
+#                 delay = random.uniform(TIME_A, TIME_B)  # Генерируем случайную задержку
+#                 logger.info(
+#                     f"⏳ Ожидание {delay:.2f} секунд перед следующим сообщением..."
+#                 )
+#                 await asyncio.sleep(delay)  # Асинхронная пауза
+#             except Exception as e:
+#                 logger.error(f"❌ Ошибка при пересылке {msg_id}: {e}")
+
+
+#     if success_ids:
+#         await update_reposted_messages(success_ids)
 async def get_and_forward_messages(category: str, limit: int):
-    """Пересылает указанное количество сообщений."""
+    """Пересылает сообщения парами (фото + архив) с паузой после каждой пары."""
     message_ids = await fetch_pending_messages(category, limit)
 
     if not message_ids:
+        logger.info("📭 Нет сообщений для пересылки")
         return
 
     to_channel = (
@@ -362,26 +402,80 @@ async def get_and_forward_messages(category: str, limit: int):
         if category == "materials_pro"
         else CHANNEL_ID_MODELS_PRO
     )
+
     async with TelegramClient(session_name, API_ID, API_HASH) as client:
         await client.start(phone=phone_number, password=password)
-        success_ids = []
-        for msg_id in message_ids:
-            try:
-                await client.forward_messages(
-                    to_channel, msg_id, from_peer=from_channel
-                )
-                success_ids.append(msg_id)
-                # 🔹 Добавляем случайную паузу
-                delay = random.uniform(TIME_A, TIME_B)  # Генерируем случайную задержку
-                logger.info(
-                    f"⏳ Ожидание {delay:.2f} секунд перед следующим сообщением..."
-                )
-                await asyncio.sleep(delay)  # Асинхронная пауза
-            except Exception as e:
-                logger.error(f"❌ Ошибка при пересылке {msg_id}: {e}")
 
-    if success_ids:
-        await update_reposted_messages(success_ids)
+        # Получаем сообщения
+        messages = await client.get_messages(from_channel, ids=message_ids)
+
+        # Фильтруем и разделяем по типам
+        photo_messages = []
+        archive_messages = []
+        for msg in messages:
+            if msg is None:
+                logger.warning(
+                    f"⚠️ Сообщение с ID из {message_ids} не найдено (возможно, удалено)"
+                )
+                continue
+            if hasattr(msg, "photo") and msg.photo:
+                photo_messages.append(msg)
+            elif hasattr(msg, "document") and msg.document:
+                archive_messages.append(msg)
+            else:
+                logger.info(
+                    f"ℹ️ Сообщение с ID {msg.id} не является фото или архивом, пропускаем"
+                )
+
+        if not photo_messages or not archive_messages:
+            logger.info(
+                f"📉 Недостаточно фото ({len(photo_messages)}) или архивов ({len(archive_messages)}) для парного пересыла"
+            )
+            return
+
+        success_ids = []
+        pair_count = 0
+
+        # Пересылаем парами
+        for photo, archive in zip(photo_messages, archive_messages):
+            try:
+                # Фото
+                await client.forward_messages(
+                    to_channel, photo.id, from_peer=from_channel
+                )
+                success_ids.append(photo.id)
+                logger.info(f"✅ Переслано фото с ID {photo.id}")
+
+                # Архив
+                await client.forward_messages(
+                    to_channel, archive.id, from_peer=from_channel
+                )
+                success_ids.append(archive.id)
+                logger.info(f"✅ Переслано архив с ID {archive.id}")
+
+                pair_count += 1
+
+                # Пауза после пары
+                delay = random.uniform(TIME_A, TIME_B)
+                logger.info(f"⏳ Ожидание {delay:.2f} секунд после пары...")
+                await asyncio.sleep(delay)
+
+                # Запись в БД после 50 пар
+                if pair_count >= 15:
+                    await update_reposted_messages(success_ids)
+                    logger.info(f"📝 Записано {len(success_ids)} ID в базу данных")
+                    success_ids = []
+                    pair_count = 0
+
+            except Exception as e:
+                logger.error(
+                    f"❌ Ошибка при пересылке пары (фото {photo.id}, архив {archive.id}): {e}"
+                )
+
+        # Записываем остатки
+        if success_ids:
+            await update_reposted_messages(success_ids)
+            logger.info(f"📝 Записано оставшихся {len(success_ids)} ID в базу данных")
 
 
 async def main():
