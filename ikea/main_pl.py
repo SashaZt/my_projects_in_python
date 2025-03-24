@@ -40,6 +40,7 @@ output_json_file = data_directory / "output.json"
 prom_file = current_directory / "Пром.xlsx"
 rozetka_file = current_directory / "Розетка.xlsx"
 exclusion_file = current_directory / "exclusion_products.txt"
+not_found_file = data_directory / "not_found_links.json"
 
 logger.remove()
 # 🔹 Логирование в файл
@@ -507,6 +508,93 @@ def process_excel_files():
 
 
 # Функция для сопоставления кодов IKEA с URL из CSV с удалением дубликатов
+# def match_codes_with_urls(codes_data):
+#     if not codes_data:
+#         logger.error("Нет данных о кодах для сопоставления.")
+#         return
+
+#     try:
+#         if not all_urls_csv_file.exists():
+#             logger.error(f"Файл {all_urls_csv_file} не найден.")
+#             return
+
+#         logger.info(f"Загрузка URL из {all_urls_csv_file}...")
+#         urls_df = pd.read_csv(all_urls_csv_file)
+
+#         if "url" not in urls_df.columns:
+#             logger.error(f"Колонка 'url' не найдена в {all_urls_csv_file}.")
+#             return
+
+#         # Создаем список для хранения совпадений кодов
+#         matches = []
+#         # Создаем список для хранения найденных URL-адресов
+#         find_urls = []
+
+#         # Получаем только валидные коды
+#         valid_codes = [item for item in codes_data if item["valid"]]
+
+#         logger.info(f"Найдено {len(valid_codes)} валидных кодов для поиска.")
+
+#         # Для каждого валидного кода ищем соответствующий URL
+#         for code_item in valid_codes:
+#             formatted_code = code_item["find_ikea"]
+#             if not formatted_code:
+#                 continue
+
+#             # Ищем URL, содержащий код товара
+#             matching_urls = []
+#             for url in urls_df["url"]:
+#                 if formatted_code in url:
+#                     matching_urls.append(url)
+#                     find_urls.append({"url": url})
+
+#             if matching_urls:
+#                 # Добавляем только информацию о коде (без URL)
+#                 matches.append(
+#                     {
+#                         "id_ikea": code_item["id_ikea"],
+#                         "find_ikea": formatted_code,
+#                         "source": code_item["source"],
+#                     }
+#                 )
+
+#         logger.info(f"Найдено {len(matches)} совпадений.")
+
+#         # Сохраняем результаты в JSON
+#         logger.info(f"Сохранение результатов в {matches_file}...")
+#         with open(matches_file, "w", encoding="utf-8") as f:
+#             json.dump(matches, f, ensure_ascii=False, indent=4)
+
+#         # Создаем DataFrame с найденными URL
+#         find_urls_df = pd.DataFrame(find_urls)
+
+#         # Удаляем дубликаты URL
+#         original_count = len(find_urls_df)
+#         find_urls_df = find_urls_df.drop_duplicates(subset=["url"])
+#         unique_count = len(find_urls_df)
+
+#         # Логируем информацию об удаленных дубликатах
+#         duplicates_removed = original_count - unique_count
+#         logger.info(
+#             f"Удалено дубликатов URL: {duplicates_removed} ({duplicates_removed/original_count*100:.2f}% от общего числа)"
+#         )
+
+#         # Сохраняем только уникальные URL в CSV
+#         find_urls_df.to_csv(find_urls_csv_file, index=False)
+
+#         logger.info(
+#             f"Сопоставление завершено. Результаты сохранены в {matches_file} и {find_urls_csv_file}."
+#         )
+#         logger.info(
+#             f"В файл {find_urls_csv_file} записано {unique_count} уникальных URL."
+#         )
+
+#         return matches, find_urls_df.to_dict("records")
+
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при сопоставлении кодов с URL: {e}")
+#         return None, None
 def match_codes_with_urls(codes_data):
     if not codes_data:
         logger.error("Нет данных о кодах для сопоставления.")
@@ -528,6 +616,8 @@ def match_codes_with_urls(codes_data):
         matches = []
         # Создаем список для хранения найденных URL-адресов
         find_urls = []
+        # Создаем список для хранения ненайденных товаров
+        not_found_items = []
 
         # Получаем только валидные коды
         valid_codes = [item for item in codes_data if item["valid"]]
@@ -556,13 +646,28 @@ def match_codes_with_urls(codes_data):
                         "source": code_item["source"],
                     }
                 )
+            else:
+                # Если URL не найден, добавляем в список ненайденных
+                not_found_items.append(
+                    {
+                        "id_ikea": code_item["id_ikea"],
+                        "find_ikea": formatted_code,
+                        "source": code_item["source"],
+                    }
+                )
 
-        logger.info(f"Найдено {len(matches)} совпадений.")
+        logger.info(
+            f"Найдено {len(matches)} совпадений. Не найдено {len(not_found_items)} товаров."
+        )
 
         # Сохраняем результаты в JSON
         logger.info(f"Сохранение результатов в {matches_file}...")
         with open(matches_file, "w", encoding="utf-8") as f:
             json.dump(matches, f, ensure_ascii=False, indent=4)
+
+        logger.info(f"Сохранение списка ненайденных товаров в {not_found_file}...")
+        with open(not_found_file, "w", encoding="utf-8") as f:
+            json.dump(not_found_items, f, ensure_ascii=False, indent=4)
 
         # Создаем DataFrame с найденными URL
         find_urls_df = pd.DataFrame(find_urls)
@@ -587,12 +692,15 @@ def match_codes_with_urls(codes_data):
         logger.info(
             f"В файл {find_urls_csv_file} записано {unique_count} уникальных URL."
         )
+        logger.info(
+            f"В файл {not_found_file} записано {len(not_found_items)} ненайденных товаров."
+        )
 
-        return matches, find_urls_df.to_dict("records")
+        return matches, find_urls_df.to_dict("records"), not_found_items
 
     except Exception as e:
         logger.error(f"Ошибка при сопоставлении кодов с URL: {e}")
-        return None, None
+        return None, None, None
 
 
 def pars_htmls():
@@ -758,9 +866,7 @@ def update_excel_files_with_availability_info(
     - Обновляет колонку P (Наявність): "7" если в наличии, "-" если нет
     - Обновляет колонку I (Ціна) с ценой
     """
-    matches_file = data_directory / "ikea_matches.json"
-    prom_file = current_directory / "Пром.xlsx"
-    rozetka_file = current_directory / "Розетка.xlsx"
+
     skipped_count = 0
     # Проверяем наличие файлов
     if not matches_file.exists():
@@ -774,6 +880,9 @@ def update_excel_files_with_availability_info(
     if not rozetka_file.exists():
         logger.error(f"Файл {rozetka_file} не найден.")
         return
+    if not not_found_file.exists():
+        logger.error(f"Файл {not_found_file} не найден.")
+        return
 
     # Загружаем данные из ikea_matches.json
     try:
@@ -782,6 +891,18 @@ def update_excel_files_with_availability_info(
         logger.info(f"Загружено {len(ikea_matches)} товаров из {matches_file}")
     except Exception as e:
         logger.error(f"Ошибка при загрузке JSON-файла {matches_file}: {e}")
+        return
+    # Загружаем данные из not_found_file.json
+    try:
+        with open(not_found_file, "r", encoding="utf-8") as f:
+            not_found_items = json.load(f)
+        logger.info(f"Загружено {len(not_found_items)} товаров из {not_found_file}")
+
+        # Создаем множество идентификаторов ненайденных товаров для быстрого поиска
+        not_found_ids = {item["id_ikea"] for item in not_found_items}
+
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке JSON-файла {not_found_file}: {e}")
         return
 
     # Разделяем товары по источнику
@@ -840,15 +961,23 @@ def update_excel_files_with_availability_info(
 
         # Преобразуем артикулы в строки для сравнения
         rozetka_df["Артикул"] = rozetka_df["Артикул"].astype(str)
+        # Обработка ненайденных товаров для Розетки
+        not_found_rozetka = [
+            item for item in not_found_items if item["source"] == "rozetka"
+        ]
+        not_found_updated_count = 0
+
+        for not_found_item in not_found_rozetka:
+            mask = rozetka_df["Артикул"] == not_found_item["id_ikea"]
+            if mask.any():
+                # Устанавливаем отсутствие и нулевую цену
+                rozetka_df.loc[mask, availability_column_name] = "Не в наявності"
+                rozetka_df.loc[mask, price_column_name] = 0
+                not_found_updated_count += sum(mask)
 
         # Обновляем данные для каждого товара
         updated_count = 0
         for item in rozetka_items:
-            # if item["id_ikea"] in excluded_products:
-            #     logger.info(f"Товар {item['id_ikea']} в списке исключений, пропускаем")
-            #     skipped_count += 1
-            #     continue
-
             # Находим строки, где Артикул совпадает с id_ikea
             mask = rozetka_df["Артикул"] == item["id_ikea"]
             if mask.any():
@@ -912,14 +1041,19 @@ def update_excel_files_with_availability_info(
 
         # Преобразуем коды товаров в строки для сравнения
         prom_df["Код_товару"] = prom_df["Код_товару"].astype(str)
+        not_found_prom = [item for item in not_found_items if item["source"] == "prom"]
+        not_found_updated_count_prom = 0
 
+        for not_found_item in not_found_prom:
+            mask = prom_df["Код_товару"] == not_found_item["id_ikea"]
+            if mask.any():
+                # Устанавливаем отсутствие и нулевую цену
+                prom_df.loc[mask, availability_column_name] = "-"
+                prom_df.loc[mask, price_column_name] = 0
+                not_found_updated_count_prom += sum(mask)
         # Обновляем данные для каждого товара
         updated_count = 0
         for item in prom_items:
-            # if item["id_ikea"] in excluded_products:
-            #     logger.info(f"Товар {item['id_ikea']} в списке исключений, пропускаем")
-            #     skipped_count += 1
-            #     continue
             # Находим строки, где Код_товару совпадает с id_ikea
             mask = prom_df["Код_товару"] == item["id_ikea"]
             if mask.any():

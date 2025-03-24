@@ -182,7 +182,7 @@ class AltStarScraper:
                 self.save_links()
 
                 # Делаем паузу между запросами
-                time.sleep(random.uniform(1.0, 3.0))
+                # time.sleep(random.uniform(1.0, 3.0))
             else:
                 logger.error(f"Не удалось загрузить страницу {page}")
 
@@ -240,7 +240,7 @@ class AltStarScraper:
                         logger.error(f"Ошибка при сохранении {filename}: {e}")
 
                 # Делаем паузу между запросами
-                time.sleep(random.uniform(1.5, 4.0))
+                # time.sleep(random.uniform(1.5, 4.0))
             else:
                 logger.warning(f"Некорректный URL: {url}")
 
@@ -292,10 +292,10 @@ if __name__ == "__main__":
         # Запускаем процесс
         scraper.run()
 
-        # Пауза между обработкой категорий
-        if i < len(categories):
-            sleep_time = random.uniform(5.0, 10.0)
-            logger.info(f"Пауза {sleep_time:.1f} секунд перед следующей категорией...")
-            time.sleep(sleep_time)
+        # # Пауза между обработкой категорий
+        # if i < len(categories):
+        #     sleep_time = random.uniform(5.0, 10.0)
+        #     logger.info(f"Пауза {sleep_time:.1f} секунд перед следующей категорией...")
+        #     time.sleep(sleep_time)
 
     logger.info("Обработка всех категорий завершена!")
