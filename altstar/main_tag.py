@@ -1,10 +1,8 @@
-from bs4 import BeautifulSoup
-import json
 import html
 import json
 import sys
 from pathlib import Path
-import json
+
 from bs4 import BeautifulSoup
 from loguru import logger
 

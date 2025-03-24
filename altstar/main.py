@@ -48,6 +48,8 @@ logger.add(
 def get_html():
     cookies = {
         "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
+        "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
+        "PHPSESSID": "4u34v9cjpr22r449jev8j5ho40",
         "language": "uk-ua",
         "currency": "UAH",
     }
@@ -59,13 +61,12 @@ def get_html():
         "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "referer": "https://altstar.ua/vtyaguyuche-rele-startera",
         "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
+        "sec-fetch-site": "none",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
@@ -73,7 +74,7 @@ def get_html():
     }
 
     response = requests.get(
-        "https://altstar.ua/zm599/zm", cookies=cookies, headers=headers, timeout=30
+        "https://altstar.ua/1986se3754/bosch", cookies=cookies, headers=headers
     )
     # Проверка кода ответа
     if response.status_code == 200:
@@ -419,6 +420,7 @@ def convert_json_to_csv():
     row_data["Виробник"] = brand
     row_data["Ціна"] = left_column.get("price", "")
     row_data["Фото"] = ",".join(img_list)
+    row_data["Кількість"] = "100"
 
     # Add all characteristics as separate columns
     characteristics = middle_column.get("characteristics", {})
@@ -437,6 +439,6 @@ def convert_json_to_csv():
 
 
 if __name__ == "__main__":
-    # get_html()
+    get_html()
     scrap_html()
     convert_json_to_csv()

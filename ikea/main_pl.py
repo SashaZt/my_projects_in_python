@@ -5,6 +5,7 @@ import asyncio
 import csv
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -843,10 +844,10 @@ def update_excel_files_with_availability_info(
         # Обновляем данные для каждого товара
         updated_count = 0
         for item in rozetka_items:
-            if item["id_ikea"] in excluded_products:
-                logger.info(f"Товар {item['id_ikea']} в списке исключений, пропускаем")
-                skipped_count += 1
-                continue
+            # if item["id_ikea"] in excluded_products:
+            #     logger.info(f"Товар {item['id_ikea']} в списке исключений, пропускаем")
+            #     skipped_count += 1
+            #     continue
 
             # Находим строки, где Артикул совпадает с id_ikea
             mask = rozetka_df["Артикул"] == item["id_ikea"]
@@ -859,10 +860,14 @@ def update_excel_files_with_availability_info(
                 )
                 rozetka_df.loc[mask, availability_column_name] = avail_value
 
-                # Обновляем цену, если она есть
-                if item.get("price") is not None:
+                # Обновляем цену, если товар не в списке исключений
+                if (
+                    item.get("price") is not None
+                    and item["id_ikea"] not in excluded_products
+                ):
                     price_value = abs(float(item["price"])) * exchange_rate_rozetka
-                    rozetka_df.loc[mask, price_column_name] = price_value
+                    price = math.ceil(float(price_value))
+                    rozetka_df.loc[mask, price_column_name] = price
 
                 updated_count += sum(mask)
 
@@ -911,10 +916,10 @@ def update_excel_files_with_availability_info(
         # Обновляем данные для каждого товара
         updated_count = 0
         for item in prom_items:
-            if item["id_ikea"] in excluded_products:
-                logger.info(f"Товар {item['id_ikea']} в списке исключений, пропускаем")
-                skipped_count += 1
-                continue
+            # if item["id_ikea"] in excluded_products:
+            #     logger.info(f"Товар {item['id_ikea']} в списке исключений, пропускаем")
+            #     skipped_count += 1
+            #     continue
             # Находим строки, где Код_товару совпадает с id_ikea
             mask = prom_df["Код_товару"] == item["id_ikea"]
             if mask.any():
@@ -923,9 +928,14 @@ def update_excel_files_with_availability_info(
                 prom_df.loc[mask, availability_column_name] = avail_value
 
                 # Обновляем цену, если она есть
-                if item.get("price") is not None:
+                if (
+                    item.get("price") is not None
+                    and item["id_ikea"] not in excluded_products
+                ):
+
                     price_value = abs(float(item["price"])) * exchange_rate_prom
-                    prom_df.loc[mask, price_column_name] = price_value
+                    price = math.ceil(float(price_value))
+                    prom_df.loc[mask, price_column_name] = price
 
                 updated_count += sum(mask)
 

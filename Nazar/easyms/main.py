@@ -238,10 +238,10 @@ def post_reservation(reservation_data: Dict[str, Any]) -> bool:
         # Проверяем успешность
         response.raise_for_status()
 
-        # Логируем результат
-        logger.info(
-            f"Бронирование {reservation_data['id']} успешно отправлено: {response.status_code}"
-        )
+        # # Логируем результат
+        # logger.info(
+        #     f"Бронирование {reservation_data['id']} успешно отправлено: {response.status_code}"
+        # )
         return True
 
     except requests.exceptions.RequestException as e:
@@ -408,8 +408,8 @@ def update_reservation_status_only(reservation_id: str, status: str) -> bool:
 
         # Выводим полный ответ для отладки
         logger.debug(f"Статус ответа: {response.status_code}")
-        logger.debug(f"Заголовки ответа: {response.headers}")
-        logger.debug(f"Тело ответа: {response.text}")
+        # logger.debug(f"Заголовки ответа: {response.headers}")
+        # logger.debug(f"Тело ответа: {response.text}")
 
         # Проверяем успешность
         response.raise_for_status()
