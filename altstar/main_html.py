@@ -269,7 +269,7 @@ def read_categories(file_path):
     return categories
 
 
-if __name__ == "__main__":
+def main_scraper():
     # Путь к файлу с категориями
 
     if not categories_file.exists():
@@ -299,3 +299,7 @@ if __name__ == "__main__":
         #     time.sleep(sleep_time)
 
     logger.info("Обработка всех категорий завершена!")
+
+
+if __name__ == "__main__":
+    main_scraper()
