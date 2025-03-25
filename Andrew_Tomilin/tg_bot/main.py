@@ -1,3 +1,4 @@
+# Правки от 25.03.2025
 import asyncio
 import os
 import re
@@ -437,10 +438,12 @@ def fetch_styles_from_3dsky(slug):
 
         response.raise_for_status()  # Проверяем на ошибки HTTP
         data = response.json()
-
+        # Правки поиск материалов
         if data.get("success") and "data" in data:
             style_en = data["data"]["style_en"]
-            style_en = f"#{style_en}"
+            materials = [f"#{item['materialEn']}" for item in data["data"]["materials"]]
+            materials_string = " ".join(materials)
+            style_en = f"#{style_en} {materials_string}"
             return style_en
         else:
             raise ValueError(

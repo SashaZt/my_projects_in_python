@@ -8,6 +8,7 @@ import json
 import math
 import os
 import re
+import shutil
 import sys
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1094,6 +1095,7 @@ def main_loop():
             "Введите 1 для загрузки ссылок"
             "\nВведите 2 для загрузки всех товаров"
             "\nВведите 3 для получения отчета в Excel"
+            "\nВведите 4 для удаления временных файлов"
             "\nВведите 0 для закрытия программы"
         )
         user_input = int(input("Выберите действие: "))
@@ -1113,6 +1115,10 @@ def main_loop():
             update_excel_files_with_availability_info(
                 exchange_rate_rozetka, exchange_rate_prom
             )
+        elif user_input == 4:
+            if os.path.exists(html_directory):
+                shutil.rmtree(html_directory)
+            html_directory.mkdir(parents=True, exist_ok=True)
         elif user_input == 0:
             print("Программа завершена.")
             break  # Выход из цикла, завершение программы
