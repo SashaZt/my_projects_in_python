@@ -63,6 +63,8 @@ def get_config():
 config = get_config()
 SPREADSHEET = config["google"]["spreadsheet"]
 SHEET = config["google"]["sheet"]
+# Глобальная переменная для хранения инстанса браузера
+browser = None
 
 
 def get_google_sheet():
@@ -133,9 +135,9 @@ async def process_country(browser, country_code):
 
             for attempt in range(max_attempts):
                 # Прокрутка страницы вниз
-                logger.info(
-                    f"Прокручиваем страницу вниз (попытка {attempt+1}/{max_attempts})..."
-                )
+                # logger.info(
+                #     f"Прокручиваем страницу вниз (попытка {attempt+1}/{max_attempts})..."
+                # )
                 await target_page.scroll_down(500)  # Прокрутка на 500 пикселей
                 await asyncio.sleep(1)  # Даем время для загрузки
 
@@ -144,15 +146,15 @@ async def process_country(browser, country_code):
 
                 # Если кнопка найдена, нажимаем на нее
                 if view_more_button:
-                    logger.info("Найдена кнопка 'View More'. Нажимаем...")
+                    # logger.info("Найдена кнопка 'View More'. Нажимаем...")
                     try:
                         await view_more_button.click()
-                        logger.info("Нажали на кнопку 'View More'")
+                        # logger.info("Нажали на кнопку 'View More'")
                     except Exception as e:
                         logger.error(f"Ошибка при нажатии на 'View More': {e}")
                         try:
                             await view_more_button.mouse_click()
-                            logger.info("Нажали на 'View More' через mouse_click()")
+                            # logger.info("Нажали на 'View More' через mouse_click()")
                         except Exception as e:
                             logger.error(f"Ошибка при нажатии через mouse_click(): {e}")
 
@@ -193,10 +195,147 @@ async def process_country(browser, country_code):
         return False
 
 
+# async def main():
+#     # Загружаем список стран из JSON-файла
+#     try:
+
+#         country_list = config.get("country", [])
+
+#         if not country_list:
+#             logger.error("Список стран пуст или не найден в файле country.json")
+#             return
+
+#         logger.info(f"Загружено {len(country_list)} стран: {', '.join(country_list)}")
+#     except Exception as e:
+#         logger.error(f"Ошибка при загрузке списка стран: {str(e)}")
+#         return
+
+#     browser = None
+#     try:
+#         browser_args = []
+
+#         # browser_args = ["--headless=new"]
+#         # Инициализируем браузер
+#         browser = await uc.start(headless=False, browser_args=browser_args)
+
+#         # Сначала выполняем вход
+#         logger.info("Переходим на страницу логина...")
+#         login_page = await browser.get("https://www.tikleap.com/login")
+#         await asyncio.sleep(2)
+
+#         # Проверяем на блокировку Cloudflare
+#         content = await login_page.get_content()
+#         if (
+#             "Please enable cookies" in content
+#             or "Sorry, you have been blocked" in content
+#         ):
+#             logger.error("Обнаружена блокировка Cloudflare. Обновляем...")
+#             await login_page.reload()
+#             await asyncio.sleep(2)
+
+#         # Вводим email
+#         logger.info("Вводим email...")
+#         email_field = await login_page.select("input#email")
+#         if email_field:
+#             await email_field.send_keys("37200@starlivemail.com")
+#             await asyncio.sleep(0.5)
+#         else:
+#             logger.error("Поле email не найдено!")
+#             return
+
+#         # Вводим пароль
+#         logger.info("Вводим пароль...")
+#         password_field = await login_page.select("input#password")
+#         if password_field:
+#             await password_field.send_keys("bfnsa232@1!dsA")
+#             await asyncio.sleep(0.5)
+#         else:
+#             logger.error("Поле пароля не найдено!")
+#             return
+
+#         # Ищем кнопку логина
+#         logger.info("Ищем кнопку логина...")
+#         login_button = await login_page.select(".form-action button")
+
+#         if not login_button:
+#             login_button = await login_page.find("Log In", best_match=True)
+#             logger.info("Использую поиск по тексту для кнопки")
+
+#         if not login_button:
+#             login_button = await login_page.select("form button")
+#             logger.info("Использую поиск кнопки на форме")
+
+#         if login_button:
+#             logger.info("Кнопка логина найдена. Нажимаем...")
+#             await asyncio.sleep(1)
+
+#             try:
+#                 await login_button.click()
+#                 logger.info("Нажали на кнопку входа через .click()")
+#             except Exception as e:
+#                 logger.error(f"Ошибка при нажатии кнопки через click(): {e}")
+#                 try:
+#                     await login_button.mouse_click()
+#                     logger.info("Нажали на кнопку входа через .mouse_click()")
+#                 except Exception as e:
+#                     logger.error(f"Ошибка при нажатии кнопки через mouse_click(): {e}")
+
+#             logger.info("Ждем обработки входа...")
+#             await asyncio.sleep(5)
+
+#             # Проверяем, успешно ли выполнили вход
+#             await login_page
+#             await login_page.reload()
+
+#             current_url = login_page.url
+#             logger.info(f"Текущий URL после попытки входа: {current_url}")
+
+#             if "login" in current_url:
+#                 logger.warning("Все еще на странице логина. Вход мог не сработать.")
+
+#                 # Проверяем наличие сообщений об ошибке
+#                 error_message = await login_page.select(".form-error")
+#                 if error_message:
+#                     error_text = await error_message.get_property("textContent")
+#                     logger.warning(f"Сообщение об ошибке: {error_text}")
+
+#                 # Пытаемся сделать вход вручную
+#                 logger.info("Даем возможность для ручного входа (30 секунд)...")
+#                 await asyncio.sleep(30)
+
+#             # Обрабатываем каждую страну из списка
+#             successful_countries = 0
+#             for country in country_list:
+#                 success = await process_country(browser, country)
+#                 if success:
+#                     successful_countries += 1
+#                 # Делаем небольшую паузу между странами
+#                 await asyncio.sleep(2)
+
+#             logger.info(
+#                 f"Обработка завершена. Успешно обработано {successful_countries} из {len(country_list)} стран."
+#             )
+
+#         else:
+#             logger.error("Кнопка логина не найдена!")
+
+#     except Exception as e:
+#         logger.error(f"Произошла ошибка: {str(e)}")
+
+#     # finally:
+#     #     # Закрываем браузер
+#     #     if browser:
+#     #         try:
+#     #             await browser.stop()
+#     #             logger.info("Браузер закрыт")
+#     #         except Exception as e:
+#     #             logger.error(f"Ошибка при закрытии браузера: {str(e)}")
+
+
 async def main():
+    global browser
     # Загружаем список стран из JSON-файла
     try:
-
         country_list = config.get("country", [])
 
         if not country_list:
@@ -208,123 +347,88 @@ async def main():
         logger.error(f"Ошибка при загрузке списка стран: {str(e)}")
         return
 
-    browser = None
     try:
-        # Инициализируем браузер
-        browser = await uc.start(headless=False)
+        # Проверяем, создан ли уже браузер и работоспособен ли он
+        browser_needs_restart = False
 
-        # Сначала выполняем вход
-        logger.info("Переходим на страницу логина...")
-        login_page = await browser.get("https://www.tikleap.com/login")
-        await asyncio.sleep(2)
-
-        # Проверяем на блокировку Cloudflare
-        content = await login_page.get_content()
-        if (
-            "Please enable cookies" in content
-            or "Sorry, you have been blocked" in content
-        ):
-            logger.error("Обнаружена блокировка Cloudflare. Обновляем...")
-            await login_page.reload()
-            await asyncio.sleep(2)
-
-        # Вводим email
-        logger.info("Вводим email...")
-        email_field = await login_page.select("input#email")
-        if email_field:
-            await email_field.send_keys("37200@starlivemail.com")
-            await asyncio.sleep(0.5)
+        if browser is None:
+            logger.info("Браузер не создан, создаем новый...")
+            browser_needs_restart = True
         else:
-            logger.error("Поле email не найдено!")
-            return
-
-        # Вводим пароль
-        logger.info("Вводим пароль...")
-        password_field = await login_page.select("input#password")
-        if password_field:
-            await password_field.send_keys("bfnsa232@1!dsA")
-            await asyncio.sleep(0.5)
-        else:
-            logger.error("Поле пароля не найдено!")
-            return
-
-        # Ищем кнопку логина
-        logger.info("Ищем кнопку логина...")
-        login_button = await login_page.select(".form-action button")
-
-        if not login_button:
-            login_button = await login_page.find("Log In", best_match=True)
-            logger.info("Использую поиск по тексту для кнопки")
-
-        if not login_button:
-            login_button = await login_page.select("form button")
-            logger.info("Использую поиск кнопки на форме")
-
-        if login_button:
-            logger.info("Кнопка логина найдена. Нажимаем...")
-            await asyncio.sleep(1)
-
+            # Проверяем работоспособность браузера
             try:
-                await login_button.click()
-                logger.info("Нажали на кнопку входа через .click()")
+                logger.info("Проверяем работоспособность существующего браузера...")
+                # Пробуем открыть простую страницу для проверки
+                test_page = await browser.get("https://www.tikleap.com", timeout=10000)
+                await asyncio.sleep(2)
+                logger.info("Существующий браузер работает нормально")
             except Exception as e:
-                logger.error(f"Ошибка при нажатии кнопки через click(): {e}")
+                logger.error(f"Ошибка при проверке браузера: {e}")
+                logger.info("Требуется перезапуск браузера")
+                browser_needs_restart = True
+
+                # Попытка закрыть старый браузер
                 try:
-                    await login_button.mouse_click()
-                    logger.info("Нажали на кнопку входа через .mouse_click()")
+                    if browser is not None:
+                        await browser.stop()
+                        logger.info("Старый браузер закрыт")
                 except Exception as e:
-                    logger.error(f"Ошибка при нажатии кнопки через mouse_click(): {e}")
+                    logger.error(f"Ошибка при закрытии старого браузера: {e}")
 
-            logger.info("Ждем обработки входа...")
-            await asyncio.sleep(5)
+                browser = None
 
-            # Проверяем, успешно ли выполнили вход
-            await login_page
-            await login_page.reload()
+        # Создаем новый браузер и выполняем логин, если нужно
+        if browser_needs_restart:
+            browser_args = []
+            # Инициализируем браузер
+            logger.info("Создание нового инстанса браузера...")
+            browser = await uc.start(headless=False, browser_args=browser_args)
 
-            current_url = login_page.url
-            logger.info(f"Текущий URL после попытки входа: {current_url}")
+            # Выполняем логин только при первом запуске
+            await perform_login(browser)
+        else:
+            logger.info("Используем существующий инстанс браузера")
 
-            if "login" in current_url:
-                logger.warning("Все еще на странице логина. Вход мог не сработать.")
-
-                # Проверяем наличие сообщений об ошибке
-                error_message = await login_page.select(".form-error")
-                if error_message:
-                    error_text = await error_message.get_property("textContent")
-                    logger.warning(f"Сообщение об ошибке: {error_text}")
-
-                # Пытаемся сделать вход вручную
-                logger.info("Даем возможность для ручного входа (30 секунд)...")
-                await asyncio.sleep(30)
-
-            # Обрабатываем каждую страну из списка
-            successful_countries = 0
-            for country in country_list:
-                success = await process_country(browser, country)
+        # Обрабатываем каждую страну из списка
+        successful_countries = 0
+        for country in country_list:
+            # Устанавливаем таймаут для обработки одной страны
+            try:
+                # Создаем задачу с таймаутом
+                country_task = asyncio.create_task(process_country(browser, country))
+                # Ждем выполнения задачи с таймаутом
+                success = await asyncio.wait_for(
+                    country_task, timeout=60
+                )  # 60 секунд на страну
                 if success:
                     successful_countries += 1
-                # Делаем небольшую паузу между странами
-                await asyncio.sleep(2)
+            except asyncio.TimeoutError:
+                logger.error(f"Таймаут при обработке страны {country}")
+                # Пропускаем эту страну и идем дальше
+                continue
+            except Exception as e:
+                logger.error(f"Ошибка при обработке страны {country}: {e}")
+                continue
 
-            logger.info(
-                f"Обработка завершена. Успешно обработано {successful_countries} из {len(country_list)} стран."
-            )
+            # Делаем небольшую паузу между странами
+            await asyncio.sleep(2)
 
-        else:
-            logger.error("Кнопка логина не найдена!")
+        logger.info(
+            f"Обработка завершена. Успешно обработано {successful_countries} из {len(country_list)} стран."
+        )
 
     except Exception as e:
         logger.error(f"Произошла ошибка: {str(e)}")
+        logger.exception("Подробная информация об ошибке:")
 
-    finally:
-        # Закрываем браузер
-        if browser:
+        # Сбрасываем браузер в случае серьезной ошибки
+        if browser is not None:
             try:
                 await browser.stop()
-                logger.info("Браузер закрыт")
-            except Exception as e:
-                logger.error(f"Ошибка при закрытии браузера: {str(e)}")
+                logger.info("Браузер закрыт из-за ошибки")
+            except:
+                pass
+            browser = None
 
 
 # Функция для обработки всех имеющихся HTML-файлов
@@ -740,6 +844,95 @@ def export_unloaded_users_to_google_sheets():
             pass
 
 
+async def perform_login(browser):
+    """Функция для логина на сайте"""
+    logger.info("Переходим на страницу логина...")
+    login_page = await browser.get("https://www.tikleap.com/login")
+    await asyncio.sleep(2)
+
+    # Проверяем на блокировку Cloudflare
+    content = await login_page.get_content()
+    if "Please enable cookies" in content or "Sorry, you have been blocked" in content:
+        logger.error("Обнаружена блокировка Cloudflare. Обновляем...")
+        await login_page.reload()
+        await asyncio.sleep(2)
+
+    # Вводим email
+    logger.info("Вводим email...")
+    email_field = await login_page.select("input#email")
+    if email_field:
+        await email_field.send_keys("37200@starlivemail.com")
+        await asyncio.sleep(0.5)
+    else:
+        logger.error("Поле email не найдено!")
+        raise Exception("Поле email не найдено")
+
+    # Вводим пароль
+    logger.info("Вводим пароль...")
+    password_field = await login_page.select("input#password")
+    if password_field:
+        await password_field.send_keys("bfnsa232@1!dsA")
+        await asyncio.sleep(0.5)
+    else:
+        logger.error("Поле пароля не найдено!")
+        raise Exception("Поле пароля не найдено")
+
+    # Ищем кнопку логина
+    logger.info("Ищем кнопку логина...")
+    login_button = await login_page.select(".form-action button")
+
+    if not login_button:
+        login_button = await login_page.find("Log In", best_match=True)
+        logger.info("Использую поиск по тексту для кнопки")
+
+    if not login_button:
+        login_button = await login_page.select("form button")
+        logger.info("Использую поиск кнопки на форме")
+
+    if login_button:
+        logger.info("Кнопка логина найдена. Нажимаем...")
+        await asyncio.sleep(1)
+
+        try:
+            await login_button.click()
+            logger.info("Нажали на кнопку входа через .click()")
+        except Exception as e:
+            logger.error(f"Ошибка при нажатии кнопки через click(): {e}")
+            try:
+                await login_button.mouse_click()
+                logger.info("Нажали на кнопку входа через .mouse_click()")
+            except Exception as e:
+                logger.error(f"Ошибка при нажатии кнопки через mouse_click(): {e}")
+
+        logger.info("Ждем обработки входа...")
+        await asyncio.sleep(5)
+
+        # Проверяем, успешно ли выполнили вход
+        await login_page
+        await login_page.reload()
+
+        current_url = login_page.url
+        logger.info(f"Текущий URL после попытки входа: {current_url}")
+
+        if "login" in current_url:
+            logger.warning("Все еще на странице логина. Вход мог не сработать.")
+
+            # Проверяем наличие сообщений об ошибке
+            error_message = await login_page.select(".form-error")
+            if error_message:
+                error_text = await error_message.get_property("textContent")
+                logger.warning(f"Сообщение об ошибке: {error_text}")
+
+            # Пытаемся сделать вход вручную
+            logger.info("Даем возможность для ручного входа (30 секунд)...")
+            await asyncio.sleep(30)
+    else:
+        logger.error("Кнопка логина не найдена!")
+        raise Exception("Кнопка логина не найдена")
+
+    logger.success("Логин успешно выполнен!")
+
+
 if __name__ == "__main__":
 
     def job():
@@ -751,6 +944,17 @@ if __name__ == "__main__":
             logger.success("Плановая задача успешно выполнена.")
         except Exception as e:
             logger.error(f"Ошибка при выполнении плановой задачи: {e}")
+            logger.exception("Подробная информация об ошибке:")
+
+            # Сбрасываем инстанс браузера в случае критической ошибки
+            global browser
+            if browser is not None:
+                try:
+                    uc.loop().run_until_complete(browser.stop())
+                    logger.info("Браузер был закрыт из-за ошибки")
+                except:
+                    pass
+                browser = None
 
     # Запускаем задачу сразу при старте программы
     job()
@@ -764,3 +968,30 @@ if __name__ == "__main__":
     while True:
         schedule.run_pending()
         time.sleep(1)
+# if __name__ == "__main__":
+
+#     def job():
+#         logger.info("Запуск плановой задачи...")
+#         try:
+#             uc.loop().run_until_complete(main())
+#             process_all_html_files()
+#             export_unloaded_users_to_google_sheets()
+#             logger.success("Плановая задача успешно выполнена.")
+#         except Exception as e:
+#             logger.error(f"Ошибка при выполнении плановой задачи: {e}")
+
+#     # Запускаем задачу сразу при старте программы
+#     job()
+
+#     # Планируем выполнение задачи каждые 5 минут
+#     schedule.every(5).minutes.do(job)
+
+#     logger.info("Планировщик запущен. Задача будет выполняться каждые 5 минут.")
+
+#     # Бесконечный цикл для выполнения запланированных задач
+#     while True:
+#         schedule.run_pending()
+#         time.sleep(1)
+#     while True:
+#         schedule.run_pending()
+#         time.sleep(1)

@@ -1,16 +1,15 @@
-import pdfplumber
-import re
-import json
-import mysql.connector
-import os
-import sys
-import glob
-import time
-import aiomysql
-import json
-import glob
 import asyncio
+import csv
+import glob
+import json
+import os
+import re
+import sys
+import time
 
+import aiomysql
+import mysql.connector
+import pdfplumber
 
 current_directory = os.getcwd()
 # Создайте полный путь к папке temp
@@ -651,7 +650,89 @@ def process_json_files():
                 insert_data_into_table(table_name, data)
 
 
+def insert_data_into_csv(table_name, data):
+    """
+    Вставка данных из JSON файла в CSV-файл.
+
+    Args:
+        table_name (str): Имя таблицы (будет использовано как часть имени файла)
+        data (list): Список словарей с данными для вставки
+    """
+    # Создаем директорию для CSV-файлов, если она не существует
+    csv_path = os.path.join(os.getcwd(), "csv_output")
+    if not os.path.exists(csv_path):
+        os.makedirs(csv_path)
+
+    # Формируем путь к файлу CSV
+    csv_file_path = os.path.join(csv_path, f"{table_name}.csv")
+
+    # Определяем, существует ли уже файл (для добавления заголовков)
+    file_exists = os.path.isfile(csv_file_path)
+
+    # Если данные пустые, не выполняем запись
+    if not data:
+        print(f"Нет данных для записи в {table_name}.csv")
+        return
+
+    # Собираем все возможные заголовки из всех записей
+    fieldnames = set()
+    for record in data:
+        fieldnames.update(record.keys())
+
+    # Преобразуем в список и сортируем для последовательности
+    fieldnames = sorted(list(fieldnames))
+
+    # Открываем файл в режиме добавления или записи
+    mode = "a" if file_exists else "w"
+    with open(csv_file_path, mode, newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+
+        # Записываем заголовки только если файл создается впервые
+        if not file_exists:
+            writer.writeheader()
+
+        # Записываем данные
+        for record in data:
+            # Заполняем пустые поля значением None
+            for field in fieldnames:
+                if field not in record:
+                    record[field] = None
+            writer.writerow(record)
+
+    print(f"Данные успешно записаны в файл {csv_file_path}")
+
+
+def process_json_files_to_csv():
+    """
+    Чтение JSON файлов из папок и запись данных в CSV-файлы
+    вместо вставки в базу данных.
+    """
+    # Получаем все поддиректории temp_path
+    folders = [
+        f for f in os.listdir(temp_path) if os.path.isdir(os.path.join(temp_path, f))
+    ]
+
+    # Фильтруем только те директории, которые начинаются с "search_key_"
+    table_folders = [f for f in folders if f.startswith("search_key_")]
+
+    for folder_name in table_folders:
+        folder_path = os.path.join(temp_path, folder_name)
+        table_name = folder_name  # Используем имя папки как имя таблицы
+
+        # Обрабатываем все JSON файлы в папке
+        json_files = glob.glob(os.path.join(folder_path, "*.json"))
+
+        for json_file_path in json_files:
+            try:
+                with open(json_file_path, "r", encoding="utf-8") as json_file:
+                    data = json.load(json_file)
+                    insert_data_into_csv(table_name, data)
+            except Exception as e:
+                print(f"Ошибка при обработке файла {json_file_path}: {e}")
+
+
 if __name__ == "__main__":
     create_folders()
     pars_pdf()
-    process_json_files()
+    # process_json_files()
+    process_json_files_to_csv()

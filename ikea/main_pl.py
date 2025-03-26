@@ -43,6 +43,8 @@ rozetka_file = current_directory / "Розетка.xlsx"
 exclusion_file = current_directory / "exclusion_products.txt"
 not_found_file = data_directory / "not_found_links.json"
 
+config_json_file = data_directory / "config.json"
+
 logger.remove()
 # 🔹 Логирование в файл
 logger.add(
@@ -61,8 +63,21 @@ logger.add(
     level="DEBUG",
     enqueue=True,
 )
+
+
+def load_config():
+    """Загрузка данных из JSON файла"""
+    try:
+        with open(config_json_file, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке данных из {config_json_file}: {e}")
+        return None
+
+
+config = load_config()
 # Конфигурация
-NUM_WORKERS = 9  # Количество параллельных потоков
+NUM_WORKERS = int(config.get("NUM_WORKERS"))
 
 
 headers = {
