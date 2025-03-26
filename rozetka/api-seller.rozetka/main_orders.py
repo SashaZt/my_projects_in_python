@@ -335,13 +335,16 @@ def get_status_payment(order_id):
 
     result = make_api_request("GET", url)
     logger.info(result)
+
     if result and result.get("success"):
-        status_payment_id = result["content"]["status_payment_id"]
-        if status_payment_id == 7:
-            # Сохраняем статус платежа в файл для отладки
-            status_file = data_directory / f"status_payment_{order_id}.json"
-            save_json_data(result, status_file)
-            return result["content"]
+        # Проверяем, что content не None перед доступом к его атрибутам
+        if result.get("content") is not None:
+            status_payment_id = result["content"].get("status_payment_id")
+            if status_payment_id == 7:
+                # Сохраняем статус платежа в файл для отладки
+                status_file = data_directory / f"status_payment_{order_id}.json"
+                save_json_data(result, status_file)
+                return result["content"]
 
     logger.error(f"Не удалось получить статус платежа для заказа {order_id}")
     return None
@@ -388,12 +391,13 @@ def process_orders():
 
                 # Получаем статус платежа
                 payment_status = get_status_payment(order_id)
-
+                logger.info(payment_status)
                 user_phone = None
-                payment_status_title = None
+                payment_status_title = "Не оплачено"  # Значение по умолчанию
 
-                if payment_status:
-                    payment_status_title = payment_status.get("title")
+                if payment_status is not None:
+                    logger.info(payment_status)
+                    payment_status_title = payment_status.get("title", "Не оплачено")
 
                     # Если статус "Сума заблокована", сохраняем телефон
                     if payment_status_title == "Сума заблокована":
@@ -401,7 +405,8 @@ def process_orders():
                         logger.info(
                             f"Сумма заблокирована для заказа #{order_id}, телефон: {user_phone}"
                         )
-
+                else:
+                    logger.info("Не оплачено")
                 # Формируем данные заказа
                 all_data = {
                     "order_id": order_id,
@@ -418,6 +423,8 @@ def process_orders():
                     },
                 }
                 result.append(all_data)
+            else:
+                logger.info(f"Товар {item_name} не наш")
         except Exception as e:
             logger.error(f"Ошибка при обработке заказа {order.get('id')}: {e}")
 
