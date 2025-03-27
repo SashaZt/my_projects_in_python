@@ -119,7 +119,7 @@ def validyty_token():
         return get_auth_token()
 
     # Проверяем токен на валидность, делая тестовый запрос
-    logger.info("Проверка валидности токена...")
+    # logger.info("Проверка валидности токена...")
     count_new_url = "https://api-seller.rozetka.com.ua/orders/counts-new"
     count_new_headers = {
         "Authorization": f"Bearer {token}",

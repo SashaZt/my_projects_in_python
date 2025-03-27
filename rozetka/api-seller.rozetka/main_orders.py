@@ -44,7 +44,7 @@ def make_api_request(method, url, params=None, data=None):
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
     try:
-        logger.info(f"Выполнение {method} запроса к {url}")
+        # logger.info(f"Выполнение {method} запроса к {url}")
         response = requests.request(
             method=method,
             url=url,
@@ -150,9 +150,15 @@ def process_orders():
                 continue
 
             item_name = order["items_photos"][0]["item_name"]
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(send_message("+380635623555", "Привет"))
+            # Отправка сообщений в ТГ
+            # loop = asyncio.new_event_loop()
+            # asyncio.set_event_loop(loop)
+            # loop.run_until_complete(
+            #     send_message(
+            #         "+380635623444",
+            #         "Привет, тестирую код, не обращай пожалуйста внимание!",
+            #     )
+            # )
 
             # Проверяем, что товар есть в нашем списке
             if item_name in product_names:
@@ -219,9 +225,39 @@ def process_orders():
     # logger.info(f"Обработано {len(orders)} заказов")
 
 
+def get_available_payments(order_id):
+    """
+    Получение доступных методов оплаты для заказа
+
+    Args:
+        order_id (int): ID заказа
+
+    Returns:
+        list: Список доступных методов оплаты или None в случае ошибки
+    """
+    url = "https://api-seller.rozetka.com.ua/orders/available-payments"
+    params = {"order_id": order_id}
+    headers = {"Content-Language": "uk"}  # Можно изменить на "ru" или "en"
+
+    result = make_api_request("GET", url, params=params, data=headers)
+
+    if result and result.get("success"):
+        payments = result.get("content", {}).get("payments", [])
+        if payments:
+            logger.info(f"Доступные методы оплаты для заказа #{order_id}: {payments}")
+            return payments
+        else:
+            logger.info(f"Для заказа #{order_id} нет доступных методов оплаты")
+            return []
+
+    logger.error(f"Не удалось получить доступные методы оплаты для заказа {order_id}")
+    return None
+
+
 if __name__ == "__main__":
     # main()
     while True:
         process_orders()
         logger.info("Пауза")
         time.sleep(300)
+    # get_available_payments("845802219")

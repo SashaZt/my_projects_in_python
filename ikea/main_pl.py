@@ -346,14 +346,14 @@ async def process_batch_with_single_browser(urls_batch, worker_id):
 
             # Если файл уже существует, пропускаем
             if output_html_file.exists():
-                logger.debug(
-                    f"Worker {worker_id}: File already exists for {url}, skipping"
-                )
+                # logger.debug(
+                #     f"Worker {worker_id}: File already exists for {url}, skipping"
+                # )
                 continue
 
             try:
                 # Переходим на конкретный URL
-                logger.info(f"Worker {worker_id}: Navigating to {url}")
+                # logger.info(f"Worker {worker_id}: Navigating to {url}")
                 await page.goto(
                     url, timeout=60000
                 )  # Увеличенный таймаут для загрузки страницы
@@ -722,8 +722,10 @@ def match_codes_with_urls(codes_data):
 def pars_htmls():
     logger.info("Собираем данные со страниц html")
     extracted_data = []
-
+    count_delete = 0
     # Пройтись по каждому HTML файлу в папке
+    html_count = len(list(html_directory.glob("*.html")))
+
     for html_file in html_directory.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             content = file.read()
@@ -732,65 +734,106 @@ def pars_htmls():
         soup = BeautifulSoup(content, "lxml")
         # 1. Извлечь заголовок продукта
         product_title = soup.find("script", attrs={"id": "pip-range-json-ld"})
-        json_string = product_title.string
-        json_data = None
-        # Убеждаемся, что содержимое не None
-        if json_string:
-            try:
-                # Парсим строку как JSON
-                json_data = json.loads(json_string)
-            except json.JSONDecodeError as e:
-                logger.error(f"Ошибка при парсинге JSON: {e}")
-        mpn = json_data.get("mpn") if json_data else None
-
-        # Извлечение цены
-        price = None
-        # Сначала пытаемся взять lowPrice
-        price = json_data.get("offers", {}).get("lowPrice")
-        # Если lowPrice нет (None), берем price
-        if price is None:
-            price = json_data.get("offers", {}).get("price")
-
-        # Пытаемся найти конкретно элемент с "Sklep - Dostępne w magazynie"
-        sklep_element = soup.select_one(
-            "div.pip-store-section__button.js-stockcheck-section"
-        )
-
-        # Также ищем все элементы со статусом доступности, чтобы в случае отсутствия "Sklep" найти альтернативный
-        all_status_elements = soup.select(
-            "span.pip-status__label div.pip-store-section__button"
-        )
-
-        # Проверяем наличие элемента "Sklep"
-        if sklep_element and "Sklep" in sklep_element.text:
-            availability_text = sklep_element.text.strip()
-
-        elif all_status_elements:
-            # Если не нашли явно "Sklep", но есть другие статусы, используем первый из них
-            availability_text = all_status_elements[0].text.strip()
-            logger.info(
-                f"Файл {mpn}: Найден альтернативный статус: {availability_text}"
-            )
+        if product_title is None or product_title.string is None:
+            os.remove(html_file)
+            count_delete += 1
         else:
-            # Если не найден никакой элемент, попробуем найти похожие
-            alt_availability_element = soup.select_one(".pip-status__label")
-            if alt_availability_element:
-                availability_text = alt_availability_element.text.strip()
-                logger.info(
-                    f"Файл {mpn}: Найден альтернативный статус: {availability_text}"
-                )
-            else:
-                availability_text = "Статус доступности не найден"
-                logger.warning(f"Файл {mpn}: Не удалось найти информацию о доступности")
-        # Проверяем, есть ли конкретная фраза "Sklep - Dostępne w magazynie"
-        has_in_store = "Sklep - Dostępne w magazynie" in availability_text
-        all_data = {
-            "mpn": mpn,
-            "price": price,
-            "product_in_stock": has_in_store,
-        }
-        logger.info(all_data)
-        extracted_data.append(all_data)
+            json_string = product_title.string
+            # Дальше работа с json_string
+
+            json_data = None
+            # Убеждаемся, что содержимое не None
+            if json_string:
+                try:
+                    # Парсим строку как JSON
+                    json_data = json.loads(json_string)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Ошибка при парсинге JSON: {e}")
+            mpn = json_data.get("mpn") if json_data else None
+
+            # Извлечение цены
+            price = None
+            # Сначала пытаемся взять lowPrice
+            price = json_data.get("offers", {}).get("lowPrice")
+            # Если lowPrice нет (None), берем price
+            if price is None:
+                price = json_data.get("offers", {}).get("price")
+
+            # Пытаемся найти конкретно элемент с "Sklep - Dostępne w magazynie"
+            sklep_element = soup.select_one(
+                "div.pip-store-section__button.js-stockcheck-section"
+            )
+            has_in_store = False
+            availability_text = "Товар не доступен"
+
+            # Пытаемся найти элементы с информацией о доступности
+            all_status_elements = soup.select(
+                "span.pip-status__label div.pip-store-section__button"
+            )
+
+            # Проверяем все найденные элементы
+            for element in all_status_elements:
+                element_text = element.text.strip()
+                availability_text = element_text  # Сохраняем найденный статус
+
+                # Проверяем, содержит ли текст нужную фразу
+                if "Sklep - Dostępne w magazynie" in element_text:
+                    has_in_store = True
+                    break  # Нашли нужный статус, прекращаем поиск
+
+            # Если элементы не найдены или ни один не содержит нужную фразу
+            if not all_status_elements:
+                availability_text = "Товар не доступен"
+                has_in_store = False
+                # logger.warning(
+                #     f"Файл {html_file}: Не удалось найти информацию о доступности"
+                # )
+                os.remove(html_file)
+                count_delete += 1
+            # # Также ищем все элементы со статусом доступности, чтобы в случае отсутствия "Sklep" найти альтернативный
+            # all_status_elements = soup.select(
+            #     "span.pip-status__label div.pip-store-section__button"
+            # )
+
+            # # Проверяем наличие элемента "Sklep"
+            # if sklep_element and "Sklep" in sklep_element.text:
+            #     availability_text = sklep_element.text.strip()
+
+            # elif all_status_elements:
+            #     # Если не нашли явно "Sklep", но есть другие статусы, используем первый из них
+            #     availability_text = all_status_elements[0].text.strip()
+            #     logger.info(
+            #         f"Файл {mpn}: Найден альтернативный статус: {availability_text}"
+            #     )
+
+            # else:
+            #     # Если не найден никакой элемент, попробуем найти похожие
+            #     alt_availability_element = soup.select_one(".pip-status__label")
+            #     if alt_availability_element:
+            #         availability_text = alt_availability_element.text.strip()
+            #         logger.info(
+            #             f"Файл {mpn}: Найден альтернативный статус: {availability_text}"
+            #         )
+            #     else:
+            #         availability_text = "Статус доступности не найден"
+            #         logger.warning(
+            #             f"Файл {mpn}: Не удалось найти информацию о доступности"
+            #         )
+            #         os.remove(html_file)
+            #         count_delete += 1
+
+            # Проверяем, есть ли конкретная фраза "Sklep - Dostępne w magazynie"
+            has_in_store = "Sklep - Dostępne w magazynie" in availability_text
+            all_data = {
+                "mpn": mpn,
+                "price": price,
+                "product_in_stock": has_in_store,
+            }
+            # logger.info(all_data)
+            extracted_data.append(all_data)
+            html_count -= 1
+            print(f"Осталось обработать: {html_count} файлов", end="\r")
+    logger.info(f"Удаленно {count_delete} файлов")
     with open(output_json_file, "w", encoding="utf-8") as json_file:
         json.dump(extracted_data, json_file, ensure_ascii=False, indent=4)
     # Добавьте этот вызов
