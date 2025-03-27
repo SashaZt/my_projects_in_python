@@ -1,10 +1,16 @@
+import http.client
+import os
 import random
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from urllib.parse import urlparse
 
+import httpx
 import pandas as pd
 import requests
+import wget
 from loguru import logger
 
 current_directory = Path.cwd()
@@ -50,22 +56,25 @@ def download_xml():
     proxies_dict = {"http": proxy, "https": proxy}
 
     headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-        "priority": "u=0, i",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
         "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "none",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://jumper-cloud.fra1.digitaloceanspaces.com/34152937/export/yml/50/export_yandex_market.xml",
+        "https://xcore.com.ua/jetsitemap-products-page-4.xml",
         headers=headers,
         timeout=30,
     )
@@ -170,8 +179,122 @@ def xml_temp():
         print("Ошибка: Секция <offers> не найдена в XML.")
 
 
+def httpx_client():
+    headers = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Pragma": "no-cache",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+    }
+    with httpx.Client() as client:
+        response = client.get(
+            "https://xcore.com.ua/jetsitemap-products-page-4.xml",
+            headers=headers,
+            timeout=30,
+            follow_redirects=False,  # Отключаем редиректы
+        )
+
+        if response.status_code == 200:
+            with open("export_yandex_market.xml", "wb") as file:
+                file.write(response.content)
+            print("Файл успешно сохранен")
+        else:
+            print(f"Ошибка при скачивании файла: {response.status_code}")
+
+
+def download_with_wget_lib():
+    """
+    Скачивает файл по URL с помощью библиотеки wget
+
+    Args:
+        url (str): URL для скачивания файла
+        download_dir (str): Директория для сохранения файла
+
+    Returns:
+        str or None: Путь к скачанному файлу или None в случае ошибки
+    """
+    try:
+        url = "https://xcore.com.ua/jetsitemap-products-page-4.xml"
+        # Создаем директорию, если она не существует
+        os.makedirs(xml_directory, exist_ok=True)
+
+        # Получаем имя файла из URL
+        file_name = os.path.basename(urlparse(url).path)
+        file_path = os.path.join(xml_directory, file_name)
+
+        print(f"Начинаю скачивание файла с {url}")
+
+        # Скачиваем файл
+        downloaded_file = wget.download(url, out=file_path)
+        print(f"\nФайл успешно сохранен в: {downloaded_file}")
+
+        return downloaded_file
+    except Exception as e:
+        print(f"\nОшибка при скачивании файла: {e}")
+        return None
+
+
+def download_with_curl():
+    """
+    Скачивает файл по URL используя системную команду curl
+
+    Returns:
+        str or None: Путь к скачанному файлу или None в случае ошибки
+    """
+    try:
+
+        # Создаем директорию, если она не существует
+
+        # Получаем имя файла из URL
+        file_name = os.path.basename(urlparse(url).path)
+        file_path = os.path.join(xml_directory, file_name)
+
+        print(f"Начинаю скачивание файла с {url}")
+
+        # Формируем команду curl
+        command = [
+            "curl",
+            "-o",
+            file_path,  # Выходной файл
+            "-L",  # Следовать редиректам
+            "-A",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",  # User-Agent
+            "--max-redirs",
+            "10",  # Максимальное количество редиректов
+            "--connect-timeout",
+            "30",  # Тайм-аут соединения
+            url,
+        ]
+
+        # Выполняем команду
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+
+        if result.returncode == 0:
+            print(f"Файл успешно сохранен в: {file_path}")
+            return file_path
+        else:
+            print(f"Ошибка при скачивании файла: {result.stderr}")
+            return None
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")
+        return None
+
+
 if __name__ == "__main__":
-    download_xml()
+    # httpx_client()
+    download_with_curl()
+    # download_xml()
     # parse_sitemap_urls()
     # parsin_xml()
     # xml_temp()
