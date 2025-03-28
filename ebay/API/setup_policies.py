@@ -2,7 +2,6 @@ import json
 import logging
 import os
 import sys
-import time
 
 # Импорт модуля авторизации
 from auth import EbayAuth
@@ -11,339 +10,301 @@ from auth import EbayAuth
 from inventory_client import EbayInventoryClient  # Добавьте эту строку
 from logger import logger
 
+from config import CLIENT_ID, CLIENT_SECRET, DEFAULT_MARKETPLACE_ID, RUNAME
 
-def save_policy_id(key, value):
-    """
-    Сохранение ID политики в файл config/policy_ids.json
+# # Добавление текущей директории в путь поиска модулей
+# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-    Args:
-        key (str): Ключ (название политики)
-        value (str): Значение (ID политики)
-    """
-    # Создание директории, если не существует
-    os.makedirs("config", exist_ok=True)
+# # Настройка логирования
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format="%(asctime)s | %(levelname)s | %(lineno)d | %(message)s",
+#     datefmt="%Y-%m-%d %H:%M:%S",
+# )
+# logger = logging.getLogger(__name__)
 
-    config_file = "config/policy_ids.json"
-
-    # Чтение существующего файла или создание нового словаря
-    try:
-        with open(config_file, "r", encoding="utf-8") as f:
-            policy_ids = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        policy_ids = {}
-
-    # Обновление словаря и сохранение
-    policy_ids[key] = value
-
-    with open(config_file, "w", encoding="utf-8") as f:
-        json.dump(policy_ids, f, indent=2, ensure_ascii=False)
-
-    logger.info(f"ID политики {key} сохранен в файл {config_file}: {value}")
+# Импорт модуля авторизации и клиента
+# try:
+#     from auth import EbayAuth
+# except ImportError:
+#     # Если файла auth.py нет, используем класс EbayAuth из upload_item.py
+#     from upload_item import EbayAuth, EbayInventoryClient
 
 
-def opt_in_to_business_policies(client):
-    """
-    Активация бизнес-политик для аккаунта eBay
-
-    Args:
-        client (EbayInventoryClient): Инициализированный клиент eBay API
-
-    Returns:
-        bool: Результат операции
-    """
-    logger.info("Активация бизнес-политик для аккаунта...")
-
-    # Проверка аутентификации
-    if not client.authenticate():
-        logger.error("Не удалось аутентифицироваться для активации бизнес-политик")
-        return False
-
-    # Данные для запроса
-    opt_in_data = {"programType": "SELLING_POLICY_MANAGEMENT"}
-
-    # Заголовки для API
-    headers = {"Content-Type": "application/json"}
-
-    # Отправка запроса на активацию бизнес-политик
-    result = client._call_api(
-        "sell/account/v1/program/opt_in", "POST", data=opt_in_data, headers=headers
-    )
-
-    # Обработка результата
-    if isinstance(result, dict) and "errors" in result:
-        logger.error(f"Ошибка при активации бизнес-политик: {result['errors']}")
-        return False
-
-    # Если нет ошибок, то считаем операцию успешной
-    logger.info("Бизнес-политики успешно активированы")
-    return True
-
-
-def setup_ebay_business_policies():
-    """
-    Комплексная настройка бизнес-политик eBay:
-    1. Активация бизнес-политик
-    2. Получение/создание политики оплаты
-    3. Получение/создание политики возврата
-    4. Получение/создание политики доставки
-    5. Получение/создание местоположения продавца
-
-    Returns:
-        dict: Словарь с ID всех политик или None в случае ошибки
-    """
-    logger.info("Комплексная настройка бизнес-политик eBay...")
-
-    # Инициализация клиента
+def create_seller_policies():
+    """Создание базовых политик продавца для eBay Германия"""
+    # Инициализация клиента API (без передачи auth как параметра)
     client = EbayInventoryClient()
 
-    # Проверка аутентификации
+    # Аутентификация для получения User токена
     if not client.authenticate():
-        logger.error("Не удалось аутентифицироваться для настройки бизнес-политик")
-        return None
+        logger.error("Не удалось пройти аутентификацию")
+        return False
 
-    # 1. Активация бизнес-политик
-    logger.info("Шаг 1: Активация бизнес-политик...")
-    if not opt_in_to_business_policies(client):
-        logger.warning(
-            "Не удалось активировать бизнес-политики. Возможно, они уже активированы."
-        )
-        # Продолжаем работу даже если активация не удалась (она может быть уже выполнена)
+    # Создание конфигурационного файла для сохранения ID политик
+    config_updates = {}
 
-    # Словарь для хранения ID политик
-    policy_ids = {}
+    # 2. Создание политики оплаты
+    payment_policy = {
+        "name": "Standard Payment Policy DE",
+        "description": "Standard payment policy for eBay Germany",
+        "marketplaceId": DEFAULT_MARKETPLACE_ID,
+        "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
+        "paymentMethods": [
+            {
+                "paymentMethodType": "PAYPAL",
+                "recipientAccountReference": {
+                    "referenceType": "PAYPAL_EMAIL",
+                    "referenceId": "test-paypal@example.com",  # Замените на ваш PayPal email в Sandbox
+                },
+            }
+        ],
+    }
 
-    # 2. Получение или создание политики оплаты
-    logger.info("Шаг 2: Получение/создание политики оплаты...")
-    payment_policies = client._call_api(
-        "sell/account/v1/payment_policy", "GET", params={"marketplace_id": "EBAY_DE"}
+    logger.info("Создание политики оплаты...")
+    payment_result = client._call_api(
+        "sell/account/v1/payment_policy", "POST", data=payment_policy
     )
 
-    if (
-        isinstance(payment_policies, dict)
-        and "paymentPolicies" in payment_policies
-        and payment_policies["paymentPolicies"]
-    ):
-        # Используем существующую политику оплаты
+    if "errors" in payment_result:
+        logger.error(
+            f"Ошибка при создании политики оплаты: {payment_result.get('errors', [])}"
+        )
+    elif "paymentPolicyId" in payment_result:
+        policy_id = payment_result["paymentPolicyId"]
+        logger.info(f"Политика оплаты создана: ID {policy_id}")
+        config_updates["PAYMENT_POLICY_ID"] = policy_id
+    else:
+        logger.error(
+            f"Неожиданный ответ при создании политики оплаты: {payment_result}"
+        )
+
+    # 3. Создание политики возврата
+    return_policy = {
+        "name": "Standard Return Policy DE",
+        "description": "Standard 30-day return policy for Germany",
+        "marketplaceId": DEFAULT_MARKETPLACE_ID,
+        "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
+        "returnsAccepted": True,
+        "returnPeriod": {"value": 30, "unit": "DAY"},
+        "refundMethod": "MONEY_BACK",
+        "returnShippingCostPayer": "SELLER",
+        "returnMethod": "REPLACEMENT",
+    }
+
+    logger.info("Создание политики возврата...")
+    return_result = client._call_api(
+        "sell/account/v1/return_policy", "POST", data=return_policy
+    )
+
+    if "errors" in return_result:
+        logger.error(
+            f"Ошибка при создании политики возврата: {return_result.get('errors', [])}"
+        )
+    elif "returnPolicyId" in return_result:
+        policy_id = return_result["returnPolicyId"]
+        logger.info(f"Политика возврата создана: ID {policy_id}")
+        config_updates["RETURN_POLICY_ID"] = policy_id
+    else:
+        logger.error(
+            f"Неожиданный ответ при создании политики возврата: {return_result}"
+        )
+
+    # 4. Создание политики доставки
+    fulfillment_policy = {
+        "name": "Standard Shipping Policy DE",
+        "description": "Standard shipping policy for Germany",
+        "marketplaceId": DEFAULT_MARKETPLACE_ID,
+        "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
+        "handlingTime": {"value": 1, "unit": "DAY"},
+        "shippingOptions": [
+            {
+                "optionType": "DOMESTIC",
+                "costType": "FLAT_RATE",
+                "shippingServices": [
+                    {
+                        "sortOrder": 1,
+                        "shippingCarrierCode": "DHL",
+                        "shippingServiceCode": "DE_DHLPaket",
+                        "shippingCost": {"currency": "EUR", "value": "5.99"},
+                        "additionalShippingCost": {"currency": "EUR", "value": "1.99"},
+                    }
+                ],
+            }
+        ],
+    }
+
+    logger.info("Создание политики доставки...")
+    fulfillment_result = client._call_api(
+        "sell/account/v1/fulfillment_policy", "POST", data=fulfillment_policy
+    )
+
+    if "errors" in fulfillment_result:
+        logger.error(
+            f"Ошибка при создании политики доставки: {fulfillment_result.get('errors', [])}"
+        )
+    elif "fulfillmentPolicyId" in fulfillment_result:
+        policy_id = fulfillment_result["fulfillmentPolicyId"]
+        logger.info(f"Политика доставки создана: ID {policy_id}")
+        config_updates["SHIPPING_POLICY_ID"] = policy_id
+    else:
+        logger.error(
+            f"Неожиданный ответ при создании политики доставки: {fulfillment_result}"
+        )
+
+    # Сохранение ID политик в файл для дальнейшего использования
+    if config_updates:
+        save_policy_ids(config_updates)
+
+    return bool(config_updates)
+
+
+def get_seller_policies():
+    """Получение существующих политик продавца"""
+    # Инициализация авторизации и клиента
+    client = EbayInventoryClient()
+
+    # Аутентификация для получения User токена
+    if not client.authenticate():
+        logger.error("Не удалось пройти аутентификацию")
+        return False
+
+    config_updates = {}
+
+    # 1. Получение политик оплаты
+    logger.info("Получение политик оплаты...")
+    payment_policies = client._call_api(
+        "sell/account/v1/payment_policy",
+        "GET",
+        params={"marketplace_id": DEFAULT_MARKETPLACE_ID},
+    )
+
+    if "paymentPolicies" in payment_policies and payment_policies["paymentPolicies"]:
         policy = payment_policies["paymentPolicies"][0]
         policy_id = policy["paymentPolicyId"]
         logger.info(
             f"Найдена политика оплаты: ID {policy_id}, Название: {policy['name']}"
         )
-        policy_ids["PAYMENT_POLICY_ID"] = policy_id
+        config_updates["PAYMENT_POLICY_ID"] = policy_id
     else:
-        # Создаем новую политику оплаты
-        logger.info("Создание новой политики оплаты...")
-        payment_policy = {
-            "name": "Standard Payment Policy DE " + str(int(time.time())),
-            "description": "Standard payment policy for eBay Germany",
-            "marketplaceId": "EBAY_DE",
-            "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES"}],
-        }
+        logger.warning("Политики оплаты не найдены")
 
-        payment_result = client._call_api(
-            "sell/account/v1/payment_policy",
-            "POST",
-            data=payment_policy,
-            headers={"Content-Type": "application/json", "Content-Language": "de-DE"},
-        )
-
-        if isinstance(payment_result, dict) and "paymentPolicyId" in payment_result:
-            policy_id = payment_result["paymentPolicyId"]
-            logger.info(f"Создана новая политика оплаты: ID {policy_id}")
-            policy_ids["PAYMENT_POLICY_ID"] = policy_id
-        else:
-            logger.error(f"Не удалось создать политику оплаты: {payment_result}")
-
-    # 3. Получение или создание политики возврата
-    logger.info("Шаг 3: Получение/создание политики возврата...")
+    # 2. Получение политик возврата
+    logger.info("Получение политик возврата...")
     return_policies = client._call_api(
-        "sell/account/v1/return_policy", "GET", params={"marketplace_id": "EBAY_DE"}
+        "sell/account/v1/return_policy",
+        "GET",
+        params={"marketplace_id": DEFAULT_MARKETPLACE_ID},
     )
 
-    if (
-        isinstance(return_policies, dict)
-        and "returnPolicies" in return_policies
-        and return_policies["returnPolicies"]
-    ):
-        # Используем существующую политику возврата
+    if "returnPolicies" in return_policies and return_policies["returnPolicies"]:
         policy = return_policies["returnPolicies"][0]
         policy_id = policy["returnPolicyId"]
         logger.info(
             f"Найдена политика возврата: ID {policy_id}, Название: {policy['name']}"
         )
-        policy_ids["RETURN_POLICY_ID"] = policy_id
+        config_updates["RETURN_POLICY_ID"] = policy_id
     else:
-        # Создаем новую политику возврата
-        logger.info("Создание новой политики возврата...")
-        return_policy = {
-            "name": "Standard Return Policy DE " + str(int(time.time())),
-            "description": "Standard 30-day return policy for Germany",
-            "marketplaceId": "EBAY_DE",
-            "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES"}],
-            "returnsAccepted": True,
-            "returnPeriod": {"value": 30, "unit": "DAY"},
-            "refundMethod": "MONEY_BACK",
-            "returnShippingCostPayer": "SELLER",
-            "returnMethod": "REPLACEMENT",
-        }
+        logger.warning("Политики возврата не найдены")
 
-        return_result = client._call_api(
-            "sell/account/v1/return_policy",
-            "POST",
-            data=return_policy,
-            headers={"Content-Type": "application/json", "Content-Language": "de-DE"},
-        )
-
-        if isinstance(return_result, dict) and "returnPolicyId" in return_result:
-            policy_id = return_result["returnPolicyId"]
-            logger.info(f"Создана новая политика возврата: ID {policy_id}")
-            policy_ids["RETURN_POLICY_ID"] = policy_id
-        else:
-            logger.error(f"Не удалось создать политику возврата: {return_result}")
-
-    # 4. Получение или создание политики доставки
-    logger.info("Шаг 4: Получение/создание политики доставки...")
+    # 3. Получение политик доставки
+    logger.info("Получение политик доставки...")
     fulfillment_policies = client._call_api(
         "sell/account/v1/fulfillment_policy",
         "GET",
-        params={"marketplace_id": "EBAY_DE"},
+        params={"marketplace_id": DEFAULT_MARKETPLACE_ID},
     )
 
     if (
-        isinstance(fulfillment_policies, dict)
-        and "fulfillmentPolicies" in fulfillment_policies
+        "fulfillmentPolicies" in fulfillment_policies
         and fulfillment_policies["fulfillmentPolicies"]
     ):
-        # Используем существующую политику доставки
         policy = fulfillment_policies["fulfillmentPolicies"][0]
         policy_id = policy["fulfillmentPolicyId"]
         logger.info(
             f"Найдена политика доставки: ID {policy_id}, Название: {policy['name']}"
         )
-        policy_ids["SHIPPING_POLICY_ID"] = policy_id
+        config_updates["SHIPPING_POLICY_ID"] = policy_id
     else:
-        # Создаем новую политику доставки
-        logger.info("Создание новой политики доставки...")
-        fulfillment_policy = {
-            "name": "Standard Shipping Policy DE " + str(int(time.time())),
-            "description": "Standard shipping policy for Germany",
-            "marketplaceId": "EBAY_DE",
-            "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES"}],
-            "handlingTime": {"unit": "DAY", "value": 1},
-            "shippingOptions": [
-                {
-                    "optionType": "DOMESTIC",
-                    "costType": "FLAT_RATE",
-                    "shippingServices": [
-                        {
-                            "sortOrder": 1,
-                            "shippingCarrierCode": "DHL",
-                            "shippingServiceCode": "DE_DHLPaket",
-                            "shippingCost": {"currency": "EUR", "value": "5.99"},
-                            "additionalShippingCost": {
-                                "currency": "EUR",
-                                "value": "1.99",
-                            },
-                        }
-                    ],
-                }
-            ],
-            "shipToLocations": {"regionIncluded": [{"regionName": "Worldwide"}]},
-        }
+        logger.warning("Политики доставки не найдены")
 
-        fulfillment_result = client._call_api(
-            "sell/account/v1/fulfillment_policy",
-            "POST",
-            data=fulfillment_policy,
-            headers={"Content-Type": "application/json", "Content-Language": "de-DE"},
-        )
+    # 4. Получение местоположений продавца
+    logger.info("Получение местоположений продавца...")
+    merchant_locations = client._call_api("sell/inventory/v1/location", "GET")
 
-        if (
-            isinstance(fulfillment_result, dict)
-            and "fulfillmentPolicyId" in fulfillment_result
-        ):
-            policy_id = fulfillment_result["fulfillmentPolicyId"]
-            logger.info(f"Создана новая политика доставки: ID {policy_id}")
-            policy_ids["SHIPPING_POLICY_ID"] = policy_id
-        else:
-            logger.error(f"Не удалось создать политику доставки: {fulfillment_result}")
-
-    # 5. Получение или создание местоположения продавца
-    logger.info("Шаг 5: Получение/создание местоположения продавца...")
-    locations = client._call_api("sell/inventory/v1/location", "GET")
-
-    if (
-        isinstance(locations, dict)
-        and "locations" in locations
-        and locations["locations"]
-    ):
-        # Используем существующее местоположение
-        location = locations["locations"][0]
+    if "locations" in merchant_locations and merchant_locations["locations"]:
+        location = merchant_locations["locations"][0]
         location_key = location["merchantLocationKey"]
-        logger.info(f"Найдено местоположение: Ключ {location_key}")
-        policy_ids["MERCHANT_LOCATION_KEY"] = location_key
-    else:
-        # Создаем новое местоположение
-        logger.info("Создание нового местоположения...")
-        merchant_location_key = "warehouseberlin" + str(int(time.time()) % 1000)
-
-        location_data = {
-            "location": {
-                "address": {
-                    "addressLine1": "Musterstrasse 1",
-                    "city": "Berlin",
-                    "country": "DE",
-                    "postalCode": "10115",
-                    "stateOrProvince": "Berlin",
-                }
-            },
-            "locationInstructions": "Standard location",
-            "name": "Main Warehouse",
-            "merchantLocationStatus": "ENABLED",
-        }
-
-        location_result = client._call_api(
-            f"sell/inventory/v1/location/{merchant_location_key}",
-            "PUT",
-            data=location_data,
-            headers={"Content-Type": "application/json"},
+        logger.info(
+            f"Найдено местоположение продавца: Ключ {location_key}, Название: {location['name']}"
         )
-
-        if isinstance(location_result, dict) and location_result.get("success", False):
-            logger.info(f"Создано новое местоположение: Ключ {merchant_location_key}")
-            policy_ids["MERCHANT_LOCATION_KEY"] = merchant_location_key
-        else:
-            logger.error(f"Не удалось создать местоположение: {location_result}")
-
-    # Сохранение ID политик в файл
-    logger.info("Сохранение ID политик в файл...")
-    os.makedirs("config", exist_ok=True)
-    config_file = "config/policy_ids.json"
-
-    with open(config_file, "w", encoding="utf-8") as f:
-        json.dump(policy_ids, f, indent=2, ensure_ascii=False)
-
-    logger.info(f"ID политик сохранены в файл {config_file}: {policy_ids}")
-    return policy_ids
-
-
-def test_setup_ebay_business_policies():
-    """
-    Тестирование комплексной настройки бизнес-политик
-    """
-
-    logger.info("Тестирование комплексной настройки бизнес-политик...")
-
-    policy_ids = setup_ebay_business_policies()
-
-    if policy_ids:
-        print("Бизнес-политики успешно настроены:")
-        for key, value in policy_ids.items():
-            print(f"  {key}: {value}")
-        print(f"ID политик сохранены в файл config/policy_ids.json")
+        config_updates["MERCHANT_LOCATION_KEY"] = location_key
     else:
-        print("Не удалось настроить бизнес-политики")
+        logger.warning("Местоположения продавца не найдены")
+
+    # Сохранение ID политик в файл для дальнейшего использования
+    if config_updates:
+        save_policy_ids(config_updates)
+
+    return bool(config_updates)
 
 
-if __name__ == "__main__":
-    test_setup_ebay_business_policies()
+def save_policy_ids(config_updates):
+    """Сохранение ID политик в файл config_updates.json"""
+    try:
+        # Создание директории для конфигурации, если не существует
+        os.makedirs("config", exist_ok=True)
+
+        # Путь к файлу конфигурации
+        config_file = "config/policy_ids.json"
+
+        # Чтение существующей конфигурации, если файл существует
+        existing_config = {}
+        if os.path.exists(config_file):
+            with open(config_file, "r", encoding="utf-8") as f:
+                existing_config = json.load(f)
+
+        # Обновление конфигурации
+        existing_config.update(config_updates)
+
+        # Сохранение обновленной конфигурации
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(existing_config, f, indent=2, ensure_ascii=False)
+
+        logger.info(f"ID политик сохранены в файл {config_file}")
+
+        # Вывод инструкций для обновления config.py
+        print("\nДля завершения настройки выполните следующие шаги:")
+        print("1. Откройте файл config.py")
+        print("2. Замените значения следующих переменных:")
+        for key, value in config_updates.items():
+            print(f'   {key} = "{value}"')
+
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении ID политик: {e}")
+        return False
+
+
+# if __name__ == "__main__":
+#     logger.info("Запуск скрипта настройки политик продавца...")
+
+#     # Проверка наличия RuName
+#     if not RUNAME:
+#         logger.error(
+#             "RuName не настроен в файле config.py. Настройте RuName перед запуском скрипта."
+#         )
+#         sys.exit(1)
+
+#     # Проверка наличия существующих политик
+#     logger.info("Проверка наличия существующих политик продавца...")
+#     if get_seller_policies():
+#         logger.info("Существующие политики найдены и сохранены.")
+#     else:
+#         logger.info("Существующие политики не найдены. Создание новых политик...")
+#         if create_seller_policies():
+#             logger.info("Политики продавца успешно созданы и сохранены.")
+#         else:
+#             logger.error("Не удалось создать политики продавца.")
+
+#     logger.info("Выполнение скрипта завершено.")

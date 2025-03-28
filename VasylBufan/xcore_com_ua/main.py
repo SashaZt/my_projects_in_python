@@ -85,10 +85,11 @@ HEADERS = config.get("headers", {})
 FILENAME_XML = urlparse(URL_XML).path.split("/")[-1]
 XML_FILE_PATH = xml_directory / f"{FILENAME_XML}"
 SPREADSHEET = config["google"]["spreadsheet"]
-SHEET = config["google"]["sheet"]
+SHEET_ALL = config["google"]["sheet_all"]
+SHEET_01 = config["google"]["sheet_01"]
 
 
-def get_google_sheet():
+def get_google_sheet(sheet_one):
     """Подключается к Google Sheets и возвращает указанный лист."""
     try:
         # Новый способ аутентификации с google-auth
@@ -107,7 +108,7 @@ def get_google_sheet():
         # Открываем таблицу по ключу и возвращаем лист
         spreadsheet = client.open_by_key(SPREADSHEET)
         logger.info("Успешное подключение к Google Spreadsheet.")
-        return spreadsheet.worksheet(SHEET)
+        return spreadsheet.worksheet(sheet_one)
     except FileNotFoundError:
         logger.error("Файл учетных данных не найден. Проверьте путь.")
         raise FileNotFoundError("Файл учетных данных не найден. Проверьте путь.")
@@ -119,18 +120,7 @@ def get_google_sheet():
         raise
 
 
-# Получение листа Google Sheets
-sheet = get_google_sheet()
-
-
-def ensure_row_limit(sheet, required_rows=10000):
-    """Увеличивает количество строк в листе Google Sheets, если их меньше требуемого количества."""
-    current_rows = len(sheet.get_all_values())
-    if current_rows < required_rows:
-        sheet.add_rows(required_rows - current_rows)
-
-
-def update_sheet_with_data(sheet, data, total_rows=8000):
+def update_sheet_with_data(sheet, data, total_rows=10000):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
     if not data:
         raise ValueError("Данные для обновления отсутствуют.")
@@ -220,7 +210,6 @@ def download_all_xml():
             # Получаем имя файла из URL
             file_name = urlparse(url).path.split("/")[-1]
             xml_file_path = xml_directory / file_name
-            logger.info(f"Скачиваем XML файл: {url}")
 
             download_with_curl(url, xml_file_path)
         except Exception as e:
@@ -286,6 +275,7 @@ def parsin_xml(file_name):
             product_sitemaps.append(loc.text)
     url_data = pd.DataFrame(product_sitemaps, columns=["url"])
     url_data.to_csv(urls_xml_file_path, index=False)
+    logger.info(f"Сохранил {urls_xml_file_path}")
 
 
 def fetch(url):
@@ -384,8 +374,10 @@ def extract_product_data(product_json):
         dict: Извлеченные данные продукта
     """
     try:
+        data_json_all = {}
+        data_json_01 = {}
         product_name = product_json.get("name")
-        sku = product_json.get("sku")
+        sku = product_json.get("model")
 
         # Извлекаем данные из offers
         offers = product_json.get("offers", {})
@@ -395,7 +387,6 @@ def extract_product_data(product_json):
         elif "lowPrice" in offers:
             offer_price = offers.get("lowPrice")
         offer_price = str(offer_price).replace(".", ",")
-        id_product = f'INT-{product_json.get("mpn")}'
         availability = offers.get("availability")
         schema_terms = (
             r"(InStock|PreOrder|OutOfStock|Discontinued)"  # Шаблон для поиска
@@ -412,14 +403,22 @@ def extract_product_data(product_json):
         if matches:
             last_term = matches[-1]
             result_availability = all_availability[last_term]
-        data_json = {
-            "Назва": product_name,
-            "Код товару(INT-)": f"INT-{sku}",
-            "Ціна": offer_price,
-            "Наявність": result_availability,
-            "ID(INT-)": id_product,
-        }
-        return data_json
+        if sku.endswith("~01"):
+            data_json_01 = {
+                "Назва": product_name,
+                "Код товару": sku,
+                "Ціна": offer_price,
+                "Наявність": result_availability,
+            }
+        else:
+            data_json_all = {
+                "Назва": product_name,
+                "Код товару": sku,
+                "Ціна": offer_price,
+                "Наявність": result_availability,
+            }
+
+        return data_json_all, data_json_01
     except Exception as e:
         logger.error(f"Ошибка при извлечении данных продукта: {e}")
         return None
@@ -427,15 +426,15 @@ def extract_product_data(product_json):
 
 def pars_htmls():
     logger.info("Собираем данные со страниц html")
-    all_data = []
-
+    list_all = []
+    list_01 = []
+    html_count = len(list(html_directory.glob("*.html")))
     # Пройтись по каждому HTML файлу в папке
     for html_file in html_directory.glob("*.html"):
         with html_file.open(encoding="utf-8") as file:
             content = file.read()
 
         soup = BeautifulSoup(content, "lxml")
-        # Поиск скрипта с типом application/ld+json и типом Product
         # Находим все скрипты с типом application/ld+json
         scripts = soup.find_all("script", type="application/ld+json")
 
@@ -476,12 +475,6 @@ def pars_htmls():
 
                 try:
                     json_data = json.loads(cleaned_text)
-                    # Извлекаем данные основного продукта
-                    # main_product = extract_product_data(json_data)
-                    # if main_product:
-                    #     # main_product["file_name"] = html_file
-                    #     all_data.append(main_product)
-                    # logger.info("JSON успешно распарсен")
                 except json.JSONDecodeError as e:
                     logger.error(f"Ошибка парсинга JSON: {e}")
 
@@ -512,74 +505,45 @@ def pars_htmls():
                 if json_data.get("@type") == "BreadcrumbList":
                     continue
                 if json_data.get("@type") == "Product":
-                    main_product = extract_product_data(json_data)
-                    if main_product:
-                        # main_product["file_name"] = html_file
-                        all_data.append(main_product)
-            except Exception as e:
-                logger.error(f"Общая ошибка при обработке скрипта: {e}")
-                # Проверяем, является ли это продуктом
-                if isinstance(json_data, dict):
-                    # Проверяем тип - может быть строкой или списком типов
-                    product_type = json_data.get("@type")
-                    is_product = False
+                    sklad_all, sklad_01 = extract_product_data(json_data)
+                    if sklad_all:
+                        list_all.append(sklad_all)
+                        html_count -= 1
+                        print(f"Осталось обработать: {html_count} файлов", end="\r")
+                    if sklad_01:
+                        list_01.append(sklad_01)
+                        html_count -= 1
+                        print(f"Осталось обработать: {html_count} файлов", end="\r")
 
-                    if isinstance(product_type, str) and product_type == "Product":
-
-                        is_product = True
-                    elif isinstance(product_type, list) and "Product" in product_type:
-                        is_product = True
-
-                    if is_product:
-                        # logger.info("Найдена структура Product JSON-LD")
-                        product_found = True
-
-                        # Извлекаем данные основного продукта
-                        main_product = extract_product_data(json_data)
-                        if main_product:
-                            # main_product["file_name"] = html_file
-                            all_data.append(main_product)
-
-                        # Если нашли продукт, можно прекратить поиск
-                        break
-            except json.JSONDecodeError as e:
-                logger.error(html_file)
-                error_position = (
-                    str(e).split(":")[-1].strip()
-                    if ":" in str(e)
-                    else "неизвестной позиции"
-                )
-                logger.error(f"Ошибка парсинга JSON в позиции {error_position}")
-                # Для отладки можно вывести часть текста вокруг ошибки
-                if ":" in str(e) and "position" in str(e):
-                    try:
-                        pos = int(error_position)
-                        start = max(0, pos - 20)
-                        end = min(len(script_text), pos + 20)
-                        logger.error(
-                            f"Текст вокруг ошибки: ...{script_text[start:end]}..."
-                        )
-                    except (ValueError, IndexError):
-                        pass
             except Exception as e:
                 logger.error(f"Непредвиденная ошибка при обработке скрипта: {str(e)}")
-        else:
-            pass
-            # Или можно использовать print:
-            # logger.info("Product JSON не найден.")
-    logger.info(all_data)
-    with open(output_json_file, "w", encoding="utf-8") as json_file:
-        json.dump(all_data, json_file, ensure_ascii=False, indent=4)
 
-    update_sheet_with_data(sheet, all_data)
+    # logger.info(all_data)
+    # with open(output_json_file, "w", encoding="utf-8") as json_file:
+    #     json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+    # Получение листа Google Sheets
+    if list_all:
+        sheet = get_google_sheet(SHEET_ALL)
+        update_sheet_with_data(sheet, list_all)
+    if list_01:
+        sheet = get_google_sheet(SHEET_01)
+        update_sheet_with_data(sheet, list_01)
 
 
-ensure_row_limit(sheet, 1000)
+## Код для увеличение количества строк
+# def ensure_row_limit(sheet, required_rows=10000):
+#     """Увеличивает количество строк в листе Google Sheets, если их меньше требуемого количества."""
+#     current_rows = len(sheet.get_all_values())
+#     if current_rows < required_rows:
+#         sheet.add_rows(required_rows - current_rows)
+
+
+# ensure_row_limit(sheet, 1000)
 
 if __name__ == "__main__":
-    # download_xml(URL_XML, FILENAME_XML, COOKIES, HEADERS)
-    # parsin_xml(XML_FILE_PATH)
-    # download_all_xml()
-    # parse_sitemap_urls()
-    # main_th()
+    download_with_curl(URL_XML, XML_FILE_PATH)
+    parsin_xml(XML_FILE_PATH)
+    download_all_xml()
+    parse_sitemap_urls()
+    main_th()
     pars_htmls()

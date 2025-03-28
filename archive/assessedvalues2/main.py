@@ -652,7 +652,7 @@ def process_json_files():
 
 def insert_data_into_csv(table_name, data):
     """
-    Вставка данных из JSON файла в CSV-файл.
+    Вставка данных из JSON файла в CSV-файл с разделителем ';'
 
     Args:
         table_name (str): Имя таблицы (будет использовано как часть имени файла)
@@ -666,7 +666,7 @@ def insert_data_into_csv(table_name, data):
     # Формируем путь к файлу CSV
     csv_file_path = os.path.join(csv_path, f"{table_name}.csv")
 
-    # Определяем, существует ли уже файл (для добавления заголовков)
+    # Определяем, существует ли уже файл
     file_exists = os.path.isfile(csv_file_path)
 
     # Если данные пустые, не выполняем запись
@@ -674,30 +674,130 @@ def insert_data_into_csv(table_name, data):
         print(f"Нет данных для записи в {table_name}.csv")
         return
 
-    # Собираем все возможные заголовки из всех записей
-    fieldnames = set()
-    for record in data:
-        fieldnames.update(record.keys())
+    # Жестко заданные поля для каждой таблицы
+    if table_name == "search_key_info":
+        fieldnames = [
+            "id",
+            "Keyno",
+            "owner_data1",
+            "owner_data2",
+            "owner_data3",
+            "owner_data4",
+            "owner_data5",
+            "parcel_id",
+            "location",
+            "class",
+            "description",
+            "card",
+            "card_info",
+            "transfer_history",
+            "dos",
+            "T",
+            "sale_price",
+            "bk_pg_cert",
+            "acres",
+            "assesed_land",
+            "assesed_building",
+            "assesed__detached",
+            "assesed_other",
+            "assesed_total",
+            "year_blt",
+            "net_area",
+            "zoning",
+        ]
+    elif table_name == "search_key_element":
+        fieldnames = [
+            "id",
+            "Keyno",
+            "card",
+            "el_type",
+            "el_desc",
+        ]
+    elif table_name == "search_key_capacity":
+        fieldnames = [
+            "id",
+            "Keyno",
+            "card",
+            "cap_type",
+            "cap_units",
+        ]
+    elif table_name == "search_key_building":
+        fieldnames = [
+            "id",
+            "Keyno",
+            "card",
+            "bld_type",
+            "bld_desc",
+        ]
+    elif table_name == "search_key_bat":
+        fieldnames = [
+            "id",
+            "Keyno",
+            "card",
+            "bat",
+            "bat_t",
+            "bat_desc",
+            "bat_units",
+        ]
+    else:
+        # Для других таблиц собираем поля из данных
+        fieldnames = set()
+        for record in data:
+            fieldnames.update(record.keys())
+        fieldnames = sorted(list(fieldnames))
 
-    # Преобразуем в список и сортируем для последовательности
-    fieldnames = sorted(list(fieldnames))
-
-    # Открываем файл в режиме добавления или записи
     mode = "a" if file_exists else "w"
+
     with open(csv_file_path, mode, newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        # Используем точку с запятой как разделитель
+        writer = csv.DictWriter(
+            f,
+            fieldnames=fieldnames,
+            delimiter=";",
+            quotechar='"',
+            quoting=csv.QUOTE_ALL,
+        )
 
         # Записываем заголовки только если файл создается впервые
         if not file_exists:
             writer.writeheader()
 
+        # Счетчик id для всех таблиц
+        id_counter = 1
+        if file_exists:
+            # Если файл существует, нужно найти последний id
+            with open(csv_file_path, "r", encoding="utf-8") as read_file:
+                csv_reader = csv.reader(read_file, delimiter=";")
+                rows = list(csv_reader)
+                if len(rows) > 1:  # Учитываем заголовок
+                    last_row = rows[-1]
+                    try:
+                        last_id = int(last_row[0].strip('"'))
+                        id_counter = last_id + 1
+                    except (ValueError, IndexError):
+                        id_counter = len(rows)
+
         # Записываем данные
         for record in data:
-            # Заполняем пустые поля значением None
+            # Исправляем поле 'zoming' на 'zoning' если оно присутствует
+            if "zoming" in record:
+                record["zoning"] = record.pop("zoming")
+
+            # Добавляем id для всех таблиц
+            record["id"] = str(id_counter)
+            id_counter += 1
+
+            # Заполняем пустые поля пустой строкой (не None)
+            record_copy = {}
             for field in fieldnames:
-                if field not in record:
-                    record[field] = None
-            writer.writerow(record)
+                if field in record:
+                    record_copy[field] = (
+                        record[field] if record[field] is not None else ""
+                    )
+                else:
+                    record_copy[field] = ""
+
+            writer.writerow(record_copy)
 
     print(f"Данные успешно записаны в файл {csv_file_path}")
 
@@ -719,6 +819,9 @@ def process_json_files_to_csv():
         folder_path = os.path.join(temp_path, folder_name)
         table_name = folder_name  # Используем имя папки как имя таблицы
 
+        # Собираем все данные из всех JSON файлов в одном списке
+        all_data = []
+
         # Обрабатываем все JSON файлы в папке
         json_files = glob.glob(os.path.join(folder_path, "*.json"))
 
@@ -726,9 +829,13 @@ def process_json_files_to_csv():
             try:
                 with open(json_file_path, "r", encoding="utf-8") as json_file:
                     data = json.load(json_file)
-                    insert_data_into_csv(table_name, data)
+                    all_data.extend(data)
             except Exception as e:
                 print(f"Ошибка при обработке файла {json_file_path}: {e}")
+
+        # Записываем все собранные данные в CSV
+        if all_data:
+            insert_data_into_csv(table_name, all_data)
 
 
 if __name__ == "__main__":

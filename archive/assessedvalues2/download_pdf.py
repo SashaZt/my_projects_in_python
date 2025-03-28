@@ -1,25 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Скачивание PDF файлов
 import asyncio
-import sys
-from time import sleep
-from playwright.async_api import async_playwright
-import aiohttp
-import aiofiles
-import re
-import aiomysql
-import json
-import time
 import glob
-import asyncio
-import string
-import shutil
-import random
+import json
 import os
-import glob
+import random
+import re
+import shutil
+import string
+import sys
+import time
 from asyncio import sleep
+from time import sleep
+
+import aiofiles
+import aiohttp
+import aiomysql
 from bs4 import BeautifulSoup
-import json
+from playwright.async_api import async_playwright
 
 
 # Выкачка PDF файлов
@@ -101,14 +99,9 @@ async def run():
     collection_method = int(input())
     current_directory = os.getcwd()
     # Создайте полный путь к папке temp
-    
+
     # Убедитесь, что папки существуют или создайте их
-    for folder in [
-        temp_path,
-        pdf_path,
-        search_results_path,
-        log_path
-    ]:
+    for folder in [temp_path, pdf_path, search_results_path, log_path]:
         if not os.path.exists(folder):
             os.makedirs(folder)
 
@@ -244,7 +237,7 @@ async def run():
                     continue
 
             print("Все скачано")
-            await sleep(5)
+            await asyncio.sleep(5)
             await browser.close()
     # Сбор по улицам
     elif collection_method == 1:
@@ -268,9 +261,7 @@ async def run():
             browsers_path = os.path.join(current_directory, "pw-browsers")
             os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
             async with async_playwright() as playwright, aiohttp.ClientSession() as session:
-                browser = await playwright.chromium.launch(
-                    headless=False
-                )  # Для отладки можно использовать headless=False
+                browser = await playwright.chromium.launch(headless=False)
                 context = await browser.new_context(accept_downloads=True)
                 page = await context.new_page()
 
@@ -302,10 +293,9 @@ async def run():
 
                 xpath_error_message = '//span[@id="ctl00_MainContent_lblMaxRec"]'
                 xpath_href = '//a[@target="_blank"]'
-
+                await asyncio.sleep(1)
                 # Пытаемся найти элемент с сообщением об ошибке
                 error_message_element = await page.query_selector(xpath_error_message)
-
                 if error_message_element:
                     error_message_text = await error_message_element.text_content()
                     if error_message_text == "No records found using chosen criteria!":
@@ -562,7 +552,6 @@ async def run():
                             )
 
                 print("Все скачано")
-                await sleep(5)
                 await browser.close()
     # Поиск по ключам из файла list_keyno.csv
     elif collection_method == 3:
@@ -624,7 +613,7 @@ async def run():
                 except:
                     await write_log(f"Нет данных для {v}", filename_log)
                     continue
-                
+
                 pattern = r"pdf=([^&]+)"
                 match = re.search(pattern, url_href)
 
@@ -643,14 +632,14 @@ async def run():
                 await get_search_info_json(
                     page_content_soup, jurcode, keyno, search_results_path
                 )
-                
+
                 if not os.path.exists(filename_pdf):
                     await download_file(session, url, cookies_dict, filename_pdf)
                 else:
                     print(f"Файл{filename_pdf} уже есть!!!")
 
             print("Все скачано")
-            await sleep(5)
+            await asyncio.sleep(5)
             await browser.close()
 
 
