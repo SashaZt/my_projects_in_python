@@ -4,33 +4,35 @@ import hashlib
 import json
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import shutil
+import time
 import xml.etree.ElementTree as ET
-from openpyxl.utils import get_column_letter
-from openpyxl import Workbook
-from openpyxl.utils import get_column_letter
-from PIL import Image
-import pandas as pd
-import os
-import requests
-import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import openpyxl
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
+from openpyxl.utils import get_column_letter
 from PIL import Image
-import shutil
-
-
-
 
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "accept-language": "ru,en-US;q=0.9,en;q=0.8,uk;q=0.7,de;q=0.6",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
 }
+
+current_directory = os.getcwd()
+temp_path = os.path.join(current_directory, "temp")
+
+json_path = os.path.join(temp_path, "json")
+img_path = os.path.join(temp_path, "img")
+# Создание директории, если она не существует
+os.makedirs(temp_path, exist_ok=True)
+os.makedirs(json_path, exist_ok=True)
+os.makedirs(img_path, exist_ok=True)
 
 
 def sanitize_json(json_string):
@@ -103,11 +105,11 @@ def get_authenticated_session():
 
     # Добавляем куки в сессию
     cookies = {
-        'OCSESSID': 'a10377cb59471ba60d5fb17dd3',
-        'language': 'uk-ua',
-        'currency': 'UAH',
-        'biatv-cookie': '{%22firstVisitAt%22:1737876101%2C%22visitsCount%22:4%2C%22currentVisitStartedAt%22:1738244401%2C%22currentVisitLandingPage%22:%22https://restal-auto.com.ua/%22%2C%22currentVisitUpdatedAt%22:1738244450%2C%22currentVisitOpenPages%22:4%2C%22campaignTime%22:1737876101%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}}',
-        'bingc-activity-data': '{%22numberOfImpressions%22:0%2C%22activeFormSinceLastDisplayed%22:51%2C%22pageviews%22:3%2C%22callWasMade%22:0%2C%22updatedAt%22:1738244459}'
+        "OCSESSID": "a10377cb59471ba60d5fb17dd3",
+        "language": "uk-ua",
+        "currency": "UAH",
+        "biatv-cookie": "{%22firstVisitAt%22:1737876101%2C%22visitsCount%22:4%2C%22currentVisitStartedAt%22:1738244401%2C%22currentVisitLandingPage%22:%22https://restal-auto.com.ua/%22%2C%22currentVisitUpdatedAt%22:1738244450%2C%22currentVisitOpenPages%22:4%2C%22campaignTime%22:1737876101%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}}",
+        "bingc-activity-data": "{%22numberOfImpressions%22:0%2C%22activeFormSinceLastDisplayed%22:51%2C%22pageviews%22:3%2C%22callWasMade%22:0%2C%22updatedAt%22:1738244459}",
     }
 
     # Устанавливаем куки
@@ -116,31 +118,64 @@ def get_authenticated_session():
 
     login_url = "https://restal-auto.com.ua/login"
 
-    login_payload = {
-        "email": "zhuravskyiii@gmail.com",
-        "password": "Mama52418"
-    }
+    login_payload = {"email": "zhuravskyiii@gmail.com", "password": "Mama52418"}
 
     login_headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'content-type': 'multipart/form-data; boundary=----WebKitFormBoundaryRsZcF6bZ0vmyw5MH',
-        'origin': 'https://restal-auto.com.ua',
-        'referer': 'https://restal-auto.com.ua/login',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "content-type": "multipart/form-data; boundary=----WebKitFormBoundaryRsZcF6bZ0vmyw5MH",
+        "origin": "https://restal-auto.com.ua",
+        "referer": "https://restal-auto.com.ua/login",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
     # Выполняем авторизацию с установленными куки
-    response = session.post(
-        login_url, data=login_payload, headers=login_headers)
+    response = session.post(login_url, data=login_payload, headers=login_headers)
     response.raise_for_status()
 
     return session
 
 
 def fetch(url, headers, session):
-    response = session.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.text
+    """
+    Загружает содержимое URL с использованием сессии и повторными попытками.
+
+    Args:
+        url (str): URL для загрузки
+        headers (dict): Заголовки для HTTP запроса
+        session (requests.Session): Сессия для выполнения запроса
+
+    Returns:
+        str or None: Текст ответа или None в случае неудачи
+    """
+    max_attempts = 10
+    delay_seconds = 5
+
+    for attempt in range(max_attempts):
+        try:
+            response = session.get(url, headers=headers, timeout=30)
+            response.raise_for_status()  # Вызывает исключение для статусов 4xx/5xx
+            return response.text
+
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code
+            print(
+                f"Попытка {attempt + 1}/{max_attempts}: Статус {status_code} для {url}. Ждём {delay_seconds} секунд."
+            )
+            if attempt < max_attempts - 1:  # Не ждём после последней попытки
+                time.sleep(delay_seconds)
+
+        except requests.exceptions.RequestException as e:
+            print(
+                f"Попытка {attempt + 1}/{max_attempts}: Ошибка при загрузке {url}: {str(e)}"
+            )
+            if attempt < max_attempts - 1:
+                time.sleep(delay_seconds)
+            else:
+                print(f"Все {max_attempts} попыток неудачны для {url}")
+                return None
+
+    print(f"Все {max_attempts} попыток неудачны для {url} (статус не 200)")
+    return None
 
 
 def parsing(soup):
@@ -203,8 +238,9 @@ def main():
             )
             if not os.path.exists(filename_json):
                 # Передаем сессию в функцию parse_url
-                futures.append(executor.submit(
-                    parse_url, url, headers, filename_json, session))
+                futures.append(
+                    executor.submit(parse_url, url, headers, filename_json, session)
+                )
             else:
                 print(f"Файл для {url} уже существует, пропускаем.")
 
@@ -263,8 +299,7 @@ async def parsing_page():
                         print(f"Загрузка изображения: {cell_value}")
 
                         # Загружаем изображение с таймаутом
-                        response = requests.get(
-                            cell_value, headers=headers, timeout=30)
+                        response = requests.get(cell_value, headers=headers, timeout=30)
                         if response.status_code == 200:
                             # Сохраняем сначала как webp
                             with open(webp_filename, "wb") as img_file:
@@ -274,16 +309,18 @@ async def parsing_page():
                             try:
                                 with Image.open(webp_filename) as img:
                                     # Убедимся, что изображение в RGB
-                                    if img.mode in ('RGBA', 'LA'):
+                                    if img.mode in ("RGBA", "LA"):
                                         background = Image.new(
-                                            'RGB', img.size, (255, 255, 255))
-                                        background.paste(
-                                            img, mask=img.split()[-1])
+                                            "RGB", img.size, (255, 255, 255)
+                                        )
+                                        background.paste(img, mask=img.split()[-1])
                                         background.save(
-                                            image_filename, "JPEG", quality=85)
+                                            image_filename, "JPEG", quality=85
+                                        )
                                     else:
                                         img.convert("RGB").save(
-                                            image_filename, "JPEG", quality=85)
+                                            image_filename, "JPEG", quality=85
+                                        )
                             finally:
                                 if os.path.exists(webp_filename):
                                     os.remove(webp_filename)
@@ -300,8 +337,7 @@ async def parsing_page():
                         ws.add_image(img, f"{column_letter}{row_num}")
 
                 except Exception as e:
-                    print(f"Ошибка при обработке изображения {
-                          cell_value}: {e}")
+                    print(f"Ошибка при обработке изображения {cell_value}: {e}")
                     # Записываем URL изображения в ячейку, если не удалось загрузить
                     ws.cell(row=row_num, column=col_num, value=cell_value)
 
@@ -309,6 +345,7 @@ async def parsing_page():
     output_file = "output.xlsx"
     wb.save(output_file)
     print(f"Файл сохранен как {output_file}")
+
 
 # async def parsing_page():
 #     all_datas = read_json_files()
@@ -381,11 +418,6 @@ async def parsing_page():
 
 def main_xml():
 
-    current_directory = os.getcwd()
-    temp_path = os.path.join(current_directory, "temp")
-    
-    json_path = os.path.join(temp_path, "json")
-    img_path = os.path.join(temp_path, "img")
     # Проверяем, существует ли директория перед удалением
     if os.path.exists(temp_path):
         shutil.rmtree(temp_path)
@@ -394,37 +426,36 @@ def main_xml():
     os.makedirs(temp_path, exist_ok=True)
     os.makedirs(json_path, exist_ok=True)
     os.makedirs(img_path, exist_ok=True)
-    exit()
     # Укажите URL для скачивания XML
     url = "https://restal-auto.com.ua/index.php?route=extension/feed/unixml/prom"
 
     # Укажите cookies и headers, если необходимо
     cookies = {
-        'OCSESSID': 'a10377cb59471ba60d5fb17dd3',
-        'language': 'uk-ua',
-        'currency': 'UAH',
-        'biatv-cookie': '{%22firstVisitAt%22:1737876101%2C%22visitsCount%22:4%2C%22currentVisitStartedAt%22:1738244401%2C%22currentVisitLandingPage%22:%22https://restal-auto.com.ua/%22%2C%22currentVisitUpdatedAt%22:1738244520%2C%22currentVisitOpenPages%22:6%2C%22campaignTime%22:1737876101%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}}',
-        'bingc-activity-data': '{%22numberOfImpressions%22:1%2C%22activeFormSinceLastDisplayed%22:15%2C%22pageviews%22:4%2C%22callWasMade%22:0%2C%22updatedAt%22:1738245467}',
+        "OCSESSID": "a10377cb59471ba60d5fb17dd3",
+        "language": "uk-ua",
+        "currency": "UAH",
+        "biatv-cookie": "{%22firstVisitAt%22:1737876101%2C%22visitsCount%22:4%2C%22currentVisitStartedAt%22:1738244401%2C%22currentVisitLandingPage%22:%22https://restal-auto.com.ua/%22%2C%22currentVisitUpdatedAt%22:1738244520%2C%22currentVisitOpenPages%22:6%2C%22campaignTime%22:1737876101%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}}",
+        "bingc-activity-data": "{%22numberOfImpressions%22:1%2C%22activeFormSinceLastDisplayed%22:15%2C%22pageviews%22:4%2C%22callWasMade%22:0%2C%22updatedAt%22:1738245467}",
     }
 
     headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-language': 'ru,en;q=0.9,uk;q=0.8',
-        'cache-control': 'no-cache',
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
         # 'cookie': 'OCSESSID=a10377cb59471ba60d5fb17dd3; language=uk-ua; currency=UAH; biatv-cookie={%22firstVisitAt%22:1737876101%2C%22visitsCount%22:4%2C%22currentVisitStartedAt%22:1738244401%2C%22currentVisitLandingPage%22:%22https://restal-auto.com.ua/%22%2C%22currentVisitUpdatedAt%22:1738244520%2C%22currentVisitOpenPages%22:6%2C%22campaignTime%22:1737876101%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}}; bingc-activity-data={%22numberOfImpressions%22:1%2C%22activeFormSinceLastDisplayed%22:15%2C%22pageviews%22:4%2C%22callWasMade%22:0%2C%22updatedAt%22:1738245467}',
-        'dnt': '1',
-        'pragma': 'no-cache',
-        'priority': 'u=0, i',
-        'referer': 'https://restal-auto.com.ua/my-account',
-        'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'same-origin',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "referer": "https://restal-auto.com.ua/my-account",
+        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
     # Выполняем запрос
@@ -474,10 +505,12 @@ def get_csv():
 def main_loop():
     while True:
         # Запрос ввода от пользователя
-        print('Введите 1 для загрузки ссылок'
-              '\nВведите 2 для загрузки всех товаров'
-              '\nВведите 3 для получения отчета в Excel'
-              '\nВведите 0 для закрытия программы')
+        print(
+            "Введите 1 для загрузки ссылок"
+            "\nВведите 2 для загрузки всех товаров"
+            "\nВведите 3 для получения отчета в Excel"
+            "\nВведите 0 для закрытия программы"
+        )
         user_input = int(input("Выберите действие: "))
 
         if user_input == 1:

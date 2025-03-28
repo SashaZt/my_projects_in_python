@@ -1,28 +1,41 @@
+import csv
+import hashlib
 import json
+import os
+import re
 import subprocess
 import sys
+import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urlparse
 
+import gspread
 import pandas as pd
 import requests
+from bs4 import BeautifulSoup
 from config.logger import logger
+from google.oauth2.service_account import Credentials
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
 xml_directory = current_directory / "xml"
 log_directory = current_directory / "log"
-confi_directory = current_directory / "config"
+config_directory = current_directory / "config"
+html_directory = current_directory / "html"
+html_directory.mkdir(parents=True, exist_ok=True)
 
 data_directory.mkdir(parents=True, exist_ok=True)
-confi_directory.mkdir(parents=True, exist_ok=True)
+config_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
 xml_directory.mkdir(parents=True, exist_ok=True)
 log_file_path = log_directory / "log_message.log"
 urls_xml_file_path = data_directory / "urls_xml.csv"
 urls_product_file_path = data_directory / "urls.csv"
-config_file_path = confi_directory / "config.json"
+output_json_file = data_directory / "output.json"
+config_file_path = config_directory / "config.json"
+service_account_file = config_directory / "credentials.json"
 
 logger.remove()
 # 🔹 Логирование в файл
@@ -71,6 +84,78 @@ COOKIES = config.get("cookies", {})
 HEADERS = config.get("headers", {})
 FILENAME_XML = urlparse(URL_XML).path.split("/")[-1]
 XML_FILE_PATH = xml_directory / f"{FILENAME_XML}"
+SPREADSHEET = config["google"]["spreadsheet"]
+SHEET = config["google"]["sheet"]
+
+
+def get_google_sheet():
+    """Подключается к Google Sheets и возвращает указанный лист."""
+    try:
+        # Новый способ аутентификации с google-auth
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+
+        credentials = Credentials.from_service_account_file(
+            service_account_file, scopes=scopes
+        )
+
+        # Авторизация в gspread с новыми учетными данными
+        client = gspread.authorize(credentials)
+
+        # Открываем таблицу по ключу и возвращаем лист
+        spreadsheet = client.open_by_key(SPREADSHEET)
+        logger.info("Успешное подключение к Google Spreadsheet.")
+        return spreadsheet.worksheet(SHEET)
+    except FileNotFoundError:
+        logger.error("Файл учетных данных не найден. Проверьте путь.")
+        raise FileNotFoundError("Файл учетных данных не найден. Проверьте путь.")
+    except gspread.exceptions.APIError as e:
+        logger.error(f"Ошибка API Google Sheets: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Произошла ошибка: {e}")
+        raise
+
+
+# Получение листа Google Sheets
+sheet = get_google_sheet()
+
+
+def ensure_row_limit(sheet, required_rows=10000):
+    """Увеличивает количество строк в листе Google Sheets, если их меньше требуемого количества."""
+    current_rows = len(sheet.get_all_values())
+    if current_rows < required_rows:
+        sheet.add_rows(required_rows - current_rows)
+
+
+def update_sheet_with_data(sheet, data, total_rows=8000):
+    """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
+    if not data:
+        raise ValueError("Данные для обновления отсутствуют.")
+
+    # Заголовки из ключей словаря
+    headers = list(data[0].keys())
+
+    # Запись заголовков в первую строку
+    sheet.update(values=[headers], range_name="A1", value_input_option="RAW")
+
+    # Формирование строк для записи
+    rows = [[entry.get(header, "") for header in headers] for entry in data]
+
+    # Добавление пустых строк до общего количества total_rows
+    if len(rows) < total_rows:
+        empty_row = [""] * len(headers)
+        rows.extend([empty_row] * (total_rows - len(rows)))
+
+    # Определение диапазона для записи данных
+    end_col = chr(65 + len(headers) - 1)  # Преобразование индекса в букву (A, B, C...)
+    range_name = f"A2:{end_col}{total_rows + 1}"
+
+    # Запись данных в лист
+    sheet.update(values=rows, range_name=range_name, value_input_option="USER_ENTERED")
+    logger.info(f"Обновлено {len(data)} строк в Google Sheets")
 
 
 def download_with_curl(url, xml_file_path):
@@ -203,49 +288,298 @@ def parsin_xml(file_name):
     url_data.to_csv(urls_xml_file_path, index=False)
 
 
-def xml_temp():
+def fetch(url):
+    """
+    Загружает содержимое URL с повторными попытками в случае ошибки.
 
-    # Загрузка XML-файла
-    xml_file = "index.xml"  # Укажите путь к вашему XML-файлу
+    Args:
+        url (str): URL для загрузки
 
-    tree = ET.parse(xml_file)
-    root = tree.getroot()
+    Returns:
+        str or None: Текст ответа или None в случае неудачи
+    """
+    max_attempts = 10
+    delay_seconds = 5
 
-    # Найти секцию offers
-    offers_section = root.find(".//offers")
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(
+                url, cookies=COOKIES, headers=HEADERS, timeout=100, stream=True
+            )
 
-    # Проверяем, что offers_section найден
-    if offers_section is not None:
-        # Извлекаем URL-адреса
-        urls = [
-            offer.find("url").text
-            for offer in offers_section.findall("offer")
-            if offer.find("url") is not None
-        ]
+            # Проверка статуса ответа
+            if response.status_code == 200:
+                # Принудительно устанавливаем кодировку UTF-8
+                response.encoding = "utf-8"
+                return response.text
+            else:
+                logger.warning(
+                    f"Попытка {attempt + 1}/{max_attempts}: Статус {response.status_code} для {url}. Ждём {delay_seconds} секунд."
+                )
+                if attempt < max_attempts - 1:  # Не ждём после последней попытки
+                    time.sleep(delay_seconds)
 
-        # Создаем DataFrame
-        df = pd.DataFrame(urls, columns=["url"])
+        except requests.exceptions.RequestException as e:
+            logger.error(
+                f"Попытка {attempt + 1}/{max_attempts}: Ошибка при загрузке {url}: {str(e)}"
+            )
+            if attempt < max_attempts - 1:
+                time.sleep(delay_seconds)
+            else:
+                logger.error(f"Все {max_attempts} попыток неудачны для {url}")
+                return None
 
-        # Сохраняем в CSV-файл
-        csv_filename = "urls.csv"
-        df.to_csv(csv_filename, index=False)
+    logger.error(f"Все {max_attempts} попыток неудачны для {url} (статус не 200)")
+    return None
 
-        print(f"Сохранено в {csv_filename}")
-    else:
-        print("Ошибка: Секция <offers> не найдена в XML.")
 
+def get_html(url, html_file):
+    src = fetch(url)
+
+    if src is None:
+        return url, html_file, False
+
+    with open(html_file, "w", encoding="utf-8") as file:
+        file.write(src)
+
+    logger.info(f"Успешно загружен и сохранен: {html_file}")
+    return url, html_file, True
+
+
+def main_th():
+    if not os.path.exists(html_directory):
+        html_directory.mkdir(parents=True, exist_ok=True)
+    urls = []
+    with open(urls_product_file_path, newline="", encoding="utf-8") as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            urls.append(row["url"])
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = []
+        for url in urls:
+            output_html_file = (
+                html_directory / f"html_{hashlib.md5(url.encode()).hexdigest()}.html"
+            )
+
+            if not os.path.exists(output_html_file):
+                futures.append(executor.submit(get_html, url, output_html_file))
+            else:
+                logger.info(f"Файл для {url} уже существует, пропускаем.")
+
+        results = []
+        for future in as_completed(futures):
+            # Здесь вы можете обрабатывать результаты по мере их завершения
+            results.append(future.result())
+
+
+def extract_product_data(product_json):
+    """
+    Извлекает данные продукта из JSON структуры
+
+    Args:
+        product_json (dict): JSON структура продукта
+
+    Returns:
+        dict: Извлеченные данные продукта
+    """
+    try:
+        product_name = product_json.get("name")
+        sku = product_json.get("sku")
+
+        # Извлекаем данные из offers
+        offers = product_json.get("offers", {})
+        offer_price = None
+        if "price" in offers:
+            offer_price = offers.get("price")
+        elif "lowPrice" in offers:
+            offer_price = offers.get("lowPrice")
+        offer_price = str(offer_price).replace(".", ",")
+        id_product = f'INT-{product_json.get("mpn")}'
+        availability = offers.get("availability")
+        schema_terms = (
+            r"(InStock|PreOrder|OutOfStock|Discontinued)"  # Шаблон для поиска
+        )
+        all_availability = {
+            "PreOrder": "Попереднє замовлення",
+            "InStock": "В наявності",
+            "OutOfStock": "Немає в наявності",
+            "Discontinued": "Припинено",
+        }
+
+        matches = re.findall(schema_terms, availability or "")  # Проверяем на None
+        result_availability = None
+        if matches:
+            last_term = matches[-1]
+            result_availability = all_availability[last_term]
+        data_json = {
+            "Назва": product_name,
+            "Код товару(INT-)": f"INT-{sku}",
+            "Ціна": offer_price,
+            "Наявність": result_availability,
+            "ID(INT-)": id_product,
+        }
+        return data_json
+    except Exception as e:
+        logger.error(f"Ошибка при извлечении данных продукта: {e}")
+        return None
+
+
+def pars_htmls():
+    logger.info("Собираем данные со страниц html")
+    all_data = []
+
+    # Пройтись по каждому HTML файлу в папке
+    for html_file in html_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
+
+        soup = BeautifulSoup(content, "lxml")
+        # Поиск скрипта с типом application/ld+json и типом Product
+        # Находим все скрипты с типом application/ld+json
+        scripts = soup.find_all("script", type="application/ld+json")
+
+        if not scripts:
+            logger.warning(
+                f"В файле {html_file.name} не найдено скриптов с типом application/ld+json"
+            )
+            continue
+
+        # Перебираем все скрипты JSON-LD
+        for script in scripts:
+            try:
+                # Получаем текст скрипта и проверяем его наличие
+                script_text = script.string
+                if not script_text or not script_text.strip():
+                    continue
+
+                # Проверим, что это скрипт JSON-LD
+                if "application/ld+json" not in script.get("type", ""):
+                    continue
+
+                # Удаляем неразрывные пробелы и контрольные символы
+                cleaned_text = script_text.strip()
+
+                # Регулярное выражение для удаления управляющих символов
+                cleaned_text = re.sub(r"[\x00-\x1F\x7F]", "", cleaned_text)
+
+                # Убедимся, что JSON правильно сбалансирован
+                opening_braces = cleaned_text.count("{")
+                closing_braces = cleaned_text.count("}")
+
+                if opening_braces > closing_braces:
+                    # Добавляем недостающие закрывающие скобки
+                    cleaned_text += "}" * (opening_braces - closing_braces)
+                    logger.info(
+                        f"Добавлены недостающие закрывающие скобки: {opening_braces - closing_braces}"
+                    )
+
+                try:
+                    json_data = json.loads(cleaned_text)
+                    # Извлекаем данные основного продукта
+                    # main_product = extract_product_data(json_data)
+                    # if main_product:
+                    #     # main_product["file_name"] = html_file
+                    #     all_data.append(main_product)
+                    # logger.info("JSON успешно распарсен")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Ошибка парсинга JSON: {e}")
+
+                    # Дополнительные исправления
+                    # 1. Выравнивание отступов для ключей gtin и sku
+                    cleaned_text = re.sub(r'(\s+)"(gtin|sku)"', r'"$2"', cleaned_text)
+
+                    # 2. Проверка наличия закрывающей скобки в конце
+                    if not cleaned_text.rstrip().endswith("}"):
+                        cleaned_text = cleaned_text.rstrip() + "}"
+
+                    try:
+                        json_data = json.loads(cleaned_text)
+                        logger.info("JSON успешно исправлен и распарсен")
+                        # Извлекаем данные основного продукта
+
+                    except json.JSONDecodeError as e2:
+                        # Альтернативный подход - использовать более гибкий парсер
+                        try:
+                            import demjson3
+
+                            json_data = demjson3.decode(cleaned_text)
+                            logger.info("JSON успешно распарсен с помощью demjson3")
+                        except Exception:
+                            logger.error(f"Не удалось исправить JSON: {e2}")
+                            continue
+
+                if json_data.get("@type") == "BreadcrumbList":
+                    continue
+                if json_data.get("@type") == "Product":
+                    main_product = extract_product_data(json_data)
+                    if main_product:
+                        # main_product["file_name"] = html_file
+                        all_data.append(main_product)
+            except Exception as e:
+                logger.error(f"Общая ошибка при обработке скрипта: {e}")
+                # Проверяем, является ли это продуктом
+                if isinstance(json_data, dict):
+                    # Проверяем тип - может быть строкой или списком типов
+                    product_type = json_data.get("@type")
+                    is_product = False
+
+                    if isinstance(product_type, str) and product_type == "Product":
+
+                        is_product = True
+                    elif isinstance(product_type, list) and "Product" in product_type:
+                        is_product = True
+
+                    if is_product:
+                        # logger.info("Найдена структура Product JSON-LD")
+                        product_found = True
+
+                        # Извлекаем данные основного продукта
+                        main_product = extract_product_data(json_data)
+                        if main_product:
+                            # main_product["file_name"] = html_file
+                            all_data.append(main_product)
+
+                        # Если нашли продукт, можно прекратить поиск
+                        break
+            except json.JSONDecodeError as e:
+                logger.error(html_file)
+                error_position = (
+                    str(e).split(":")[-1].strip()
+                    if ":" in str(e)
+                    else "неизвестной позиции"
+                )
+                logger.error(f"Ошибка парсинга JSON в позиции {error_position}")
+                # Для отладки можно вывести часть текста вокруг ошибки
+                if ":" in str(e) and "position" in str(e):
+                    try:
+                        pos = int(error_position)
+                        start = max(0, pos - 20)
+                        end = min(len(script_text), pos + 20)
+                        logger.error(
+                            f"Текст вокруг ошибки: ...{script_text[start:end]}..."
+                        )
+                    except (ValueError, IndexError):
+                        pass
+            except Exception as e:
+                logger.error(f"Непредвиденная ошибка при обработке скрипта: {str(e)}")
+        else:
+            pass
+            # Или можно использовать print:
+            # logger.info("Product JSON не найден.")
+    logger.info(all_data)
+    with open(output_json_file, "w", encoding="utf-8") as json_file:
+        json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+
+    update_sheet_with_data(sheet, all_data)
+
+
+ensure_row_limit(sheet, 1000)
 
 if __name__ == "__main__":
     # download_xml(URL_XML, FILENAME_XML, COOKIES, HEADERS)
     # parsin_xml(XML_FILE_PATH)
     # download_all_xml()
-    parse_sitemap_urls()
-
-    # # Вывод итогов
-    # logger.info("=== Итоги скачивания ===")
-    # for url, file_path in results.items():
-    #     status = "УСПЕШНО" if file_path else "ОШИБКА"
-    # logger.info(f"{status}: {url}")
-    # parse_si??temap_urls()
-    # parsin_xml()
-    # xml_temp()
+    # parse_sitemap_urls()
+    # main_th()
+    pars_htmls()
