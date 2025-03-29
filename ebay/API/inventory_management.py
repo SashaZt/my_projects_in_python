@@ -111,31 +111,31 @@ def create_inventory_item(
     # Подготовка данных для инвентаря
     inventory_data = {}
 
-    # Копируем необходимые поля из product_data
-    if "product" in product_data:
-        inventory_data["product"] = product_data["product"]
-    else:
-        inventory_data["product"] = {
-            "title": product_data.get("title", "Товар без названия"),
-            "description": product_data.get("description", "Описание отсутствует"),
-        }
+    # # Копируем необходимые поля из product_data
+    # if "product" in product_data:
+    #     inventory_data["product"] = product_data["product"]
+    # else:
+    #     inventory_data["product"] = {
+    #         "title": product_data.get("title", "Товар без названия"),
+    #         "description": product_data.get("description", "Описание отсутствует"),
+    #     }
 
-    # Проверяем наличие структуры для аспектов
-    if "aspects" not in inventory_data["product"]:
-        inventory_data["product"]["aspects"] = {}
+    # # Проверяем наличие структуры для аспектов
+    # if "aspects" not in inventory_data["product"]:
+    #     inventory_data["product"]["aspects"] = {}
 
-    # Копируем данные о доступности
-    if "availability" in product_data:
-        inventory_data["availability"] = product_data["availability"]
-    else:
-        inventory_data["availability"] = {
-            "shipToLocationAvailability": {"quantity": product_data.get("quantity", 10)}
-        }
+    # # Копируем данные о доступности
+    # if "availability" in product_data:
+    #     inventory_data["availability"] = product_data["availability"]
+    # else:
+    #     inventory_data["availability"] = {
+    #         "shipToLocationAvailability": {"quantity": product_data.get("quantity", 10)}
+    #     }
 
     # Выполняем запрос
     endpoint = f"sell/inventory/v1/inventory_item/{sku}"
     result = client._call_api(
-        endpoint, "PUT", data=inventory_data, headers={"Content-Language": "de-DE"}
+        endpoint, "PUT", data=product_data, headers={"Content-Language": "de-DE"}
     )
 
     if not isinstance(result, dict):
@@ -431,9 +431,9 @@ def main():
 
     if choice == "1":
         if check_inventory_api_access():
-            print("Доступ к Inventory API подтвержден.")
+            logger.info("Доступ к Inventory API подтвержден.")
         else:
-            print("Нет доступа к Inventory API. Проверьте настройки и токены.")
+            logger.error("Нет доступа к Inventory API. Проверьте настройки и токены.")
 
     elif choice == "2":
         limit = input("Введите максимальное количество товаров (по умолчанию 100): ")
@@ -458,33 +458,32 @@ def main():
         sku = input("Введите SKU товара: ")
         item = get_inventory_item(sku)
 
-        if item:
-            print("Информация о товаре:")
-            title = item.get("product", {}).get("title", "Без названия")
-            description = item.get("product", {}).get(
-                "description", "Описание отсутствует"
-            )
-            aspects = item.get("product", {}).get("aspects", {})
-            quantity = (
-                item.get("availability", {})
-                .get("shipToLocationAvailability", {})
-                .get("quantity", 0)
-            )
+        # if item:
+        #     print("Информация о товаре:")
+        #     title = item.get("product", {}).get("title", "Без названия")
+        #     description = item.get("product", {}).get(
+        #         "description", "Описание отсутствует"
+        #     )
+        #     aspects = item.get("product", {}).get("aspects", {})
+        #     quantity = (
+        #         item.get("availability", {})
+        #         .get("shipToLocationAvailability", {})
+        #         .get("quantity", 0)
+        #     )
 
-            print(f"SKU: {sku}")
-            print(f"Название: {title}")
-            print(f"Описание: {description}")
-            print(f"Количество: {quantity}")
-            print("Характеристики:")
-            for key, values in aspects.items():
-                print(f"  - {key}: {', '.join(values)}")
-        else:
-            print(f"Товар с SKU {sku} не найден или произошла ошибка.")
+        #     print(f"SKU: {sku}")
+        #     print(f"Название: {title}")
+        #     print(f"Описание: {description}")
+        #     print(f"Количество: {quantity}")
+        #     print("Характеристики:")
+        #     for key, values in aspects.items():
+        #         print(f"  - {key}: {', '.join(values)}")
+        # else:
+        #     print(f"Товар с SKU {sku} не найден или произошла ошибка.")
 
     elif choice == "4":
-        file_name = input("Введите имя JSON-файла с данными товара: ")
 
-        product_data = load_product_data(file_name)
+        product_data = load_product_data("product_template.json")
         if not product_data:
             print("Не удалось загрузить данные товара.")
             return
@@ -497,10 +496,7 @@ def main():
                 return
             product_data["sku"] = sku
 
-        if create_inventory_item(sku, product_data):
-            print(f"Товар успешно создан в инвентаре с SKU: {sku}")
-        else:
-            print("Не удалось создать товар в инвентаре.")
+        create_inventory_item(sku, product_data)
 
     elif choice == "5":
         sku = input("Введите SKU товара: ")

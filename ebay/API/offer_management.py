@@ -5,6 +5,7 @@
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 import inventory_management as inventory
@@ -13,12 +14,32 @@ from inventory_client import EbayInventoryClient
 from logger import logger
 from setup_policies import create_seller_policies, get_seller_policies
 
-from config import (
-    MERCHANT_LOCATION_KEY,
-    PAYMENT_POLICY_ID,
-    RETURN_POLICY_ID,
-    SHIPPING_POLICY_ID,
-)
+current_directory = Path.cwd()
+config_directory = current_directory / "config"
+config_directory.mkdir(parents=True, exist_ok=True)
+payment_policy_file_path = config_directory / "policy_ids.json"
+
+
+def load_policy_data(json_file: str) -> Dict[str, Any]:
+    """Загрузка данных политики из JSON-файла"""
+    try:
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except FileNotFoundError:
+        logger.error(f"Файл {json_file} не найден.")
+        return {}
+    except json.JSONDecodeError:
+        logger.error(f"Ошибка декодирования JSON в файле {json_file}.")
+        return {}
+
+
+policy_ids = load_policy_data(payment_policy_file_path)
+
+MERCHANT_LOCATION_KEY = policy_ids.get("MERCHANT_LOCATION_KEY", "")
+PAYMENT_POLICY_ID = policy_ids.get("PAYMENT_POLICY_ID", "")
+RETURN_POLICY_ID = policy_ids.get("RETURN_POLICY_ID", "")
+SHIPPING_POLICY_ID = policy_ids.get("SHIPPING_POLICY_ID", "")
 
 
 def get_policy_ids() -> Dict[str, str]:
@@ -29,34 +50,6 @@ def get_policy_ids() -> Dict[str, str]:
         dict: Словарь с ID политик или пустой словарь в случае ошибки
     """
     logger.info("Получение актуальных ID политик продавца...")
-
-    # Проверяем существование файла с политиками
-    config_file = "config/policy_ids.json"
-    if os.path.exists(config_file):
-        try:
-            with open(config_file, "r", encoding="utf-8") as f:
-                policy_ids = json.load(f)
-
-            # Проверяем наличие всех необходимых политик
-            required_policies = [
-                "PAYMENT_POLICY_ID",
-                "RETURN_POLICY_ID",
-                "SHIPPING_POLICY_ID",
-                "MERCHANT_LOCATION_KEY",
-            ]
-
-            missing_policies = [
-                policy for policy in required_policies if policy not in policy_ids
-            ]
-
-            if not missing_policies:
-                return policy_ids
-
-            logger.warning(
-                f"В файле {config_file} отсутствуют некоторые политики: {missing_policies}"
-            )
-        except Exception as e:
-            logger.error(f"Ошибка при чтении файла {config_file}: {e}")
 
     # Если файл не существует или в нем нет всех политик, пытаемся получить их через API
     policy_result = get_seller_policies()
@@ -71,14 +64,6 @@ def get_policy_ids() -> Dict[str, str]:
         if not policy_result:
             logger.error("Не удалось получить ID политик после создания")
             return {}
-
-    # Если политики получены через API, возвращаем их
-    if os.path.exists(config_file):
-        try:
-            with open(config_file, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception as e:
-            logger.error(f"Ошибка при чтении файла после создания политик: {e}")
 
     return {}
 
@@ -102,96 +87,10 @@ def create_offer(sku: str, offer_data: Dict[str, Any]) -> Union[Dict[str, Any], 
         logger.error("Нет доступа к Inventory API. Создание предложения невозможно.")
         return None
 
-    # Получаем актуальные ID политик
-    policy_ids = get_policy_ids()
-    if not policy_ids:
-        logger.error("Не удалось получить ID политик продавца")
-        return None
-
     # Проверяем существование товара в инвентаре и обновляем бренд
     item = inventory.get_inventory_item(sku)
     if not item:
         logger.warning(f"Товар с SKU {sku} не найден в инвентаре. Попытка создания...")
-
-        # Если в offer_data есть данные о товаре, используем их для создания
-        if "product" in offer_data:
-            inventory_data = {
-                "product": offer_data["product"],
-                "availability": offer_data.get(
-                    "availability",
-                    {
-                        "shipToLocationAvailability": {
-                            "quantity": offer_data.get("quantity", 10)
-                        }
-                    },
-                ),
-            }
-        else:
-            # Минимальные данные для создания товара
-            inventory_data = {
-                "product": {
-                    "title": offer_data.get("title", f"Товар {sku}"),
-                    "description": offer_data.get(
-                        "description", "Описание отсутствует"
-                    ),
-                    "aspects": {},
-                },
-                "availability": {
-                    "shipToLocationAvailability": {
-                        "quantity": offer_data.get("quantity", 10)
-                    }
-                },
-            }
-
-        # Создаем товар в инвентаре
-        if not inventory.create_inventory_item(sku, inventory_data):
-            logger.error(f"Не удалось создать товар в инвентаре с SKU: {sku}")
-            return None
-
-        # Ждем синхронизацию данных
-        logger.info("Ожидание синхронизации данных (5 секунд)...")
-        time.sleep(5)
-    # else:
-    #     # Убеждаемся, что у товара указан бренд
-    #     has_brand = False
-    #     if (
-    #         "product" in item
-    #         and "aspects" in item["product"]
-    #         and "Brand" in item["product"]["aspects"]
-    #     ):
-    #         has_brand = True
-
-    #     if not has_brand:
-    #         logger.info(f"Обновление бренда товара с SKU {sku}")
-    #         if not inventory.update_inventory_item_brand(sku, brand_name):
-    #             logger.warning(f"Не удалось обновить бренд товара с SKU {sku}")
-    #             # Продолжаем, так как товар уже существует
-
-    #         # Ждем синхронизацию данных
-    #         logger.info("Ожидание синхронизации данных (5 секунд)...")
-    #         time.sleep(5)
-
-    # Подготавливаем данные для создания предложения
-    offer_request = {
-        "sku": sku,
-        "marketplaceId": offer_data.get("marketplaceId", "EBAY_DE"),
-        "format": offer_data.get("format", "FIXED_PRICE"),
-        "availableQuantity": offer_data.get("quantity", 10),
-        "categoryId": offer_data.get("category_id", ""),
-        "merchantLocationKey": policy_ids.get("MERCHANT_LOCATION_KEY", ""),
-        "pricingSummary": {"price": offer_data.get("price", {})},
-        "listingPolicies": {
-            "fulfillmentPolicyId": policy_ids.get("SHIPPING_POLICY_ID", ""),
-            "paymentPolicyId": policy_ids.get("PAYMENT_POLICY_ID", ""),
-            "returnPolicyId": policy_ids.get("RETURN_POLICY_ID", ""),
-        },
-    }
-
-    # Добавляем дополнительные поля, если они есть в offer_data
-    if "listingDescription" in offer_data:
-        offer_request["listingDescription"] = offer_data["listingDescription"]
-    elif "description" in offer_data:
-        offer_request["listingDescription"] = offer_data["description"]
 
     # Инициализируем клиент и выполняем запрос
     client = EbayInventoryClient()
@@ -204,11 +103,10 @@ def create_offer(sku: str, offer_data: Dict[str, Any]) -> Union[Dict[str, Any], 
     headers = {
         "Content-Type": "application/json",
         "Content-Language": "de-DE",
-        "Accept-Language": "de-DE",
     }
 
     logger.info(f"Отправка запроса на создание предложения для SKU: {sku}")
-    result = client._call_api(endpoint, "POST", data=offer_request, headers=headers)
+    result = client._call_api(endpoint, "POST", data=offer_data, headers=headers)
 
     if isinstance(result, dict) and "errors" in result:
         logger.error(f"Ошибка при создании предложения: {result['errors']}")
@@ -522,15 +420,12 @@ def create_and_publish_offer_from_json(
     except json.JSONDecodeError:
         logger.error(f"Ошибка декодирования JSON в файле {json_file}.")
         return None
-
-    # Проверяем наличие SKU в данных
-    if "sku" not in offer_data:
-        sku = f"ITEM-{int(time.time())}"
-        offer_data["sku"] = sku
-        logger.info(f"Сгенерирован SKU: {sku}")
-    else:
-        sku = offer_data["sku"]
-
+    sku = offer_data["sku"]
+    offer_data["listingPolicies"]["fulfillmentPolicyId"] = policy_ids[
+        "SHIPPING_POLICY_ID"
+    ]
+    offer_data["listingPolicies"]["paymentPolicyId"] = policy_ids["PAYMENT_POLICY_ID"]
+    offer_data["listingPolicies"]["returnPolicyId"] = policy_ids["RETURN_POLICY_ID"]
     # Создаем предложение
     offer_result = create_offer(sku, offer_data)
     if not offer_result:
@@ -603,7 +498,7 @@ def main():
     choice = input("Выберите действие: ")
 
     if choice == "1":
-        json_file = input("Введите путь к JSON-файлу с данными предложения: ")
+        json_file = "offer.json"
 
         result = create_and_publish_offer_from_json(json_file)
         if result:

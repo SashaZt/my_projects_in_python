@@ -1,22 +1,38 @@
 import json
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 import requests
 from auth import EbayAuth
-
-# Настройка логирования
 from logger import logger
 
-from config import (
-    BASE_URL,
-    CLIENT_ID,
-    CLIENT_SECRET,
-    MERCHANT_LOCATION_KEY,
-    PAYMENT_POLICY_ID,
-    RETURN_POLICY_ID,
-    RUNAME,
-    SHIPPING_POLICY_ID,
-)
+from config import BASE_URL, CLIENT_ID, CLIENT_SECRET, RUNAME
+
+
+def load_policy_data(json_file: str) -> Dict[str, Any]:
+    """Загрузка данных политики из JSON-файла"""
+    try:
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except FileNotFoundError:
+        logger.error(f"Файл {json_file} не найден.")
+        return {}
+    except json.JSONDecodeError:
+        logger.error(f"Ошибка декодирования JSON в файле {json_file}.")
+        return {}
+
+
+current_directory = Path.cwd()
+config_directory = current_directory / "config"
+config_directory.mkdir(parents=True, exist_ok=True)
+payment_policy_file_path = config_directory / "policy_ids.json"
+policy_ids = load_policy_data(payment_policy_file_path)
+
+MERCHANT_LOCATION_KEY = policy_ids.get("MERCHANT_LOCATION_KEY", "")
+PAYMENT_POLICY_ID = policy_ids.get("PAYMENT_POLICY_ID", "")
+RETURN_POLICY_ID = policy_ids.get("RETURN_POLICY_ID", "")
+SHIPPING_POLICY_ID = policy_ids.get("SHIPPING_POLICY_ID", "")
 
 
 class EbayInventoryClient:
@@ -183,10 +199,10 @@ class EbayInventoryClient:
 
         try:
             logger.debug(f"Отправка {method} запроса на {url}")
-            logger.debug(f"Заголовки: {request_headers}")
+            # logger.debug(f"Заголовки: {request_headers}")
 
             if method.upper() == "GET":
-                logger.debug(f"Параметры запроса: {params}")
+                # logger.debug(f"Параметры запроса: {params}")
                 response = requests.get(
                     url, headers=request_headers, params=params, timeout=30
                 )

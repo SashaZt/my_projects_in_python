@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 # Импорт модуля авторизации
 from auth import EbayAuth
@@ -12,23 +14,50 @@ from logger import logger
 
 from config import CLIENT_ID, CLIENT_SECRET, DEFAULT_MARKETPLACE_ID, RUNAME
 
-# # Добавление текущей директории в путь поиска модулей
-# sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+current_directory = Path.cwd()
+policy_directory = current_directory / "policy"
+policy_directory.mkdir(parents=True, exist_ok=True)
+payment_policy_file_path = policy_directory / "payment_policy.json"
+return_policy_file_path = policy_directory / "return_policy.json"
+fulfillment_policy_file_path = policy_directory / "fulfillment_policy.json"
+config_directory = current_directory / "config"
+config_directory.mkdir(parents=True, exist_ok=True)
+payment_policy_file_path = config_directory / "policy_ids.json"
 
-# # Настройка логирования
-# logging.basicConfig(
-#     level=logging.INFO,
-#     format="%(asctime)s | %(levelname)s | %(lineno)d | %(message)s",
-#     datefmt="%Y-%m-%d %H:%M:%S",
-# )
-# logger = logging.getLogger(__name__)
 
-# Импорт модуля авторизации и клиента
-# try:
-#     from auth import EbayAuth
-# except ImportError:
-#     # Если файла auth.py нет, используем класс EbayAuth из upload_item.py
-#     from upload_item import EbayAuth, EbayInventoryClient
+def load_product_data(json_file: str) -> Dict[str, Any]:
+    """Загрузка данных товара из JSON-файла"""
+    try:
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except FileNotFoundError:
+        logger.error(f"Файл {json_file} не найден.")
+        return {}
+    except json.JSONDecodeError:
+        logger.error(f"Ошибка декодирования JSON в файле {json_file}.")
+        return {}
+
+
+def load_policy_data(json_file: str) -> Dict[str, Any]:
+    """Загрузка данных политики из JSON-файла"""
+    try:
+        with open(json_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except FileNotFoundError:
+        logger.error(f"Файл {json_file} не найден.")
+        return {}
+    except json.JSONDecodeError:
+        logger.error(f"Ошибка декодирования JSON в файле {json_file}.")
+        return {}
+
+
+policy_ids = load_policy_data(payment_policy_file_path)
+MERCHANT_LOCATION_KEY = policy_ids.get("MERCHANT_LOCATION_KEY", "")
+PAYMENT_POLICY_ID = policy_ids.get("PAYMENT_POLICY_ID", "")
+RETURN_POLICY_ID = policy_ids.get("RETURN_POLICY_ID", "")
+SHIPPING_POLICY_ID = policy_ids.get("SHIPPING_POLICY_ID", "")
 
 
 def create_seller_policies():
@@ -43,27 +72,29 @@ def create_seller_policies():
 
     # Создание конфигурационного файла для сохранения ID политик
     config_updates = {}
+    # 2. Создание политики оплаты,читая их из файла
+    payment = load_product_data(payment_policy_file_path)
+    payment["marketplaceId"] = DEFAULT_MARKETPLACE_ID
 
-    # 2. Создание политики оплаты
-    payment_policy = {
-        "name": "Standard Payment Policy DE",
-        "description": "Standard payment policy for eBay Germany",
-        "marketplaceId": DEFAULT_MARKETPLACE_ID,
-        "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
-        "paymentMethods": [
-            {
-                "paymentMethodType": "PAYPAL",
-                "recipientAccountReference": {
-                    "referenceType": "PAYPAL_EMAIL",
-                    "referenceId": "test-paypal@example.com",  # Замените на ваш PayPal email в Sandbox
-                },
-            }
-        ],
-    }
+    # payment_policy = {
+    #     "name": "Standard Payment Policy DE",
+    #     "description": "Standard payment policy for eBay Germany",
+    #     "marketplaceId": DEFAULT_MARKETPLACE_ID,
+    #     "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
+    #     "paymentMethods": [
+    #         {
+    #             "paymentMethodType": "PAYPAL",
+    #             "recipientAccountReference": {
+    #                 "referenceType": "PAYPAL_EMAIL",
+    #                 "referenceId": "test-paypal@example.com",  # Замените на ваш PayPal email в Sandbox
+    #             },
+    #         }
+    #     ],
+    # }
 
     logger.info("Создание политики оплаты...")
     payment_result = client._call_api(
-        "sell/account/v1/payment_policy", "POST", data=payment_policy
+        "sell/account/v1/payment_policy", "POST", data=payment
     )
 
     if "errors" in payment_result:
@@ -80,17 +111,19 @@ def create_seller_policies():
         )
 
     # 3. Создание политики возврата
-    return_policy = {
-        "name": "Standard Return Policy DE",
-        "description": "Standard 30-day return policy for Germany",
-        "marketplaceId": DEFAULT_MARKETPLACE_ID,
-        "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
-        "returnsAccepted": True,
-        "returnPeriod": {"value": 30, "unit": "DAY"},
-        "refundMethod": "MONEY_BACK",
-        "returnShippingCostPayer": "SELLER",
-        "returnMethod": "REPLACEMENT",
-    }
+    return_policy = load_product_data(return_policy_file_path)
+    return_policy["marketplaceId"] = DEFAULT_MARKETPLACE_ID
+    # return_policy = {
+    #     "name": "Standard Return Policy DE",
+    #     "description": "Standard 30-day return policy for Germany",
+    #     "marketplaceId": DEFAULT_MARKETPLACE_ID,
+    #     "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
+    #     "returnsAccepted": True,
+    #     "returnPeriod": {"value": 30, "unit": "DAY"},
+    #     "refundMethod": "MONEY_BACK",
+    #     "returnShippingCostPayer": "SELLER",
+    #     "returnMethod": "REPLACEMENT",
+    # }
 
     logger.info("Создание политики возврата...")
     return_result = client._call_api(
@@ -111,28 +144,30 @@ def create_seller_policies():
         )
 
     # 4. Создание политики доставки
-    fulfillment_policy = {
-        "name": "Standard Shipping Policy DE",
-        "description": "Standard shipping policy for Germany",
-        "marketplaceId": DEFAULT_MARKETPLACE_ID,
-        "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
-        "handlingTime": {"value": 1, "unit": "DAY"},
-        "shippingOptions": [
-            {
-                "optionType": "DOMESTIC",
-                "costType": "FLAT_RATE",
-                "shippingServices": [
-                    {
-                        "sortOrder": 1,
-                        "shippingCarrierCode": "DHL",
-                        "shippingServiceCode": "DE_DHLPaket",
-                        "shippingCost": {"currency": "EUR", "value": "5.99"},
-                        "additionalShippingCost": {"currency": "EUR", "value": "1.99"},
-                    }
-                ],
-            }
-        ],
-    }
+    fulfillment_policy = load_product_data(fulfillment_policy_file_path)
+    fulfillment_policy["marketplaceId"] = DEFAULT_MARKETPLACE_ID
+    # fulfillment_policy = {
+    #     "name": "Standard Shipping Policy DE",
+    #     "description": "Standard shipping policy for Germany",
+    #     "marketplaceId": DEFAULT_MARKETPLACE_ID,
+    #     "categoryTypes": [{"name": "ALL_EXCLUDING_MOTORS_VEHICLES", "default": True}],
+    #     "handlingTime": {"value": 1, "unit": "DAY"},
+    #     "shippingOptions": [
+    #         {
+    #             "optionType": "DOMESTIC",
+    #             "costType": "FLAT_RATE",
+    #             "shippingServices": [
+    #                 {
+    #                     "sortOrder": 1,
+    #                     "shippingCarrierCode": "DHL",
+    #                     "shippingServiceCode": "DE_DHLPaket",
+    #                     "shippingCost": {"currency": "EUR", "value": "5.99"},
+    #                     "additionalShippingCost": {"currency": "EUR", "value": "1.99"},
+    #                 }
+    #             ],
+    #         }
+    #     ],
+    # }
 
     logger.info("Создание политики доставки...")
     fulfillment_result = client._call_api(
@@ -269,7 +304,7 @@ def save_policy_ids(config_updates):
 
         # Сохранение обновленной конфигурации
         with open(config_file, "w", encoding="utf-8") as f:
-            json.dump(existing_config, f, indent=2, ensure_ascii=False)
+            json.dump(existing_config, f, indent=4, ensure_ascii=False)
 
         logger.info(f"ID политик сохранены в файл {config_file}")
 
@@ -287,6 +322,7 @@ def save_policy_ids(config_updates):
 
 
 # if __name__ == "__main__":
+#     create_seller_policies()
 #     logger.info("Запуск скрипта настройки политик продавца...")
 
 #     # Проверка наличия RuName

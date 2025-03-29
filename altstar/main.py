@@ -14,8 +14,11 @@ data_directory = current_directory / "data"
 html_directory = current_directory / "html"
 log_directory = current_directory / "log"
 img_directory = current_directory / "img"
+output_directory = current_directory / "output"
+
 
 img_directory.mkdir(parents=True, exist_ok=True)
+output_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 
@@ -330,8 +333,8 @@ def get_html():
 #     return result
 # Если нужно сохранить в список словарей или файл, вот пример:
 def scrap_html():
-    # Список для хранения данных всех товаров
-    all_products = []
+    # Словарь для хранения данных товаров по директориям
+    products_by_directory = {}
 
     # Счетчик обработанных файлов для логирования
     processed_files = 0
@@ -349,6 +352,13 @@ def scrap_html():
             logger.info(
                 f"Обработка файла ({processed_files + 1}/{total_files}): {html_path}"
             )
+
+            # Получаем имя директории, в которой находится файл
+            directory_name = html_path.parent.name
+
+            # Если директория еще не в словаре, добавляем ее
+            if directory_name not in products_by_directory:
+                products_by_directory[directory_name] = []
 
             with html_path.open(encoding="utf-8") as file:
                 content = file.read()
@@ -583,32 +593,41 @@ def scrap_html():
                 "right_column": right_column_data,
             }
 
-            # Добавляем данные о товаре в общий список
-            all_products.append(product_data)
+            # Добавляем данные о товаре в список соответствующей директории
+            products_by_directory[directory_name].append(product_data)
             processed_files += 1
 
             # Периодически сохраняем данные, чтобы не потерять результаты при сбое
             if processed_files % 100 == 0:
-                temp_output = output_json_file.with_name(
-                    f"temp_output_{processed_files}.json"
+                # Сохраняем промежуточные данные для каждой директории
+                for dir_name, products in products_by_directory.items():
+                    # Создаем имя файла на основе имени директории
+                    temp_output = (
+                        output_directory / f"temp_{dir_name}_{processed_files}.json"
+                    )
+                    with open(temp_output, "w", encoding="utf-8") as f:
+                        json.dump(products, f, ensure_ascii=False, indent=4)
+                logger.info(
+                    f"Сохранены промежуточные результаты после {processed_files} файлов"
                 )
-                with open(temp_output, "w", encoding="utf-8") as f:
-                    json.dump(all_products, f, ensure_ascii=False, indent=4)
-                logger.info(f"Сохранен промежуточный результат: {temp_output}")
 
         except Exception as e:
             logger.error(f"Ошибка при обработке файла {html_path}: {str(e)}")
             processed_files += 1
             continue
 
-    # Сохраняем полный результат
-    with open(output_json_file, "w", encoding="utf-8") as f:
-        json.dump(all_products, f, ensure_ascii=False, indent=4)
+    # Сохраняем финальные результаты для каждой директории
+    for dir_name, products in products_by_directory.items():
+        # Создаем имя файла на основе имени директории
+        output_file = output_directory / f"{dir_name}.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(products, f, ensure_ascii=False, indent=4)
+        logger.info(f"Данные для директории {dir_name} сохранены в файл: {output_file}")
 
     logger.info(f"Всего обработано файлов: {processed_files}/{total_files}")
-    logger.info(f"Данные сохранены в файл: {output_json_file}")
+    logger.info(f"Данные сохранены в отдельные файлы по директориям")
 
-    return all_products
+    return products_by_directory
 
 
 def sanitize_filename(filename: str) -> str:
@@ -738,89 +757,124 @@ def get_img(img_url, product_name):
 
 def convert_json_to_csv():
     """
-    Convert JSON product data (array of dictionaries) to CSV format and split into multiple files if exceeds 4000 rows
-
-    Args:
-        json_file_path (str): Path to the JSON file
-        csv_file_path (str): Path to save the CSV file
+    Конвертирует все JSON файлы из output_directory в CSV формат.
+    Для каждого JSON файла создается CSV файл с тем же именем.
+    Если данные превышают 4000 строк, файл разбивается на части.
     """
-    # Load JSON data
-    with open(output_json_file, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # Получаем список всех JSON файлов в директории
+    json_files = list(output_directory.glob("*.json"))
 
-    # List to store all rows
-    rows = []
+    if not json_files:
+        logger.warning(f"В директории {output_directory} не найдено JSON файлов")
+        return
 
-    # Iterate over each item in the JSON array
-    for item in data:
-        # Extract data from each section of the current item
-        left_column = item.get("left_column", {})
-        middle_column = item.get("middle_column", {})
-        right_column = item.get("right_column", {})
+    logger.info(f"Найдено JSON файлов для конвертации: {len(json_files)}")
 
-        # Create a dictionary for the CSV row
-        row_data = {}
+    # Создаем директорию для CSV файлов, если она не существует
+    csv_output_directory = data_directory / "csv_output"
+    csv_output_directory.mkdir(exist_ok=True)
 
-        # Add product name and price
-        product_name = left_column.get("product_name", "")
-        row_data["Артикул"] = product_name
-        img_url = left_column.get("image_links", "")
-        img_list = get_img(img_url, product_name)
-        # For analogs, join all entries
-        row_data["Номера аналогів"] = right_column.get("Номери аналогів", "")
+    # Обрабатываем каждый JSON файл
+    for json_file_path in json_files:
+        try:
+            # Получаем имя файла без расширения
+            file_name = json_file_path.stem
 
-        # Add aggregates, analogs, and applications
-        row_data["Застосованість"] = middle_column.get("Застосовується в агрегатах", "")
+            logger.info(f"Конвертация файла {file_name}.json в CSV")
 
-        # For applications, join all entries with a separator
-        applications = right_column.get("Застосування по автомобілю", [])
-        if applications:
-            row_data["Застосованість авто"] = "||".join(applications)
-        else:
-            row_data["Застосованість авто"] = ""
-        name_product = middle_column.get("name_product", "")
-        row_data["Назва товару"] = name_product
-        brand = middle_column.get("brand", None)
-        row_data["Виробник"] = brand
-        row_data["Ціна"] = left_column.get("price", "")
-        row_data["Фото"] = ",".join(img_list)
-        row_data["Кількість"] = "100"
+            # Загружаем JSON данные
+            with open(json_file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
 
-        # Add all characteristics as separate columns
-        characteristics = middle_column.get("characteristics", {})
-        for key, value in characteristics.items():
-            # Clean column name for CSV
-            clean_key = key.replace(",", "").strip()
-            row_data[clean_key] = value
+            # Список для хранения всех строк
+            rows = []
 
-        # Append the row to the list
-        rows.append(row_data)
+            # Итерируемся по каждому элементу в JSON массиве
+            for item in data:
+                # Извлекаем данные из каждой секции текущего элемента
+                left_column = item.get("left_column", {})
+                middle_column = item.get("middle_column", {})
+                right_column = item.get("right_column", {})
 
-    # Create DataFrame from all rows
-    df = pd.DataFrame(rows)
+                # Создаем словарь для строки CSV
+                row_data = {}
 
-    # Define base output path
-    base_output_path = data_directory / "output"
+                # Добавляем имя продукта и цену
+                product_name = left_column.get("product_name", "")
+                row_data["Артикул"] = product_name
 
-    # Check if DataFrame exceeds 4000 rows
-    rows_per_file = 4000
-    if len(df) > rows_per_file:
-        # Split DataFrame into chunks
-        total_files = (len(df) + rows_per_file - 1) // rows_per_file
-        for i in range(total_files):
-            start_idx = i * rows_per_file
-            end_idx = min((i + 1) * rows_per_file, len(df))
-            df_chunk = df.iloc[start_idx:end_idx]
-            output_csv_file = base_output_path.with_name(f"output_part_{i+1}.csv")
-            df_chunk.to_csv(
-                output_csv_file, index=False, encoding="windows-1251", sep=";"
-            )
-            logger.info(f"CSV file created: {output_csv_file}")
-    else:
-        # Single file if less than 4000 rows
-        output_csv_file = base_output_path.with_suffix(".csv")
-        df.to_csv(output_csv_file, index=False, encoding="windows-1251", sep=";")
-        logger.info(f"CSV file created: {output_csv_file}")
+                # Обрабатываем изображения
+                img_url = left_column.get("image_links", "")
+                img_list = get_img(img_url, product_name)
+
+                # Для аналогов объединяем все записи
+                analogs = right_column.get("analogs", "")
+                row_data["Номера аналогів"] = analogs
+
+                # Добавляем агрегаты, аналоги и приложения
+                row_data["Застосованість"] = middle_column.get("aggregates", "")
+
+                # Для приложений объединяем все записи с разделителем
+                applications = right_column.get("applications", [])
+                if applications:
+                    row_data["Застосованість авто"] = "||".join(applications)
+                else:
+                    row_data["Застосованість авто"] = ""
+
+                name_product = middle_column.get("name_product", "")
+                row_data["Назва товару"] = name_product
+                brand = middle_column.get("brand", "")
+                row_data["Виробник"] = brand
+                row_data["Ціна"] = left_column.get("price", "")
+                row_data["Фото"] = ",".join(img_list)
+                row_data["Кількість"] = "100"
+
+                # Добавляем все характеристики как отдельные столбцы
+                characteristics = middle_column.get("characteristics", {})
+                for key, value in characteristics.items():
+                    # Очищаем имя столбца для CSV
+                    clean_key = key.replace(",", "").strip()
+                    row_data[clean_key] = value
+
+                # Добавляем строку в список
+                rows.append(row_data)
+
+            # Создаем DataFrame из всех строк
+            df = pd.DataFrame(rows)
+
+            # Проверяем, превышает ли DataFrame 4000 строк
+            rows_per_file = 4000
+            if len(df) > rows_per_file:
+                # Разбиваем DataFrame на части
+                total_files = (len(df) + rows_per_file - 1) // rows_per_file
+                for i in range(total_files):
+                    start_idx = i * rows_per_file
+                    end_idx = min((i + 1) * rows_per_file, len(df))
+                    df_chunk = df.iloc[start_idx:end_idx]
+
+                    # Создаем имя файла для части
+                    output_csv_file = (
+                        csv_output_directory / f"{file_name}_part_{i+1}.csv"
+                    )
+
+                    # Сохраняем часть в CSV
+                    df_chunk.to_csv(
+                        output_csv_file, index=False, encoding="windows-1251", sep=";"
+                    )
+                    logger.info(f"CSV файл создан: {output_csv_file}")
+            else:
+                # Один файл, если менее 4000 строк
+                output_csv_file = csv_output_directory / f"{file_name}.csv"
+                df.to_csv(
+                    output_csv_file, index=False, encoding="windows-1251", sep=";"
+                )
+                logger.info(f"CSV файл создан: {output_csv_file}")
+
+        except Exception as e:
+            logger.error(f"Ошибка при конвертации файла {json_file_path}: {str(e)}")
+            continue
+
+    logger.info(f"Конвертация всех JSON файлов в CSV завершена")
 
 
 if __name__ == "__main__":
