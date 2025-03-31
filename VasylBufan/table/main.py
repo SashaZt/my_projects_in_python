@@ -4,20 +4,24 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import urlparse
 
+import gspread
 import pandas as pd
 import requests
+from google.oauth2.service_account import Credentials
 from loguru import logger
+from lxml import etree
 
 current_directory = Path.cwd()
 xml_directory = current_directory / "xml"
 log_directory = current_directory / "log"
-confi_directory = current_directory / "config"
+config_directory = current_directory / "config"
 
-confi_directory.mkdir(parents=True, exist_ok=True)
+config_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
 xml_directory.mkdir(parents=True, exist_ok=True)
 log_file_path = log_directory / "log_message.log"
-config_file_path = confi_directory / "config.json"
+config_file_path = config_directory / "config.json"
+service_account_file = config_directory / "credentials.json"
 
 logger.remove()
 # 🔹 Логирование в файл
@@ -64,9 +68,70 @@ config = load_json_data(config_file_path)
 URLS = config.get("competitor_www", [])
 MY_URL = config.get("my_www")
 HEADERS = config.get("headers", {})
+SPREADSHEET = config["google"]["spreadsheet"]
+SHEET = config["google"]["sheet"]
 
 
-def download_xml(url, headers, xml_dir=xml_directory):
+def get_google_sheet(sheet_one):
+    """Подключается к Google Sheets и возвращает указанный лист."""
+    try:
+        # Новый способ аутентификации с google-auth
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+
+        credentials = Credentials.from_service_account_file(
+            service_account_file, scopes=scopes
+        )
+
+        # Авторизация в gspread с новыми учетными данными
+        client = gspread.authorize(credentials)
+
+        # Открываем таблицу по ключу и возвращаем лист
+        spreadsheet = client.open_by_key(SPREADSHEET)
+        logger.info("Успешное подключение к Google Spreadsheet.")
+        return spreadsheet.worksheet(sheet_one)
+    except FileNotFoundError:
+        logger.error("Файл учетных данных не найден. Проверьте путь.")
+        raise FileNotFoundError("Файл учетных данных не найден. Проверьте путь.")
+    except gspread.exceptions.APIError as e:
+        logger.error(f"Ошибка API Google Sheets: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Произошла ошибка: {e}")
+        raise
+
+
+def update_sheet_with_data(sheet, data, total_rows=10000):
+    """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
+    if not data:
+        raise ValueError("Данные для обновления отсутствуют.")
+
+    # Заголовки из ключей словаря
+    headers = list(data[0].keys())
+
+    # Запись заголовков в первую строку
+    sheet.update(values=[headers], range_name="A1", value_input_option="RAW")
+
+    # Формирование строк для записи
+    rows = [[entry.get(header, "") for header in headers] for entry in data]
+
+    # Добавление пустых строк до общего количества total_rows
+    if len(rows) < total_rows:
+        empty_row = [""] * len(headers)
+        rows.extend([empty_row] * (total_rows - len(rows)))
+
+    # Определение диапазона для записи данных
+    end_col = chr(65 + len(headers) - 1)  # Преобразование индекса в букву (A, B, C...)
+    range_name = f"A2:{end_col}{total_rows + 1}"
+
+    # Запись данных в лист
+    sheet.update(values=rows, range_name=range_name, value_input_option="USER_ENTERED")
+    logger.info(f"Обновлено {len(data)} строк в Google Sheets")
+
+
+def download_xml(url, headers):
     """
     Скачивает XML файл по указанному URL.
 
@@ -88,9 +153,9 @@ def download_xml(url, headers, xml_dir=xml_directory):
 
         # Добавляем расширение .xml если его нет
         if not filename.endswith(".xml"):
-            xml_file_path = xml_dir / f"{filename}.xml"
+            xml_file_path = xml_directory / f"{filename}.xml"
         else:
-            xml_file_path = xml_dir / filename
+            xml_file_path = xml_directory / filename
 
         logger.info(f"Скачиваем XML файл: {url}")
 
@@ -115,7 +180,7 @@ def download_xml(url, headers, xml_dir=xml_directory):
         return None
 
 
-def download_all_xml_files(config_file_path):
+def download_all_xml_files():
     """
     Скачивает все XML файлы на основе конфигурации.
 
@@ -179,62 +244,79 @@ def parse_sitemap_urls():
 
 
 def parsin_xml():
-    with open("sitemap_0.xml", "r", encoding="utf-8") as file:
-        xml_content = file.read()
+    # Словарь соответствия имени файла и имени листа
+    file_sheet_mapping = {
+        "all": "my_site",
+        "export_yandex_market": "insportline_out_of_stock",
+        "yml_dualprice": "insportline_in_stock",
+    }
 
-    root = ET.fromstring(xml_content)
-    namespace = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+    # Переменная для выбора полей, которые нужно извлечь из XML
+    # Для "all" берем только offer_id и price, для остальных - все поля
 
-    urls = [
-        url.text.strip()
-        for url in root.findall(".//ns:loc", namespace)
-        if not url.text.strip().startswith("https://bsspart.com/ru/")
-    ]
+    # Обрабатываем каждый XML-файл в директории
+    for xml_file in xml_directory.glob("*.xml"):
+        name_file = xml_file.stem
 
-    url_data = pd.DataFrame(urls, columns=["url"])
-    url_data.to_csv("urls.csv", index=False)
+        # Пропускаем файлы, которые не указаны в маппинге
+        if name_file not in file_sheet_mapping:
+            continue
+
+        sheet_name = file_sheet_mapping[name_file]
+
+        # Парсим XML
+        tree = etree.parse(xml_file)
+        root = tree.getroot()
+        offers = root.xpath("//offer")
+        result = []
+
+        for offer in offers[
+            :1
+        ]:  # Берем только первый offer для примера (в оригинале так)
+            offer_id = offer.get("id")
+
+            # Извлекаем данные из XML, используя вспомогательную функцию
+            fields = {
+                # "stock_quantity": extract_xml_value(offer, "stock_quantity"),
+                "price": extract_xml_value(offer, "price"),
+                "vendor_code": extract_xml_value(offer, "vendorCode"),
+            }
+
+            # Создаем словарь для текущего offer
+            all_data = {"offer_id": offer_id}
+
+            # Для "all" берем только offer_id и price
+            if name_file == "all":
+                all_data["price"] = fields["price"]
+                sku = (
+                    offer.xpath('param[@name="sku"]/text()')[0]
+                    if offer.xpath('param[@name="sku"]')
+                    else None
+                )
+                ean = (
+                    offer.xpath('param[@name="ean"]/text()')[0]
+                    if offer.xpath('param[@name="ean"]')
+                    else None
+                )
+                all_data["sku"] = sku
+                all_data["ean"] = ean
+            else:
+                # Для остальных файлов берем все поля
+                all_data.update(fields)
+
+            result.append(all_data)
+
+        # Получаем лист и обновляем данные
+        sheet = get_google_sheet(sheet_name)
+        update_sheet_with_data(sheet, result)
 
 
-def xml_temp():
-
-    # Загрузка XML-файла
-    xml_file = "index.xml"  # Укажите путь к вашему XML-файлу
-
-    tree = ET.parse(xml_file)
-    root = tree.getroot()
-
-    # Найти секцию offers
-    offers_section = root.find(".//offers")
-
-    # Проверяем, что offers_section найден
-    if offers_section is not None:
-        # Извлекаем URL-адреса
-        urls = [
-            offer.find("url").text
-            for offer in offers_section.findall("offer")
-            if offer.find("url") is not None
-        ]
-
-        # Создаем DataFrame
-        df = pd.DataFrame(urls, columns=["url"])
-
-        # Сохраняем в CSV-файл
-        csv_filename = "urls.csv"
-        df.to_csv(csv_filename, index=False)
-
-        print(f"Сохранено в {csv_filename}")
-    else:
-        print("Ошибка: Секция <offers> не найдена в XML.")
+def extract_xml_value(element, tag_name):
+    """Извлекает значение тега из XML элемента или возвращает 'N/A', если тег не найден."""
+    node = element.find(tag_name)
+    return node.text if node is not None else None
 
 
 if __name__ == "__main__":
-    results = download_all_xml_files(config_file_path)
-
-    # Вывод итогов
-    logger.info("=== Итоги скачивания ===")
-    for url, file_path in results.items():
-        status = "УСПЕШНО" if file_path else "ОШИБКА"
-        logger.info(f"{status}: {url}")
-    # parse_si??temap_urls()
-    # parsin_xml()
-    # xml_temp()
+    # download_all_xml_files()
+    parsin_xml()
