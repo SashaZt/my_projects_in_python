@@ -4,6 +4,11 @@ from pathlib import Path
 
 import requests
 from logger import logger
+from main_db import (
+    get_next_available_key_for_orders,
+    import_keys_from_files,
+    save_parsed_orders_to_db,
+)
 from main_tg import send_message
 from main_token import get_token, load_product_data, save_json_data, validyty_token
 
@@ -101,7 +106,6 @@ def get_status_payment(order_id):
     url = f"https://api-seller.rozetka.com.ua/orders/status-payment/{order_id}"
 
     result = make_api_request("GET", url)
-    logger.info(result)
 
     if result and result.get("success"):
         # Проверяем, что content не None перед доступом к его атрибутам
@@ -124,10 +128,10 @@ def process_orders():
 
     # Получаем заказы
     orders_data = get_orders()
+    # orders_data = load_product_data(orders_json_file)["content"]["orders"]
     if not orders_data:
         logger.error("Нет данных о заказах для обработки")
         return []
-
     # Загружаем список товаров
     products_data = load_product_data(roblox_products_json_file)
     if not products_data:
@@ -139,17 +143,22 @@ def process_orders():
 
     result = []
     logger.info(f"Обработка {len(orders_data)} заказов")
-
+    # logger.info(orders_data)
     for order in orders_data:
+        # обработке заказа {order.get('id')}: {e}")
+
         try:
+
             # Извлекаем информацию о товаре (первый товар в заказе)
-            if not order.get("items_photos") or len(order["items_photos"]) == 0:
-                logger.warning(
-                    f"Заказ {order.get('id')} не содержит информации о товарах"
-                )
-                continue
+            # if not order.get("items_photos") or len(order["items_photos"]) == 0:
+            #     logger.warning(
+            #         f"Заказ {order.get('id')} не содержит информации о товарах"
+            #     )
+            # continue
 
             item_name = order["items_photos"][0]["item_name"]
+            logger.info(f"Товар: {item_name}")
+
             # Отправка сообщений в ТГ
             # loop = asyncio.new_event_loop()
             # asyncio.set_event_loop(loop)
@@ -166,39 +175,24 @@ def process_orders():
                 logger.info(f"Обработка заказа #{order_id} - {item_name}")
 
                 # Получаем статус платежа
-                payment_status = get_status_payment(order_id)
-                logger.info(payment_status)
-                user_phone = None
-                payment_status_title = "Не оплачено"  # Значение по умолчанию
+                payment_status_raw = get_status_payment(order_id)
 
-                if payment_status is not None:
-                    logger.info(payment_status)
-                    payment_status_title = payment_status.get("title", "Не оплачено")
+                payment_status = payment_status_raw.get("status_payment_id", None)
+                if payment_status == 7:
+                    payment_status_title = payment_status_raw["title"]
+                    user_phone = order["user_phone"]
 
-                    # Если статус "Сума заблокована", сохраняем телефон
-                    if payment_status_title == "Сума заблокована":
-                        user_phone = order["user_phone"]
-                        logger.info(
-                            f"Сумма заблокирована для заказа #{order_id}, телефон: {user_phone}"
-                        )
-                else:
-                    logger.info("Не оплачено")
-                # Формируем данные заказа
-                all_data = {
-                    "order_id": order_id,
-                    "product": item_name,
-                    "user_phone": user_phone,
-                    "status": order["status"],
-                    "status_payment": payment_status_title,
-                    "created": order["created"],
-                    "amount": order["amount"],
-                    "user_info": {
-                        "first_name": order["user_title"].get("first_name", ""),
-                        "last_name": order["user_title"].get("last_name", ""),
+                    # Формируем данные заказа
+                    all_data = {
+                        "order_id": order_id,
+                        "product": item_name,
+                        "user_phone": user_phone,
+                        "status_payment": payment_status_title,
+                        "created": order["created"],
+                        "amount": order["amount"],
                         "full_name": order["user_title"].get("full_name", ""),
-                    },
-                }
-                result.append(all_data)
+                    }
+                    result.append(all_data)
             else:
                 logger.info(f"Товар {item_name} не наш")
         except Exception as e:
@@ -207,6 +201,7 @@ def process_orders():
     # Сохраняем результат обработки
     result_file = data_directory / "parsed_orders.json"
     save_json_data(result, result_file)
+    save_parsed_orders_to_db(result)
     logger.info(f"Обработано {len(result)} заказов")
 
     return result
@@ -255,9 +250,10 @@ def get_available_payments(order_id):
 
 
 if __name__ == "__main__":
-    # main()
+    # import_keys_from_files()
+    # process_orders()
+    # get_next_available_key_for_orders()
     while True:
         process_orders()
         logger.info("Пауза")
         time.sleep(300)
-    # get_available_payments("845802219")

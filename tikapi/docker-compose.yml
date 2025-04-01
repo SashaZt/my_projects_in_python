@@ -1,0 +1,72 @@
+services:
+  # PostgreSQL сервис
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-tiktok-analytics}-postgres
+    restart: unless-stopped
+    environment:
+      # Основные параметры PostgreSQL
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: ${PGDATA}
+      # Параметры настройки производительности
+      PG_MAX_CONNECTIONS: ${PG_MAX_CONNECTIONS}
+      PG_SHARED_BUFFERS: ${PG_SHARED_BUFFERS}
+      PG_EFFECTIVE_CACHE_SIZE: ${PG_EFFECTIVE_CACHE_SIZE}
+      PG_MAINTENANCE_WORK_MEM: ${PG_MAINTENANCE_WORK_MEM}
+      PG_CHECKPOINT_COMPLETION_TARGET: ${PG_CHECKPOINT_COMPLETION_TARGET}
+      PG_WAL_BUFFERS: ${PG_WAL_BUFFERS}
+      PG_DEFAULT_STATISTICS_TARGET: ${PG_DEFAULT_STATISTICS_TARGET}
+      PG_RANDOM_PAGE_COST: ${PG_RANDOM_PAGE_COST}
+      PG_EFFECTIVE_IO_CONCURRENCY: ${PG_EFFECTIVE_IO_CONCURRENCY}
+      PG_WORK_MEM: ${PG_WORK_MEM}
+      PG_MIN_WAL_SIZE: ${PG_MIN_WAL_SIZE}
+      PG_MAX_WAL_SIZE: ${PG_MAX_WAL_SIZE}
+    volumes:
+      # Монтирование директории данных
+      - ${POSTGRES_DATA_DIR:-./pgdata}:${PGDATA:-/var/lib/postgresql/data/pgdata}
+    networks:
+      - app_network
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+
+  # FastAPI сервис
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-tiktok-analytics}-api
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      # Переменные для подключения к базе данных
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
+
+      # Переменные из config.json для настройки SSL
+      SSL_KEYFILE: /etc/ssl/private/${SSL_KEYFILE:-server.key}
+      SSL_CERTFILE: /etc/ssl/private/${SSL_CERTFILE:-server.crt}
+
+      # Прочие переменные окружения для API
+      API_LOG_LEVEL: ${API_LOG_LEVEL:-debug}
+      API_PORT: ${API_PORT:-5000}
+      API_HOST: ${API_HOST:-0.0.0.0}
+
+      # Дополнительные переменные
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    volumes:
+      # Монтирование исходного кода для разработки (если ENVIRONMENT=development)
+      - ./api:/api
+      # Монтирование логов
+      - ./logs:/api/logs
+    networks:
+      - app_network
+    ports:
+      - "${API_PORT:-5000}:5000"
+
+networks:
+  app_network:
+    driver: bridge

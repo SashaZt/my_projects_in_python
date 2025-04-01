@@ -103,7 +103,7 @@ def get_google_sheet(sheet_one):
         raise
 
 
-def update_sheet_with_data(sheet, data, total_rows=10000):
+def update_sheet_with_data(sheet, data, total_rows=20000):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
     if not data:
         raise ValueError("Данные для обновления отсутствуют.")
@@ -244,71 +244,114 @@ def parse_sitemap_urls():
 
 
 def parsin_xml():
-    # Словарь соответствия имени файла и имени листа
-    file_sheet_mapping = {
-        "all": "my_site",
-        "export_yandex_market": "insportline_out_of_stock",
-        "yml_dualprice": "insportline_in_stock",
-    }
 
-    # Переменная для выбора полей, которые нужно извлечь из XML
-    # Для "all" берем только offer_id и price, для остальных - все поля
+    # Словарь для хранения данных по sku
+    data_dict = {}
+    # Дополнительный словарь для хранения данных по ean для быстрого поиска
+    ean_dict = {}
+    # Словарь для сопоставления SKU без префикса INS
+    normalized_sku_dict = {}
 
-    # Обрабатываем каждый XML-файл в директории
+    # Сначала обрабатываем файл "all", чтобы собрать sku и ean
     for xml_file in xml_directory.glob("*.xml"):
         name_file = xml_file.stem
 
-        # Пропускаем файлы, которые не указаны в маппинге
-        if name_file not in file_sheet_mapping:
-            continue
+        if name_file == "all":
+            tree = etree.parse(xml_file)
+            root = tree.getroot()
+            offers = root.xpath("//offer")
 
-        sheet_name = file_sheet_mapping[name_file]
-
-        # Парсим XML
-        tree = etree.parse(xml_file)
-        root = tree.getroot()
-        offers = root.xpath("//offer")
-        result = []
-
-        for offer in offers[
-            :1
-        ]:  # Берем только первый offer для примера (в оригинале так)
-            offer_id = offer.get("id")
-
-            # Извлекаем данные из XML, используя вспомогательную функцию
-            fields = {
-                # "stock_quantity": extract_xml_value(offer, "stock_quantity"),
-                "price": extract_xml_value(offer, "price"),
-                "vendor_code": extract_xml_value(offer, "vendorCode"),
-            }
-
-            # Создаем словарь для текущего offer
-            all_data = {"offer_id": offer_id}
-
-            # Для "all" берем только offer_id и price
-            if name_file == "all":
-                all_data["price"] = fields["price"]
+            for offer in offers:
                 sku = (
                     offer.xpath('param[@name="sku"]/text()')[0]
                     if offer.xpath('param[@name="sku"]')
                     else None
                 )
+
                 ean = (
                     offer.xpath('param[@name="ean"]/text()')[0]
                     if offer.xpath('param[@name="ean"]')
                     else None
                 )
-                all_data["sku"] = sku
-                all_data["ean"] = ean
-            else:
-                # Для остальных файлов берем все поля
-                all_data.update(fields)
 
-            result.append(all_data)
+                if sku:  # Используем sku как ключ
+                    data_dict[sku] = {
+                        "Мой сайт sku": sku,
+                        "Мой сайт ean": ean,
+                        "insportline": None,
+                    }
 
-        # Получаем лист и обновляем данные
-        sheet = get_google_sheet(sheet_name)
-        update_sheet_with_data(sheet, result)
+                    # Если есть EAN, создаем ссылку на запись в data_dict
+                    if ean:
+                        ean_dict[ean] = sku
+
+                    # Создаем нормализованную версию SKU (без префикса INS)
+                    normalized_sku = normalize_sku(sku)
+                    normalized_sku_dict[normalized_sku] = sku
+
+    # Теперь обрабатываем остальные файлы для получения insportline (vendorCode)
+    for xml_file in xml_directory.glob("*.xml"):
+        name_file = xml_file.stem
+
+        if name_file in ["export_yandex_market", "yml_dualprice"]:
+            tree = etree.parse(xml_file)
+            root = tree.getroot()
+            offers = root.xpath("//offer")
+
+            for offer in offers:
+                vendor_code = extract_xml_value(offer, "vendorCode")
+                if not vendor_code:
+                    continue
+
+                # Пытаемся найти соответствующую запись по sku
+                if vendor_code in data_dict:
+                    # Сопоставление по точному совпадению SKU
+                    data_dict[vendor_code]["insportline"] = vendor_code
+                else:
+                    # Нормализуем vendor_code для сравнения
+                    normalized_vendor = normalize_sku(vendor_code)
+
+                    # Проверяем соответствие по нормализованному SKU
+                    if normalized_vendor in normalized_sku_dict:
+                        original_sku = normalized_sku_dict[normalized_vendor]
+                        data_dict[original_sku]["insportline"] = vendor_code
+                    else:
+                        # Попробуем сопоставить по EAN
+                        ean_value = extract_xml_value(
+                            offer, "barcode"
+                        ) or extract_xml_value(offer, "ean")
+
+                        if ean_value and ean_value in ean_dict:
+                            # Нашли соответствие по EAN
+                            matching_sku = ean_dict[ean_value]
+                            data_dict[matching_sku]["insportline"] = vendor_code
+                        else:
+                            # Если нет соответствия ни по SKU, ни по EAN, добавляем новую запись
+                            new_key = f"insportline_{vendor_code}"
+                            data_dict[new_key] = {
+                                "Мой сайт sku": None,
+                                "Мой сайт ean": None,
+                                "insportline": vendor_code,
+                            }
+
+    # Преобразуем словарь в список для записи
+    result = list(data_dict.values())
+
+    # Получаем лист и обновляем данные
+    sheet_name = "Data"
+    sheet = get_google_sheet(sheet_name)
+    update_sheet_with_data(sheet, result)
+
+
+def normalize_sku(sku):
+    """
+    Нормализует SKU, удаляя префикс 'INS' если он есть.
+    Например: 'INS9410-3' -> '9410-3'
+    """
+    if sku and isinstance(sku, str):
+        if sku.startswith("INS"):
+            return sku[3:]  # Удаляем первые 3 символа (INS)
+    return sku
 
 
 def extract_xml_value(element, tag_name):

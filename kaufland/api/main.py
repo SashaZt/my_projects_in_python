@@ -352,9 +352,9 @@ if __name__ == "__main__":
     # except Exception as e:
     #     logger.error(f"Ошибка при получении товара: {e}")
 
-    # # Получение id категории
+    # Получение id категории
     # try:
-    #     categories = api.get_categories(query="Koffer")
+    #     categories = api.get_categories(query="Lasermessgeräte")
     #     logger.info(f"Получено категорий: {len(categories.get('data', []))}")
 
     #     # Вывод найденных категорий
@@ -394,20 +394,20 @@ if __name__ == "__main__":
     #     logger.error(f"Ошибка при получении атрибутов категории: {e}")
 
     # Пример 2: Загрузка данных о товаре
-    try:
-        # Чтение данных о товаре из JSON-файла
-        with open("product.json", "r", encoding="utf-8") as file:
-            product_data = json.load(file)
+    # try:
+    #     # Чтение данных о товаре из JSON-файла
+    #     with open("product.json", "r", encoding="utf-8") as file:
+    #         product_data = json.load(file)
 
-            ean = product_data["ean"][0]
-            attributes = product_data["attributes"]
+    #         ean = product_data["ean"][0]
+    #         attributes = product_data["attributes"]
 
-            logger.info(f"Загрузка товара с EAN: {ean}")
-            response = api.upload_product_data(ean, attributes)
-            logger.info(f"Результат загрузки товара: {response}")
-    except Exception as e:
-        logger.error(f"Ошибка при загрузке товара: {e}")
-    # # Пример 3: Получаем id_offer()
+    #         logger.info(f"Загрузка товара с EAN: {ean}")
+    #         response = api.upload_product_data(ean, attributes)
+    #         logger.info(f"Результат загрузки товара: {response}")
+    # except Exception as e:
+    #     logger.error(f"Ошибка при загрузке товара: {e}")
+    # Пример 3: Получаем id_offer()
     # try:
     #     # Чтение данных о товаре из JSON-файла
     #     with open("product.json", "r", encoding="utf-8") as file:
@@ -419,18 +419,18 @@ if __name__ == "__main__":
     #         response = api.get_id_offer(ean)
     #         logger.info(f"Результат загрузки товара: {response}")
     # except Exception as e:
-    #     logger.error(f"Ошибка при загрузке товара: {e}")
+    # logger.error(f"Ошибка при загрузке товара: {e}")
 
-    # # Данные для добавления единицы товара
-    # unit_data = {
-    #     "ean": "5905488702567",  # EAN товара (обязательно либо ean, либо id_product)
-    #     "condition": "NEW",  # Состояние товара (NEW, USED___GOOD и т.д.)
-    #     "listing_price": 6000,  # Цена в центах (обязательно > 0)
-    #     "minimum_price": 5000,  # Минимальная цена для Smart Pricing (необязательно)
-    #     "amount": 10,  # Количество товара на складе (ограничено до 99999)
-    #     "note": "",  # Примечание (до 250 символов)
-    #     "id_offer": "531721813",  # Получаем через products/ean/{ean} указываем ean
-    #     "handling_time": 2,  # Количество рабочих дней на обработку заказа
-    #     "vat_indicator": "standard_rate",  # Индикатор НДС
-    # }
-    # response = api.add_unit(unit_data, storefront="de")
+    # Данные для добавления единицы товара
+    unit_data = {
+        "ean": "3165140850247",  # EAN товара (обязательно либо ean, либо id_product)
+        "condition": "NEW",  # Состояние товара (NEW, USED___GOOD и т.д.)
+        "listing_price": 6000,  # Цена в центах (обязательно > 0)
+        "minimum_price": 5000,  # Минимальная цена для Smart Pricing (необязательно)
+        "amount": 10,  # Количество товара на складе (ограничено до 99999)
+        "note": "",  # Примечание (до 250 символов)
+        "id_offer": "316741741",  # Получаем через products/ean/{ean} указываем ean
+        "handling_time": 2,  # Количество рабочих дней на обработку заказа
+        "vat_indicator": "standard_rate",  # Индикатор НДС
+    }
+    response = api.add_unit(unit_data, storefront="de")
