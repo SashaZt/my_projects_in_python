@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from urllib.parse import urlparse
 
+import demjson3
 import gspread
 import pandas as pd
 import requests
@@ -428,6 +429,7 @@ def pars_htmls():
     logger.info("Собираем данные со страниц html")
     list_all = []
     list_01 = []
+    all_product = []
     html_count = len(list(html_directory.glob("*.html")))
     # Пройтись по каждому HTML файлу в папке
     for html_file in html_directory.glob("*.html"):
@@ -494,7 +496,6 @@ def pars_htmls():
                     except json.JSONDecodeError as e2:
                         # Альтернативный подход - использовать более гибкий парсер
                         try:
-                            import demjson3
 
                             json_data = demjson3.decode(cleaned_text)
                             logger.info("JSON успешно распарсен с помощью demjson3")
@@ -508,19 +509,21 @@ def pars_htmls():
                     sklad_all, sklad_01 = extract_product_data(json_data)
                     if sklad_all:
                         list_all.append(sklad_all)
+                        all_product.append(sklad_all)
                         html_count -= 1
                         print(f"Осталось обработать: {html_count} файлов", end="\r")
                     if sklad_01:
                         list_01.append(sklad_01)
+                        all_product.append(sklad_01)
                         html_count -= 1
                         print(f"Осталось обработать: {html_count} файлов", end="\r")
 
             except Exception as e:
                 logger.error(f"Непредвиденная ошибка при обработке скрипта: {str(e)}")
 
-    # logger.info(all_data)
-    # with open(output_json_file, "w", encoding="utf-8") as json_file:
-    #     json.dump(all_data, json_file, ensure_ascii=False, indent=4)
+    logger.info()
+    with open(output_json_file, "w", encoding="utf-8") as json_file:
+        json.dump(all_product, json_file, ensure_ascii=False, indent=4)
     # Получение листа Google Sheets
     if list_all:
         sheet = get_google_sheet(SHEET_ALL)

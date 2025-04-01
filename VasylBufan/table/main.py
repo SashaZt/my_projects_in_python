@@ -244,13 +244,16 @@ def parse_sitemap_urls():
 
 
 def parsin_xml():
-
     # Словарь для хранения данных по sku
     data_dict = {}
     # Дополнительный словарь для хранения данных по ean для быстрого поиска
     ean_dict = {}
     # Словарь для сопоставления SKU без префикса INS
     normalized_sku_dict = {}
+
+    # Для хранения данных в разных категориях
+    matched_data = []  # Данные, которые были сопоставлены
+    unmatched_data = []  # Данные, которые не были сопоставлены
 
     # Сначала обрабатываем файл "all", чтобы собрать sku и ean
     for xml_file in xml_directory.glob("*.xml"):
@@ -262,6 +265,7 @@ def parsin_xml():
             offers = root.xpath("//offer")
 
             for offer in offers:
+                price_my_site = extract_xml_value(offer, "price")
                 sku = (
                     offer.xpath('param[@name="sku"]/text()')[0]
                     if offer.xpath('param[@name="sku"]')
@@ -278,7 +282,10 @@ def parsin_xml():
                     data_dict[sku] = {
                         "Мой сайт sku": sku,
                         "Мой сайт ean": ean,
+                        "Мой сайт цена": price_my_site,
                         "insportline": None,
+                        "insportline цена": None,
+                        "matched": False,  # Флаг для отслеживания сопоставленных записей
                     }
 
                     # Если есть EAN, создаем ссылку на запись в data_dict
@@ -300,13 +307,20 @@ def parsin_xml():
 
             for offer in offers:
                 vendor_code = extract_xml_value(offer, "vendorCode")
+                insportline_price = extract_xml_value(offer, "price")
+
                 if not vendor_code:
                     continue
+
+                match_found = False
 
                 # Пытаемся найти соответствующую запись по sku
                 if vendor_code in data_dict:
                     # Сопоставление по точному совпадению SKU
-                    data_dict[vendor_code]["insportline"] = vendor_code
+                    data_dict[vendor_code]["insportline vendor_code"] = vendor_code
+                    data_dict[vendor_code]["insportline цена"] = insportline_price
+                    data_dict[vendor_code]["matched"] = True
+                    match_found = True
                 else:
                     # Нормализуем vendor_code для сравнения
                     normalized_vendor = normalize_sku(vendor_code)
@@ -314,7 +328,10 @@ def parsin_xml():
                     # Проверяем соответствие по нормализованному SKU
                     if normalized_vendor in normalized_sku_dict:
                         original_sku = normalized_sku_dict[normalized_vendor]
-                        data_dict[original_sku]["insportline"] = vendor_code
+                        data_dict[original_sku]["insportline vendor_code"] = vendor_code
+                        data_dict[original_sku]["insportline цена"] = insportline_price
+                        data_dict[original_sku]["matched"] = True
+                        match_found = True
                     else:
                         # Попробуем сопоставить по EAN
                         ean_value = extract_xml_value(
@@ -324,23 +341,66 @@ def parsin_xml():
                         if ean_value and ean_value in ean_dict:
                             # Нашли соответствие по EAN
                             matching_sku = ean_dict[ean_value]
-                            data_dict[matching_sku]["insportline"] = vendor_code
-                        else:
-                            # Если нет соответствия ни по SKU, ни по EAN, добавляем новую запись
-                            new_key = f"insportline_{vendor_code}"
-                            data_dict[new_key] = {
-                                "Мой сайт sku": None,
-                                "Мой сайт ean": None,
-                                "insportline": vendor_code,
-                            }
+                            data_dict[matching_sku][
+                                "insportline vendor_code"
+                            ] = vendor_code
+                            data_dict[matching_sku][
+                                "insportline цена"
+                            ] = insportline_price
+                            data_dict[matching_sku]["matched"] = True
+                            match_found = True
 
-    # Преобразуем словарь в список для записи
-    result = list(data_dict.values())
+                if not match_found:
+                    # Если нет соответствия ни по SKU, ни по EAN, добавляем новую запись
+                    new_key = f"insportline_{vendor_code}"
+                    data_dict[new_key] = {
+                        "Мой сайт sku": None,
+                        "Мой сайт ean": None,
+                        "Мой сайт цена": None,
+                        "insportline vendor_code": vendor_code,
+                        "insportline цена": insportline_price,
+                        "matched": False,  # Это несопоставленная запись
+                    }
+
+    # Разделяем данные на сопоставленные и несопоставленные
+    for key, value in data_dict.items():
+        # Удаляем служебное поле matched, которое не нужно передавать в result
+        matched = value.pop("matched", False)
+
+        if matched:
+            matched_data.append(value)
+        else:
+            unmatched_data.append(value)
+
+    # Выводим для отладки количество сопоставленных и несопоставленных записей
+    print(f"Сопоставлено записей: {len(matched_data)}")
+    print(f"Не сопоставлено записей: {len(unmatched_data)}")
+
+    # Соединяем сначала сопоставленные, затем несопоставленные записи
+    result = matched_data + unmatched_data
+
+    # Для примера выведем первые несколько сопоставленных записей
+    print("\nПримеры сопоставленных записей:")
+    for i, item in enumerate(matched_data[:5]):  # Первые 5 записей для примера
+        print(
+            f"{i+1}. SKU: {item['Мой сайт sku']}, EAN: {item['Мой сайт ean']}, "
+            + f"Мой сайт цена: {item['Мой сайт цена']}, "
+            + f"Insportline: {item['insportline']}, Insportline цена: {item['insportline цена']}"
+        )
 
     # Получаем лист и обновляем данные
     sheet_name = "Data"
     sheet = get_google_sheet(sheet_name)
     update_sheet_with_data(sheet, result)
+
+    return result  # Возвращаем результат для дальнейшего использования
+    # # Преобразуем словарь в список для записи
+    # result = list(data_dict.values())
+
+    # # Получаем лист и обновляем данные
+    # sheet_name = "Data"
+    # sheet = get_google_sheet(sheet_name)
+    # update_sheet_with_data(sheet, result)
 
 
 def normalize_sku(sku):
