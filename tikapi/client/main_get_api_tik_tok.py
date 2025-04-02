@@ -186,9 +186,9 @@ def parsing_user_info():
     print(all_data)
 
 if __name__ == "__main__":
-    # day = 3
-    # user_live_analytics(day)
+    day = 1
+    user_live_analytics(day)
     # user_live_list()
-    parsing_json_user_live_list()
+    # parsing_json_user_live_list()
     # user_info()
     # parsing_user_info()

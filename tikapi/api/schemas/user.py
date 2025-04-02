@@ -9,6 +9,7 @@ from .base import BaseSchema
 
 class UserBase(BaseModel):
     tik_tok_id: str
+    account_key: Optional[str] = None
     nickname: Optional[str] = None
     unique_id: str
     avatar_medium: Optional[str] = None

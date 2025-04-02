@@ -7,6 +7,7 @@ class User(Base, BaseModel):
     __tablename__ = 'users'
     
     tik_tok_id = Column(String(50), nullable=False, unique=True, index=True)
+    account_key = Column(String(100))
     nickname = Column(String(100), index=True)
     unique_id = Column(String(100), nullable=False, index=True)
     avatar_medium = Column(Text)
