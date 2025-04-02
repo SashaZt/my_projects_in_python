@@ -1,13 +1,21 @@
 #!/bin/bash
-set -e
 
-# Проверяем, существуют ли сертификаты
-if [ ! -f /etc/ssl/private/cert.pem ] || [ ! -f /etc/ssl/private/key.pem ]; then
-    echo "SSL certificates not found, generating self-signed certificates..."
-    generate-certs.sh
-else
-    echo "Using mounted SSL certificates"
+# Генерация SSL-сертификатов
+if [ ! -f "$SSL_KEYFILE" ] || [ ! -f "$SSL_CERTFILE" ]; then
+    echo "Генерация самоподписанных SSL-сертификатов..."
+    
+    # Убедимся, что директории существуют
+    mkdir -p $(dirname "$SSL_KEYFILE")
+    mkdir -p $(dirname "$SSL_CERTFILE")
+    
+    # Генерируем сертификаты одной командой
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout "$SSL_KEYFILE" \
+        -out "$SSL_CERTFILE" \
+        -subj "/C=US/ST=State/L=City/O=Organization/OU=Unit/CN=localhost"
+    
+    echo "SSL-сертификаты созданы успешно!"
 fi
 
-# Запускаем команду, переданную в CMD
+# Запускаем переданную команду
 exec "$@"

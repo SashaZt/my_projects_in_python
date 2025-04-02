@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#./config_loader.py
 """
 Скрипт для генерации переменных окружения из config.json для Docker Compose
 """
@@ -92,6 +93,15 @@ def generate_env_file(config_path="config.json", output_file=".env"):
         # Запись в .env файл
         with open(output_file, "w") as f:
             for key, value in flat_config.items():
+                # Пропускаем ключи с точками, так как они вызывают проблемы
+                if "." in key:
+                    key = key.replace(".", "_")
+                    
+                # Экранируем значения со специальными символами
+                if isinstance(value, str):
+                    if any(c in value for c in "[](){}*? \t\n;:$&|<>"):
+                        value = f"'{value}'"
+                
                 f.write(f"{key}={value}\n")
 
         print(f"Успешно сгенерирован файл {output_file} из {config_path}")

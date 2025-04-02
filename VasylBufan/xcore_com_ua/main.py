@@ -521,7 +521,6 @@ def pars_htmls():
             except Exception as e:
                 logger.error(f"Непредвиденная ошибка при обработке скрипта: {str(e)}")
 
-    logger.info()
     with open(output_json_file, "w", encoding="utf-8") as json_file:
         json.dump(all_product, json_file, ensure_ascii=False, indent=4)
     # Получение листа Google Sheets

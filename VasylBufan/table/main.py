@@ -103,7 +103,7 @@ def get_google_sheet(sheet_one):
         raise
 
 
-def update_sheet_with_data(sheet, data, total_rows=20000):
+def update_sheet_with_data(sheet, data, total_rows=50000):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
     if not data:
         raise ValueError("Данные для обновления отсутствуют.")
@@ -283,8 +283,10 @@ def parsin_xml():
                         "Мой сайт sku": sku,
                         "Мой сайт ean": ean,
                         "Мой сайт цена": price_my_site,
-                        "insportline": None,
+                        "insportline vendor_code": None,
                         "insportline цена": None,
+                        "xcore_sku": None,
+                        "xcore_price": None,
                         "matched": False,  # Флаг для отслеживания сопоставленных записей
                     }
 
@@ -359,15 +361,76 @@ def parsin_xml():
                         "Мой сайт цена": None,
                         "insportline vendor_code": vendor_code,
                         "insportline цена": insportline_price,
+                        "xcore_sku": None,
+                        "xcore_price": None,
                         "matched": False,  # Это несопоставленная запись
                     }
+
+    # Обработка JSON файла xcore_com_ua.json
+    try:
+        with open("data/xcore_com_ua.json", "r", encoding="utf-8") as f:
+            xcore_data = json.load(f)
+
+        for item in xcore_data:
+            xcore_sku = item.get("Код товару")
+            xcore_price = item.get("Ціна")
+
+            if not xcore_sku:
+                continue
+
+            match_found = False
+
+            # Сначала проверяем точное совпадение SKU
+            if xcore_sku in data_dict:
+                data_dict[xcore_sku]["xcore_sku"] = xcore_sku
+                data_dict[xcore_sku]["xcore_price"] = xcore_price
+                data_dict[xcore_sku]["matched"] = True
+                match_found = True
+            else:
+                # Нормализуем xcore_sku для сравнения
+                normalized_xcore = normalize_sku(xcore_sku)
+
+                # Проверяем соответствие по нормализованному SKU
+                if normalized_xcore in normalized_sku_dict:
+                    original_sku = normalized_sku_dict[normalized_xcore]
+                    data_dict[original_sku]["xcore_sku"] = xcore_sku
+                    data_dict[original_sku]["xcore_price"] = xcore_price
+                    data_dict[original_sku]["matched"] = True
+                    match_found = True
+
+            if not match_found:
+                # Если не нашли соответствие, добавляем новую запись
+                new_key = f"xcore_{xcore_sku}"
+                data_dict[new_key] = {
+                    "Мой сайт sku": None,
+                    "Мой сайт ean": None,
+                    "Мой сайт цена": None,
+                    "insportline vendor_code": None,
+                    "insportline цена": None,
+                    "xcore_sku": xcore_sku,
+                    "xcore_price": xcore_price,
+                    "matched": False,  # Это несопоставленная запись
+                }
+
+        print(f"Обработано {len(xcore_data)} товаров из xcore_com_ua.json")
+    except Exception as e:
+        print(f"Ошибка при обработке xcore_com_ua.json: {e}")
 
     # Разделяем данные на сопоставленные и несопоставленные
     for key, value in data_dict.items():
         # Удаляем служебное поле matched, которое не нужно передавать в result
         matched = value.pop("matched", False)
 
-        if matched:
+        # Запись считается сопоставленной, если в ней есть данные хотя бы из двух разных источников
+        sources_count = 0
+        if value["Мой сайт sku"] is not None:
+            sources_count += 1
+        if value["insportline vendor_code"] is not None:
+            sources_count += 1
+        if value["xcore_sku"] is not None:
+            sources_count += 1
+
+        if sources_count >= 2:
             matched_data.append(value)
         else:
             unmatched_data.append(value)
@@ -383,9 +446,10 @@ def parsin_xml():
     print("\nПримеры сопоставленных записей:")
     for i, item in enumerate(matched_data[:5]):  # Первые 5 записей для примера
         print(
-            f"{i+1}. SKU: {item['Мой сайт sku']}, EAN: {item['Мой сайт ean']}, "
-            + f"Мой сайт цена: {item['Мой сайт цена']}, "
-            + f"Insportline: {item['insportline']}, Insportline цена: {item['insportline цена']}"
+            f"{i+1}. SKU: {item['Мой сайт sku']}, "
+            + f"Insportline: {item['insportline vendor_code']}, "
+            + f"Xcore: {item['xcore_sku']}, "
+            + f"Цены: {item['Мой сайт цена']} / {item['insportline цена']} / {item['xcore_price']}"
         )
 
     # Получаем лист и обновляем данные
