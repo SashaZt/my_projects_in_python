@@ -4,8 +4,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 import asyncio
 from loguru import logger
-from client_import_stats import import_user_stats
-from client_import_live import import_daily_analytics, import_live_streams
+from client_import_live import import_daily_analytics
 from client_import_user import import_all_users, import_user_data
 from tikapi import ResponseException, TikAPI, ValidationException
 import time
@@ -155,79 +154,6 @@ def user_live_analytics():
     logger.info(result)
 
 
-def user_live_list():
-    # Текущее время по Гринвичу в Unix timestamp
-    timestamp = int(datetime.now(timezone.utc).timestamp())
-
-    users = load_product_data(user_json_file)
-    result = []
-    for user in users:
-        account_key = user["account_key"]
-        tik_tok_id = user["tik_tok_id"]
-        account_user = api_key.user(accountKey=account_key)
-        user_live_list_file = temp_directory / f"user_live_list_{timestamp}_{tik_tok_id}.json"
-        if user_live_list_file.exists():
-            # Если файл существует, читаем из него данные
-            with open(user_live_list_file, "r", encoding="utf-8") as json_file:
-                user_data = json.load(json_file)
-
-            data_json = parsing_json_user_live_list(user_data, tik_tok_id)
-            result.append(data_json)
-
-            continue
-        # Добавляем логику повторных попыток
-        max_attempts = 10
-        attempt = 0
-        success = False
-            
-        while attempt < max_attempts and not success:
-            try:
-                response = account_user.live.list()
-                
-                # Проверяем статус ответа
-                if hasattr(response, 'status_code') and response.status_code == 200:
-                    success = True
-                    data_json = parsing_json_user_live_list(response.json(), tik_tok_id)
-                    result.append(data_json)
-                    logger.info(f"Successfully got live list for user {tik_tok_id}")
-                    
-                    user_live_list_file = temp_directory / f"user_live_list_{timestamp}_{tik_tok_id}.json"
-                    with open(user_live_list_file, "w", encoding="utf-8") as json_file:
-                        json.dump(response.json(), json_file, ensure_ascii=False, indent=4)
-                else:
-                    # Если статус не 200, ждем и повторяем
-                    attempt += 1
-                    logger.warning(f"Attempt {attempt}/{max_attempts}: Got status code {getattr(response, 'status_code', 'unknown')}. Retrying in 5 seconds...")
-                    time.sleep(5)
-            except ValidationException as e:
-                attempt += 1
-                logger.error(f"Validation error (attempt {attempt}/{max_attempts}): {e}")
-                if hasattr(e, 'field'):
-                    logger.error(f"Field with error: {e.field}")
-                time.sleep(5)
-            except ResponseException as e:
-                attempt += 1
-                logger.error(f"Response error (attempt {attempt}/{max_attempts}): {e}")
-                if hasattr(e, 'response') and hasattr(e.response, 'status_code'):
-                    logger.error(f"Status code: {e.response.status_code}")
-                time.sleep(5)
-            except Exception as e:
-                attempt += 1
-                logger.error(f"Unexpected error (attempt {attempt}/{max_attempts}): {e}")
-                time.sleep(5)
-        
-        # Проверяем, был ли успешный запрос
-        if not success:
-            logger.error(f"Failed to get live list for user {tik_tok_id} after {max_attempts} attempts")
-    
-    # Исправлено форматирование имени файла
-    user_live_list_json_file = user_live_list_directory / f"{timestamp}.json"
-    with open(user_live_list_json_file, "w", encoding="utf-8") as json_file:
-        json.dump(result, json_file, ensure_ascii=False, indent=4)
-    
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(import_live_streams(result))
 
 
 def user_info():
@@ -363,22 +289,6 @@ def parsing_json_user_live_analytics(json_data):
 
     return diamonds_now, live_duration_now,date
 
-def parsing_json_user_live_list(json_data,name):
-    # json_data = load_product_data("result_7312401215441126406.json")
-    video_list = json_data["data"]["video_list"]
-    
-    # name = 7312401215441126406
-    result = {name: []}
-    for video in video_list:
-        all_data = {
-            "room_id": video["room_id"],
-            "start_time": video["start_time"],
-            "end_time": video["end_time"],
-            "diamonds": video["diamonds"],
-            "duration": video["duration"],
-        }
-        result[name].append(all_data)  # Просто добавляем словарь в список
-    return result
 
 def parsing_user_info(json_data):
     # json_data = load_product_data("result_info_NYaRLHw0uSLhou1v0Ztie9jQjMVioKSu0lcTfGTsi3EK6arK.json")
@@ -402,10 +312,23 @@ def parsing_user_info(json_data):
     return all_data
 
 if __name__ == "__main__":
-    # 1. Раз в сутки запускать
-    # user_info()
-    # user_live_analytics()
-
-    # 2. Раз в 4 часа
-    user_live_list()
+    start_time = datetime.now()
+    logger.info(f"Запуск ежедневной задачи: {start_time}")
+    
+    try:
+        # Выполняем сбор информации о пользователях
+        logger.info("Начинаем сбор информации о пользователях")
+        user_info()
+        logger.info("Сбор информации о пользователях успешно завершен")
+        
+        # Выполняем сбор аналитики по трансляциям
+        logger.info("Начинаем сбор аналитики трансляций")
+        user_live_analytics()
+        logger.info("Сбор аналитики трансляций успешно завершен")
+    except Exception as e:
+        logger.error(f"Ошибка при выполнении задачи: {e}", exc_info=True)
+    
+    end_time = datetime.now()
+    duration = end_time - start_time
+    logger.info(f"Задача завершена. Длительность выполнения: {duration}")
     

@@ -18,41 +18,72 @@ logger.add(sys.stderr, level="INFO")
 # Базовый URL API
 API_BASE_URL = "https://10.0.0.18:5000/api"  # Используем HTTP вместо HTTPS
 
-async def import_live_streams(file_path='live_streams.json'):
+# async def import_live_streams(live_data):
+#     """Импорт данных трансляций через API"""
+#     try:
+#         # # Загружаем данные трансляций
+#         # with open(file_path, 'r', encoding='utf-8') as f:
+#         #     live_data = json.load(f)
+        
+#         async with httpx.AsyncClient(verify=False) as client:
+#             # Обрабатываем трансляции по каждому пользователю
+#             for tiktok_id, streams in live_data.items():
+#                 logger.info(f"Импорт {len(streams)} трансляций для пользователя с TikTok ID: {tiktok_id}")
+                
+#                 # Используем эндпоинт массового импорта
+#                 response = await client.post(
+#                     f"{API_BASE_URL}/live/import-bulk",
+#                     params={"tiktok_id": tiktok_id},
+#                     json=streams
+#                 )
+                
+#                 if response.status_code == 200:
+#                     logger.info(f"Успешно импортированы трансляции для пользователя с TikTok ID: {tiktok_id}")
+#                 else:
+#                     logger.error(f"Ошибка при импорте трансляций: {response.status_code}")
+    
+#     except Exception as e:
+#         logger.error(f"Ошибка при импорте данных трансляций: {str(e)}")
+#         raise
+async def import_live_streams(live_data):
     """Импорт данных трансляций через API"""
     try:
-        # Загружаем данные трансляций
-        with open(file_path, 'r', encoding='utf-8') as f:
-            live_data = json.load(f)
-        
         async with httpx.AsyncClient(verify=False) as client:
-            # Обрабатываем трансляции по каждому пользователю
-            for tiktok_id, streams in live_data.items():
-                logger.info(f"Импорт {len(streams)} трансляций для пользователя с TikTok ID: {tiktok_id}")
-                
-                # Используем эндпоинт массового импорта
-                response = await client.post(
-                    f"{API_BASE_URL}/live/import-bulk",
-                    params={"tiktok_id": tiktok_id},
-                    json=streams
-                )
-                
-                if response.status_code == 200:
-                    logger.info(f"Успешно импортированы трансляции для пользователя с TikTok ID: {tiktok_id}")
-                else:
-                    logger.error(f"Ошибка при импорте трансляций: {response.status_code}")
+            # Перебираем каждый элемент в списке live_data
+            for user_data in live_data:
+                # В каждом элементе может быть только один ключ (TikTok ID)
+                for tiktok_id, streams in user_data.items():
+                    logger.info(f"Импорт {len(streams)} трансляций для пользователя с TikTok ID: {tiktok_id}")
+                    
+                    # Используем эндпоинт массового импорта
+                    try:
+                        response = await client.post(
+                            f"{API_BASE_URL}/live/import-bulk",
+                            params={"tiktok_id": tiktok_id},
+                            json=streams,
+                            timeout=30  # добавляем таймаут для запроса
+                        )
+                        
+                        if response.status_code == 200:
+                            logger.info(f"Успешно импортированы трансляции для пользователя с TikTok ID: {tiktok_id}")
+                        else:
+                            logger.error(f"Ошибка при импорте трансляций для {tiktok_id}: Статус {response.status_code}, Ответ: {response.text}")
+                    
+                    except httpx.RequestError as e:
+                        logger.error(f"Ошибка запроса при импорте трансляций для {tiktok_id}: {str(e)}")
+                    except httpx.TimeoutException:
+                        logger.error(f"Таймаут при импорте трансляций для {tiktok_id}")
     
     except Exception as e:
-        logger.error(f"Ошибка при импорте данных трансляций: {str(e)}")
+        logger.error(f"Общая ошибка при импорте данных трансляций: {str(e)}")
         raise
-
-async def import_daily_analytics(file_path='user_live_analytics.json'):
+async def import_daily_analytics(analytics_data):
     """Импорт ежедневной аналитики через API"""
     try:
-        # Загружаем данные аналитики
-        with open(file_path, 'r', encoding='utf-8') as f:
-            analytics_data = json.load(f)
-        
+        # # Загружаем данные аналитики
+        # with open(file_path, 'r', encoding='utf-8') as f:
+        #     analytics_data = json.load(f)
+        logger.info("Данные пришли из user_live_analytics")
         async with httpx.AsyncClient(verify=False) as client:
             for record in analytics_data:
                 tiktok_id = record.get('tik_tok_id')
