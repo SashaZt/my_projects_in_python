@@ -626,9 +626,6 @@ def format_url(url):
 
 
 async def run(playwright):
-    # Указываем настройки прокси одной строкой
-    # proxy_url = "http://scraperapi:5edddbdddb89aed6e9d529c4ff127e8f@proxy-server.scraperapi.com:8001"
-    # proxy = {"server": proxy_url}
 
     # Запускаем браузер
     browser = await playwright.chromium.launch(headless=False)
@@ -654,7 +651,7 @@ async def run(playwright):
     # )
 
     # Переходим на URL
-    url = "https://zenmoney.app/share/account/h5Hml5SciJzYErESWYsAzXkRHwsF6j/"
+    url = "https://horizons-lointains.fr/"
     await page.goto(url)
     await page.wait_for_load_state("networkidle")
     await asyncio.sleep(30)  # Пауза
