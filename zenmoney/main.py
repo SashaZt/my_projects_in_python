@@ -376,28 +376,100 @@ def update_google_sheets_status(
         conn.close()
 
 
-def get_transactions_by_date(data_transaction, db_name="zenmoney_transactions.db"):
-    """Возвращает все транзакции за указанную дату из SQLite базы данных"""
+# def get_transactions_by_date(data_transaction, db_name="zenmoney_transactions.db"):
+#     """Возвращает все транзакции за указанную дату из SQLite базы данных"""
+#     try:
+#         conn = sqlite3.connect(db_name)
+#         cursor = conn.cursor()
+
+#         # Выполняем запрос с фильтром по data_transaction
+#         cursor.execute(
+#             """
+#             SELECT transaction_id, data_transaction, income_account_title,
+#             outcome_account_title, comment, income, outcome, update_google_sheets
+#             FROM transactions
+#             WHERE data_transaction = ?
+#         """,
+#             (data_transaction,),
+#         )
+
+#         # Получаем все строки
+#         rows = cursor.fetchall()
+
+#         if not rows:
+#             print(f"Транзакции за дату {data_transaction} не найдены")
+#             return []
+
+#         # Формируем список словарей с русскими ключами
+#         transactions = []
+#         for row in rows:
+#             trans_dict = {
+#                 "id_transaction": row[0],
+#                 "Дата": row[1],
+#                 "Получатель": row[2],
+#                 "Плательщик": row[3],
+#                 "Коментарий": row[4],
+#                 "Поступления": row[5],
+#                 "Выплаты": row[6],
+#                 "update_google_sheets": bool(row[7]),  # Преобразуем 0/1 в True/False
+#             }
+#             transactions.append(trans_dict)
+
+#         # Выводим результат для проверки
+#         print(f"\nНайдено {len(transactions)} транзакций за дату {data_transaction}:")
+#         for i, trans in enumerate(transactions, 1):
+#             print(f"\nТранзакция {i}:")
+#             for key, value in trans.items():
+#                 print(f"{key}: {value}")
+
+#         return transactions
+
+#     except sqlite3.Error as e:
+#         print(f"Ошибка при запросе к базе данных: {e}")
+#         return []
+#     finally:
+#         conn.close()
+
+
+def get_transactions_by_date(
+    data_transaction,
+    income_account_title=None,
+    outcome_account_title=None,
+    db_name="zenmoney_transactions.db",
+):
+    """Возвращает все транзакции за указанную дату и, опционально, по получателю из SQLite базы данных"""
     try:
         conn = sqlite3.connect(db_name)
         cursor = conn.cursor()
 
-        # Выполняем запрос с фильтром по data_transaction
-        cursor.execute(
-            """
+        # Базовый запрос
+        query = """
             SELECT transaction_id, data_transaction, income_account_title,
-            outcome_account_title, comment, income, outcome, update_google_sheets 
+                   outcome_account_title, comment, income, outcome, update_google_sheets 
             FROM transactions 
             WHERE data_transaction = ?
-        """,
-            (data_transaction,),
-        )
+        """
+        params = [data_transaction]
+
+        # Добавляем фильтр по income_account_title, если он указан
+        if income_account_title is not None:
+            query += " AND income_account_title = ?"
+            params.append(income_account_title)
+        # Добавляем фильтр по income_account_title, если он указан
+        if outcome_account_title is not None:
+            query += " AND outcome_account_title = ?"
+            params.append(outcome_account_title)
+
+        # Выполняем запрос
+        cursor.execute(query, tuple(params))
 
         # Получаем все строки
         rows = cursor.fetchall()
 
         if not rows:
-            print(f"Транзакции за дату {data_transaction} не найдены")
+            print(
+                f"Транзакции за дату {data_transaction} с получателем {income_account_title or outcome_account_title or'любым'} не найдены"
+            )
             return []
 
         # Формируем список словарей с русскими ключами
@@ -416,7 +488,9 @@ def get_transactions_by_date(data_transaction, db_name="zenmoney_transactions.db
             transactions.append(trans_dict)
 
         # Выводим результат для проверки
-        print(f"\nНайдено {len(transactions)} транзакций за дату {data_transaction}:")
+        print(
+            f"\nНайдено {len(transactions)} транзакций за дату {data_transaction} с получателем {income_account_title or outcome_account_title or 'любым'}:"
+        )
         for i, trans in enumerate(transactions, 1):
             print(f"\nТранзакция {i}:")
             for key, value in trans.items():
@@ -431,7 +505,18 @@ def get_transactions_by_date(data_transaction, db_name="zenmoney_transactions.db
         conn.close()
 
 
+def load_product_data(file_path):
+    """Загрузка данных из JSON файла"""
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке данных из {file_path}: {e}")
+        return None
+
+
 if __name__ == "__main__":
+    # sheet = get_google_sheet()
     # Пример вызова для всех счетов
     # accounts, _ = get_accounts_data(TOKEN)
     # if accounts:
@@ -460,6 +545,8 @@ if __name__ == "__main__":
     # prepared_data = prepare_transactions_for_db(sample)
     # save_transactions_to_db(prepared_data)
 
-    target_date = "2025-04-02"
-    transactions = get_transactions_by_date(target_date)
-    sheet = get_google_sheet()
+    target_date = "2025-03-27"
+    transactions = get_transactions_by_date(target_date, None, "Amehan MONO WHITE")[:1]
+    sheet_raw = load_product_data("sheet_raw.json")
+    logger.info(transactions)
+    logger.info(sheet_raw)
