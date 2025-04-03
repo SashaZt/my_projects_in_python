@@ -4,7 +4,7 @@ from datetime import datetime
 import requests
 
 # Ваш токен
-TOKEN = "wNiaTY9fihwOyTXqR159rPk2yL2xFP"
+TOKEN = 
 
 # Базовый URL API
 BASE_URL = "https://api.zenmoney.ru/v8/"
@@ -136,12 +136,12 @@ def parsing_transaction():
 
         # Формируем данные транзакции с названиями счетов вместо ID
         all_data_transaction = {
-            "data_transaction": data_transaction,
-            "Поступления": income_account_title,  # Название вместо ID
-            "Выплаты": outcome_account_title,  # Название вместо ID
+            "Дата": data_transaction,
+            "Получатель": income_account_title,  # Название вместо ID
+            "Плательщик": outcome_account_title,  # Название вместо ID
             "comment": comment,
-            "income": income,
-            "outcome": outcome,
+            "Поступления": income,
+            "Выплаты": outcome,
         }
         all_transactions.append(all_data_transaction)
 
