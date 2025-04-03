@@ -378,7 +378,8 @@ def extract_product_data(product_json):
         data_json_all = {}
         data_json_01 = {}
         product_name = product_json.get("name")
-        sku = product_json.get("model")
+        model = product_json.get("model")
+        sku = product_json.get("sku")
 
         # Извлекаем данные из offers
         offers = product_json.get("offers", {})
@@ -404,17 +405,19 @@ def extract_product_data(product_json):
         if matches:
             last_term = matches[-1]
             result_availability = all_availability[last_term]
-        if sku.endswith("~01"):
+        if model.endswith("~01"):
             data_json_01 = {
                 "Назва": product_name,
-                "Код товару": sku,
+                "Код товару": model,
+                "Артику": sku,
                 "Ціна": offer_price,
                 "Наявність": result_availability,
             }
         else:
             data_json_all = {
                 "Назва": product_name,
-                "Код товару": sku,
+                "Код товару": model,
+                "Артику": sku,
                 "Ціна": offer_price,
                 "Наявність": result_availability,
             }

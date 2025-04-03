@@ -654,7 +654,7 @@ async def run(playwright):
     # )
 
     # Переходим на URL
-    url = "https://sasktenders.ca/content/public/Search.aspx"
+    url = "https://zenmoney.app/share/account/h5Hml5SciJzYErESWYsAzXkRHwsF6j/"
     await page.goto(url)
     await page.wait_for_load_state("networkidle")
     await asyncio.sleep(30)  # Пауза
@@ -662,30 +662,30 @@ async def run(playwright):
     html_content = await page.content()
     with open(output_file, "w", encoding="utf-8") as file:
         file.write(html_content)
-    count = 1
-    while True:
-        try:
-            # Ждём появления элемента с таймаутом (например, 5 секунд)
-            await page.wait_for_selector(
-                "#ContentPlaceHolder1_imgNextPage", timeout=5000
-            )
-            await page.wait_for_load_state("networkidle")
+    # count = 1
+    # while True:
+    #     try:
+    #         # Ждём появления элемента с таймаутом (например, 5 секунд)
+    #         await page.wait_for_selector(
+    #             "#ContentPlaceHolder1_imgNextPage", timeout=5000
+    #         )
+    #         await page.wait_for_load_state("networkidle")
 
-            # Если элемент найден, кликаем
-            await page.click("#ContentPlaceHolder1_imgNextPage")
-            count += 1
-            output_file = current_directory / f"Page_0{count}.html"
-            html_content = await page.content()
-            with open(output_file, "w", encoding="utf-8") as file:
-                file.write(html_content)
+    #         # Если элемент найден, кликаем
+    #         await page.click("#ContentPlaceHolder1_imgNextPage")
+    #         count += 1
+    #         output_file = current_directory / f"Page_0{count}.html"
+    #         html_content = await page.content()
+    #         with open(output_file, "w", encoding="utf-8") as file:
+    #             file.write(html_content)
 
-            print("Clicked on #ContentPlaceHolder1_imgNextPage")
-        except:
-            # Если элемент не найден, выходим из цикла
-            print(
-                "Element #ContentPlaceHolder1_imgNextPage no longer present. Stopping."
-            )
-            break
+    #         print("Clicked on #ContentPlaceHolder1_imgNextPage")
+    #     except:
+    #         # Если элемент не найден, выходим из цикла
+    #         print(
+    #             "Element #ContentPlaceHolder1_imgNextPage no longer present. Stopping."
+    #         )
+    #         break
     await browser.close()
 
     # for i in range(1, 22):

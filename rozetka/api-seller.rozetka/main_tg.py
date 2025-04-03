@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 from logger import logger
+from main_db import mark_keys_as_sent
 from main_token import load_product_data
 from telethon.errors import SessionPasswordNeededError
 from telethon.sync import TelegramClient
@@ -25,7 +26,7 @@ phone_number = config["tg"]["phone_number"]
 session_file = f"my_telegram_session_{phone_number}"
 
 
-async def send_message(user_phone, message):
+async def send_message(user_phone, message, key_ids, order_id):
     # Создаем клиент с сохранением сессии
     client = TelegramClient(session_file, api_id, api_hash)
 
@@ -54,9 +55,6 @@ async def send_message(user_phone, message):
 
     logger.info("Успешное подключение!")
 
-    # Номер телефона пользователя, которому хотим отправить сообщение
-    # user_phone = "+380734709611"
-
     try:
         # Добавляем контакт
         contact = InputPhoneContact(
@@ -72,6 +70,7 @@ async def send_message(user_phone, message):
             # Отправляем сообщение
             await client.send_message(users[0], message)
             logger.info("Сообщение отправлено!")
+            mark_keys_as_sent(order_id, key_ids)
         else:
             logger.warning("Пользователь не найден")
     except Exception as e:

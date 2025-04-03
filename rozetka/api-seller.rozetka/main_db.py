@@ -41,6 +41,7 @@ def init_db():
         status INTEGER,
         item_name TEXT,
         user_phone TEXT,
+        email TEXT,
         first_name TEXT,
         last_name TEXT,
         second_name TEXT,
@@ -144,9 +145,9 @@ def init_db():
                             keys_added += 1
 
                 conn.commit()
-                logger.info(
-                    f"Загружено {products_added} товаров и {keys_added} ключей из {ROBLOX_PRODUCTS_FILE}"
-                )
+                # logger.info(
+                #     f"Загружено {products_added} товаров и {keys_added} ключей из {ROBLOX_PRODUCTS_FILE}"
+                # )
         except json.JSONDecodeError:
             logger.error(f"Ошибка чтения файла {ROBLOX_PRODUCTS_FILE}")
     else:
@@ -178,9 +179,9 @@ def init_db():
     orders_count = cursor.fetchone()[0]
 
     logger.info(f"База данных {DB_NAME} инициализирована:")
-    logger.info(f"- Товаров: {products_count}")
-    logger.info(f"- Ключей: {keys_count}")
-    logger.info(f"- Заказов: {orders_count}")
+    # logger.info(f"- Товаров: {products_count}")
+    # logger.info(f"- Ключей: {keys_count}")
+    # logger.info(f"- Заказов: {orders_count}")
 
     conn.close()
 
@@ -219,6 +220,7 @@ def save_parsed_orders_to_db(parsed_orders):
         order_id = order.get("order_id")
         item_name = order.get("product", "")
         user_phone = order.get("user_phone", "")
+        email = order.get("email", "")
         created = order.get("created", "")
         amount = order.get("amount", "")
         full_name = order.get("full_name", "")
@@ -252,6 +254,7 @@ def save_parsed_orders_to_db(parsed_orders):
                 status = ?,
                 item_name = ?,
                 user_phone = ?,
+                email = ?,
                 first_name = ?,
                 last_name = ?,
                 second_name = ?,
@@ -264,6 +267,7 @@ def save_parsed_orders_to_db(parsed_orders):
                     status,
                     item_name,
                     user_phone,
+                    email,
                     first_name,
                     last_name,
                     second_name,
@@ -286,15 +290,16 @@ def save_parsed_orders_to_db(parsed_orders):
             cursor.execute(
                 """
             INSERT INTO orders (
-                id, status, item_name, user_phone, first_name, 
+                id, status, item_name, user_phone,email, first_name, 
                 last_name, second_name, full_name, created, amount
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
             """,
                 (
                     order_id,
                     status,
                     item_name,
                     user_phone,
+                    email,
                     first_name,
                     last_name,
                     second_name,
@@ -316,7 +321,7 @@ def save_parsed_orders_to_db(parsed_orders):
     # Выводим статистику
     logger.info(f"Обработано заказов: {len(parsed_orders)}")
     logger.info(f"Добавлено новых заказов: {orders_inserted}")
-    logger.info(f"Обновлено существующих заказов: {orders_updated}")
+    # logger.info(f"Обновлено существующих заказов: {orders_updated}")
 
     conn.close()
     return True
@@ -324,8 +329,8 @@ def save_parsed_orders_to_db(parsed_orders):
 
 def get_next_available_key_for_orders():
     """
-    Проверяет таблицу заказов на наличие заказов без отправленных ключей
-    и выделяет для них следующий свободный ключ соответствующего номинала.
+    Проверяет таблицу заказов на наличие заказов без отправленных ключей,
+    выделяет для них ключи и отмечает их как использованные.
     """
     conn = sqlite3.connect(DB_NAME)
     # Включаем поддержку внешних ключей
@@ -336,11 +341,20 @@ def get_next_available_key_for_orders():
         # Получаем заказы, для которых еще не были отправлены ключи
         cursor.execute(
             """
-        SELECT o.id, o.item_name, o.status
+        SELECT o.id, o.item_name, o.status, o.user_phone,o.email, o.full_name
         FROM orders o
         WHERE o.key_sent_at IS NULL AND o.status = 7  -- статус 7 обычно означает "оплачено"
         """
         )
+        # cursor.execute(
+        #     """
+        # SELECT o.id, o.item_name, o.status, o.user_phone, o.full_name
+        # FROM orders o
+        # WHERE o.key_sent_at IS NULL
+        # AND o.message_sent IS NULL
+        # AND o.status = 7  -- статус 7 обычно означает "оплачено"
+        # """
+        # )
 
         orders_without_keys = cursor.fetchall()
 
@@ -350,8 +364,38 @@ def get_next_available_key_for_orders():
 
         result = []
 
-        for order_id, item_name, status in orders_without_keys:
-            logger.info(f"Обработка заказа #{order_id} - {item_name}")
+        # Получаем информацию о доступных картах 10$ и 25$
+        cursor.execute(
+            """
+        SELECT p.id, p.name 
+        FROM products p 
+        WHERE p.name = 'Карта поповнення Roblox Gift Card на 1000 ROBUX | 10$ (USD)'
+        """
+        )
+        card_10_info = cursor.fetchone()
+
+        cursor.execute(
+            """
+        SELECT p.id, p.name 
+        FROM products p 
+        WHERE p.name = 'Карта поповнення Roblox Gift Card на 2500 ROBUX | 25$ (USD)'
+        """
+        )
+        card_25_info = cursor.fetchone()
+
+        if not card_10_info:
+            logger.error("Базовая карта 10$ не найдена в базе данных")
+            return []
+
+        if not card_25_info:
+            logger.error("Базовая карта 25$ не найдена в базе данных")
+            # Продолжаем работу, так как некоторые заказы могут требовать только карты 10$
+
+        card_10_id = card_10_info[0]
+        card_25_id = card_25_info[0] if card_25_info else None
+
+        for order_data in orders_without_keys:
+            order_id, item_name, status, user_phone, email, full_name = order_data
 
             # Получаем информацию о продукте по его имени
             cursor.execute(
@@ -371,146 +415,105 @@ def get_next_available_key_for_orders():
 
             product_id, card_value, card_count = product_info
 
-            # Проверяем, какие именно ключи нам нужны (номинал и количество)
-            if card_count == 1:
-                # Если это одна карта, просто ищем свободный ключ для этого продукта
-                cursor.execute(
-                    """
-                SELECT pk.id, pk.key_value 
-                FROM product_keys pk
-                WHERE pk.product_id = ? AND pk.is_used = 0
-                LIMIT 1
-                """,
-                    (product_id,),
-                )
-
-                key_info = cursor.fetchone()
-
-                if key_info:
-                    key_id, key_value = key_info
-
-                    # Отмечаем ключ как использованный и привязываем его к заказу
-                    cursor.execute(
-                        """
-                    UPDATE product_keys
-                    SET is_used = 1, order_id = ?, used_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                        (order_id, key_id),
-                    )
-
-                    # Обновляем информацию о заказе
-                    cursor.execute(
-                        """
-                    UPDATE orders
-                    SET key_id = ?, key_sent_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                        (key_id, order_id),
-                    )
-
-                    result.append(
-                        {
-                            "order_id": order_id,
-                            "product": item_name,
-                            "key_id": key_id,
-                            "key_value": key_value,
-                        }
-                    )
-
-                    logger.info(f"Для заказа #{order_id} выделен ключ: {key_value}")
-                else:
-                    logger.error(f"Нет доступных ключей для продукта '{item_name}'")
+            # Определяем, какой базовый продукт использовать
+            base_product_id = None
+            if card_value == 10:
+                base_product_id = card_10_id
+            elif card_value == 25:
+                base_product_id = card_25_id
             else:
-                # Если это комбинация карт, ищем ключи для базового номинала
-                # Находим продукт с таким же номиналом, но для одной карты
+                logger.error(f"Неизвестный номинал карты: {card_value}$")
+                continue
+
+            # Проверяем наличие достаточного количества ключей
+            cursor.execute(
+                """
+            SELECT COUNT(id) 
+            FROM product_keys 
+            WHERE product_id = ? AND is_used = 0
+            """,
+                (base_product_id,),
+            )
+
+            available_keys_count = cursor.fetchone()[0]
+
+            if available_keys_count < card_count:
+                logger.error(
+                    f"Недостаточно ключей для продукта '{item_name}'. Требуется: {card_count}, доступно: {available_keys_count}"
+                )
+                continue
+
+            # Получаем необходимое количество ключей
+            cursor.execute(
+                """
+            SELECT id, key_value 
+            FROM product_keys 
+            WHERE product_id = ? AND is_used = 0
+            LIMIT ?
+            """,
+                (base_product_id, card_count),
+            )
+
+            keys = cursor.fetchall()
+
+            # Формируем список ключей для этого заказа и отмечаем их как использованные
+            keys_list = []
+            key_ids = []
+            for key_id, key_value in keys:
+                # Отмечаем ключ как использованный и привязываем его к заказу
                 cursor.execute(
                     """
-                SELECT id 
-                FROM products
-                WHERE card_value = ? AND card_count = 1
-                LIMIT 1
+                UPDATE product_keys
+                SET is_used = 1, order_id = ?
+                WHERE id = ?
                 """,
-                    (card_value,),
+                    (order_id, key_id),
                 )
 
-                base_product_info = cursor.fetchone()
+                keys_list.append(key_value)
+                key_ids.append(key_id)
 
-                if not base_product_info:
-                    logger.error(f"Не найден базовый продукт с номиналом {card_value}$")
-                    continue
-
-                base_product_id = base_product_info[0]
-
-                # Ищем нужное количество свободных ключей
+            # Обновляем информацию о заказе, устанавливая первый ключ и время отправки
+            if key_ids:
                 cursor.execute(
                     """
-                SELECT pk.id, pk.key_value 
-                FROM product_keys pk
-                WHERE pk.product_id = ? AND pk.is_used = 0
-                LIMIT ?
+                UPDATE orders
+                SET key_id = ?
+                WHERE id = ?
                 """,
-                    (base_product_id, card_count),
+                    (key_ids[0], order_id),
                 )
 
-                keys = cursor.fetchall()
+            # Добавляем информацию о заказе и найденных ключах в результат
+            result.append(
+                {
+                    "order_id": order_id,
+                    "product": item_name,
+                    "user_phone": user_phone,
+                    "email": email,
+                    "full_name": full_name,
+                    "key_count": len(keys_list),
+                    "keys": keys_list,
+                    "key_ids": key_ids,
+                }
+            )
 
-                if len(keys) < card_count:
-                    logger.error(
-                        f"Недостаточно ключей для продукта '{item_name}'. Требуется: {card_count}, доступно: {len(keys)}"
-                    )
-                    continue
-
-                # Формируем список ключей для этого заказа
-                order_keys = []
-                for key_id, key_value in keys:
-                    # Отмечаем ключ как использованный и привязываем его к заказу
-                    cursor.execute(
-                        """
-                    UPDATE product_keys
-                    SET is_used = 1, order_id = ?, used_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                        (order_id, key_id),
-                    )
-
-                    order_keys.append({"key_id": key_id, "key_value": key_value})
-
-                # Для комбинации карт привязываем к заказу только первый ключ
-                if order_keys:
-                    first_key_id = order_keys[0]["key_id"]
-
-                    # Обновляем информацию о заказе
-                    cursor.execute(
-                        """
-                    UPDATE orders
-                    SET key_id = ?, key_sent_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                    """,
-                        (first_key_id, order_id),
-                    )
-
-                    # Формируем результат с информацией о всех ключах
-                    keys_values = [k["key_value"] for k in order_keys]
-                    result.append(
-                        {
-                            "order_id": order_id,
-                            "product": item_name,
-                            "key_count": len(keys_values),
-                            "keys": keys_values,
-                        }
-                    )
-
-                    logger.info(
-                        f"Для заказа #{order_id} выделено {len(keys_values)} ключей"
-                    )
-
+        # Фиксируем изменения в базе данных
         conn.commit()
+
+        # # Обновляем JSON-файлы с продуктами
+        # update_product_keys_in_json(
+        #     "Карта поповнення Roblox Gift Card на 1000 ROBUX | 10$ (USD)"
+        # )
+        # update_product_keys_in_json(
+        #     "Карта поповнення Roblox Gift Card на 2500 ROBUX | 25$ (USD)"
+        # )
+
         return result
 
     except Exception as e:
         logger.error(f"Ошибка при выделении ключей: {e}")
-        conn.rollback()
+        conn.rollback()  # Откатываем изменения в случае ошибки
         return []
     finally:
         conn.close()
@@ -674,5 +677,52 @@ def update_product_keys_in_json(product_name, new_key=None):
 
     except Exception as e:
         logger.error(f"Ошибка при обновлении JSON-файла: {e}")
+    finally:
+        conn.close()
+
+
+def mark_keys_as_sent(order_id, key_ids):
+    """
+    Отмечает ключи как отправленные и связывает их с заказом после успешной отправки сообщения.
+
+    Args:
+        order_id (int): ID заказа
+        key_ids (list): Список ID ключей, которые были отправлены
+    """
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("PRAGMA foreign_keys = ON")
+    cursor = conn.cursor()
+
+    try:
+        # Отмечаем ключи как использованные
+        for key_id in key_ids:
+            cursor.execute(
+                """
+            UPDATE product_keys
+            SET is_used = 1, order_id = ?, used_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+                (order_id, key_id),
+            )
+
+        # Устанавливаем первый ключ как основной для заказа и обновляем статус заказа
+        if key_ids:
+            cursor.execute(
+                """
+            UPDATE orders
+            SET key_id = ?, key_sent_at = CURRENT_TIMESTAMP, message_sent = 1
+            WHERE id = ?
+            """,
+                (key_ids[0], order_id),
+            )
+
+        conn.commit()
+        logger.info(f"Ключи {key_ids} отмечены как отправленные для заказа #{order_id}")
+
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при отметке ключей как отправленных: {e}")
+        conn.rollback()
+        return False
     finally:
         conn.close()

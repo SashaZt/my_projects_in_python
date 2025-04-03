@@ -25,6 +25,7 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
+    account_key: Optional[str] = None
     nickname: Optional[str] = None
     unique_id: Optional[str] = None
     avatar_medium: Optional[str] = None

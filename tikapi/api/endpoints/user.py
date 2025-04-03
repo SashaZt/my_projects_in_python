@@ -35,7 +35,30 @@ async def get_user(tiktok_id: str, db: AsyncSession = Depends(get_db)):
     user = await user_service.get_by_tiktok_id(tiktok_id)
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
-    return user
+    
+    # Явно загружаем связанные объекты
+    user_dict = {
+        "id": user.id,
+        "tik_tok_id": user.tik_tok_id,
+        "account_key": user.account_key,
+        "nickname": user.nickname,
+        "unique_id": user.unique_id,
+        "avatar_medium": user.avatar_medium,
+        "following_visibility": user.following_visibility,
+        "is_under_age_18": user.is_under_age_18,
+        "open_favorite": user.open_favorite,
+        "private_account": user.private_account,
+        "signature": user.signature,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "stats_history": [],
+        "nickname_history": [],
+        "unique_id_history": [],
+        "live_streams": [],
+        "daily_analytics": []
+    }
+    
+    return UserDetail(**user_dict)
 
 
 @router.get("/", response_model=List[UserSchema])
