@@ -651,10 +651,10 @@ async def run(playwright):
     # )
 
     # Переходим на URL
-    url = "https://horizons-lointains.fr/"
+    url = "https://tripoli.land/farmers/proizvoditeli-zerna/zhitomirskaya/proizvoditeli-gorokha?"
     await page.goto(url)
     await page.wait_for_load_state("networkidle")
-    await asyncio.sleep(30)  # Пауза
+    await asyncio.sleep(60)  # Пауза
     output_file = current_directory / "Page_01.html"
     html_content = await page.content()
     with open(output_file, "w", encoding="utf-8") as file:

@@ -189,14 +189,54 @@ def parsing_transaction():
 
     transactions = datas["transaction"]
     accounts = datas["account"]
+    tags = datas["tag"]
 
     all_accounts = []
     all_transactions = []
+    all_tags = []
 
-    # Создаем список счетов с ID и названиями
+    # Создаем словарь тегов с ID в качестве ключа для быстрого поиска
+    tags_dict = {}
+    for tag in tags:
+        tag_id = tag["id"]
+        tag_title = tag["title"]
+        parent_id = tag.get("parent")  # Получаем ID родительского тега, если есть
+
+        # Сохраняем информацию о теге и его родителе для последующего построения иерархии
+        tags_dict[tag_id] = {"title": tag_title, "parent": parent_id}
+
+        # Также сохраняем в список, если нужно для других целей
+        all_data_tag = {
+            "tag_id": tag_id,
+            "tag_title": tag_title,
+            "parent_id": parent_id,
+        }
+        all_tags.append(all_data_tag)
+
+    # Функция для получения полного пути тега (с учетом иерархии)
+    def get_tag_full_path(tag_id):
+        if tag_id not in tags_dict:
+            return None
+
+        tag_info = tags_dict[tag_id]
+        tag_title = tag_info["title"]
+        parent_id = tag_info["parent"]
+
+        # Если у тега есть родитель, получаем название родителя и добавляем к пути
+        if parent_id and parent_id in tags_dict:
+            parent_title = tags_dict[parent_id]["title"]
+            return f"{parent_title}/{tag_title}"
+        else:
+            return tag_title
+
+    # Создаем словарь счетов с ID в качестве ключа для быстрого поиска
+    accounts_dict = {}
     for account in accounts:
         account_id = account["id"]
         account_title = account["title"]
+        accounts_dict[account_id] = account_title
+
+        # Также сохраняем в список, если нужно для других целей
         all_data_account = {
             "account_id": account_id,
             "account_title": account_title,
@@ -207,39 +247,65 @@ def parsing_transaction():
     for data in transactions:
         id_transaction = data["id"]
         data_transaction = data["date"]
-        income_account_id = data["incomeAccount"]
-        outcome_account_id = data["outcomeAccount"]
-        comment = data["comment"]
-        income = data["income"]
-        outcome = data["outcome"]
+        original_payee = data.get(
+            "originalPayee"
+        )  # Используем get для безопасного доступа
+        income_account_id = data.get("incomeAccount")
+        outcome_account_id = data.get("outcomeAccount")
+        comment = data.get("comment")
+        income = data.get("income", 0)
+        outcome = data.get("outcome", 0)
 
-        # Ищем названия счетов по их ID
-        income_account_title = None
-        outcome_account_title = None
+        # Обработка тегов с проверкой на None
+        tags_list = data.get("tag", [])
+        tags_string = None
 
-        for account in all_accounts:
-            if account["account_id"] == income_account_id:
-                income_account_title = account["account_title"]
-            if account["account_id"] == outcome_account_id:
-                outcome_account_title = account["account_title"]
+        # Проверяем, что tags_list не None и является итерируемым объектом
+        if tags_list is not None:
+            # Преобразуем ID тегов в полные пути с учетом иерархии
+            tags_full_paths = []
+            for tag_id in tags_list:
+                tag_path = get_tag_full_path(tag_id)
+                if tag_path:
+                    tags_full_paths.append(tag_path)
 
-        # Формируем данные транзакции с названиями счетов вместо ID
+            # Формируем строку тегов через запятую
+            tags_string = ", ".join(tags_full_paths) if tags_full_paths else None
+
+        # Получаем названия счетов
+        income_account_title = (
+            accounts_dict.get(income_account_id) if income_account_id else None
+        )
+        outcome_account_title = (
+            accounts_dict.get(outcome_account_id) if outcome_account_id else None
+        )
+
+        if comment is not None:
+            all_comment = f"{comment}/{original_payee}"
+        else:
+            all_comment = original_payee
+
+        # Если комментарий пустой, используем только оригинальный получатель
+
+        # Формируем данные транзакции
         all_data_transaction = {
             "id_transaction": id_transaction,
             "data_transaction": data_transaction,
+            # "original_payee": original_payee,
             "income_account_title": income_account_title,
             "outcome_account_title": outcome_account_title,
-            "comment": comment,
+            "comment": all_comment,
             "income": income,
             "outcome": outcome,
+            "tags": tags_string,  # Добавляем строку с названиями тегов
         }
         all_transactions.append(all_data_transaction)
 
-    # Выводим результат для проверки (опционально)
-    for i, trans in enumerate(all_transactions, 1):
-        print(f"\nТранзакция {i}:")
-        for key, value in trans.items():
-            print(f"{key}: {value}")
+    # # Выводим результат для проверки (опционально)
+    # for i, trans in enumerate(all_transactions, 1):
+    #     print(f"\nТранзакция {i}:")
+    #     for key, value in trans.items():
+    #         print(f"{key}: {value}")
 
     # Сохраняем результат в файл (опционально)
     with open("parsed_transactions.json", "w", encoding="utf-8") as json_file:
@@ -266,6 +332,7 @@ def create_sqlite_db(db_name="zenmoney_transactions.db"):
                 comment TEXT,
                 income REAL NOT NULL,
                 outcome REAL NOT NULL,
+                tags TEXT,
                 update_google_sheets BOOLEAN NOT NULL DEFAULT 0
             )
         """
@@ -292,6 +359,7 @@ def prepare_transactions_for_db(transactions):
         comment = data["comment"]
         income = data["income"]
         outcome = data["outcome"]
+        tags = data["tags"]
 
         # Формируем словарь с русскими ключами, добавляем update_google_sheets
         all_data_transaction = {
@@ -302,6 +370,7 @@ def prepare_transactions_for_db(transactions):
             "comment": comment,
             "income": income,
             "outcome": outcome,
+            "tags": tags,
             "update_google_sheets": False,  # Значение по умолчанию
         }
         prepared_transactions.append(all_data_transaction)
@@ -321,8 +390,8 @@ def save_transactions_to_db(transactions, db_name="zenmoney_transactions.db"):
                 """
                 INSERT OR IGNORE INTO transactions 
                 (id_transaction, data_transaction, income_account_title, outcome_account_title, 
-                comment, income, outcome, update_google_sheets)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                comment, income, outcome, tags,update_google_sheets)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?,?)
             """,
                 (
                     trans["id_transaction"],
@@ -332,6 +401,7 @@ def save_transactions_to_db(transactions, db_name="zenmoney_transactions.db"):
                     trans["comment"],
                     trans["income"],
                     trans["outcome"],
+                    trans["tags"],
                     trans["update_google_sheets"],
                 ),
             )
@@ -446,7 +516,7 @@ def get_transactions_by_date(
         # Базовый запрос
         query = """
             SELECT id_transaction, data_transaction, income_account_title,
-                   outcome_account_title, comment, income, outcome, update_google_sheets 
+                   outcome_account_title, comment, income, outcome, tags,update_google_sheets 
             FROM transactions 
             WHERE data_transaction = ?
         """
@@ -484,7 +554,8 @@ def get_transactions_by_date(
                 "comment": row[4],
                 "income": row[5],
                 "outcome": row[6],
-                "update_google_sheets": bool(row[7]),  # Преобразуем 0/1 в True/False
+                "tags": row[7],
+                "update_google_sheets": bool(row[8]),  # Преобразуем 0/1 в True/False
             }
             transactions.append(trans_dict)
 
@@ -598,6 +669,7 @@ def update_transaction_db_status(
 def update_google_sheet_with_transaction(transaction, sheet_raw):
     """
     Обновляет Google таблицу данными из транзакции, автоматически находя свободную строку.
+    Поиск счетов производится без учета регистра букв.
 
     Args:
         transaction (dict): Словарь с данными транзакции
@@ -622,7 +694,13 @@ def update_google_sheet_with_transaction(transaction, sheet_raw):
             if isinstance(item, dict):
                 combined_sheet_raw.update(item)
 
-        logger.info(f"Обработанная структура sheet_raw: {combined_sheet_raw}")
+        # Создаем словарь для нечувствительного к регистру поиска
+        case_insensitive_sheet_raw = {}
+        for account, values in combined_sheet_raw.items():
+            case_insensitive_sheet_raw[account.upper()] = values
+
+        # logger.info(f"Обработанная структура sheet_raw: {combined_sheet_raw}")
+        # logger.info(f"Создан словарь для поиска счетов без учета регистра")
 
         # Обновляем ячейки по одной
         try:
@@ -630,12 +708,12 @@ def update_google_sheet_with_transaction(transaction, sheet_raw):
             if "data_transaction" in transaction and transaction["data_transaction"]:
                 # Преобразуем строку в объект datetime
                 data_transaction = transaction["data_transaction"]
-                logger.info(f"Исходная дата транзакции: {data_transaction}")
+                # logger.info(f"Исходная дата транзакции: {data_transaction}")
 
                 try:
                     date_obj = datetime.strptime(data_transaction, "%Y-%m-%d")
                     formatted_date = f"{date_obj.month}/{date_obj.day}/{date_obj.year}"
-                    logger.info(f"Отформатированная дата: {formatted_date}")
+                    # logger.info(f"Отформатированная дата: {formatted_date}")
 
                     # Обновляем ячейку с датой
                     sheet.update_cell(line_table, 1, formatted_date)  # 1 = колонка A
@@ -649,13 +727,24 @@ def update_google_sheet_with_transaction(transaction, sheet_raw):
             if "comment" in transaction and transaction["comment"]:
                 comment = transaction["comment"]
                 sheet.update_cell(line_table, 2, comment)  # 2 = колонка B
-                logger.info(f"Комментарий '{comment}' добавлен в ячейку B{line_table}")
+            # Добавляем комментарий в колонку B
+            if "tags" in transaction and transaction["tags"]:
+                tags = transaction["tags"]
+                sheet.update_cell(line_table, 4, tags)  # 4 = колонка D
 
             # Добавляем доход в соответствующую колонку
             income_account = transaction.get("income_account_title")
             if income_account and "income" in transaction:
-                if income_account in combined_sheet_raw:
-                    income_column_letter = combined_sheet_raw[income_account]["income"]
+                # Ищем счет без учета регистра
+                income_account_upper = income_account.upper()
+                logger.info(
+                    f"Ищем счет дохода: {income_account} (для поиска: {income_account_upper})"
+                )
+
+                if income_account_upper in case_insensitive_sheet_raw:
+                    income_column_letter = case_insensitive_sheet_raw[
+                        income_account_upper
+                    ]["income"]
                     # Преобразуем буквенный столбец в числовой индекс
                     income_column_index = column_letter_to_index(income_column_letter)
                     income_value = transaction["income"]
@@ -665,16 +754,25 @@ def update_google_sheet_with_transaction(transaction, sheet_raw):
                     )
                 else:
                     logger.warning(
-                        f"Не найдена колонка для счета дохода: {income_account}"
+                        f"Не найдена колонка для счета дохода: {income_account} (искали: {income_account_upper})"
+                    )
+                    logger.info(
+                        f"Доступные счета: {list(case_insensitive_sheet_raw.keys())}"
                     )
 
             # Добавляем расход в соответствующую колонку
             outcome_account = transaction.get("outcome_account_title")
             if outcome_account and "outcome" in transaction:
-                if outcome_account in combined_sheet_raw:
-                    outcome_column_letter = combined_sheet_raw[outcome_account][
-                        "outcome"
-                    ]
+                # Ищем счет без учета регистра
+                outcome_account_upper = outcome_account.upper()
+                logger.info(
+                    f"Ищем счет расхода: {outcome_account} (для поиска: {outcome_account_upper})"
+                )
+
+                if outcome_account_upper in case_insensitive_sheet_raw:
+                    outcome_column_letter = case_insensitive_sheet_raw[
+                        outcome_account_upper
+                    ]["outcome"]
                     # Преобразуем буквенный столбец в числовой индекс
                     outcome_column_index = column_letter_to_index(outcome_column_letter)
                     outcome_value = transaction["outcome"]
@@ -684,7 +782,10 @@ def update_google_sheet_with_transaction(transaction, sheet_raw):
                     )
                 else:
                     logger.warning(
-                        f"Не найдена колонка для счета расхода: {outcome_account}"
+                        f"Не найдена колонка для счета расхода: {outcome_account} (искали: {outcome_account_upper})"
+                    )
+                    logger.info(
+                        f"Доступные счета: {list(case_insensitive_sheet_raw.keys())}"
                     )
 
             logger.info(
@@ -843,17 +944,16 @@ if __name__ == "__main__":
     # transactions = get_transactions_by_account(TOKEN, target_account_id)
 
     # sample = parsing_transaction()
-    # # Создаем базу данных
+    # # # Создаем базу данных
     # create_sqlite_db()
 
-    # # Подготавливаем транзакции
+    # # # Подготавливаем транзакции
     # prepared_data = prepare_transactions_for_db(sample)
     # save_transactions_to_db(prepared_data)
 
-    target_date = "2025-03-29"
-    transactions = get_transactions_by_date(target_date, None, "Amehan MONO WHITE")[:1]
+    target_date = "2025-03-27"
+    bank_account = "Amehan MONO WHITE"
+    transactions = get_transactions_by_date(target_date, None, "Amehan MONO WHITE")
     sheet_raw = load_product_data("sheet_raw.json")
-    logger.info(transactions)
-    logger.info(sheet_raw)
     for transaction in transactions:
         process_transaction_to_sheet(transaction, sheet_raw)

@@ -501,14 +501,6 @@ def get_next_available_key_for_orders():
         # Фиксируем изменения в базе данных
         conn.commit()
 
-        # # Обновляем JSON-файлы с продуктами
-        # update_product_keys_in_json(
-        #     "Карта поповнення Roblox Gift Card на 1000 ROBUX | 10$ (USD)"
-        # )
-        # update_product_keys_in_json(
-        #     "Карта поповнення Roblox Gift Card на 2500 ROBUX | 25$ (USD)"
-        # )
-
         return result
 
     except Exception as e:
