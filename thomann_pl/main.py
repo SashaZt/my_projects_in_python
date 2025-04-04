@@ -3,8 +3,8 @@ import hashlib
 import html
 import json
 import os
+import random
 import re
-import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -53,6 +53,20 @@ headers = {
 }
 
 
+def read_xlsx():
+    # Читаем Excel файл, указывая, что первая строка - заголовок
+    df = pd.read_excel("thomann.xlsx", header=0)
+
+    # Берем колонку по имени 'url' (предполагая, что это заголовок в первой строке)
+    urls = df["url"]
+
+    # Создаем новый DataFrame
+    result_df = pd.DataFrame(urls, columns=["url"])
+
+    # Сохраняем в CSV
+    result_df.to_csv(output_csv_file, index=False)
+
+
 def main_th():
     if not os.path.exists(html_directory):
         html_directory.mkdir(parents=True, exist_ok=True)
@@ -62,7 +76,7 @@ def main_th():
         for row in reader:
             urls.append(row["url"])
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
+    with ThreadPoolExecutor(max_workers=5) as executor:
         futures = []
         for url in urls:
             output_html_file = (
@@ -71,7 +85,8 @@ def main_th():
 
             if not os.path.exists(output_html_file):
                 futures.append(executor.submit(get_html, url, output_html_file))
-                time.sleep(5)
+                # time.sleep(random.uniform(5, 10))
+                time.sleep(5)  # Задержка между запросами
             else:
                 logger.info(f"Файл для {url} уже существует, пропускаем.")
 
@@ -178,5 +193,6 @@ def pars_htmls():
 
 
 if __name__ == "__main__":
-    # main_th()
-    pars_htmls()
+    # read_xlsx()
+    main_th()
+    # pars_htmls()
