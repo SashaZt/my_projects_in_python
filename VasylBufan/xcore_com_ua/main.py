@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -150,6 +151,9 @@ def update_sheet_with_data(sheet, data, total_rows=10000):
 
 
 def download_with_curl(url, xml_file_path):
+    if os.path.exists(html_directory):
+        shutil.rmtree(html_directory)
+    html_directory.mkdir(parents=True, exist_ok=True)
     """
     Скачивает файл по URL используя системную команду curl
 

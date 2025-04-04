@@ -7,22 +7,25 @@ from loguru import logger
 from client_import_live import import_live_streams
 from tikapi import ResponseException, TikAPI, ValidationException
 import time
+from config import DATA_DIR, TEMP_DIR, USER_INFO_DIR, USER_LIVE_LIST_DIR, USER_LIVE_ANALYTICS_DIR, USER_JSON_FILE
 
 current_directory = Path.cwd()
 log_directory = current_directory / "log"
-temp_directory = current_directory / "temp"
-user_live_analytics_directory = current_directory / "user_live_analytics"
-user_live_list_directory = current_directory / "user_live_list"
-user_info_directory = current_directory / "user_info"
+# data_directory = current_directory / "data"
+# temp_directory = current_directory / "temp"
+# user_live_analytics_directory = current_directory / "user_live_analytics"
+# user_live_list_directory = current_directory / "user_live_list"
+# user_info_directory = current_directory / "user_info"
 
 
-temp_directory.mkdir(parents=True, exist_ok=True)
+# data_directory.mkdir(parents=True, exist_ok=True)
+# temp_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
-user_live_analytics_directory.mkdir(parents=True, exist_ok=True)
-user_live_list_directory.mkdir(parents=True, exist_ok=True)
-user_info_directory.mkdir(parents=True, exist_ok=True)
+# user_live_analytics_directory.mkdir(parents=True, exist_ok=True)
+# user_live_list_directory.mkdir(parents=True, exist_ok=True)
+# user_info_directory.mkdir(parents=True, exist_ok=True)
 
-user_json_file = current_directory / "users.json"
+# user_json_file = data_directory / "users.json"
 
 log_file_path = log_directory / "log_message.log"
 
@@ -62,13 +65,13 @@ def user_live_list():
     # Текущее время по Гринвичу в Unix timestamp
     timestamp = int(datetime.now(timezone.utc).timestamp())
 
-    users = load_product_data(user_json_file)
+    users = load_product_data(USER_JSON_FILE)
     result = []
     for user in users:
         account_key = user["account_key"]
         tik_tok_id = user["tik_tok_id"]
         account_user = api_key.user(accountKey=account_key)
-        user_live_list_file = temp_directory / f"user_live_list_{timestamp}_{tik_tok_id}.json"
+        user_live_list_file = TEMP_DIR / f"user_live_list_{timestamp}_{tik_tok_id}.json"
         if user_live_list_file.exists():
             # Если файл существует, читаем из него данные
             with open(user_live_list_file, "r", encoding="utf-8") as json_file:
@@ -94,7 +97,7 @@ def user_live_list():
                     result.append(data_json)
                     logger.info(f"Successfully got live list for user {tik_tok_id}")
                     
-                    user_live_list_file = temp_directory / f"user_live_list_{timestamp}_{tik_tok_id}.json"
+                    user_live_list_file = TEMP_DIR / f"user_live_list_{timestamp}_{tik_tok_id}.json"
                     with open(user_live_list_file, "w", encoding="utf-8") as json_file:
                         json.dump(response.json(), json_file, ensure_ascii=False, indent=4)
                 else:
@@ -124,7 +127,7 @@ def user_live_list():
             logger.error(f"Failed to get live list for user {tik_tok_id} after {max_attempts} attempts")
     
     # Исправлено форматирование имени файла
-    user_live_list_json_file = user_live_list_directory / f"{timestamp}.json"
+    user_live_list_json_file = USER_LIVE_LIST_DIR / f"{timestamp}.json"
     with open(user_live_list_json_file, "w", encoding="utf-8") as json_file:
         json.dump(result, json_file, ensure_ascii=False, indent=4)
     

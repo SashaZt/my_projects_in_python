@@ -172,11 +172,11 @@ async def import_user_stats(file_path='user_info.json'):
         logger.error(f"Ошибка при импорте статистики пользователя: {str(e)}")
         raise
 
-if __name__ == "__main__":
-    logger.info("Запуск импорта статистики пользователя")
-    try:
-        asyncio.run(import_user_stats())
-        logger.info("Импорт статистики пользователя завершен")
-    except Exception as e:
-        logger.critical(f"Критическая ошибка при импорте статистики: {str(e)}")
-        sys.exit(1)
+# if __name__ == "__main__":
+#     logger.info("Запуск импорта статистики пользователя")
+#     try:
+#         asyncio.run(import_user_stats())
+#         logger.info("Импорт статистики пользователя завершен")
+#     except Exception as e:
+#         logger.critical(f"Критическая ошибка при импорте статистики: {str(e)}")
+#         sys.exit(1)

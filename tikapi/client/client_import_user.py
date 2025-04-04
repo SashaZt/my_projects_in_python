@@ -5,11 +5,14 @@ import httpx
 import sys
 from pathlib import Path
 from loguru import logger
-
+from config import DATA_DIR, TEMP_DIR, USER_INFO_DIR, USER_LIVE_LIST_DIR, USER_LIVE_ANALYTICS_DIR, USER_JSON_FILE
 # Настройка логирования
 current_directory = Path.cwd()
 log_directory = current_directory / "log"
+# data_directory = current_directory / "data"
 log_directory.mkdir(parents=True, exist_ok=True)
+# data_directory.mkdir(parents=True, exist_ok=True)
+# user_json_file = data_directory / "users.json"
 log_file_path = log_directory / "tiktok_import.log"
 logger.add(log_file_path, level="INFO", rotation="10 MB", retention="7 days")
 logger.add(sys.stderr, level="INFO")
@@ -25,7 +28,7 @@ async def import_user_data(user_datas):
         #     user_data = json.load(f)
         
         # Загружаем список пользователей для получения account_key
-        with open('users.json', 'r', encoding='utf-8') as f:
+        with open(USER_JSON_FILE, 'r', encoding='utf-8') as f:
             users_list = json.load(f)
         logger.info("Пришло")
         logger.info(user_datas)

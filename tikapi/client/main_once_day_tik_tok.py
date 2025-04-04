@@ -8,22 +8,25 @@ from client_import_live import import_daily_analytics
 from client_import_user import import_all_users, import_user_data
 from tikapi import ResponseException, TikAPI, ValidationException
 import time
+from config import DATA_DIR, TEMP_DIR, USER_INFO_DIR, USER_LIVE_LIST_DIR, USER_LIVE_ANALYTICS_DIR, USER_JSON_FILE
 
 current_directory = Path.cwd()
 log_directory = current_directory / "log"
-temp_directory = current_directory / "temp"
-user_live_analytics_directory = current_directory / "user_live_analytics"
-user_live_list_directory = current_directory / "user_live_list"
-user_info_directory = current_directory / "user_info"
+# data_directory = current_directory / "data"
+# temp_directory = current_directory / "temp"
+# user_live_analytics_directory = current_directory / "user_live_analytics"
+# user_live_list_directory = current_directory / "user_live_list"
+# user_info_directory = current_directory / "user_info"
 
 
-temp_directory.mkdir(parents=True, exist_ok=True)
+# temp_directory.mkdir(parents=True, exist_ok=True)
+# data_directory.mkdir(parents=True, exist_ok=True)
 log_directory.mkdir(parents=True, exist_ok=True)
-user_live_analytics_directory.mkdir(parents=True, exist_ok=True)
-user_live_list_directory.mkdir(parents=True, exist_ok=True)
-user_info_directory.mkdir(parents=True, exist_ok=True)
+# user_live_analytics_directory.mkdir(parents=True, exist_ok=True)
+# user_live_list_directory.mkdir(parents=True, exist_ok=True)
+# user_info_directory.mkdir(parents=True, exist_ok=True)
 
-user_json_file = current_directory / "users.json"
+user_json_file = DATA_DIR / "users.json"
 
 log_file_path = log_directory / "log_message.log"
 
@@ -62,7 +65,7 @@ def load_product_data(file_name):
 
 def user_live_analytics():
     day = 1
-    users = load_product_data(user_json_file)
+    users = load_product_data(USER_JSON_FILE)
     result = []
     # Текущие сутки по Гринвичу в Unix timestamp
     timestamp = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
@@ -70,7 +73,7 @@ def user_live_analytics():
     for user in users:
         account_key = user["account_key"]
         tik_tok_id = user["tik_tok_id"]
-        user_data_file = temp_directory / f"user_live_analytics_{timestamp}_{tik_tok_id}.json"
+        user_data_file = TEMP_DIR / f"user_live_analytics_{timestamp}_{tik_tok_id}.json"
         
         if user_data_file.exists():
             # Если файл существует, читаем из него данные
@@ -147,7 +150,7 @@ def user_live_analytics():
     loop.run_until_complete(import_daily_analytics(result))       
     
     # Исправлено форматирование имени файла
-    user_live_analytic_json_file = user_live_analytics_directory / f"{timestamp}.json"
+    user_live_analytic_json_file = USER_LIVE_ANALYTICS_DIR / f"{timestamp}.json"
     
     with open(user_live_analytic_json_file, "w", encoding="utf-8") as json_file:
         json.dump(result, json_file, ensure_ascii=False, indent=4)
@@ -160,13 +163,13 @@ def user_info():
     # Текущие сутки по Гринвичу в Unix timestamp
     timestamp = int(datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
 
-    users = load_product_data(user_json_file)
+    users = load_product_data(USER_JSON_FILE)
     result = []
     for user in users:
         account_key = user["account_key"]
         account_user = api_key.user(accountKey=account_key)
 
-        user_info_file = temp_directory / f"user_info_{timestamp}_{account_key}.json"
+        user_info_file = TEMP_DIR / f"user_info_{timestamp}_{account_key}.json"
         if user_info_file.exists():
             # Если файл существует, читаем из него данные
             with open(user_info_file, "r", encoding="utf-8") as json_file:
@@ -194,7 +197,7 @@ def user_info():
                     result.append(data_json)
                     logger.info(f"Successfully got user info for account {account_key}")
                     
-                    user_info_file = temp_directory / f"user_info_{timestamp}_{account_key}.json"
+                    user_info_file = TEMP_DIR / f"user_info_{timestamp}_{account_key}.json"
                     with open(user_info_file, "w", encoding="utf-8") as json_file:
                         json.dump(response.json(), json_file, ensure_ascii=False, indent=4)
                 
@@ -225,7 +228,7 @@ def user_info():
                         logger.error(f"ТРЕБУЕТСЯ ПРОВЕРКА АККАУНТА! ОШИБКА АВТОРИЗАЦИИ 401 для account_key: {account_key}")
                         
                         # Запись в отдельный файл для последующей проверки
-                        auth_error_file = user_info_directory / "auth_errors.json"
+                        auth_error_file = USER_INFO_DIR / "auth_errors.json"
                         try:
                             # Загружаем существующие ошибки если файл есть
                             if auth_error_file.exists():
@@ -260,7 +263,7 @@ def user_info():
             logger.error(f"Failed to get user info for account {account_key} after {max_attempts} attempts")
     
     # Исправлено форматирование имени файла и запись всего списка result
-    user_info_result_file = user_info_directory / f"{timestamp}.json"
+    user_info_result_file = USER_INFO_DIR / f"{timestamp}.json"
     with open(user_info_result_file, "w", encoding="utf-8") as json_file:
         json.dump(result, json_file, ensure_ascii=False, indent=4)
     

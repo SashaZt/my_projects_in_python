@@ -6,6 +6,7 @@ from datetime import datetime, date
 import sys
 from pathlib import Path
 from loguru import logger
+from config import DATA_DIR, TEMP_DIR, USER_INFO_DIR, USER_LIVE_LIST_DIR, USER_LIVE_ANALYTICS_DIR, USER_JSON_FILE
 
 # Настройка логирования
 current_directory = Path.cwd()
@@ -80,9 +81,6 @@ async def import_live_streams(live_data):
 async def import_daily_analytics(analytics_data):
     """Импорт ежедневной аналитики через API"""
     try:
-        # # Загружаем данные аналитики
-        # with open(file_path, 'r', encoding='utf-8') as f:
-        #     analytics_data = json.load(f)
         logger.info("Данные пришли из user_live_analytics")
         async with httpx.AsyncClient(verify=False) as client:
             for record in analytics_data:
@@ -119,13 +117,3 @@ async def import_daily_analytics(analytics_data):
     except Exception as e:
         logger.error(f"Ошибка при импорте дневной аналитики: {str(e)}")
         raise
-
-if __name__ == "__main__":
-    logger.info("Запуск импорта данных трансляций")
-    try:
-        asyncio.run(import_live_streams())
-        asyncio.run(import_daily_analytics())
-        logger.info("Импорт данных трансляций завершен")
-    except Exception as e:
-        logger.critical(f"Критическая ошибка при импорте данных: {str(e)}")
-        sys.exit(1)

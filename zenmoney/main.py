@@ -1,6 +1,7 @@
 import json
 import sqlite3
 import sys
+import traceback
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
@@ -225,12 +226,12 @@ def parsing_transaction():
         # Формируем данные транзакции с названиями счетов вместо ID
         all_data_transaction = {
             "id_transaction": id_transaction,
-            "Дата": data_transaction,
-            "Получатель": income_account_title,
-            "Плательщик": outcome_account_title,
-            "Коментарий": comment,
-            "Поступления": income,
-            "Выплаты": outcome,
+            "data_transaction": data_transaction,
+            "income_account_title": income_account_title,
+            "outcome_account_title": outcome_account_title,
+            "comment": comment,
+            "income": income,
+            "outcome": outcome,
         }
         all_transactions.append(all_data_transaction)
 
@@ -253,12 +254,12 @@ def create_sqlite_db(db_name="zenmoney_transactions.db"):
         conn = sqlite3.connect(db_name)
         cursor = conn.cursor()
 
-        # Создаем таблицу с уникальным полем transaction_id и новым полем update_google_sheets
+        # Создаем таблицу с уникальным полем id_transaction и новым полем update_google_sheets
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                transaction_id TEXT UNIQUE NOT NULL,
+                id_transaction TEXT UNIQUE NOT NULL,
                 data_transaction TEXT NOT NULL,
                 income_account_title TEXT,
                 outcome_account_title TEXT,
@@ -284,23 +285,23 @@ def prepare_transactions_for_db(transactions):
     prepared_transactions = []
 
     for data in transactions:
-        transaction_id = data["id_transaction"]
-        data_transaction = data["Дата"]
-        income_account_title = data["Получатель"]
-        outcome_account_title = data["Плательщик"]
-        comment = data["Коментарий"]
-        income = data["Поступления"]
-        outcome = data["Выплаты"]
+        id_transaction = data["id_transaction"]
+        data_transaction = data["data_transaction"]
+        income_account_title = data["income_account_title"]
+        outcome_account_title = data["outcome_account_title"]
+        comment = data["comment"]
+        income = data["income"]
+        outcome = data["outcome"]
 
         # Формируем словарь с русскими ключами, добавляем update_google_sheets
         all_data_transaction = {
-            "id_transaction": transaction_id,
-            "Дата": data_transaction,
-            "Получатель": income_account_title,
-            "Плательщик": outcome_account_title,
-            "Коментарий": comment,
-            "Поступления": income,
-            "Выплаты": outcome,
+            "id_transaction": id_transaction,
+            "data_transaction": data_transaction,
+            "income_account_title": income_account_title,
+            "outcome_account_title": outcome_account_title,
+            "comment": comment,
+            "income": income,
+            "outcome": outcome,
             "update_google_sheets": False,  # Значение по умолчанию
         }
         prepared_transactions.append(all_data_transaction)
@@ -319,18 +320,18 @@ def save_transactions_to_db(transactions, db_name="zenmoney_transactions.db"):
             cursor.execute(
                 """
                 INSERT OR IGNORE INTO transactions 
-                (transaction_id, data_transaction, income_account_title, outcome_account_title, 
+                (id_transaction, data_transaction, income_account_title, outcome_account_title, 
                 comment, income, outcome, update_google_sheets)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     trans["id_transaction"],
-                    trans["Дата"],
-                    trans["Получатель"],
-                    trans["Плательщик"],
-                    trans["Коментарий"],
-                    trans["Поступления"],
-                    trans["Выплаты"],
+                    trans["data_transaction"],
+                    trans["income_account_title"],
+                    trans["outcome_account_title"],
+                    trans["comment"],
+                    trans["income"],
+                    trans["outcome"],
                     trans["update_google_sheets"],
                 ),
             )
@@ -345,7 +346,7 @@ def save_transactions_to_db(transactions, db_name="zenmoney_transactions.db"):
 
 
 def update_google_sheets_status(
-    transaction_id, status, db_name="zenmoney_transactions.db"
+    id_transaction, status, db_name="zenmoney_transactions.db"
 ):
     """Обновляет поле update_google_sheets для указанной транзакции"""
     try:
@@ -357,18 +358,18 @@ def update_google_sheets_status(
             """
             UPDATE transactions 
             SET update_google_sheets = ?
-            WHERE transaction_id = ?
+            WHERE id_transaction = ?
         """,
-            (1 if status else 0, transaction_id),
+            (1 if status else 0, id_transaction),
         )
 
         conn.commit()
         if cursor.rowcount > 0:
             print(
-                f"Статус update_google_sheets для транзакции {transaction_id} обновлен на {status}"
+                f"Статус update_google_sheets для транзакции {id_transaction} обновлен на {status}"
             )
         else:
-            print(f"Транзакция с ID {transaction_id} не найдена")
+            print(f"Транзакция с ID {id_transaction} не найдена")
 
     except sqlite3.Error as e:
         print(f"Ошибка при обновлении статуса: {e}")
@@ -385,7 +386,7 @@ def update_google_sheets_status(
 #         # Выполняем запрос с фильтром по data_transaction
 #         cursor.execute(
 #             """
-#             SELECT transaction_id, data_transaction, income_account_title,
+#             SELECT id_transaction, data_transaction, income_account_title,
 #             outcome_account_title, comment, income, outcome, update_google_sheets
 #             FROM transactions
 #             WHERE data_transaction = ?
@@ -444,7 +445,7 @@ def get_transactions_by_date(
 
         # Базовый запрос
         query = """
-            SELECT transaction_id, data_transaction, income_account_title,
+            SELECT id_transaction, data_transaction, income_account_title,
                    outcome_account_title, comment, income, outcome, update_google_sheets 
             FROM transactions 
             WHERE data_transaction = ?
@@ -477,12 +478,12 @@ def get_transactions_by_date(
         for row in rows:
             trans_dict = {
                 "id_transaction": row[0],
-                "Дата": row[1],
-                "Получатель": row[2],
-                "Плательщик": row[3],
-                "Коментарий": row[4],
-                "Поступления": row[5],
-                "Выплаты": row[6],
+                "data_transaction": row[1],
+                "income_account_title": row[2],
+                "outcome_account_title": row[3],
+                "comment": row[4],
+                "income": row[5],
+                "outcome": row[6],
                 "update_google_sheets": bool(row[7]),  # Преобразуем 0/1 в True/False
             }
             transactions.append(trans_dict)
@@ -515,6 +516,310 @@ def load_product_data(file_path):
         return None
 
 
+def find_next_empty_row(sheet):
+    """
+    Находит следующую пустую строку в таблице по колонке A.
+
+    Args:
+        sheet: Объект листа Google Sheets
+
+    Returns:
+        int: Номер следующей пустой строки
+    """
+    try:
+        # Получаем все значения в колонке A
+        column_a = sheet.col_values(1)  # 1 = колонка A
+
+        if not column_a:
+            # Если колонка пуста, начинаем с первой строки
+            return 1
+
+        # Находим количество непустых ячеек и добавляем 1
+        next_row = len(column_a) + 1
+        logger.info(f"Найдена следующая пустая строка: {next_row}")
+        return next_row
+
+    except Exception as e:
+        logger.error(f"Ошибка при поиске пустой строки: {e}")
+        logger.error(f"Трассировка ошибки: {traceback.format_exc()}")
+        # В случае ошибки возвращаем большое значение (например, 10000)
+        # чтобы не перезаписать важные данные
+        return 10000
+
+
+def update_transaction_db_status(
+    transaction_id, status=True, db_name="zenmoney_transactions.db"
+):
+    """
+    Обновляет статус транзакции в базе данных SQLite.
+
+    Args:
+        transaction_id (str): ID транзакции для обновления
+        status (bool): Новый статус (True = обновлено, False = не обновлено)
+        db_name (str): Имя файла базы данных
+
+    Returns:
+        bool: True если обновление успешно, False в противном случае
+    """
+    try:
+        logger.info(f"Обновление статуса транзакции {transaction_id} в БД на {status}")
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+
+        # Обновляем статус транзакции
+        cursor.execute(
+            """
+            UPDATE transactions 
+            SET update_google_sheets = ? 
+            WHERE id_transaction = ?
+            """,
+            (int(status), transaction_id),
+        )
+
+        # Проверяем, была ли обновлена запись
+        if cursor.rowcount > 0:
+            logger.info(f"Статус транзакции {transaction_id} успешно обновлен в БД")
+            conn.commit()
+            return True
+        else:
+            logger.warning(f"Транзакция {transaction_id} не найдена в БД")
+            conn.rollback()
+            return False
+
+    except sqlite3.Error as e:
+        logger.error(f"Ошибка при обновлении статуса транзакции в БД: {e}")
+        logger.error(f"Трассировка ошибки: {traceback.format_exc()}")
+        return False
+
+    finally:
+        conn.close()
+
+
+def update_google_sheet_with_transaction(transaction, sheet_raw):
+    """
+    Обновляет Google таблицу данными из транзакции, автоматически находя свободную строку.
+
+    Args:
+        transaction (dict): Словарь с данными транзакции
+        sheet_raw (list): Данные о структуре таблицы
+    """
+    try:
+        logger.info(
+            f"Начало обновления для транзакции ID: {transaction.get('id_transaction')}"
+        )
+
+        # Получаем лист Google таблицы
+        sheet = get_google_sheet()
+        logger.info("Успешно получен лист Google таблицы")
+
+        # Находим следующую пустую строку
+        line_table = find_next_empty_row(sheet)
+        logger.info(f"Будет использована строка {line_table} для новой записи")
+
+        # sheet_raw - это список словарей, объединим их в один для облегчения поиска
+        combined_sheet_raw = {}
+        for item in sheet_raw:
+            if isinstance(item, dict):
+                combined_sheet_raw.update(item)
+
+        logger.info(f"Обработанная структура sheet_raw: {combined_sheet_raw}")
+
+        # Обновляем ячейки по одной
+        try:
+            # Добавляем дату в колонку A
+            if "data_transaction" in transaction and transaction["data_transaction"]:
+                # Преобразуем строку в объект datetime
+                data_transaction = transaction["data_transaction"]
+                logger.info(f"Исходная дата транзакции: {data_transaction}")
+
+                try:
+                    date_obj = datetime.strptime(data_transaction, "%Y-%m-%d")
+                    formatted_date = f"{date_obj.month}/{date_obj.day}/{date_obj.year}"
+                    logger.info(f"Отформатированная дата: {formatted_date}")
+
+                    # Обновляем ячейку с датой
+                    sheet.update_cell(line_table, 1, formatted_date)  # 1 = колонка A
+                    logger.info(
+                        f"Дата {formatted_date} добавлена в ячейку A{line_table}"
+                    )
+                except ValueError as date_error:
+                    logger.error(f"Ошибка при форматировании даты: {date_error}")
+
+            # Добавляем комментарий в колонку B
+            if "comment" in transaction and transaction["comment"]:
+                comment = transaction["comment"]
+                sheet.update_cell(line_table, 2, comment)  # 2 = колонка B
+                logger.info(f"Комментарий '{comment}' добавлен в ячейку B{line_table}")
+
+            # Добавляем доход в соответствующую колонку
+            income_account = transaction.get("income_account_title")
+            if income_account and "income" in transaction:
+                if income_account in combined_sheet_raw:
+                    income_column_letter = combined_sheet_raw[income_account]["income"]
+                    # Преобразуем буквенный столбец в числовой индекс
+                    income_column_index = column_letter_to_index(income_column_letter)
+                    income_value = transaction["income"]
+                    sheet.update_cell(line_table, income_column_index, income_value)
+                    logger.info(
+                        f"Доход {income_value} добавлен в ячейку {income_column_letter}{line_table}"
+                    )
+                else:
+                    logger.warning(
+                        f"Не найдена колонка для счета дохода: {income_account}"
+                    )
+
+            # Добавляем расход в соответствующую колонку
+            outcome_account = transaction.get("outcome_account_title")
+            if outcome_account and "outcome" in transaction:
+                if outcome_account in combined_sheet_raw:
+                    outcome_column_letter = combined_sheet_raw[outcome_account][
+                        "outcome"
+                    ]
+                    # Преобразуем буквенный столбец в числовой индекс
+                    outcome_column_index = column_letter_to_index(outcome_column_letter)
+                    outcome_value = transaction["outcome"]
+                    sheet.update_cell(line_table, outcome_column_index, outcome_value)
+                    logger.info(
+                        f"Расход {outcome_value} добавлен в ячейку {outcome_column_letter}{line_table}"
+                    )
+                else:
+                    logger.warning(
+                        f"Не найдена колонка для счета расхода: {outcome_account}"
+                    )
+
+            logger.info(
+                f"Таблица успешно обновлена для транзакции {transaction['id_transaction']}"
+            )
+            return True
+
+        except Exception as update_error:
+            logger.error(f"Ошибка при обновлении ячейки: {update_error}")
+            logger.error(f"Трассировка ошибки: {traceback.format_exc()}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении таблицы: {e}")
+        logger.error(f"Трассировка ошибки: {traceback.format_exc()}")
+        return False
+
+
+def column_letter_to_index(col_str):
+    """
+    Преобразует буквенное обозначение колонки в числовой индекс, начиная с 1.
+    Например, A -> 1, B -> 2, Z -> 26, AA -> 27, ...
+
+    Args:
+        col_str (str): Буквенное обозначение колонки (например, 'A', 'BC')
+
+    Returns:
+        int: Числовой индекс колонки
+    """
+    index = 0
+    for c in col_str:
+        index = index * 26 + (ord(c.upper()) - ord("A") + 1)
+    return index
+
+
+def process_transaction_to_sheet(transaction, sheet_raw):
+    """
+    Обрабатывает транзакцию и записывает ее в Google таблицу.
+    После успешной записи обновляет статус в БД.
+
+    Args:
+        transaction (dict): Данные транзакции
+        sheet_raw (list): Информация о структуре таблицы
+    """
+    try:
+        logger.info(f"Начало обработки транзакции: {transaction.get('id_transaction')}")
+
+        # Значение False означает, что данные еще не обновлены и их нужно загрузить
+        if transaction.get("update_google_sheets") is False:
+            logger.info(
+                f"Транзакция {transaction.get('id_transaction')} требует обновления в таблице"
+            )
+        else:
+            logger.info(
+                f"Статус update_google_sheets: {transaction.get('update_google_sheets')}"
+            )
+            logger.info(
+                f"Транзакция {transaction.get('id_transaction')} уже была обновлена"
+            )
+            return True  # Пропускаем обновление, если уже обработано
+
+        # Обновляем Google таблицу
+        result = update_google_sheet_with_transaction(transaction, sheet_raw)
+
+        if result:
+            logger.info(
+                f"Транзакция {transaction.get('id_transaction')} успешно записана в таблицу"
+            )
+
+            # Обновляем статус в базе данных
+            db_update_result = update_transaction_db_status(
+                transaction["id_transaction"], True
+            )
+            if db_update_result:
+                logger.info(
+                    f"Статус транзакции {transaction.get('id_transaction')} обновлен в БД"
+                )
+            else:
+                logger.warning(
+                    f"Не удалось обновить статус транзакции {transaction.get('id_transaction')} в БД"
+                )
+
+            return True
+        else:
+            logger.error(
+                f"Не удалось записать транзакцию {transaction.get('id_transaction')} в таблицу"
+            )
+            return False
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при обработке транзакции: {e}")
+        logger.error(f"Трассировка ошибки: {traceback.format_exc()}")
+        return False
+
+
+# Пример использования
+def process_transactions(
+    target_date=None, account=None, db_name="zenmoney_transactions.db"
+):
+    """
+    Получает транзакции из БД и обрабатывает их для обновления Google таблицы.
+
+    Args:
+        target_date (str, optional): Дата для фильтрации транзакций (формат YYYY-MM-DD)
+        account (str, optional): Название счета для фильтрации транзакций
+        db_name (str): Имя файла базы данных
+
+    Returns:
+        int: Количество успешно обработанных транзакций
+    """
+    try:
+        # Получаем транзакции из БД
+        transactions = get_transactions_by_date(target_date, None, account)
+
+        # Загружаем конфигурацию структуры таблицы
+        sheet_raw = load_product_data("sheet_raw.json")
+
+        logger.info(f"Получено {len(transactions)} транзакций для обработки")
+        logger.info(f"Структура таблицы: {sheet_raw}")
+
+        success_count = 0
+        for transaction in transactions:
+            if process_transaction_to_sheet(transaction, sheet_raw):
+                success_count += 1
+
+        logger.info(
+            f"Успешно обработано {success_count} из {len(transactions)} транзакций"
+        )
+        return success_count
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке транзакций: {e}")
+        logger.error(f"Трассировка ошибки: {traceback.format_exc()}")
+        return 0
+
+
 if __name__ == "__main__":
     # sheet = get_google_sheet()
     # Пример вызова для всех счетов
@@ -545,8 +850,10 @@ if __name__ == "__main__":
     # prepared_data = prepare_transactions_for_db(sample)
     # save_transactions_to_db(prepared_data)
 
-    target_date = "2025-03-27"
+    target_date = "2025-03-29"
     transactions = get_transactions_by_date(target_date, None, "Amehan MONO WHITE")[:1]
     sheet_raw = load_product_data("sheet_raw.json")
     logger.info(transactions)
     logger.info(sheet_raw)
+    for transaction in transactions:
+        process_transaction_to_sheet(transaction, sheet_raw)
