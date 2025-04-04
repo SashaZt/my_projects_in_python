@@ -3,8 +3,8 @@ import hashlib
 import html
 import json
 import os
-import random
 import re
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -17,16 +17,35 @@ from loguru import logger
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
 data_directory = current_directory / "data"
+log_directory = current_directory / "log"
 html_directory = current_directory / "html"
 html_directory.mkdir(parents=True, exist_ok=True)
+log_directory.mkdir(parents=True, exist_ok=True)
 config_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
-output_xml_file = data_directory / "output.xml"
+output_xlsx_file = data_directory / "thomann.xlsx"
 output_csv_file = data_directory / "output.csv"
 output_json_file = data_directory / "output.json"
-config_file = config_directory / "config.json"
-service_account_file = config_directory / "credentials.json"
+log_file_path = log_directory / "log_message.log"
 
+logger.remove()
+# 🔹 Логирование в файл
+logger.add(
+    log_file_path,
+    format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {line} | {message}",
+    level="DEBUG",
+    encoding="utf-8",
+    rotation="10 MB",
+    retention="7 days",
+)
+
+# 🔹 Логирование в консоль (цветной вывод)
+logger.add(
+    sys.stderr,
+    format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level}</level> | <cyan>{line}</cyan> | <cyan>{message}</cyan>",
+    level="DEBUG",
+    enqueue=True,
+)
 cookies = {
     "sid": "8b38b72f9859d012d7a3c31725a200d7",
     "thomann_settings": "1b949fd4-46c6-44e8-842a-538fdac94f1f",
@@ -55,7 +74,7 @@ headers = {
 
 def read_xlsx():
     # Читаем Excel файл, указывая, что первая строка - заголовок
-    df = pd.read_excel("thomann.xlsx", header=0)
+    df = pd.read_excel(output_xlsx_file, header=0)
 
     # Берем колонку по имени 'url' (предполагая, что это заголовок в первой строке)
     urls = df["url"]
@@ -174,9 +193,15 @@ def pars_htmls():
                 result["price"] = price
 
         # 4. Извлекаем статус доступности
-        availability = soup.find("span", class_="fx-availability--in-stock")
+        availability = soup.find(
+            "span", class_=lambda x: x and "fx-availability--in-stock" in x
+        )
+
         if availability:
             result["availability"] = availability.text.strip()
+        else:
+            logger.warning(f"Не удалось найти статус доступности для {html_file.name}.")
+            exit()
 
         # Добавляем результат в общий список, если словарь не пустой
         if result:
@@ -187,12 +212,38 @@ def pars_htmls():
     with open(output_json_file, "w", encoding="utf-8") as json_file:
         json.dump(all_data, json_file, ensure_ascii=False, indent=4)
 
-    # Создание DataFrame и запись в Excel
-    df = pd.DataFrame(all_data)
-    df.to_excel("thomann.xlsx", index=False)
+    update_excel_with_array(all_data)
+    # # Создание DataFrame и запись в Excel
+    # df = pd.DataFrame(all_data)
+    # df.to_excel("thomann.xlsx", index=False)
+
+
+def update_excel_with_array(data_array):
+    # Читаем Excel файл, первая строка - заголовок
+    df = pd.read_excel(output_xlsx_file, header=0)
+
+    # Преобразуем массив в словарь для быстрого поиска по title
+    array_dict = {item["title"]: item for item in data_array}
+
+    # Проходим по каждой строке DataFrame
+    for index, row in df.iterrows():
+        excel_title = row["title"]
+        # Если title из Excel есть в массиве
+        if excel_title in array_dict:
+            # Обновляем соответствующие поля
+            df.at[index, "article_number"] = array_dict[excel_title]["article_number"]
+            df.at[index, "price"] = array_dict[excel_title]["price"]
+            df.at[index, "availability"] = array_dict[excel_title]["availability"]
+        else:
+            logger.warning(
+                f"Не найдено соответствие для {excel_title} в массиве данных."
+            )
+    # Записываем изменения обратно в тот же Excel файл
+    df.to_excel(output_xlsx_file, index=False)
+    logger.info(f"Данные успешно обновлены в {output_xlsx_file}")
 
 
 if __name__ == "__main__":
     # read_xlsx()
-    main_th()
-    # pars_htmls()
+    # main_th()
+    pars_htmls()
