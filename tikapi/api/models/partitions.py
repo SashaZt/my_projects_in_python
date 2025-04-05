@@ -1,6 +1,7 @@
 # api/models/partitions.py
 from sqlalchemy import Column, Integer, BigInteger, ForeignKey, DateTime, func
 from .base import Base
+import time
 
 class UserStatsHistoryPartitioned(Base):
     __tablename__ = 'user_stats_history_partitioned'
@@ -12,7 +13,8 @@ class UserStatsHistoryPartitioned(Base):
     friend_count = Column(Integer)
     heart_count = Column(BigInteger)
     video_count = Column(Integer)
-    timestamp = Column(DateTime(timezone=True), primary_key=True, default=func.now())
+    # timestamp = Column(DateTime(timezone=True), primary_key=True, default=func.now())
+    timestamp = Column(BigInteger, default=lambda: int(time.time()))
     
     # Примечание: партиционирование настраивается на уровне PostgreSQL,
     # SQLAlchemy самостоятельно не управляет партициями

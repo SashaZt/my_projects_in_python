@@ -1,7 +1,8 @@
 # services/stats_service.py
 from typing import List, Optional
 from datetime import datetime
-
+import time
+from utils.time_utils import now_unix
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +25,7 @@ class StatsService:
             friend_count=stats_data.friend_count,
             heart_count=stats_data.heart_count,
             video_count=stats_data.video_count,
-            timestamp=stats_data.timestamp or datetime.now()
+            timestamp=stats_data.timestamp or now_unix()
         )
         
         self.db.add(stats)
@@ -33,8 +34,8 @@ class StatsService:
         return stats
     
     async def get_user_stats(
-        self, user_id: int, from_date: Optional[datetime] = None, to_date: Optional[datetime] = None
-    ) -> List[UserStatsHistory]:
+    self, user_id: int, from_date: Optional[int] = None, to_date: Optional[int] = None
+) -> List[UserStatsHistory]:
         """Получение истории статистики пользователя за период"""
         query = select(UserStatsHistory).where(UserStatsHistory.user_id == user_id)
         
@@ -54,7 +55,7 @@ class StatsService:
         history = NicknameHistory(
             user_id=history_data.user_id,
             nickname=history_data.nickname,
-            changed_at=history_data.changed_at or datetime.now()
+            changed_at=history_data.changed_at or now_unix()
         )
         
         self.db.add(history)

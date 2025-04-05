@@ -83,7 +83,7 @@ services:
       API_RETRY_DELAY: ${CLIENT_API_RETRY_DELAY:-5}
 
       # Настройки часового пояса
-      TZ: ${TIMEZONE:-Europe/Kiev}
+      TZ: ${TIMEZONE:-UTC}
 
       # Настройки логирования
       LOG_LEVEL: ${CLIENT_LOG_LEVEL:-INFO}

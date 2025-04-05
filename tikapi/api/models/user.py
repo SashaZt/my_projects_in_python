@@ -2,7 +2,7 @@
 from sqlalchemy import Column, String, Integer, Boolean, Text, ForeignKey, DateTime, BigInteger, Date
 from sqlalchemy.orm import relationship
 from .base import Base, BaseModel
-
+import time
 class User(Base, BaseModel):
     __tablename__ = 'users'
     
@@ -16,6 +16,9 @@ class User(Base, BaseModel):
     open_favorite = Column(Boolean)
     private_account = Column(Boolean)
     signature = Column(Text)
+    # Unix timestamp поля
+    created_at = Column(BigInteger, default=lambda: int(time.time()))
+    updated_at = Column(BigInteger, default=lambda: int(time.time()), onupdate=lambda: int(time.time()))
     
     # Отношения
     stats_history = relationship("UserStatsHistory", back_populates="user")

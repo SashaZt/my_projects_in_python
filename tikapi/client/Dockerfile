@@ -7,7 +7,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y openssl curl cron tzdata
 
 # Установка часового пояса
-ENV TZ=Europe/Kiev
+ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Копирование и установка зависимостей

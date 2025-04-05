@@ -38,8 +38,8 @@ async def create_user_stats(
 @router.get("/user-stats/{user_id}", response_model=List[UserStatsHistory])
 async def get_user_stats(
     user_id: int,
-    from_date: datetime = None,
-    to_date: datetime = None,
+    from_date: int = None,
+    to_date: int = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Получение истории статистики пользователя за период"""

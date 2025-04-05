@@ -1,6 +1,7 @@
 # api/endpoints/live.py
 from typing import List
 from datetime import date, datetime
+from utils.time_utils import datetime_to_unix
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,8 +38,8 @@ async def create_live_stream(
 @router.get("/streams/{user_id}", response_model=List[LiveStream])
 async def get_user_streams(
     user_id: int,
-    from_date: datetime = None,
-    to_date: datetime = None,
+    from_date: int = None,  # Unix timestamp
+    to_date: int = None,    # Unix timestamp
     db: AsyncSession = Depends(get_db)
 ):
     """Получение истории прямых трансляций пользователя за период"""
@@ -66,11 +67,12 @@ async def create_daily_analytics(
 @router.get("/analytics/{user_id}", response_model=List[DailyLiveAnalytics])
 async def get_user_analytics(
     user_id: int,
-    from_date: date = None,
-    to_date: date = None,
+    from_date: int = None,
+    to_date: int = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Получение дневной аналитики по прямым трансляциям пользователя за период"""
+    logger.info(f"Получение аналитики для пользователя {user_id} с {from_date} по {to_date}")
     live_service = LiveService(db)
     return await live_service.get_user_analytics(user_id, from_date, to_date)
 

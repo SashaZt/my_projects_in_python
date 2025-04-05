@@ -246,7 +246,7 @@ def get_available_payments(order_id):
     return None
 
 
-def get_roblox_message_tg(product, code, amount_usd, text_code) -> str:
+def get_roblox_message_tg(product, code, mes, text_code) -> str:
     message = f"""Вітаємо 💚
 
 Ви оформили замовлення в нашому магазині на цей товар:
@@ -272,7 +272,7 @@ https://youtu.be/6r9qPBOOzHk
 Активуйте код та натисніть на кнопку **"Get Robux"**
 Або виберіть в магазині пакет який вам потрібен, та вкажіть спосіб оплати "Roblox Credit" після цього підтвердіть покупку❗️
 
-Це картка на ${amount_usd} після активації картки на балансі буде ${amount_usd} ви їх потім обміняєте на робукси.
+{mes}
 
 Код обов'язково потрібно активувати через сайт http://roblox.com/redeem  ❗️❗️❗️
 
@@ -285,7 +285,7 @@ https://youtu.be/6r9qPBOOzHk
     return message
 
 
-def get_roblox_message_email(product, code, amount_usd, text_code) -> str:
+def get_roblox_message_email(product, code, mes, text_code) -> str:
     message = f"""Вітаємо 💚
 
 Ви оформили замовлення в нашому магазині на цей товар:
@@ -312,7 +312,7 @@ https://youtu.be/6r9qPBOOzHk
 Активуйте код та натисніть на кнопку "Get Robux"
 Або виберіть в магазині пакет який вам потрібен,та вкажіть спосіб оплати "Roblox Credit" після цього підтвердіть покупку❗️
 
-Це картка на ${amount_usd} після активації картки на балансі буде ${amount_usd} ви їх потім обміняєте на робукси.
+{mes}
 
 Код обов'язково потрібно активувати через сайт http://roblox.com/redeem  ❗️❗️❗️
 
@@ -345,20 +345,32 @@ if __name__ == "__main__":
             logger.info(f"Ключі: {product}")  # Список ключей
             code = ", ".join(keys_product)
             text_code_product = "Ваш код:"
+
             if len(keys_product) > 1:
                 text_code_product = "Ваші коди:"
+                # Захватываем только цифры перед $
+                match = re.search(r"(\d+)\$", product)
 
-                match = re.search(
-                    r"(\d+)\$", product
-                )  # Захватываем только цифры перед $
+                # Общая сумма
                 amount_usd = match.group(1)  # Извлекаем только число
 
-                message_tg = get_roblox_message_tg(
-                    product, code, amount_usd, text_code_product
-                )
-                # user_phone = "+380734709611"
+                #  Номинал карты
+                number_cards = int(int(amount_usd) / len(keys_product))
 
-                logger.info(result_order)
+                # Количество карт
+                denomination_cards = int(int(amount_usd) / number_cards)
+                if denomination_cards == 2:
+                    denomination_cards = "дві"
+                elif denomination_cards == 3:
+                    denomination_cards = "три"
+
+                mes = f"Це {denomination_cards} картки кожна по ${number_cards} після активації карток на балансі буде ${amount_usd} ви їх потім обміняєте на робукси."
+
+                message_tg = get_roblox_message_tg(
+                    product, code, mes, text_code_product
+                )
+                logger.info(message_tg)
+                exit()
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(
@@ -366,21 +378,27 @@ if __name__ == "__main__":
                 )
 
                 message_email = get_roblox_message_email(
-                    product, code, amount_usd, text_code_product
+                    product, code, mes, text_code_product
                 )
+                get_send_email(email, message_email)
+                logger.info(f"Заказ {order_id} обработан")
+
             else:
                 match = re.search(r"(\d+)\$", product)
                 amount_usd = match.group(1)
+
+                mes = f"Це картка на ${amount_usd} після активації карток на балансі буде ${amount_usd} ви їх потім обміняєте на робукси."
+
                 message_tg = get_roblox_message_tg(
-                    product, code, amount_usd, text_code_product
+                    product, code, mes, text_code_product
                 )
                 logger.info(message_tg)
                 message_email = get_roblox_message_email(
-                    product, code, amount_usd, text_code_product
+                    product, code, mes, text_code_product
                 )
 
-                #     # email = "myolxxbox@gmail.com"
                 get_send_email(email, message_email)
                 logger.info(f"Заказ {order_id} обработан")
+
             logger.info("Пауза 5 мин")
             time.sleep(300)

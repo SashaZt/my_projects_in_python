@@ -1,7 +1,9 @@
 import asyncio
 import json
+import re
 from pathlib import Path
 
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from logger import logger
@@ -76,45 +78,236 @@ def remove_at_type(data):
     return data
 
 
+# Функция для извлечения названия предприятия
+def parse_company_name(soup):
+    company_name_tag = soup.find(
+        "p", class_="modal-title display-inline-block farmer-modal-name ng-binding"
+    )
+    if company_name_tag:
+        return company_name_tag.text.strip()
+    return None
+
+
+# 1. Парсинг телефонных номеров
+def parse_phone_numbers(soup):
+    phone_data = []
+    phone_rows = soup.find_all("tr", class_="beige-hover ng-scope ng-isolate-scope")
+
+    for row in phone_rows:
+        phone_dict = {}
+
+        # Извлекаем номер телефона
+        phone_link = row.find("a", class_="same-phone-width")
+        if phone_link:
+            phone_dict["phone_number"] = re.sub(
+                r"\s+", " ", phone_link.get("data-content", "").strip()
+            )
+
+        # Извлекаем позицию
+        position = row.find("span", class_="position-title")
+        phone_dict["position"] = position.text.strip() if position else None
+
+        # Извлекаем ФИО
+        full_name = row.find("span", class_="phone-comment")
+        phone_dict["full_name"] = (
+            re.sub(r"\s+", " ", full_name.text.strip()) if full_name else None
+        )
+
+        phone_data.append(phone_dict)
+
+    return phone_data
+
+
+# 2. Парсинг email-таблицы
+def parse_emails(soup):
+    email_data = []
+    email_rows = soup.find_all(
+        "tr",
+        class_="beige-hover ng-scope",
+        attrs={"ng-repeat": "contact in contacts | filter: { name:'email' }"},
+    )
+
+    for row in email_rows:
+        email_dict = {}
+
+        # Извлекаем email
+        email = row.find("span", class_="ng-binding")
+        email_dict["email"] = email.text.strip() if email else None
+
+        email_data.append(email_dict)
+
+    return email_data
+
+
+# 3. Парсинг дополнительной информации
+def parse_additional_info(soup):
+    info_dict = {}
+    org_info = soup.find("div", class_="org-info-parent")
+
+    if org_info:
+        # Извлекаем директора
+        director_div = org_info.find("div", {"ng-if": "org.director"})
+        if director_div:
+            director = director_div.find("div", class_="ng-binding")
+            info_dict["director"] = director.text.strip() if director else None
+
+        # Извлекаем ЭДРПОУ
+        edrpou_div = org_info.find("div", {"ng-if": "org.erdpou"})
+        if edrpou_div:
+            edrpou = edrpou_div.find("div", class_="ng-binding")
+            info_dict["edrpou"] = edrpou.text.strip() if edrpou else None
+
+        # Извлекаем адрес
+        address_div = org_info.find("div", {"ng-if": "org.address_label"})
+        if address_div:
+            address = address_div.find("div", class_="ng-binding")
+            info_dict["address"] = address.text.strip() if address else None
+
+        # Извлекаем КВЭД
+        kved_div = org_info.find("div", {"ng-if": "org.description"})
+        if kved_div:
+            kved = kved_div.find("div", class_="ng-binding")
+            info_dict["kved"] = kved.text.strip() if kved else None
+
+    return info_dict
+
+
+# Функция для разделения ФИО на части
+def split_full_name(full_name):
+    if not full_name:
+        return None, None, None
+    parts = full_name.split()
+    if len(parts) >= 3:
+        return parts[0], parts[1], parts[2]
+    elif len(parts) == 2:
+        return parts[0], parts[1], None
+    elif len(parts) == 1:
+        return parts[0], None, None
+    return None, None, None
+
+
+# Функция для извлечения области, района и города/села из адреса
+def parse_address(address):
+    if not address:
+        return None, None, None
+
+    parts = address.split(",")
+    if len(parts) < 3:
+        return None, None, None
+
+    # Область обычно после "Україна"
+    region = None
+    district = None
+    locality = None
+
+    for part in parts:
+        part = part.strip()
+        if "обл." in part:
+            region = part
+        elif "р-н" in part:
+            district = part
+        elif "село" in part or "місто" in part or "селище" in part:
+            locality = part
+
+    return region, district, locality
+
+
 def scrap_html():
-    with open(output_html_file, "r", encoding="utf-8") as file:
+    with open("Page_01.html", "r", encoding="utf-8") as file:
         content = file.read()
     soup = BeautifulSoup(content, "lxml")
 
-    # Извлечение данных из JSON-скриптов
-    result = {}
-    for script in soup.find_all(
-        "script", {"type": "application/json", "class": "dataJsonLd"}
-    ):
-        json_data = json.loads(script.string)
-        result.update(json_data)
+    # Парсим данные
+    company_name = parse_company_name(soup)  # Извлекаем название предприятия
+    phone_numbers = parse_phone_numbers(soup)
+    emails = parse_emails(soup)
+    additional_info = parse_additional_info(soup)
 
-    # Извлечение характеристик из таблицы
-    features = {}
-    table = soup.find("table", {"class": "o-product-features"})
-    if table:
-        for row in table.find_all("tr", {"class": "m-product-attr-row"}):
-            name = row.find("th", {"class": "m-product-attr-row__name"}).text.strip()
-            value = row.find("td", {"class": "m-product-attr-row__value"}).text.strip()
-            # Преобразование чисел, если возможно
-            try:
-                value = float(value) if "." in value else int(value)
-            except ValueError:
-                pass
-            features[name] = value
+    # Добавляем название предприятия в additional_info
+    additional_info["company_name"] = company_name
 
-    # Добавление характеристик в результат
-    if features:
-        result["specifications"] = features
+    # Объединяем все в одну структуру
+    combined_data = {
+        "contacts": {"phone_numbers": phone_numbers, "emails": emails},
+        "organization": additional_info,
+    }
 
-    # Удаление всех '@type'
-    result = remove_at_type(result)
+    # Преобразуем в красивый JSON с отступами и поддержкой UTF-8
+    pretty_json = json.dumps(combined_data, indent=4, ensure_ascii=False)
+    logger.info(pretty_json)
 
-    # Сохранение в файл
-    with open("product.json", "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=4)
+    # Сохраняем в JSON
+    with open("parsed_data.json", "w", encoding="utf-8") as f:
+        json.dump(combined_data, f, indent=4, ensure_ascii=False)
 
-    return result
+    # Подготовка данных для Excel
+    # Создаем словарь для одной строки
+    excel_row = {}
+
+    # Заполняем основные поля из additional_info
+    excel_row["ЄДРПОУ"] = additional_info.get("edrpou", None)
+    excel_row["Назва підприємства"] = additional_info.get("company_name", None)
+    excel_row["Основний квед"] = additional_info.get("kved", None)
+    excel_row["Директор (ФИО)"] = additional_info.get("director", None)
+
+    # Разделяем ФИО директора
+    last_name, first_name, middle_name = split_full_name(
+        additional_info.get("director")
+    )
+    excel_row["Директор (прізвище)"] = last_name
+    excel_row["Директор (імʼя)"] = first_name
+    excel_row["Директор (по-батькові)"] = middle_name
+
+    # Извлекаем адресные данные
+    address = additional_info.get("address")
+    region, district, locality = parse_address(address)
+    excel_row["Адреса (юридична)"] = address
+    excel_row["Область"] = region
+    excel_row["Район"] = district
+    excel_row["Місто / селище / село"] = locality
+
+    # Добавляем email (берем первый доступный)
+    excel_row["Емайл"] = emails[0]["email"] if emails else None
+
+    # Добавляем телефоны (до 5 номеров)
+    for i in range(5):
+        if i < len(phone_numbers) and "phone_number" in phone_numbers[i]:
+            excel_row[f"Телефон {i+1}"] = phone_numbers[i]["phone_number"]
+        else:
+            excel_row[f"Телефон {i+1}"] = None
+
+    # Создаем DataFrame
+    df = pd.DataFrame([excel_row])
+
+    # Определяем порядок столбцов
+    columns_order = [
+        "ЄДРПОУ",
+        "Назва підприємства",
+        "Основний квед",
+        "Директор (ФИО)",
+        "Директор (прізвище)",
+        "Директор (імʼя)",
+        "Директор (по-батькові)",
+        "Адреса (юридична)",
+        "Область",
+        "Район",
+        "Місто / селище / село",
+        "Емайл",
+        "Телефон 1",
+        "Телефон 2",
+        "Телефон 3",
+        "Телефон 4",
+        "Телефон 5",
+    ]
+
+    # Применяем порядок столбцов
+    df = df[columns_order]
+
+    # Записываем в Excel
+    with pd.ExcelWriter("parsed_data.xlsx", engine="xlsxwriter") as writer:
+        df.to_excel(writer, sheet_name="Data", index=False)
+
+    logger.info("Данные успешно записаны в файл 'parsed_data.xlsx'")
 
 
 async def main():

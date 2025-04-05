@@ -625,8 +625,205 @@ def format_url(url):
 #     await browser.close()
 
 
-async def run(playwright):
+# async def run(playwright):
 
+#     # Запускаем браузер
+#     browser = await playwright.chromium.launch(headless=False)
+#     context = await browser.new_context(
+#         bypass_csp=True,
+#         java_script_enabled=True,
+#         permissions=["geolocation"],
+#         device_scale_factor=1.0,
+#         has_touch=True,
+#         ignore_https_errors=True,
+#     )
+#     page = await context.new_page()
+#     urls = get_urls_from_csv("extracted_urls.csv")
+
+#     # # Отключаем загрузку изображений, шрифтов и других медиафайлов
+#     # await context.route(
+#     #     "**/*",
+#     #     lambda route, request: (
+#     #         route.abort()
+#     #         if request.resource_type in ["image", "media", "font", "stylesheet"]
+#     #         else route.continue_()
+#     #     ),
+#     # )
+
+#     # Переходим на URL
+#     url = "https://tripoli.land/farmers/proizvoditeli-zerna/zhitomirskaya/proizvoditeli-gorokha?"
+#     await page.goto(url)
+#     await page.wait_for_load_state("networkidle")
+#     await asyncio.sleep(60)  # Пауза
+#     output_file = current_directory / "Page_01.html"
+#     html_content = await page.content()
+#     with open(output_file, "w", encoding="utf-8") as file:
+#         file.write(html_content)
+#     # count = 1
+#     # while True:
+#     #     try:
+#     #         # Ждём появления элемента с таймаутом (например, 5 секунд)
+#     #         await page.wait_for_selector(
+#     #             "#ContentPlaceHolder1_imgNextPage", timeout=5000
+#     #         )
+#     #         await page.wait_for_load_state("networkidle")
+
+#     #         # Если элемент найден, кликаем
+#     #         await page.click("#ContentPlaceHolder1_imgNextPage")
+#     #         count += 1
+#     #         output_file = current_directory / f"Page_0{count}.html"
+#     #         html_content = await page.content()
+#     #         with open(output_file, "w", encoding="utf-8") as file:
+#     #             file.write(html_content)
+
+#     #         print("Clicked on #ContentPlaceHolder1_imgNextPage")
+#     #     except:
+#     #         # Если элемент не найден, выходим из цикла
+#     #         print(
+#     #             "Element #ContentPlaceHolder1_imgNextPage no longer present. Stopping."
+#     #         )
+#     #         break
+#     await browser.close()
+
+# for i in range(1, 22):
+#     await page.goto(url)
+#     # Ждем завершения всех сетевых запросов
+#     await page.wait_for_load_state("networkidle")
+#     output_file = current_directory / f"Page_0{i}.html"
+#     html_content = await page.content()
+#     with open(output_file, "w", encoding="utf-8") as file:
+#         file.write(html_content)
+
+# # Ждем завершения всех сетевых запросов
+# # await page.wait_for_load_state("networkidle")
+# await asyncio.sleep(5)  # Пауза для загрузки страницы
+# print("Страница загружена")
+
+# # Ищем и нажимаем элемент с текстом "Sign In Midasbuy Account"
+# sign_in_button = page.locator(
+#     "div.Button_icon_text__C-ysi:has-text('Sign In Midasbuy Account')"
+# )
+# if await sign_in_button.is_visible():
+#     print("Кнопка 'Sign In Midasbuy Account' найдена, нажимаем")
+#     await sign_in_button.click()
+# else:
+#     print("Ошибка: Кнопка 'Sign In Midasbuy Account' не найдена")
+#     return
+# await asyncio.sleep(5)  # Пауза
+# # Переходим к iframe
+# iframe = page.frame(name="iframe-window")
+# if not iframe:
+#     print("Ошибка: iframe не найден")
+#     return
+# await asyncio.sleep(5)  # Пауза
+# # Ждем появления поля для ввода email
+# email_input = iframe.locator(
+#     "input[placeholder='Enter email to sign in or sign up'][type='email'][autocomplete='username']"
+# )
+# await email_input.wait_for()
+
+# # Вводим email
+# await email_input.fill("testmidass@gmail.com")  # Замените на ваш email
+# print("Email введен")
+# await asyncio.sleep(5)  # Пауза
+
+# # Нажимаем кнопку "Continue"
+# continue_button = page.locator(".btn.comfirm-btn:has-text('Continue')")
+# if await continue_button.is_visible():
+#     print("Кнопка 'Continue' найдена, нажимаем")
+#     await continue_button.click()
+# else:
+#     print("Ошибка: Кнопка 'Continue' не найдена")
+#     return
+# await asyncio.sleep(5)  # Пауза
+
+# # Ждем появления поля для ввода пароля
+# password_input = page.locator("input[type='password']")
+# await password_input.wait_for()
+# await asyncio.sleep(5)  # Пауза
+# print("Поле для ввода пароля найдено")
+
+# # Вводим пароль
+# await password_input.fill("xebgyd-cabnag-xoXba6")  # Замените на ваш пароль
+# print("Пароль введен")
+
+# # Устанавливаем чекбокс
+# checkbox = page.locator("svg[viewBox='0 0 16 16']")
+# if await checkbox.is_visible():
+#     print("Чекбокс найден, устанавливаем")
+#     await checkbox.click()
+# else:
+#     print("Ошибка: Чекбокс не найден")
+#     return
+# await asyncio.sleep(5)  # Пауза
+
+# # Нажимаем кнопку "SIGN IN"
+# sign_in_button = page.locator(".btn.comfirm-btn:has-text('SIGN IN')")
+# if await sign_in_button.is_visible():
+#     print("Кнопка 'SIGN IN' найдена, нажимаем")
+#     await sign_in_button.click()
+# else:
+#     print("Ошибка: Кнопка 'SIGN IN' не найдена")
+#     return
+
+# # Пауза на 30 секунд
+# await asyncio.sleep(30)
+# print("Авторизация завершена, закрываем браузер")
+
+# # Закрываем браузер
+# await browser.close()
+
+# # Ожидhtml_content)
+# Клик по whatsapp_cont
+
+# while True:
+#     # Находим текущую страницу
+#     current_page_element = await page.locator(
+#         '//li[@aria-current="page"]'
+#     ).element_handle()
+#     if not current_page_element:
+#         print("Не удалось найти текущую страницу.")
+#         break
+#     # Извлекаем номер текущей страницы
+#     aria_label = await current_page_element.get_attribute("aria-label")
+#     number_page = int(aria_label.split()[-1].strip())
+# html_content = await page.content()
+# with open(f"page_content{number_page}.html", "w", encoding="utf-8") as file:
+#     file.write(html_content)
+#     print(f"Текущая страница: {number_page}")
+#     # Находим кнопку "Next page"
+#     next_button = await page.locator(
+#         '//button[@aria-label="Next page"]'
+#     ).element_handle()
+#     if not next_button:
+#         print("Кнопка 'Next page' не найдена. Конец.")
+#         break
+
+#     # Кликаем по кнопке "Next page" и ждем загрузки
+#     await next_button.click()
+#     await asyncio.sleep(1)  # Пауза для загрузки страницы
+
+# # Нажимаем на кнопку "Next" и ждем загрузки
+# for i in range(1, 11):
+#     # Сохраняем содержимое страницы в HTML-файл
+#     html_content = await page.content()
+#     with open(f"page_content{i}.html", "w", encoding="utf-8") as file:
+#         file.write(html_content)
+
+#     # Проверяем наличие кнопки "Next"
+#     next_button = page.locator("//span[@class='sr-only' and text()='Next']")
+#     if await next_button.is_visible():
+#         # Нажимаем на родительский элемент кнопки "Next"
+#         await next_button.locator("..").click()
+
+#         # Ждем завершения загрузки страницы
+#         await page.wait_for_load_state("networkidle")
+#     else:
+#         print("Next button not found.")
+#         break
+
+
+async def run(playwright):
     # Запускаем браузер
     browser = await playwright.chromium.launch(headless=False)
     context = await browser.new_context(
@@ -638,189 +835,49 @@ async def run(playwright):
         ignore_https_errors=True,
     )
     page = await context.new_page()
-    urls = get_urls_from_csv("extracted_urls.csv")
 
-    # # Отключаем загрузку изображений, шрифтов и других медиафайлов
-    # await context.route(
-    #     "**/*",
-    #     lambda route, request: (
-    #         route.abort()
-    #         if request.resource_type in ["image", "media", "font", "stylesheet"]
-    #         else route.continue_()
-    #     ),
-    # )
+    # Переходим на страницу логина
+    await page.goto("https://tripoli.land/users/sign_in?sign_in_source=%2F")
+    await asyncio.sleep(1)  # Пауза 1 секунда
 
-    # Переходим на URL
-    url = "https://tripoli.land/farmers/proizvoditeli-zerna/zhitomirskaya/proizvoditeli-gorokha?"
-    await page.goto(url)
-    await page.wait_for_load_state("networkidle")
-    await asyncio.sleep(60)  # Пауза
-    output_file = current_directory / "Page_01.html"
-    html_content = await page.content()
-    with open(output_file, "w", encoding="utf-8") as file:
-        file.write(html_content)
-    # count = 1
-    # while True:
-    #     try:
-    #         # Ждём появления элемента с таймаутом (например, 5 секунд)
-    #         await page.wait_for_selector(
-    #             "#ContentPlaceHolder1_imgNextPage", timeout=5000
-    #         )
-    #         await page.wait_for_load_state("networkidle")
+    # Вводим логин
+    await page.fill(
+        "input#user_email", "mironova5533@gmail.com"
+    )  # Замените на ваш email
+    await asyncio.sleep(1)
 
-    #         # Если элемент найден, кликаем
-    #         await page.click("#ContentPlaceHolder1_imgNextPage")
-    #         count += 1
-    #         output_file = current_directory / f"Page_0{count}.html"
-    #         html_content = await page.content()
-    #         with open(output_file, "w", encoding="utf-8") as file:
-    #             file.write(html_content)
+    # Вводим пароль
+    await page.fill("input#user_password", "Tradit1y44")  # Замените на ваш пароль
+    await asyncio.sleep(1)
 
-    #         print("Clicked on #ContentPlaceHolder1_imgNextPage")
-    #     except:
-    #         # Если элемент не найден, выходим из цикла
-    #         print(
-    #             "Element #ContentPlaceHolder1_imgNextPage no longer present. Stopping."
-    #         )
-    #         break
+    # Нажимаем кнопку "Войти"
+    await page.click("#new_user > div:nth-child(7) > button")
+    await asyncio.sleep(1)
+
+    # Переходим на страницу с производителями
+    await page.goto(
+        "https://tripoli.land/farmers/proizvoditeli-zerna/zhitomirskaya/proizvoditeli-gorokha"
+    )
+    await asyncio.sleep(1)
+
+    # Находим все элементы с классом call-popup и кликаем по ним
+    popup_elements = await page.query_selector_all("span.call-popup")
+
+    for element in popup_elements:
+        try:
+            await element.click()
+            print(f"Кликнули на элемент: {await element.inner_text()}")
+            await asyncio.sleep(30)  # Пауза 30 секунд между кликами
+            output_file = current_directory / "Page_01.html"
+            html_content = await page.content()
+            with open(output_file, "w", encoding="utf-8") as file:
+                file.write(html_content)
+        except Exception as e:
+            print(f"Ошибка при клике: {e}")
+            continue
+
+    # Закрываем браузер
     await browser.close()
-
-    # for i in range(1, 22):
-    #     await page.goto(url)
-    #     # Ждем завершения всех сетевых запросов
-    #     await page.wait_for_load_state("networkidle")
-    #     output_file = current_directory / f"Page_0{i}.html"
-    #     html_content = await page.content()
-    #     with open(output_file, "w", encoding="utf-8") as file:
-    #         file.write(html_content)
-
-    # # Ждем завершения всех сетевых запросов
-    # # await page.wait_for_load_state("networkidle")
-    # await asyncio.sleep(5)  # Пауза для загрузки страницы
-    # print("Страница загружена")
-
-    # # Ищем и нажимаем элемент с текстом "Sign In Midasbuy Account"
-    # sign_in_button = page.locator(
-    #     "div.Button_icon_text__C-ysi:has-text('Sign In Midasbuy Account')"
-    # )
-    # if await sign_in_button.is_visible():
-    #     print("Кнопка 'Sign In Midasbuy Account' найдена, нажимаем")
-    #     await sign_in_button.click()
-    # else:
-    #     print("Ошибка: Кнопка 'Sign In Midasbuy Account' не найдена")
-    #     return
-    # await asyncio.sleep(5)  # Пауза
-    # # Переходим к iframe
-    # iframe = page.frame(name="iframe-window")
-    # if not iframe:
-    #     print("Ошибка: iframe не найден")
-    #     return
-    # await asyncio.sleep(5)  # Пауза
-    # # Ждем появления поля для ввода email
-    # email_input = iframe.locator(
-    #     "input[placeholder='Enter email to sign in or sign up'][type='email'][autocomplete='username']"
-    # )
-    # await email_input.wait_for()
-
-    # # Вводим email
-    # await email_input.fill("testmidass@gmail.com")  # Замените на ваш email
-    # print("Email введен")
-    # await asyncio.sleep(5)  # Пауза
-
-    # # Нажимаем кнопку "Continue"
-    # continue_button = page.locator(".btn.comfirm-btn:has-text('Continue')")
-    # if await continue_button.is_visible():
-    #     print("Кнопка 'Continue' найдена, нажимаем")
-    #     await continue_button.click()
-    # else:
-    #     print("Ошибка: Кнопка 'Continue' не найдена")
-    #     return
-    # await asyncio.sleep(5)  # Пауза
-
-    # # Ждем появления поля для ввода пароля
-    # password_input = page.locator("input[type='password']")
-    # await password_input.wait_for()
-    # await asyncio.sleep(5)  # Пауза
-    # print("Поле для ввода пароля найдено")
-
-    # # Вводим пароль
-    # await password_input.fill("xebgyd-cabnag-xoXba6")  # Замените на ваш пароль
-    # print("Пароль введен")
-
-    # # Устанавливаем чекбокс
-    # checkbox = page.locator("svg[viewBox='0 0 16 16']")
-    # if await checkbox.is_visible():
-    #     print("Чекбокс найден, устанавливаем")
-    #     await checkbox.click()
-    # else:
-    #     print("Ошибка: Чекбокс не найден")
-    #     return
-    # await asyncio.sleep(5)  # Пауза
-
-    # # Нажимаем кнопку "SIGN IN"
-    # sign_in_button = page.locator(".btn.comfirm-btn:has-text('SIGN IN')")
-    # if await sign_in_button.is_visible():
-    #     print("Кнопка 'SIGN IN' найдена, нажимаем")
-    #     await sign_in_button.click()
-    # else:
-    #     print("Ошибка: Кнопка 'SIGN IN' не найдена")
-    #     return
-
-    # # Пауза на 30 секунд
-    # await asyncio.sleep(30)
-    # print("Авторизация завершена, закрываем браузер")
-
-    # # Закрываем браузер
-    # await browser.close()
-
-    # # Ожидhtml_content)
-    # Клик по whatsapp_cont
-
-    # while True:
-    #     # Находим текущую страницу
-    #     current_page_element = await page.locator(
-    #         '//li[@aria-current="page"]'
-    #     ).element_handle()
-    #     if not current_page_element:
-    #         print("Не удалось найти текущую страницу.")
-    #         break
-    #     # Извлекаем номер текущей страницы
-    #     aria_label = await current_page_element.get_attribute("aria-label")
-    #     number_page = int(aria_label.split()[-1].strip())
-    # html_content = await page.content()
-    # with open(f"page_content{number_page}.html", "w", encoding="utf-8") as file:
-    #     file.write(html_content)
-    #     print(f"Текущая страница: {number_page}")
-    #     # Находим кнопку "Next page"
-    #     next_button = await page.locator(
-    #         '//button[@aria-label="Next page"]'
-    #     ).element_handle()
-    #     if not next_button:
-    #         print("Кнопка 'Next page' не найдена. Конец.")
-    #         break
-
-    #     # Кликаем по кнопке "Next page" и ждем загрузки
-    #     await next_button.click()
-    #     await asyncio.sleep(1)  # Пауза для загрузки страницы
-
-    # # Нажимаем на кнопку "Next" и ждем загрузки
-    # for i in range(1, 11):
-    #     # Сохраняем содержимое страницы в HTML-файл
-    #     html_content = await page.content()
-    #     with open(f"page_content{i}.html", "w", encoding="utf-8") as file:
-    #         file.write(html_content)
-
-    #     # Проверяем наличие кнопки "Next"
-    #     next_button = page.locator("//span[@class='sr-only' and text()='Next']")
-    #     if await next_button.is_visible():
-    #         # Нажимаем на родительский элемент кнопки "Next"
-    #         await next_button.locator("..").click()
-
-    #         # Ждем завершения загрузки страницы
-    #         await page.wait_for_load_state("networkidle")
-    #     else:
-    #         print("Next button not found.")
-    #         break
 
 
 async def main():

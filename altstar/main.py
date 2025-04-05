@@ -800,7 +800,7 @@ def convert_json_to_csv():
                 row_data = {}
 
                 # Добавляем имя продукта и цену
-                product_name = left_column.get("product_name", "")
+                product_name = left_column.get("product_name", " ")
                 row_data["Артикул"] = product_name
 
                 # Обрабатываем изображения
@@ -808,18 +808,18 @@ def convert_json_to_csv():
                 img_list = get_img(img_url, product_name)
 
                 # Для аналогов объединяем все записи
-                analogs = right_column.get("analogs", "")
+                analogs = right_column.get("analogs", " ")
                 row_data["Номера аналогів"] = analogs
 
                 # Добавляем агрегаты, аналоги и приложения
-                row_data["Застосованість"] = middle_column.get("aggregates", "")
+                row_data["Застосованість"] = middle_column.get("aggregates", " ")
 
                 # Для приложений объединяем все записи с разделителем
                 applications = right_column.get("applications", [])
                 if applications:
                     row_data["Застосованість авто"] = "||".join(applications)
                 else:
-                    row_data["Застосованість авто"] = ""
+                    row_data["Застосованість авто"] = " "
 
                 name_product = middle_column.get("name_product", "")
                 row_data["Назва товару"] = name_product

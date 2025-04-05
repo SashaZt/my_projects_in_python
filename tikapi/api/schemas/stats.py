@@ -14,7 +14,7 @@ class UserStatsHistoryBase(BaseModel):
     friend_count: Optional[int] = None
     heart_count: Optional[int] = None
     video_count: Optional[int] = None
-    timestamp: Optional[datetime] = None
+    timestamp: Optional[int] = None
 
 
 class UserStatsHistoryCreate(UserStatsHistoryBase):
@@ -28,7 +28,7 @@ class UserStatsHistory(UserStatsHistoryBase, BaseSchema):
 class NicknameHistoryBase(BaseModel):
     user_id: int
     nickname: str
-    changed_at: Optional[datetime] = None
+    changed_at: Optional[int] = None
 
 
 class NicknameHistoryCreate(NicknameHistoryBase):
@@ -42,7 +42,7 @@ class NicknameHistory(NicknameHistoryBase, BaseSchema):
 class UniqueIdHistoryBase(BaseModel):
     user_id: int
     unique_id: str
-    changed_at: Optional[datetime] = None
+    changed_at: Optional[int] = None
 
 
 class UniqueIdHistoryCreate(UniqueIdHistoryBase):
