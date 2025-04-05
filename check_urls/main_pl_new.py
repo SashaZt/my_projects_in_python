@@ -11,75 +11,29 @@ from playwright.async_api import async_playwright
 
 def is_domain_match(main_url, final_url):
     """
-    Улучшенная функция сравнения доменов с учетом дополнительных правил:
-    1. Игнорируем www.
-    2. Считаем совпадающими, если отличается только доменная зона (.com, .fr и т.д.)
-    3. Считаем совпадающими, если отличаются только поддомены (shop.domain.com == domain.com)
-    4. Обрабатываем специальные случаи из вашего списка
+    Универсальный алгоритм сравнения доменов, обрабатывающий различные случаи
+    без необходимости указывать конкретные пары доменов.
+
+    Args:
+        main_url: Основной URL (из первой колонки)
+        final_url: Финальный URL (после всех редиректов)
 
     Returns:
-        tuple: (is_match, reason)
+        tuple: (is_match, reason) - флаг совпадения и причина несовпадения
     """
+
+    # Извлекаем домены
     main_parsed = urlparse(main_url)
     final_parsed = urlparse(final_url)
 
-    # Извлекаем домены
-    main_domain = main_parsed.netloc.replace("www.", "")
-    final_domain = final_parsed.netloc.replace("www.", "")
+    main_domain = main_parsed.netloc.lower().replace("www.", "")
+    final_domain = final_parsed.netloc.lower().replace("www.", "")
 
     # Если домены точно совпадают
     if main_domain == final_domain:
         return True, ""
 
-    # Специальные случаи из вашего списка
-    special_cases = [
-        ("aubade.com", "aubade.fr"),
-        ("fruugo.fr", "chromewebdata"),
-        ("mymagicstory.com", "ui2.awin.com"),
-        ("bestpiles.fr", "fr-go.kelkoogroup.net"),
-        ("apiculture.net", "fr-go.kelkoogroup.net"),
-        ("stories.com", "r.srvtrck.com"),
-        ("projectxparis.com", "fr-go.kelkoogroup.net"),
-        ("hoka.com", "hokaoneone.eu"),
-        ("convertiblecenter.fr", "fr-go.kelkoogroup.net"),
-        ("upway.fr", "upway.shop"),
-        ("1001hobbies.fr", "1001maquettes.fr"),
-        ("lego.com", "shop.lego.com"),
-        ("optical-center.fr", "optical-center.eu"),
-    ]
-
-    for d1, d2 in special_cases:
-        if (main_domain == d1 and final_domain == d2) or (
-            main_domain == d2 and final_domain == d1
-        ):
-            return True, ""
-
-    # Проверка на разные доменные зоны
-    main_parts = main_domain.split(".")
-    final_parts = final_domain.split(".")
-
-    # Если домены разной длины (например, shop.domain.com vs domain.com)
-    if len(main_parts) != len(final_parts):
-        # Проверяем, является ли один домен поддоменом другого
-        if len(main_parts) > len(final_parts):
-            # main domain имеет больше частей (например, shop.domain.com)
-            if ".".join(main_parts[-(len(final_parts)) :]) == ".".join(final_parts):
-                return True, ""
-        else:
-            # final domain имеет больше частей (например, domain.com vs shop.domain.com)
-            if ".".join(final_parts[-(len(main_parts)) :]) == ".".join(main_parts):
-                return True, ""
-
-    # Если количество частей совпадает, проверяем, различаются ли они только доменной зоной
-    if len(main_parts) >= 2 and len(final_parts) >= 2:
-        # Получаем основную часть домена без зоны
-        main_base = ".".join(main_parts[:-1])
-        final_base = ".".join(final_parts[:-1])
-
-        if main_base == final_base:
-            return True, ""
-
-    # Проверка на известные редиректы и промежуточные страницы
+    # Известные сервисы редиректов, которые не считаются ошибками
     known_redirectors = [
         "kelkoogroup.net",
         "awin.com",
@@ -88,12 +42,201 @@ def is_domain_match(main_url, final_url):
         "anrdoezrs.net",
         "go2cloud.org",
         "srvtrck.com",
+        "ticknbox.com",
+        "tickandbox.net",
+        "chromewebdata",
+        "ui2.awin.com",
+        "google.com",
+        "static.tradetracker.net",
+        "affjumbo.go2cloud.org",
     ]
 
+    # Проверка на известные редиректы
     for redirector in known_redirectors:
-        if redirector in final_domain:
-            # Если финальный домен - известный редиректор, считаем это нормальным
+        if redirector in final_domain or redirector in main_domain:
             return True, ""
+
+    # Шаг 1: Нормализация доменов
+    # Замена дефисов на точки для унификации формата
+    main_normalized = main_domain.replace("-", ".")
+    final_normalized = final_domain.replace("-", ".")
+
+    # Шаг 2: Разбиение доменов на компоненты
+    main_parts = main_normalized.split(".")
+    final_parts = final_normalized.split(".")
+
+    # Шаг 3: Извлечение базового домена (домен второго уровня + зона)
+    def extract_base_domain(parts):
+        # Если домен содержит минимум домен и зону
+        if len(parts) >= 2:
+            # Возвращаем домен второго уровня + зона (example.com)
+            return parts[-2:]
+        return parts
+
+    main_base = extract_base_domain(main_parts)
+    final_base = extract_base_domain(final_parts)
+
+    # Шаг 4: Сравнение базовых доменов
+    # Если базовые домены идентичны, значит отличаются только поддомены
+    if main_base == final_base:
+        return True, ""
+
+    # Шаг 5: Игнорирование региональных поддоменов
+    def without_regional_subdomain(parts):
+        # Распространенные двухбуквенные коды стран и языков
+        regional_codes = [
+            "fr",
+            "en",
+            "us",
+            "uk",
+            "ru",
+            "de",
+            "es",
+            "it",
+            "pl",
+            "cn",
+            "jp",
+            "br",
+            "ca",
+            "au",
+            "nl",
+            "be",
+            "ch",
+            "at",
+            "pt",
+            "no",
+            "se",
+            "fi",
+            "dk",
+            "ie",
+            "gb",
+            "cz",
+            "sk",
+            "hu",
+            "ro",
+            "bg",
+            "gr",
+            "tr",
+        ]
+
+        # Если первая часть - код региона, и всего частей больше 2
+        if len(parts) > 2 and parts[0].lower() in regional_codes:
+            return parts[1:]
+        return parts
+
+    main_no_region = without_regional_subdomain(main_parts)
+    final_no_region = without_regional_subdomain(final_parts)
+
+    # Если после удаления региональных кодов домены совпадают
+    if main_no_region == final_no_region:
+        return True, ""
+
+    # Шаг 6: Игнорирование доменных зон
+    # Проверка совпадения доменов без учета зоны (.com, .fr и т.д.)
+    def without_zone(parts):
+        if len(parts) >= 2:
+            return parts[:-1]
+        return parts
+
+    main_no_zone = without_zone(main_parts)
+    final_no_zone = without_zone(final_parts)
+
+    # Если домены без зон совпадают
+    if main_no_zone == final_no_zone:
+        return True, ""
+
+    # Шаг 7: Комбинация - без региона и без зоны
+    main_no_region_no_zone = without_zone(main_no_region)
+    final_no_region_no_zone = without_zone(final_no_region)
+
+    if main_no_region_no_zone == final_no_region_no_zone:
+        return True, ""
+
+    # Шаг 8: Типичные шаблоны доменов
+    # Например: domain.com и shop.domain.com или domain.com и domain-shop.com
+
+    # Обработка shop.domain.XX vs domain.XX
+    shop_pattern1 = r"^shop\.(.+)$"
+    shop_pattern2 = r"^(.+)$"
+
+    main_shop_match = re.match(shop_pattern1, main_domain)
+    final_match = re.match(shop_pattern2, final_domain)
+
+    if main_shop_match and final_match:
+        if main_shop_match.group(1) == final_match.group(1):
+            return True, ""
+
+    final_shop_match = re.match(shop_pattern1, final_domain)
+    main_match = re.match(shop_pattern2, main_domain)
+
+    if final_shop_match and main_match:
+        if final_shop_match.group(1) == main_match.group(1):
+            return True, ""
+
+    # Шаг 9: Обработка специфических шаблонов
+    # domain.com vs domain2.com или domain-X.com vs domain.com
+
+    # Удаление всех разделителей для идентификации основного имени
+    main_name = re.sub(r"[\.\-_]", "", main_domain)
+    final_name = re.sub(r"[\.\-_]", "", final_domain)
+
+    # Проверка на вариации с цифрами (domain vs domain2)
+    main_base_name = re.sub(r"\d+", "", main_name)
+    final_base_name = re.sub(r"\d+", "", final_name)
+
+    # Если имена без цифр совпадают и имена достаточно длинные
+    if main_base_name == final_base_name and len(main_base_name) >= 5:
+        return True, ""
+
+    # Шаг 10: Похожие имена - одно содержит другое
+    # Например: pureality.com и pureality-paris.com
+
+    # Извлечение основной части доменного имени (без поддоменов и зоны)
+    def extract_main_name(domain):
+        parts = domain.split(".")
+        if len(parts) >= 2:
+            return parts[-2]  # Основная часть перед зоной
+        return domain
+
+    main_core = extract_main_name(main_domain)
+    final_core = extract_main_name(final_domain)
+
+    # Если один домен содержит другой как подстроку
+    if (main_core in final_core or final_core in main_core) and min(
+        len(main_core), len(final_core)
+    ) >= 5:
+        return True, ""
+
+    # Шаг 11: Проверка на специфические суффиксы/префиксы
+    # Например: domain.com vs domain-store.com или domain.com vs domain-fr.com
+
+    # Удаление типичных торговых суффиксов
+    commerce_suffixes = [
+        "-shop",
+        "-store",
+        "-market",
+        "-fr",
+        "-en",
+        "-us",
+        "-uk",
+        "-online",
+        "-web",
+        "-official",
+        "-paris",
+        "-france",
+    ]
+
+    def remove_commerce_suffix(name):
+        for suffix in commerce_suffixes:
+            if name.endswith(suffix):
+                return name[: -len(suffix)]
+        return name
+
+    main_core_clean = remove_commerce_suffix(main_core)
+    final_core_clean = remove_commerce_suffix(final_core)
+
+    if main_core_clean == final_core_clean and len(main_core_clean) >= 5:
+        return True, ""
 
     # По умолчанию - домены не совпадают
     return (

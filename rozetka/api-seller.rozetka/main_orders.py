@@ -367,14 +367,15 @@ if __name__ == "__main__":
                 mes = f"Це {denomination_cards} картки кожна по ${number_cards} після активації карток на балансі буде ${amount_usd} ви їх потім обміняєте на робукси."
 
                 message_tg = get_roblox_message_tg(
-                    product, code, mes, text_code_product
+                    product,
+                    code,
+                    mes,
+                    text_code_product,
                 )
-                logger.info(message_tg)
-                exit()
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(
-                    send_message(user_phone, message_tg, key_ids, order_id)
+                    send_message(user_phone, message_tg, key_ids, order_id, code)
                 )
 
                 message_email = get_roblox_message_email(

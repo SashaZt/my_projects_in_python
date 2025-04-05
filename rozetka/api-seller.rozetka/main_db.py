@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sqlite3
 import sys
@@ -6,6 +7,7 @@ from pathlib import Path
 
 import requests
 from logger import logger
+from main_tg import send_message_alert
 from main_token import get_token, load_product_data, save_json_data, validyty_token
 
 current_directory = Path.cwd()
@@ -441,6 +443,10 @@ def get_next_available_key_for_orders():
                 logger.error(
                     f"Недостаточно ключей для продукта '{item_name}'. Требуется: {card_count}, доступно: {available_keys_count}"
                 )
+                message_alert = f"Недостаточно ключей для продукта '{item_name}'. Требуется: {card_count}, доступно: {available_keys_count}"
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(send_message_alert(message_alert))
                 continue
 
             # Получаем необходимое количество ключей
