@@ -2,8 +2,8 @@
 
 # Прямая запись в cron с правильными пробелами между частями
 echo "# TikTok API Client cron jobs" > /etc/cron.d/tiktok_cron
-echo "0 */4 * * * /usr/local/bin/python /app/main_four_tik_tok.py >> /var/log/cron.log 2>&1" >> /etc/cron.d/tiktok_cron
-echo "0 0 * * * /usr/local/bin/python /app/main_once_day_tik_tok.py >> /var/log/cron.log 2>&1" >> /etc/cron.d/tiktok_cron
+echo "0 */4 * * * cd /app && /usr/local/bin/python /app/main_four_tik_tok.py >> /var/log/cron.log 2>&1" >> /etc/cron.d/tiktok_cron
+echo "0 0 * * * cd /app && /usr/local/bin/python /app/main_once_day_tik_tok.py >> /var/log/cron.log 2>&1" >> /etc/cron.d/tiktok_cron
 
 # Установка прав и обновление cron задач
 chmod 0644 /etc/cron.d/tiktok_cron

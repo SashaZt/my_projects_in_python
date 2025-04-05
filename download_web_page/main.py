@@ -1,16 +1,11 @@
-import csv
+import asyncio
 import json
-import random
-import re
-import time
-import xml.etree.ElementTree as ET
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
 
-import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from configuration.logger_setup import logger
+from logger import logger
+from playwright.async_api import async_playwright
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -18,40 +13,50 @@ data_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
 html_directory = current_directory / "html"
 html_directory.mkdir(parents=True, exist_ok=True)
+output_html_file = html_directory / "leroymerlin.html"
 
 
 def get_html():
 
     cookies = {
-        "cf_clearance": "rwx6YbwNlQnQsXFJNnLMDf3.oCX7P7sbHhXMP7BNEA8-1742659575-1.2.1.1-_BzzCS.mf4jeT1_fZCEoRx1FogQXKbjDkCPCzKvLs1Qr5fG8WXs5eiONAhh5Tsynt15cGDWRMJyJ9MbJQ_L8fUFISKSrlDa05rr3KtqpSbIqpNlyIhk1kBNGrAOuRQ_hCHxD708qQTj9r0Jt5yzGwOpQ2e9i4rcRBamyQKVQ.YALbi.UORxCpZDs57XPnD5xVOXqdSRWmDiG.2JRudc1fFiOzHVesBO4Er3K_LfolUTVrB6In_giAu4sdIJcTmNJygye048a5PJ9GCfFWpKpKHa2zwUidU0eqP0ifL9Ko9R2bJQQSu_ppK93aoBVcDsIFCmFKKcOw5AVAW3iQVGzQx_gBmi6u_c1QLqreEZW6ts",
-        "XSRF-TOKEN": "eyJpdiI6ImJSblNWU3BHNks0THNxd3NVbHhhVVE9PSIsInZhbHVlIjoiTmdzN2hpa1hpeDFsbnFCZHk4Rk8xc0NPY1pzRms0ajZqMDBBV3I2Y1NReUFjRXlaRFU3SWE3RFNya2QyaGN6RytNbDBWYkkvVkxvVDQ4cTNQM0JiMjFsdVh1M20yU3RuczdYa0FpKzQvRHVIK05xL3JTTjR0d2dFU2lqbmlOZnEiLCJtYWMiOiIxMWJmMTNmNzQyMTMxYTEwMTcyMTEwMjhjMWViZDIyZDhjYTZmODhjNjVhM2ZmZDQ3NTM5NzU2YzhkZmRhZDY4IiwidGFnIjoiIn0%3D",
-        "tikleap_session": "eyJpdiI6InpSMm9mbE9FemxjUGk1emRwMFZ6Y3c9PSIsInZhbHVlIjoiVUpDTUkvK1cwRmNBaGtqNmdIaHNRc2pOTWI4dXRJWjNCTUcxU21oclJYQ0c2TTJiOXo3eVJ6RFlscGN6ekt1eWNNUTZrUTJwVWVJZVVuRU9vcldlNllXRmMvVEZkRnFRVWFRNkQzc2k0dTdLajIrMDF4QzczcXFRVURMSTVZeEIiLCJtYWMiOiIxZTRiZWIzOTUyYzA0NGFjYjM5MzExZmExZmI0OTg0YTdhMzA4ZGU3NThkMWFmZjdkYTQ0MTJjZWJjZmYzMTk5IiwidGFnIjoiIn0%3D",
+        "auto-contextualization_attempt": "true",
+        "pa_privacy": "%22exempt%22",
+        "_pcid": "%7B%22browserId%22%3A%22m92o0q4hag9yp49x%22%2C%22_t%22%3A%22mor2y7gv%7Cm92o0q4w%22%7D",
+        "_pctx": "%7Bu%7DN4IgrgzgpgThIC4B2YA2qA05owMoBcBDfSREQpAeyRCwgEt8oBJAE0RXSwH18yBbSjABMATwDsAcwAeAH34BOYZQAMARwAs0kAF8gA",
+        "search_session": "98d4bc9d-ec38-4964-9d87-e5580a2c2932|28558dab-c963-4d0a-8484-8fa043e4de36",
+        "lm-csrf": "NRwFebxOetyJxoWRgDdTrtL/RC6V22G4PHMpt6vAIqQ=.1743788028610.gf9zZQ4PaLxS3inL/MkaEqmqxUHy2pY9KI3nnJJ1piA=",
+        "datadome": "HMpjtGnjVp~W11i2li6SPskEeV~K01mTy8LnBXo8JPT22zvgyfZeiNSXvm0NE~Vus7mZyGhYrJQFHEmOCf1b3rvPpqyU2nXqTmzNlqfeqMo1iesS9wYTuJlIWO9xqwAV",
+        "_dd_s": "rum=0&expire=1743788936024",
     }
 
     headers = {
-        "accept": "*/*",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
         "dnt": "1",
-        "priority": "u=1, i",
-        "referer": "https://www.tikleap.com/",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
         "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
         "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-        "x-requested-with": "XMLHttpRequest",
-        # 'cookie': 'cf_clearance=rwx6YbwNlQnQsXFJNnLMDf3.oCX7P7sbHhXMP7BNEA8-1742659575-1.2.1.1-_BzzCS.mf4jeT1_fZCEoRx1FogQXKbjDkCPCzKvLs1Qr5fG8WXs5eiONAhh5Tsynt15cGDWRMJyJ9MbJQ_L8fUFISKSrlDa05rr3KtqpSbIqpNlyIhk1kBNGrAOuRQ_hCHxD708qQTj9r0Jt5yzGwOpQ2e9i4rcRBamyQKVQ.YALbi.UORxCpZDs57XPnD5xVOXqdSRWmDiG.2JRudc1fFiOzHVesBO4Er3K_LfolUTVrB6In_giAu4sdIJcTmNJygye048a5PJ9GCfFWpKpKHa2zwUidU0eqP0ifL9Ko9R2bJQQSu_ppK93aoBVcDsIFCmFKKcOw5AVAW3iQVGzQx_gBmi6u_c1QLqreEZW6ts; XSRF-TOKEN=eyJpdiI6ImJSblNWU3BHNks0THNxd3NVbHhhVVE9PSIsInZhbHVlIjoiTmdzN2hpa1hpeDFsbnFCZHk4Rk8xc0NPY1pzRms0ajZqMDBBV3I2Y1NReUFjRXlaRFU3SWE3RFNya2QyaGN6RytNbDBWYkkvVkxvVDQ4cTNQM0JiMjFsdVh1M20yU3RuczdYa0FpKzQvRHVIK05xL3JTTjR0d2dFU2lqbmlOZnEiLCJtYWMiOiIxMWJmMTNmNzQyMTMxYTEwMTcyMTEwMjhjMWViZDIyZDhjYTZmODhjNjVhM2ZmZDQ3NTM5NzU2YzhkZmRhZDY4IiwidGFnIjoiIn0%3D; tikleap_session=eyJpdiI6InpSMm9mbE9FemxjUGk1emRwMFZ6Y3c9PSIsInZhbHVlIjoiVUpDTUkvK1cwRmNBaGtqNmdIaHNRc2pOTWI4dXRJWjNCTUcxU21oclJYQ0c2TTJiOXo3eVJ6RFlscGN6ekt1eWNNUTZrUTJwVWVJZVVuRU9vcldlNllXRmMvVEZkRnFRVWFRNkQzc2k0dTdLajIrMDF4QzczcXFRVURMSTVZeEIiLCJtYWMiOiIxZTRiZWIzOTUyYzA0NGFjYjM5MzExZmExZmI0OTg0YTdhMzA4ZGU3NThkMWFmZjdkYTQ0MTJjZWJjZmYzMTk5IiwidGFnIjoiIn0%3D',
     }
 
     response = requests.get(
-        "https://www.tikleap.com/", cookies=cookies, headers=headers
+        "https://www.leroymerlin.pl/produkty/odkurzacz-przemyslowy-starmix-basic-ipulse-l-1635-35-l-1600w-80900005.html",
+        cookies=cookies,
+        headers=headers,
+        timeout=10,
     )
 
     # Проверка кода ответа
     if response.status_code == 200:
-        output_html_file = html_directory / "tikleap.html"
+
         # Сохранение HTML-страницы целиком
         with open(output_html_file, "w", encoding="utf-8") as file:
             file.write(response.text)
@@ -60,42 +65,56 @@ def get_html():
         logger.error(f"Failed to get HTML. Status code: {response.status_code}")
 
 
+def remove_at_type(data):
+    """Рекурсивно удаляет ключи '@type' из словаря."""
+    if isinstance(data, dict):
+        # Создаем новый словарь без '@type'
+        new_data = {k: remove_at_type(v) for k, v in data.items() if k != "@type"}
+        return new_data
+    elif isinstance(data, list):
+        return [remove_at_type(item) for item in data]
+    return data
+
+
 def scrap_html():
-    with open("freepik.html", "r", encoding="utf-8") as file:
+    with open(output_html_file, "r", encoding="utf-8") as file:
         content = file.read()
     soup = BeautifulSoup(content, "lxml")
-    # Находим все элементы <figure> с классом "$relative"
-    figures = soup.find_all("figure", class_="$relative")
 
-    # Список для хранения результатов
-    results = []
+    # Извлечение данных из JSON-скриптов
+    result = {}
+    for script in soup.find_all(
+        "script", {"type": "application/json", "class": "dataJsonLd"}
+    ):
+        json_data = json.loads(script.string)
+        result.update(json_data)
 
-    # Проходим по всем найденным <figure>
-    for figure in figures:
-        # Ищем <img> внутри каждого <figure>
-        img = figure.find("img")
-        if img:
-            # Извлекаем атрибуты alt и src
-            alt_text = img.get("alt", "")  # Если alt отсутствует, вернем пустую строку
-            src_url = img.get("src", "")  # Если src отсутствует, вернем пустую строку
-            results.append({"alt": alt_text, "src": src_url})
+    # Извлечение характеристик из таблицы
+    features = {}
+    table = soup.find("table", {"class": "o-product-features"})
+    if table:
+        for row in table.find_all("tr", {"class": "m-product-attr-row"}):
+            name = row.find("th", {"class": "m-product-attr-row__name"}).text.strip()
+            value = row.find("td", {"class": "m-product-attr-row__value"}).text.strip()
+            # Преобразование чисел, если возможно
+            try:
+                value = float(value) if "." in value else int(value)
+            except ValueError:
+                pass
+            features[name] = value
 
-    # Выводим результаты
-    for result in results:
-        print(f"Alt: {result['alt']}")
-        print(f"Src: {result['src']}")
-        print("---")
+    # Добавление характеристик в результат
+    if features:
+        result["specifications"] = features
 
-    # Если нужно сохранить в список словарей или файл, вот пример:
-    import json
+    # Удаление всех '@type'
+    result = remove_at_type(result)
 
-    with open("image_data.json", "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=4)
+    # Сохранение в файл
+    with open("product.json", "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=4)
 
-
-import asyncio
-
-from playwright.async_api import async_playwright
+    return result
 
 
 async def main():
@@ -157,8 +176,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    # scrap_html()
+    scrap_html()
     # main_realoem()
-    # get_htmls()
     # get_html()
-    asyncio.run(main())
+    # asyncio.run(main())

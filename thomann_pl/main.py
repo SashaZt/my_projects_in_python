@@ -1,9 +1,9 @@
 import csv
 import hashlib
-import html
 import json
 import os
 import re
+import shutil
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -73,6 +73,10 @@ headers = {
 
 
 def read_xlsx():
+
+    shutil.rmtree(html_directory)
+    html_directory.mkdir(parents=True, exist_ok=True)
+
     # Читаем Excel файл, указывая, что первая строка - заголовок
     df = pd.read_excel(output_xlsx_file, header=0)
 
@@ -180,7 +184,7 @@ def pars_htmls():
         if product_title:
             h1 = product_title.find("h1", itemprop="name")
             if h1:
-                result["title"] = h1.text.strip()
+                result["title"] = re.sub(r"\s+", " ", h1.text).strip()
 
         # 3. Извлекаем цену
         price_wrapper = soup.find("div", class_="price-wrapper")
@@ -193,9 +197,7 @@ def pars_htmls():
                 result["price"] = price
 
         # 4. Извлекаем статус доступности
-        availability = soup.find(
-            "span", class_=lambda x: x and "fx-availability--in-stock" in x
-        )
+        availability = soup.find("span", class_=lambda x: x and "fx-availability" in x)
 
         if availability:
             result["availability"] = availability.text.strip()
@@ -213,9 +215,6 @@ def pars_htmls():
         json.dump(all_data, json_file, ensure_ascii=False, indent=4)
 
     update_excel_with_array(all_data)
-    # # Создание DataFrame и запись в Excel
-    # df = pd.DataFrame(all_data)
-    # df.to_excel("thomann.xlsx", index=False)
 
 
 def update_excel_with_array(data_array):
@@ -231,7 +230,9 @@ def update_excel_with_array(data_array):
         # Если title из Excel есть в массиве
         if excel_title in array_dict:
             # Обновляем соответствующие поля
-            df.at[index, "article_number"] = array_dict[excel_title]["article_number"]
+            df.at[index, "article_number"] = float(
+                array_dict[excel_title]["article_number"]
+            )
             df.at[index, "price"] = array_dict[excel_title]["price"]
             df.at[index, "availability"] = array_dict[excel_title]["availability"]
         else:
@@ -244,6 +245,6 @@ def update_excel_with_array(data_array):
 
 
 if __name__ == "__main__":
-    # read_xlsx()
-    # main_th()
+    read_xlsx()
+    main_th()
     pars_htmls()

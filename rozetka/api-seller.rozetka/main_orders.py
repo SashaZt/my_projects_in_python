@@ -343,30 +343,44 @@ if __name__ == "__main__":
             keys_product = order["keys"]
             logger.info(f"Ключі: {keys_product}")
             logger.info(f"Ключі: {product}")  # Список ключей
-            # code = ", ".join(keys_product)
-            # text_code_product = "Ваш код:"
-            # if len(keys_product) > 1:
-            #     text_code_product = "Ваші коди:"
+            code = ", ".join(keys_product)
+            text_code_product = "Ваш код:"
+            if len(keys_product) > 1:
+                text_code_product = "Ваші коди:"
 
-            # match = re.search(r"(\d+)\$", product)  # Захватываем только цифры перед $
-            # amount_usd = match.group(1)  # Извлекаем только число
-            # message_tg = get_roblox_message_tg(
-            #     product, code, amount_usd, text_code_product
-            # )
-            # user_phone = "+380734709611"
+                match = re.search(
+                    r"(\d+)\$", product
+                )  # Захватываем только цифры перед $
+                amount_usd = match.group(1)  # Извлекаем только число
 
-        #     logger.info(result_order)
-        #     loop = asyncio.new_event_loop()
-        #     asyncio.set_event_loop(loop)
-        #     loop.run_until_complete(
-        #         send_message(user_phone, message_tg, key_ids, order_id)
-        #     )
+                message_tg = get_roblox_message_tg(
+                    product, code, amount_usd, text_code_product
+                )
+                # user_phone = "+380734709611"
 
-        #     message_email = get_roblox_message_email(
-        #         product, code, amount_usd, text_code_product
-        #     )
-        #     # email = "myolxxbox@gmail.com"
-        #     get_send_email(email, message_email)
-        #     logger.info(f"Заказ {order_id} обработан")
-        # logger.info("Пауза 5 мин")
-        # time.sleep(300)
+                logger.info(result_order)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    send_message(user_phone, message_tg, key_ids, order_id)
+                )
+
+                message_email = get_roblox_message_email(
+                    product, code, amount_usd, text_code_product
+                )
+            else:
+                match = re.search(r"(\d+)\$", product)
+                amount_usd = match.group(1)
+                message_tg = get_roblox_message_tg(
+                    product, code, amount_usd, text_code_product
+                )
+                logger.info(message_tg)
+                message_email = get_roblox_message_email(
+                    product, code, amount_usd, text_code_product
+                )
+
+                #     # email = "myolxxbox@gmail.com"
+                get_send_email(email, message_email)
+                logger.info(f"Заказ {order_id} обработан")
+            logger.info("Пауза 5 мин")
+            time.sleep(300)
