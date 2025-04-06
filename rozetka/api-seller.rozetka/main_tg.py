@@ -1,3 +1,4 @@
+# main_tg.py
 import asyncio
 from pathlib import Path
 
@@ -22,8 +23,15 @@ api_id = config["tg"]["api_id"]
 api_hash = config["tg"]["api_hash"]
 phone_number = config["tg"]["phone_number"]
 
+
 # Имя файла сессии
 session_file = f"my_telegram_session_{phone_number}"
+
+
+def get_telegram_client():
+    """Создает и возвращает клиент Telegram."""
+    client = TelegramClient(session_file, api_id, api_hash)
+    return client
 
 
 async def send_message(user_phone, message, key_ids, order_id, codes):
@@ -70,12 +78,16 @@ async def send_message(user_phone, message, key_ids, order_id, codes):
             # Отправляем сообщение
             await client.send_message(users[0], message)
             logger.info("Сообщение отправлено!")
+
             message_alert = f"Пользовател. с номером телефона {user_phone} ключ/и {codes} отправлен."
-            await client.send_message(message_alert)
+            await send_message_alert(client, message_alert)
+
             mark_keys_as_sent(order_id, key_ids)
+
         else:
             message_alert = f"Пользователь с номером телефона {user_phone} не найден. Его заказ {order_id}, ключ/и {codes}."
-            await client.send_message(message_alert)
+            await send_message_alert(client, message_alert)
+
             logger.warning(f"Пользователь с номером телефона {user_phone} не найден")
     except Exception as e:
         logger.warning(f"Произошла ошибка: {e}")
@@ -85,54 +97,46 @@ async def send_message(user_phone, message, key_ids, order_id, codes):
         logger.info("Отключено от Telegram")
 
 
-async def send_message_alert(message):
-    # Создаем клиент с сохранением сессии
-    client = TelegramClient(session_file, api_id, api_hash)
+async def send_message_alert(client_or_func, message):
+    """Отправляет сообщение-уведомление администратору.
 
-    # Сначала подключаемся
-    logger.info("Подключение к Telegram...")
-    await client.connect()
-
-    # Проверяем, авторизован ли клиент
-    if not await client.is_user_authorized():
-        logger.error(
-            "Требуется авторизация. Пожалуйста, введите код из сообщения Telegram."
-        )
-        await client.send_code_request(phone_number)
-        code = input("Введите полученный код: ")
-
-        try:
-            await client.sign_in(phone_number, code)
-        except SessionPasswordNeededError:
-            # Если требуется пароль
-            password = input("Введите пароль двухфакторной аутентификации: ")
-            await client.sign_in(password=password)
-
-        logger.info("Авторизация выполнена успешно!")
+    Args:
+        client_or_func: Телеграм-клиент или функция, возвращающая клиент
+        message: Текст сообщения
+    """
+    # Проверяем, что передано - клиент или функция
+    if callable(client_or_func) and client_or_func.__name__ == "get_telegram_client":
+        # Это функция get_telegram_client - создаем новый клиент напрямую
+        client = TelegramClient(session_file, api_id, api_hash)
+        need_connect = True
     else:
-        logger.info("Используем сохраненную сессию.")
+        # Это уже клиент
+        client = client_or_func
+        need_connect = False
 
-    logger.info("Успешное подключение!")
-    user_phone = "+380737372554"  # Замените на номер телефона пользователя
+    user_phone = "+380737372554"
+
     try:
-        # Добавляем контакт
+        if need_connect:
+            # Подключаемся, если нужно
+            await client.connect()
+            if not await client.is_user_authorized():
+                logger.error("Клиент не авторизован для отправки уведомления")
+                return
+
         contact = InputPhoneContact(
             client_id=0, phone=user_phone, first_name="User", last_name=""
         )
         result = await client(ImportContactsRequest([contact]))
-
-        # Получаем информацию о пользователе
         users = result.users
         if users:
-            logger.info(f"Пользователь найден: {users[0].id}")
-            # message = "Привет! Это тестовое сообщение."
-            # Отправляем сообщение
             await client.send_message(users[0], message)
+            logger.info(f"Отправлено уведомление: {message}")
         else:
-            logger.warning("Пользователь не найден")
+            logger.warning("Пользователь для алерта не найден")
     except Exception as e:
-        logger.warning(f"Произошла ошибка: {e}")
+        logger.warning(f"Ошибка при отправке алерта: {e}")
     finally:
-        # Отключаемся в любом случае
-        await client.disconnect()
-        logger.info("Отключено от Telegram")
+        # Отключаемся только если мы сами подключились
+        if need_connect:
+            await client.disconnect()

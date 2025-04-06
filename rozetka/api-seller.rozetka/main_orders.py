@@ -1,3 +1,4 @@
+# main_orders.py
 import asyncio
 import re
 import time
@@ -11,7 +12,7 @@ from main_db import (
     save_parsed_orders_to_db,
 )
 from main_mail import get_send_email
-from main_tg import send_message
+from main_tg import get_telegram_client, send_message, send_message_alert
 from main_token import get_token, load_product_data, save_json_data, validyty_token
 
 current_directory = Path.cwd()
@@ -335,6 +336,18 @@ if __name__ == "__main__":
 
         result_order = get_next_available_key_for_orders()
         for order in result_order:
+            if "error" in order:
+                # Если есть ошибка (например, недостаточно ключей)
+                message_alert = order["error"]
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+                # Передаем функцию напрямую
+                loop.run_until_complete(
+                    send_message_alert(get_telegram_client, message_alert)
+                )
+                logger.info(f"Отправлено уведомление: {message_alert}")
+                continue
             key_ids = order["key_ids"]
             order_id = order["order_id"]
             user_phone = order["user_phone"]
@@ -401,5 +414,5 @@ if __name__ == "__main__":
                 get_send_email(email, message_email)
                 logger.info(f"Заказ {order_id} обработан")
 
-            logger.info("Пауза 5 мин")
-            time.sleep(300)
+        logger.info("Пауза 5 мин")
+        time.sleep(300)
