@@ -114,17 +114,57 @@ async def process_country(browser, country_code):
     try:
         logger.info(f"Обработка страны: {country_code}")
 
-        # Переходим на страницу страны
-        target_page = await browser.get(
-            f"https://www.tikleap.com/country/{country_code}"
-        )
+        # Проверка на валидность браузера
+        if not browser:
+            logger.error(
+                f"Ошибка: браузер не инициализирован (None) при обработке страны {country_code}"
+            )
+            return False
+
+        # Переходим на страницу страны с обработкой ошибок
+        try:
+            target_page = await browser.get(
+                f"https://www.tikleap.com/country/{country_code}"
+            )
+            if not target_page:
+                logger.error(
+                    f"Не удалось получить страницу для страны {country_code} (вернула None)"
+                )
+                return False
+            logger.info(f"Начальный URL: {target_page.url}")
+        except Exception as e:
+            logger.error(
+                f"Ошибка при переходе на страницу страны {country_code}: {str(e)}"
+            )
+            return False
+
         await asyncio.sleep(2)
-        await target_page  # Обновляем страницу
+
+        # Проверяем, не блокирует ли нас Cloudflare
+        try:
+            content = await target_page.get_content()
+            if (
+                "Please enable cookies" in content
+                or "Sorry, you have been blocked" in content
+                or "Checking your browser" in content
+            ):
+                logger.warning(
+                    f"Обнаружена блокировка Cloudflare при обработке страны {country_code}"
+                )
+                await asyncio.sleep(10)  # Даем время на решение капчи
+                await target_page.reload()
+                await asyncio.sleep(2)
+        except Exception as e:
+            logger.error(
+                f"Ошибка при проверке контента страницы {country_code}: {str(e)}"
+            )
+            # Продолжаем выполнение
 
         # Проверяем, успешно ли перешли
-        logger.info(f"Текущий URL: {target_page.url}")
+        current_url = target_page.url
+        logger.info(f"Текущий URL: {current_url}")
 
-        if f"country/{country_code}" in target_page.url:
+        if f"country/{country_code}" in current_url:
             logger.info(f"Успешно перешли на страницу страны {country_code}")
 
             # Прокручиваем вниз и ищем кнопку View More
@@ -133,21 +173,25 @@ async def process_country(browser, country_code):
 
             for attempt in range(max_attempts):
                 # Прокрутка страницы вниз
-                # logger.info(
-                #     f"Прокручиваем страницу вниз (попытка {attempt+1}/{max_attempts})..."
-                # )
-                await target_page.scroll_down(500)  # Прокрутка на 500 пикселей
-                await asyncio.sleep(1)  # Даем время для загрузки
+                try:
+                    await target_page.scroll_down(500)  # Прокрутка на 500 пикселей
+                    await asyncio.sleep(1)  # Даем время для загрузки
+                except Exception as e:
+                    logger.error(f"Ошибка при прокрутке страницы: {str(e)}")
+                    continue
 
                 # Ищем кнопку View More
-                view_more_button = await target_page.select(".ranklist-table-more")
+                try:
+                    view_more_button = await target_page.select(".ranklist-table-more")
+                except Exception as e:
+                    logger.error(f"Ошибка при поиске кнопки View More: {str(e)}")
+                    view_more_button = None
 
                 # Если кнопка найдена, нажимаем на нее
                 if view_more_button:
-                    # logger.info("Найдена кнопка 'View More'. Нажимаем...")
                     try:
                         await view_more_button.click()
-                        # logger.info("Нажали на кнопку 'View More'")
+                        logger.info("Нажали на кнопку 'View More'")
                     except Exception as e:
                         logger.error(f"Ошибка при нажатии на 'View More': {e}")
                         try:
@@ -172,20 +216,26 @@ async def process_country(browser, country_code):
                         break
 
             # Сохраняем страницу
-            file_path = html_directory / f"country_{country_code}.html"
-            logger.info(f"Сохраняем страницу как {file_path}")
+            try:
+                file_path = html_directory / f"country_{country_code}.html"
+                logger.info(f"Сохраняем страницу как {file_path}")
 
-            # Получаем HTML-контент страницы
-            html_content = await target_page.get_content()
+                # Получаем HTML-контент страницы
+                html_content = await target_page.get_content()
 
-            # Создаем файл и сохраняем в него HTML
-            with open(file_path, "w", encoding="utf-8") as file:
-                file.write(html_content)
+                # Создаем файл и сохраняем в него HTML
+                with open(file_path, "w", encoding="utf-8") as file:
+                    file.write(html_content)
 
-            logger.success(f"Страница успешно сохранена: {file_path}")
-            return True
+                logger.success(f"Страница успешно сохранена: {file_path}")
+                return True
+            except Exception as e:
+                logger.error(f"Ошибка при сохранении страницы {country_code}: {str(e)}")
+                return False
         else:
-            logger.error(f"Не удалось перейти на страницу страны {country_code}")
+            logger.error(
+                f"Не удалось перейти на страницу страны {country_code}, текущий URL: {current_url}"
+            )
             return False
 
     except Exception as e:
@@ -196,7 +246,6 @@ async def process_country(browser, country_code):
 async def main():
     # Загружаем список стран из JSON-файла
     try:
-
         country_list = config.get("country", [])
 
         if not country_list:
@@ -211,14 +260,34 @@ async def main():
     browser = None
     try:
         browser_args = []
-
         # browser_args = ["--headless=new"]
-        # Инициализируем браузер
-        browser = await uc.start(headless=False, browser_args=browser_args)
+
+        # Инициализируем браузер с обработкой ошибок
+        logger.info("Инициализация браузера...")
+        try:
+            browser = await uc.start(headless=False)  # browser_args=browser_args
+            if not browser:
+                logger.error("Ошибка: браузер не инициализирован (вернул None)")
+                return
+            logger.info("Браузер успешно инициализирован")
+        except Exception as e:
+            logger.error(f"Ошибка при инициализации браузера: {str(e)}")
+            return
+
+        # await asyncio.sleep(5)
 
         # Сначала выполняем вход
         logger.info("Переходим на страницу логина...")
-        login_page = await browser.get("https://www.tikleap.com/login")
+        try:
+            login_page = await browser.get("https://www.tikleap.com/login")
+            if not login_page:
+                logger.error("Не удалось получить страницу логина (вернула None)")
+                return
+            logger.info(f"Текущий URL после навигации: {login_page.url}")
+        except Exception as e:
+            logger.error(f"Ошибка при навигации на страницу логина: {str(e)}")
+            return
+
         await asyncio.sleep(2)
 
         # Проверяем на блокировку Cloudflare
@@ -226,10 +295,22 @@ async def main():
         if (
             "Please enable cookies" in content
             or "Sorry, you have been blocked" in content
+            or "Checking your browser" in content
         ):
-            logger.error("Обнаружена блокировка Cloudflare. Обновляем...")
+            logger.error(
+                "Обнаружена блокировка или проверка Cloudflare. Ожидаем 15 секунд..."
+            )
+            # Даем время на ручное решение капчи, если необходимо
+            await asyncio.sleep(15)
             await login_page.reload()
             await asyncio.sleep(2)
+            content = await login_page.get_content()
+            if (
+                "Please enable cookies" in content
+                or "Sorry, you have been blocked" in content
+            ):
+                logger.error("Блокировка Cloudflare не снята. Завершаем работу.")
+                return
 
         # Вводим email
         logger.info("Вводим email...")

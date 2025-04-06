@@ -372,7 +372,7 @@ def parsin_xml():
             xcore_data = json.load(f)
 
         for item in xcore_data:
-            xcore_sku = item.get("Код товару")
+            xcore_sku = item.get("Артику")
             xcore_price = item.get("Ціна")
 
             if not xcore_sku:
@@ -442,15 +442,15 @@ def parsin_xml():
     # Соединяем сначала сопоставленные, затем несопоставленные записи
     result = matched_data + unmatched_data
 
-    # Для примера выведем первые несколько сопоставленных записей
-    print("\nПримеры сопоставленных записей:")
-    for i, item in enumerate(matched_data[:5]):  # Первые 5 записей для примера
-        print(
-            f"{i+1}. SKU: {item['Мой сайт sku']}, "
-            + f"Insportline: {item['insportline vendor_code']}, "
-            + f"Xcore: {item['xcore_sku']}, "
-            + f"Цены: {item['Мой сайт цена']} / {item['insportline цена']} / {item['xcore_price']}"
-        )
+    # # Для примера выведем первые несколько сопоставленных записей
+    # print("\nПримеры сопоставленных записей:")
+    # for i, item in enumerate(matched_data[:5]):  # Первые 5 записей для примера
+    #     print(
+    #         f"{i+1}. SKU: {item['Мой сайт sku']}, "
+    #         + f"Insportline: {item['insportline vendor_code']}, "
+    #         + f"Xcore: {item['xcore_sku']}, "
+    #         + f"Цены: {item['Мой сайт цена']} / {item['insportline цена']} / {item['xcore_price']}"
+    #     )
 
     # Получаем лист и обновляем данные
     sheet_name = "Data"

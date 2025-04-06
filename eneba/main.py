@@ -27,6 +27,7 @@ log_directory.mkdir(parents=True, exist_ok=True)
 output_xlsx_file = data_directory / "output.xlsx"
 output_new_xlsx_file = data_directory / "new_output.xlsx"
 output_json_file = data_directory / "output.json"
+output_csv_file = data_directory / "output.csv"
 html_directory = current_directory / "html"
 html_directory.mkdir(parents=True, exist_ok=True)
 config_file = current_directory / "config.json"
@@ -214,7 +215,7 @@ def process_apollo_data(apollo_data):
         list: Список товаров
     """
     result = []
-
+    all_slugs = set()
     # Словари для хранения информации об аукционах и продуктах
     auctions = {}
     products = {}
@@ -260,7 +261,6 @@ def process_apollo_data(apollo_data):
                 .replace("Xbox Live Key", "")
                 .strip()
             )
-
             # Получаем регионы из продукта
             regions = []
 
@@ -281,6 +281,7 @@ def process_apollo_data(apollo_data):
         # Получаем slug продукта
         product_slug_str = product.get("slug", "")
         product_slug = f"{BASE_URL}{product_slug_str}"
+        all_slugs.add(product_slug)
         # Получаем URL изображения
         img_url = ""
         cover_data = product.get('cover({"size":300})')
@@ -345,7 +346,7 @@ def process_apollo_data(apollo_data):
 
         result.append(item)
 
-    return result
+    return result, all_slugs
 
 
 def remove_duplicates_by_price(df):
@@ -549,7 +550,7 @@ def process_html_files():
     # logger.info(
     #     f"Найдено HTML-файлов для обработки: {len(html_directory.glob("*.html"))}"
     # )
-
+    all_urls = []
     for html_file in html_directory.glob("*.html"):
         logger.info(f"Обработка файла: {html_file.name}")
 
@@ -558,17 +559,18 @@ def process_html_files():
 
         if apollo_data:
             # Обрабатываем данные Apollo State
-            page_products = process_apollo_data(apollo_data)
+            page_products, urls = process_apollo_data(apollo_data)
 
             # Добавляем продукты к общему списку
             all_products.extend(page_products)
-
+            all_urls.extend(urls)
             logger.info(f"Извлечено товаров из {html_file.name}: {len(page_products)}")
         else:
             logger.error(
                 f"Не удалось извлечь данные Apollo State из файла {html_file.name}"
             )
-
+    url_data = pd.DataFrame(all_urls, columns=["url"])
+    url_data.to_csv(output_csv_file, index=False)
     # Сохраняем результат в Excel
     if all_products:
         save_products_to_excel(all_products, output_xlsx_file)
@@ -578,84 +580,6 @@ def process_html_files():
     return all_products
 
 
-# def update_prices(price_min, price_max, percentage):
-#     """
-#     Обновляет цены в Excel файле в заданном диапазоне на указанный процент
-
-#     Args:
-#         input_file (str): Путь к исходному Excel файлу
-#         output_file (str): Путь для сохранения обновленного Excel файла
-#         price_min (float): Минимальная цена для обновления
-#         price_max (float): Максимальная цена для обновления
-#         percentage (float): Процент увеличения цены (например, 5 для +5%)
-
-#     Returns:
-#         bool: True если обновление успешно, иначе False
-#     """
-#     try:
-#         logger.info(f"Открываем файл {output_xlsx_file}")
-#         df = pd.read_excel(output_xlsx_file)
-
-#         # Проверяем наличие колонки "Ціна"
-#         if "Ціна" not in df.columns:
-#             logger.error("Колонка 'Ціна' не найдена в файле")
-#             return False
-
-#         # Создаем копию исходного DataFrame
-#         updated_df = df.copy()
-
-#         # Счетчики для статистики
-#         total_rows = len(df)
-#         updated_rows = 0
-
-#         # Проходим по всем строкам
-#         for index, row in df.iterrows():
-#             # Получаем текущую цену
-#             current_price_str = str(row["Ціна"]).strip()
-
-#             # Пропускаем пустые значения
-#             if not current_price_str or current_price_str.lower() == "nan":
-#                 continue
-
-#             # Преобразуем строку с запятой в число с плавающей точкой
-#             try:
-#                 current_price = float(current_price_str.replace(",", "."))
-#             except ValueError:
-#                 logger.warning(
-#                     f"Невозможно преобразовать цену '{current_price_str}' в строке {index+1}"
-#                 )
-#                 continue
-
-#             # Проверяем, попадает ли цена в указанный диапазон
-#             if price_min <= current_price <= price_max:
-#                 # Увеличиваем цену на указанный процент
-#                 new_price = current_price * (1 + percentage / 100)
-
-#                 # Форматируем цену обратно в строку с запятой
-#                 new_price_str = str(round(new_price, 2)).replace(".", ",")
-
-#                 # Обновляем цену в DataFrame
-#                 updated_df.at[index, "Ціна"] = new_price_str
-
-#                 updated_rows += 1
-#                 logger.debug(
-#                     f"Строка {index+1}: Цена изменена с {current_price_str} на {new_price_str}"
-#                 )
-
-#         # Сохраняем обновленный DataFrame в новый файл
-#         updated_df.to_excel(output_new_xlsx_file, index=False)
-
-#         logger.info(
-#             f"Обновление цен завершено. Обработано строк: {total_rows}, изменено: {updated_rows}"
-#         )
-#         logger.info(f"Результат сохранен в {output_new_xlsx_file}")
-
-#         return True
-
-
-#     except Exception as e:
-#         logger.error(f"Ошибка при обновлении цен: {str(e)}")
-#         return False
 def update_prices_from_config():
     """
     Обновляет цены в Excel файле на основе ценовых диапазонов из config.json

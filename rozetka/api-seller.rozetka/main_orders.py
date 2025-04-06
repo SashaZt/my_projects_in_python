@@ -6,15 +6,17 @@ from pathlib import Path
 
 import requests
 from logger import logger
+from main_alert import init_alert_client_sync, send_alert_sync
 from main_db import (
     get_next_available_key_for_orders,
     import_keys_from_files,
     save_parsed_orders_to_db,
 )
 from main_mail import get_send_email
-from main_tg import get_telegram_client, send_message, send_message_alert
+from main_tg import send_message
 from main_token import get_token, load_product_data, save_json_data, validyty_token
 
+init_alert_client_sync()
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
 db_directory = current_directory / "db"
@@ -28,6 +30,14 @@ output_xlsx_file = data_directory / "output.xlsx"
 output_csv_file = data_directory / "output.csv"
 output_xml_file = data_directory / "output.xml"
 config_json_file = data_directory / "config.json"
+
+# Загружаем конфигурацию для Telegram
+config_directory = Path.cwd() / "config"
+config_json_file = config_directory / "config.json"
+config = load_product_data(config_json_file)
+api_id = config["tg"]["api_id"]
+api_hash = config["tg"]["api_hash"]
+phone_number = config["tg"]["phone_number"]
 
 
 def make_api_request(method, url, params=None, data=None):
@@ -250,7 +260,9 @@ def get_available_payments(order_id):
 def get_roblox_message_tg(product, code, mes, text_code) -> str:
     message = f"""Вітаємо 💚
 
-Ви оформили замовлення в нашому магазині на цей товар:
+Це інтернет-магазин “GAMERSQ” 🎮
+
+Ви оформили замовлення в нашому магазині на Розетці на цей товар:
 
 {product}
 
@@ -289,7 +301,9 @@ https://youtu.be/6r9qPBOOzHk
 def get_roblox_message_email(product, code, mes, text_code) -> str:
     message = f"""Вітаємо 💚
 
-Ви оформили замовлення в нашому магазині на цей товар:
+Це інтернет-магазин “GAMERSQ” 🎮
+
+Ви оформили замовлення в нашому магазині на Розетці на цей товар:
 
 {product}
 
@@ -335,23 +349,23 @@ if __name__ == "__main__":
         process_orders()
 
         result_order = get_next_available_key_for_orders()
-        for order in result_order:
+        for i, order in enumerate(result_order):
             if "error" in order:
                 # Если есть ошибка (например, недостаточно ключей)
                 message_alert = order["error"]
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-
-                # Передаем функцию напрямую
-                loop.run_until_complete(
-                    send_message_alert(get_telegram_client, message_alert)
-                )
+                send_alert_sync(message_alert)
                 logger.info(f"Отправлено уведомление: {message_alert}")
                 continue
+            # Добавляем задержку между обработкой заказов
+            if i > 0:
+                logger.info("Пауза 30 секунд между заказами...")
+                time.sleep(30)
             key_ids = order["key_ids"]
             order_id = order["order_id"]
             user_phone = order["user_phone"]
+            # user_phone = "+380635623555"
             email = order["email"]
+            # email = "a.zinchyk83@gmail.com"
             product = order["product"]
             keys_product = order["keys"]
             logger.info(f"Ключі: {keys_product}")
@@ -390,6 +404,8 @@ if __name__ == "__main__":
                 loop.run_until_complete(
                     send_message(user_phone, message_tg, key_ids, order_id, code)
                 )
+                # Добавляем задержку перед отправкой email
+                time.sleep(5)
 
                 message_email = get_roblox_message_email(
                     product, code, mes, text_code_product
@@ -406,7 +422,14 @@ if __name__ == "__main__":
                 message_tg = get_roblox_message_tg(
                     product, code, mes, text_code_product
                 )
-                logger.info(message_tg)
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    send_message(user_phone, message_tg, key_ids, order_id, code)
+                )
+                # Добавляем задержку перед отправкой email
+                time.sleep(5)
+
                 message_email = get_roblox_message_email(
                     product, code, mes, text_code_product
                 )
@@ -414,5 +437,5 @@ if __name__ == "__main__":
                 get_send_email(email, message_email)
                 logger.info(f"Заказ {order_id} обработан")
 
-        logger.info("Пауза 5 мин")
-        time.sleep(300)
+        logger.info("Пауза 10 мин")
+        time.sleep(600)
