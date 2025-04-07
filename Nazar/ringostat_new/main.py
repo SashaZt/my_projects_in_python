@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn  # Запуск сервера.
+from app.api.auth_router_easyms import auth_router  # Роутер для EasySMS.
 from app.api.get_routes import router as get_routes  # Роутер для GET-запросов.
 from app.api.olx_message_routes import router as olx_message_router
 from app.api.olx_routes import router as olx_router
@@ -94,7 +95,7 @@ app.include_router(olx_router)  # Добавляем OLX роутер
 app.include_router(olx_message_router)
 app.include_router(olx_token_router)
 app.include_router(reservation_router)  # Добавляем роутер для бронирований
-
+app.include_router(auth_router)  # Роутер для EasySMS
 
 # Выводим все зарегистрированные маршруты
 logger.debug("Registered routes:")

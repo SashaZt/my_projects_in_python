@@ -15,42 +15,64 @@ data_directory.mkdir(parents=True, exist_ok=True)
 output_csv_file = data_directory / "output.csv"
 html_directory = current_directory / "html"
 html_directory.mkdir(parents=True, exist_ok=True)
-output_html_file = html_directory / "leroymerlin.html"
+output_html_file = html_directory / "mediamarkt.html"
 
 
 def get_html():
 
     cookies = {
-        "auto-contextualization_attempt": "true",
-        "pa_privacy": "%22exempt%22",
-        "_pcid": "%7B%22browserId%22%3A%22m92o0q4hag9yp49x%22%2C%22_t%22%3A%22mor2y7gv%7Cm92o0q4w%22%7D",
-        "_pctx": "%7Bu%7DN4IgrgzgpgThIC4B2YA2qA05owMoBcBDfSREQpAeyRCwgEt8oBJAE0RXSwH18yBbSjABMATwDsAcwAeAH34BOYZQAMARwAs0kAF8gA",
-        "search_session": "98d4bc9d-ec38-4964-9d87-e5580a2c2932|28558dab-c963-4d0a-8484-8fa043e4de36",
-        "lm-csrf": "NRwFebxOetyJxoWRgDdTrtL/RC6V22G4PHMpt6vAIqQ=.1743788028610.gf9zZQ4PaLxS3inL/MkaEqmqxUHy2pY9KI3nnJJ1piA=",
-        "datadome": "HMpjtGnjVp~W11i2li6SPskEeV~K01mTy8LnBXo8JPT22zvgyfZeiNSXvm0NE~Vus7mZyGhYrJQFHEmOCf1b3rvPpqyU2nXqTmzNlqfeqMo1iesS9wYTuJlIWO9xqwAV",
-        "_dd_s": "rum=0&expire=1743788936024",
+        "optid": "469b68a9-118d-410b-bb03-57a589eb9344",
+        "a": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Im8yc2lnbiJ9.eyJzdWIiOiI0ZDI4NjE5NS0wYjM4LTQ5NTAtODQ1Mi0zNzVjMjhjYzFhMjEiLCJpc3MiOiJtbXNlIiwiaWF0IjoxNzQzNzY0MDU3LCJleHAiOjE3NDQ5NzM2NTcsImF1ZCI6IndlYm1vYmlsZSIsInQiOiJ1IiwibyI6MTIwN30.OQ0b7vYdmUF0HYEw5bSvJtv91B-w5lnxgnv9ILDoTpSiQpzJru78rKXc5TfGFd8I9bv_CourbTGwj6mJARFRnRxtgB9HbdR1jfSCaqHkrN_bIBjmfI7J3pkFFtsmiCzu6q0cbKkID0-29VcmmtIAYwzGs1XQo4hZrjufELCTKtUZ4Y2d3mZVUIzY7CbBjq7VR5cumyfxOakUc_B6B5g1miP6cY_niOzzekaXv-eQNQG8hbSLSr5hYC6BEyuFVHNxbsw51w_y30VBr9aq6i_n5Hx6QoHE42qbwpc9pKk3xzZLTof6L3A-icKykWgbus6rWJFcUopdWgbvDSC-LaQD8A",
+        "pwaconsent": "v:1.1&id:b0d45d1b64152f007ef190ee5fa9d41d2d5ebb1c&createdMs:1743764059162~required:1&clf:1,cli:1,gfb:1,gtm:1,mms:1,ocx:1|comfort:1&aid:1,baz:1,cne:1,con:1,fix:1,gfa:1,goa:1,gom:1,grc:1,ice:1,lob:1,loq:1,opt:1,ore:1,pcl:1,sen:1,spe:1,sst:1,swo:1,usz:1,woo:1,yte:1,zwi:1|marketing:1&adj:1,cri:1,fab:1,fcm:1,gad:1,gcl:1,gcm:1,gdv:1,gos:1,gse:1,msb:1,omp:1,ras:1,trd:1,wpx:1|",
+        "tc_id": "f8c365ebe96f63a5017fb08399497f60bca635d8",
+        "_cs_c": "1",
+        "_fbp": "fb.1.1743764061017.54283647553947217",
+        "ea_uuid": "202504041254212119106820",
+        "_ga": "GA1.1.1393470515.1743764061",
+        "FPAU": "1.2.1024136410.1743764062",
+        "_fpid": "1393470515.1743764061",
+        "_gcl_au": "1.1.1060656513.1743764108",
+        "_cfuvid": "w8Ss3OeJRg7TJIwm8Y5x8Rbx3hMyClqe1J2EE3CVAbQ-1743928166394-0.0.1.1-604800000",
+        "t_fpd": "true",
+        "delivery_zip": "%7B%22zip%22%3A%22%22%2C%22name%22%3A%22%22%7D",
+        "_msbps": "99",
+        "__cf_bm": "c4lZrVVr8QOubSv0uRzXlD22cXFEPKAXppfVN0iz5sI-1743970705-1.0.1.1-wRP7LZgWZV_3Hy7ZzUyi0zgix0HcfBbd073niOEde3kT3DmDWc.x9xvq3DlPFELeF.e65IHpg0gp7GGwfUajfPLjxvCbKysA6oYvWXhfRLI",
+        "ts_id": "2a10f738-97d0-4a58-b8dd-4dd5959f1ff6",
+        "cf_clearance": "Ykc.P1GKnM3EbSepCTQwXwyuUtJaU5ic52XTpv9ZE8s-1743970990-1.2.1.1-D7iMMdAeMFqFJ3ttVMBryeNWEVqsh8lL5mbAOcmwRDPltH1PFl9hqhUc.df.0QQnkQ72Wm7gKroHKTHoBgkZ.CaZwDZQ19THfV8BAbn8WWe0CzK0Y3My_v.vxJgtLqdigL.e4QAF29EVitmKksraQTBhk17_CpyAkZZPAHJ20qy05xDShUi9tfcaiqrk.qYLqLuNyX.qgx5EEnEkGKIaVj0dG3MLtofTgK12CmQSXJn75tK1lTpVplFST8QUvfBT_oUxxDCY.ORbVDalKgR8fb5K98OhhlGJZhAQVsVQdlOOE9XRc3zRQWDwOOsHydUT2qvvsX.JH.SvvIVMsoysNhczrNAl0s4F36z4wtpoqUc8D02Kzc7UcWciD0O2V.ZZ",
+        "lux_uid": "174397099299153546",
+        "_cs_id": "d86a9edf-79f5-ae5b-d55c-84a975b6b423.1743764060.9.1743970995.1743970958.1.1777928060809.1.x",
+        "_ga_4JZR222EHK": "GS1.1.1743970962.4.1.1743971053.0.0.78813528",
+        "FPGSID": "1.1743970963.1743971053.G-4JZR222EHK.Fy-EXeWSR30WB6cbsnRFew",
+        "_cs_s": "5.0.0.9.1743972883715",
+        "_dd_s": "logs=1&id=51cabb26-8ebd-4d5b-8162-440086976cc2&created=1743958295483&expire=1743971989154",
     }
 
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "accept-language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
         "cache-control": "no-cache",
-        "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "sec-ch-ua": '"Chromium";v="134", "Not:A-Brand";v="24", "Google Chrome";v="134"',
+        "referer": "https://mediamarkt.pl/pl/category/sprzatanie-36928.html?query=Odkurzacz&filter=currentprice:199-6899&__cf_chl_tk=wdaxevprMO9JDFCXCrd.ChbKRupwjiy92E.IoWwJG08-1743970981-1.0.1.1-UmFJghRegP0WB7bHtdIYbTsfeIbsMuhiYYyuhE6ljMk",
+        "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+        "sec-ch-ua-arch": '"x86"',
+        "sec-ch-ua-bitness": '"64"',
+        "sec-ch-ua-full-version": '"135.0.7049.41"',
+        "sec-ch-ua-full-version-list": '"Google Chrome";v="135.0.7049.41", "Not-A.Brand";v="8.0.0.0", "Chromium";v="135.0.7049.41"',
         "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-model": '""',
         "sec-ch-ua-platform": '"Windows"',
+        "sec-ch-ua-platform-version": '"7.0.0"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
         "sec-fetch-site": "same-origin",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
     }
 
     response = requests.get(
-        "https://www.leroymerlin.pl/produkty/odkurzacz-przemyslowy-starmix-basic-ipulse-l-1635-35-l-1600w-80900005.html",
+        "https://mediamarkt.pl/pl/product/_odkurzacz-bezprzewodowy-samsung-vs20c8527tbge-jet-85-pro-1477075.html",
         cookies=cookies,
         headers=headers,
         timeout=10,
@@ -369,7 +391,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    scrap_html()
+    # scrap_html()
     # main_realoem()
-    # get_html()
+    get_html()
     # asyncio.run(main())

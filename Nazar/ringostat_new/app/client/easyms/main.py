@@ -1,5 +1,10 @@
+# app/client/easyms/main.py
+import argparse
 import json
+import os
+import signal
 import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -12,21 +17,68 @@ from loguru import logger
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-current_directory = Path.cwd()
-config_directory = current_directory / "config"
-log_directory = current_directory / "log"
-data_directory = current_directory / "data"
+# Добавление обработчика сигналов для корректного выхода
+def signal_handler(sig, frame):
+    logger.info("Получен сигнал остановки. Завершение работы...")
+    # Удаление PID файла при завершении
+    try:
+        pid_file = Path(__file__).parent / "run/easyms_process.pid"
+        if pid_file.exists():
+            pid_file.unlink()
+            logger.info(f"PID файл {pid_file} удален")
+    except Exception as e:
+        logger.error(f"Ошибка при удалении PID файла: {e}")
+    sys.exit(0)
+
+
+# Регистрируем обработчики сигналов
+signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+signal.signal(signal.SIGTERM, signal_handler)  # kill
+
+
+def parse_arguments():
+    """Парсинг аргументов командной строки"""
+    parser = argparse.ArgumentParser(description="Скрипт обработки бронирований EasyMS")
+    parser.add_argument("--username", type=str, help="Имя пользователя для авторизации")
+    parser.add_argument("--password", type=str, help="Пароль для авторизации")
+    parser.add_argument("--organization_id", type=int, help="ID организации")
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=300,
+        help="Интервал запуска в секундах (по умолчанию 300)",
+    )
+
+    return parser.parse_args()
+
+
+# Текущая директория скрипта (независимо от того, где запущен скрипт)
+script_directory = Path(__file__).parent.absolute()
+config_directory = script_directory / "config"
+log_directory = script_directory / "log"
+data_directory = script_directory / "data"
+run_directory = script_directory / "run"
+
+# Создаем необходимые директории
 log_directory.mkdir(parents=True, exist_ok=True)
 config_directory.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
+run_directory.mkdir(parents=True, exist_ok=True)
+
+# Значение по умолчанию, может быть переопределено через аргументы
+organization_id = 595
+
+# Создаем pid файл
+pid_file = run_directory / "easyms_process.pid"
+with open(pid_file, "w") as f:
+    f.write(str(os.getpid()))
 
 ORDERS_JSON_FILE = data_directory / "orders.json"
 log_file_path = log_directory / "log_message.log"
-token_file = config_directory / "access_token.json"
-
+token_file = config_directory / f"access_token_{organization_id}.json"
 
 BASE_URL = "https://185.233.116.213:5000"
-organization_id = 595
+
 
 logger.remove()
 # 🔹 Логирование в файл
@@ -48,12 +100,47 @@ logger.add(
 )
 
 
-def get_token():
+# Логируем информацию о запуске
+logger.info(f"Скрипт запущен из {__file__}")
+logger.info(f"PID: {os.getpid()}")
+logger.info(f"Аргументы командной строки: {sys.argv}")
+logger.info(f"Директория скрипта: {script_directory}")
+
+
+def is_token_valid(token):
+    try:
+        # Тестовый запрос для проверки токена
+        url = "https://my.easyms.co/api/some-endpoint-that-requires-auth"
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.get(url, headers=headers, timeout=5)
+        return (
+            response.status_code != 401
+        )  # Если не 401 (Unauthorized), значит токен действителен
+    except:
+        return False
+
+
+def get_token(username=None, password=None):
+    """
+    Получение токена авторизации.
+    Если username и password переданы, используем их, иначе берем значения по умолчанию
+    """
+    # Проверяем наличие валидного токена
+    token = get_access_token_from_file(token_file)
+    # Если токен есть и он валидный, используем его
+    if token and is_token_valid(token):
+        logger.info(
+            f"Используется существующий токен для организации {organization_id}"
+        )
+        return token
     # URL для API
     url = "https://my.easyms.co/api/integration/auth"
 
     # Данные для запроса
-    payload = {"password": "3332220876", "username": "terranovahotel2012@gmail.com"}
+    payload = {
+        "password": password or "3332220876",
+        "username": username or "terranovahotel2012@gmail.com",
+    }
 
     # Заголовки для запроса
     headers = {"accept": "*/*", "Content-Type": "application/json"}
@@ -71,12 +158,14 @@ def get_token():
             with open(token_file, "w", encoding="utf-8") as file:
                 json.dump({"access_token": access_token}, file, indent=4)
             logger.info("Access token saved to access_token.json")
+            return access_token
         else:
             logger.error("Access token not found in the response.")
     else:
         logger.error(
             f"Request failed with status code {response.status_code}: {response.text}"
         )
+    return None
 
 
 def get_access_token_from_file(file_path: str) -> str:
@@ -151,10 +240,13 @@ def convert_to_unix_range(
         raise ValueError(f"Ошибка формата времени: {str(e)}")
 
 
-def fetch_orders():
+def fetch_orders(org_id=None):
     """
     Выполняет GET-запрос для получения списка заказов с использованием токена.
     """
+    # Используем переданный ID организации, если он указан
+    _organization_id = org_id or organization_id
+
     # Извлекаем токен из файла
     access_token = get_access_token_from_file(token_file)
     if not access_token:
@@ -180,7 +272,7 @@ def fetch_orders():
         "status": "",
         "source": "",
         "responsible": "",
-        "organizationId": organization_id,
+        "organizationId": _organization_id,
     }
 
     # URL для запроса
@@ -197,11 +289,13 @@ def fetch_orders():
         data = response.json()
         with open(ORDERS_JSON_FILE, "w", encoding="utf-8") as json_file:
             json.dump(data, json_file, ensure_ascii=False, indent=4)
-        logger.info(ORDERS_JSON_FILE)
+        logger.info(f"Сохранены данные заказов в {ORDERS_JSON_FILE}")
+        return data
     else:
         logger.error(
             f"Request failed with status code {response.status_code}: {response.text}"
         )
+        return None
 
 
 def load_json_data(file_path: str) -> Optional[Dict[str, Any]]:
@@ -378,25 +472,6 @@ def delete_reservation(reservation_id: str) -> bool:
         return False
 
 
-# def process_single_order(order):
-#     """Обрабатывает одно бронирование - создаёт новое или обновляет существующее."""
-#     order_id = order.get("id")
-
-#     # Проверяем существование бронирования
-#     existing_order = get_reservation_by_id(order_id)
-
-#     if existing_order:
-#         # Бронирование существует - обновляем его
-#         logger.info(f"Обновляем существующее бронирование {order_id}")
-#         success = update_reservation(order_id, order)
-#     else:
-#         # Бронирование не существует - создаём новое
-#         logger.info(f"Создаём новое бронирование {order_id}")
-#         success = post_reservation(order)
-
-#     return success
-
-
 def update_reservation_status_only(reservation_id: str, status: str) -> bool:
     """Обновляет только статус бронирования."""
     endpoint = f"/easyms/reservations/status/{reservation_id}"
@@ -429,10 +504,24 @@ def update_reservation_status_only(reservation_id: str, status: str) -> bool:
         return False
 
 
-def write_orders_to_api():
-    """Основная функция для загрузки и отправки данных бронирований."""
-    # Загружаем данные
-    orders = load_json_data(ORDERS_JSON_FILE)
+def write_orders_to_api(orders_data=None):
+    """
+    Основная функция для загрузки и отправки данных бронирований.
+    Может принимать данные заказов напрямую или загружать их из файла.
+    """
+    # Используем файл для хранения ID уже обработанных бронирований
+    processed_ids_file = data_directory / f"processed_ids_{organization_id}.json"
+    # Загружаем список уже обработанных ID
+    processed_ids = []
+    if processed_ids_file.exists():
+        try:
+            with open(processed_ids_file, "r") as f:
+                processed_ids = json.load(f)
+        except:
+            pass
+
+    # Загружаем данные из файла, если они не переданы напрямую
+    orders = orders_data or load_json_data(ORDERS_JSON_FILE)
 
     if not orders:
         logger.error("Невозможно загрузить данные заказов")
@@ -443,7 +532,7 @@ def write_orders_to_api():
         logger.error("Данные заказов должны быть в формате списка")
         return False
 
-    logger.info(f"Загружено {len(orders)} бронирований из файла")
+    logger.info(f"Загружено {len(orders)} бронирований")
 
     # Получаем список существующих бронирований
     existing_reservations = get_reservations() or []
@@ -453,6 +542,8 @@ def write_orders_to_api():
     # Разделяем бронирования на новые и существующие
     new_orders = []
     update_orders = []
+    # Фильтруем заказы, исключая уже обработанные
+    new_orders = [order for order in new_orders if order.get("id") not in processed_ids]
 
     for order in orders:
         order_id = order.get("id")
@@ -479,6 +570,14 @@ def write_orders_to_api():
         if update_reservation_status_only(order_id, status):
             update_success_count += 1
 
+    # Сохраняем ID обработанных заказов
+    for order in new_orders:
+        if order.get("id") not in processed_ids:
+            processed_ids.append(order.get("id"))
+
+    with open(processed_ids_file, "w") as f:
+        json.dump(processed_ids, f)
+
     logger.info(f"Создано {new_success_count} из {len(new_orders)} новых бронирований")
     logger.info(
         f"Обновлено {update_success_count} из {len(update_orders)} существующих бронирований"
@@ -489,12 +588,94 @@ def write_orders_to_api():
     )
 
 
-# Пример использования функции
-if __name__ == "__main__":
-    get_token()
-    fetch_orders()
-    success = write_orders_to_api()
+def run_full_process(username=None, password=None, org_id=None):
+    """
+    Запускает полный процесс обработки бронирований с аутентификацией
+    """
+    global organization_id
+
+    # Обновляем ID организации, если он указан
+    if org_id:
+        organization_id = org_id
+        logger.info(f"Используется ID организации: {organization_id}")
+
+    # Получаем токен
+    token = get_token(username, password)
+    if not token:
+        logger.error("Не удалось получить токен авторизации")
+        return False
+
+    # Получаем заказы
+    orders = fetch_orders(organization_id)
+    if not orders:
+        logger.error("Не удалось получить данные заказов")
+        return False
+
+    # Отправляем заказы в API
+    success = write_orders_to_api(orders)
+
     if success:
         logger.info("Все бронирования успешно отправлены")
     else:
         logger.error("Возникли ошибки при отправке бронирований")
+
+    return success
+
+
+if __name__ == "__main__":
+    # Парсим аргументы командной строки
+    args = parse_arguments()
+
+    # Получаем интервал запуска (по умолчанию 300 секунд = 5 минут)
+    interval = args.interval
+
+    try:
+        # Бесконечный цикл с обработкой данных
+        while True:
+            start_time = datetime.now()
+            logger.info(f"Начало цикла обработки: {start_time}")
+
+            if args.username and args.password:
+                # Если переданы учетные данные, запускаем полный процесс с ними
+                logger.info(
+                    f"Запуск процесса обработки бронирований для пользователя {args.username}"
+                )
+                run_full_process(args.username, args.password, args.organization_id)
+            else:
+                # Запускаем по старой схеме
+                logger.info(
+                    "Запуск процесса обработки бронирований со стандартными параметрами"
+                )
+                get_token()
+                fetch_orders()
+                success = write_orders_to_api()
+                if success:
+                    logger.info("Все бронирования успешно отправлены")
+                else:
+                    logger.error("Возникли ошибки при отправке бронирований")
+
+            # Вычисляем, сколько времени прошло с начала цикла
+            elapsed = (datetime.now() - start_time).total_seconds()
+
+            # Вычисляем, сколько времени нужно ждать до следующего запуска
+            sleep_time = max(0, interval - elapsed)
+
+            logger.info(f"Цикл выполнен за {elapsed:.2f} секунд")
+            logger.info(f"Следующий запуск через {sleep_time:.2f} секунд")
+
+            # Спим до следующего запуска
+            time.sleep(sleep_time)
+
+    except KeyboardInterrupt:
+        logger.info("Процесс остановлен пользователем")
+    except Exception as e:
+        logger.error(f"Произошла ошибка в основном цикле: {e}")
+    finally:
+        # Удаляем PID файл при завершении
+        try:
+            pid_file = Path(__file__).parent / "run/easyms_process.pid"
+            if pid_file.exists():
+                pid_file.unlink()
+                logger.info(f"PID файл {pid_file} удален")
+        except Exception as e:
+            logger.error(f"Ошибка при удалении PID файла: {e}")

@@ -35,7 +35,7 @@ xml_directory.mkdir(parents=True, exist_ok=True)
 log_file_path = log_directory / "log_message.log"
 urls_xml_file_path = data_directory / "urls_xml.csv"
 urls_product_file_path = data_directory / "urls.csv"
-output_json_file = data_directory / "output.json"
+output_json_file = data_directory / "xcore_com_ua.json"
 config_file_path = config_directory / "config.json"
 service_account_file = config_directory / "credentials.json"
 
@@ -530,6 +530,12 @@ def pars_htmls():
 
     with open(output_json_file, "w", encoding="utf-8") as json_file:
         json.dump(all_product, json_file, ensure_ascii=False, indent=4)
+    logger.info(f"Данные успешно сохранены в {output_json_file}")
+    source_path = "/home/rsa-key-20241114/xcore_com_ua/data/xcore_com_ua.json"
+    destination_path = "/home/rsa-key-20241114/table/data/xcore_com_ua.json"
+
+    shutil.copy2(source_path, destination_path)
+    logger.info(f"Файл {destination_path} перемещен ")
     # Получение листа Google Sheets
     if list_all:
         sheet = get_google_sheet(SHEET_ALL)

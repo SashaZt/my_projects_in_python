@@ -71,6 +71,7 @@ Thumbs.db
 *.db-journal
 *.session-journal
 *.session
+*.pid
 # Здесь мы игнорируем все .txt файлы...
 *.txt
 # ...но затем добавляем исключение для requirements.txt
