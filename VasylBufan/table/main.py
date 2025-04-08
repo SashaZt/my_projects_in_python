@@ -1,5 +1,6 @@
 import json
 import random
+import shutil
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -74,6 +75,20 @@ SPREADSHEET = config["google"]["spreadsheet"]
 SHEET = config["google"]["sheet"]
 
 
+def get_json_xcore():
+    source_path = "/home/rsa-key-20241114/xcore_com_ua/data/xcore_com_ua.json"
+    destination_path = "/home/rsa-key-20241114/table/data/xcore_com_ua.json"
+
+    shutil.copy2(source_path, destination_path)
+    logger.info(f"Файл {destination_path} перемещен ")
+
+
+def extract_xml_value(element, tag_name):
+    """Извлекает значение тега из XML элемента или возвращает 'N/A', если тег не найден."""
+    node = element.find(tag_name)
+    return node.text if node is not None else None
+
+
 def get_google_sheet(sheet_one):
     """Подключается к Google Sheets и возвращает указанный лист."""
     try:
@@ -105,6 +120,27 @@ def get_google_sheet(sheet_one):
         raise
 
 
+def get_sheet_data(sheet_name):
+    """Извлекает данные из указанного листа Google таблицы и возвращает их в виде pandas DataFrame."""
+    try:
+        # Получаем лист
+        worksheet = get_google_sheet(sheet_name)
+
+        # Получаем все записи из листа
+        data = worksheet.get_all_records()
+
+        # Преобразуем в DataFrame
+        df = pd.DataFrame(data)
+
+        logger.info(
+            f"Успешно получены данные из листа '{sheet_name}'. Строк: {len(df)}"
+        )
+        return df
+    except Exception as e:
+        logger.error(f"Ошибка при получении данных из листа '{sheet_name}': {e}")
+        raise
+
+
 def update_sheet_with_data(sheet, data, total_rows=50000):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
     if not data:
@@ -131,6 +167,388 @@ def update_sheet_with_data(sheet, data, total_rows=50000):
     # Запись данных в лист
     sheet.update(values=rows, range_name=range_name, value_input_option="USER_ENTERED")
     logger.info(f"Обновлено {len(data)} строк в Google Sheets")
+
+
+def create_sku_mapping(df):
+    """
+    Создает маппинг артикулов с учетом префиксов MBS/MS.
+
+    :param df: DataFrame с данными
+    :return: Словарь соответствий артикулов
+    """
+    sku_mapping = {}
+
+    # Получаем все уникальные артикулы
+    my_site_skus = [
+        str(sku).strip()
+        for sku in df["Мой_сайт_sku"].unique()
+        if pd.notna(sku) and str(sku).strip()
+    ]
+    xcore_skus = [
+        str(sku).strip()
+        for sku in df["xcore_sku"].unique()
+        if pd.notna(sku) and str(sku).strip()
+    ]
+
+    logger.info(
+        f"Найдено уникальных артикулов: my_site_sku={len(my_site_skus)}, xcore_sku={len(xcore_skus)}"
+    )
+
+    # Создаем маппинг артикулов MBS/MS
+    for my_sku in my_site_skus:
+        if my_sku.startswith("MBS-"):
+            # Ищем соответствующий MS- артикул
+            ms_sku = "MS-" + my_sku[4:]
+            if ms_sku in xcore_skus:
+                sku_mapping[my_sku] = ms_sku
+                sku_mapping[ms_sku] = my_sku
+                logger.info(f"Создано соответствие: {my_sku} <-> {ms_sku}")
+
+    for xcore_sku in xcore_skus:
+        if xcore_sku.startswith("MS-"):
+            # Ищем соответствующий MBS- артикул
+            mbs_sku = "MBS-" + xcore_sku[3:]
+            if mbs_sku in my_site_skus:
+                sku_mapping[xcore_sku] = mbs_sku
+                sku_mapping[mbs_sku] = xcore_sku
+                logger.info(f"Создано соответствие: {xcore_sku} <-> {mbs_sku}")
+
+    # Добавляем специальное правило для конкретных артикулов
+    sku_mapping["MBS-26339"] = "MS-26339"
+    sku_mapping["MS-26339"] = "MBS-26339"
+
+    logger.info(f"Создано {len(sku_mapping)} соответствий артикулов")
+    return sku_mapping
+
+
+# Модифицируем функцию check_sku_match, чтобы использовать маппинг
+def check_sku_match(my_sku, xcore_sku, insportline_code, sku_mapping):
+    """
+    Проверяет совпадение артикулов с учетом различных префиксов и маппинга.
+    """
+    # Очистка строк от лишних пробелов
+    my_sku_clean = my_sku.strip()
+    xcore_sku_clean = xcore_sku.strip()
+    insportline_code_clean = insportline_code.strip()
+
+    # Логирование для отладки
+    logger.info(
+        f"Сравниваем артикулы: my_sku='{my_sku_clean}', xcore_sku='{xcore_sku_clean}', insportline='{insportline_code_clean}'"
+    )
+
+    # Проверяем стандартные условия совпадения
+    if (
+        my_sku_clean and insportline_code_clean and xcore_sku_clean
+    ):  # вариант 1: все артикулы
+        logger.info("Совпадение по варианту 1: есть все артикулы")
+        return True
+    if (
+        my_sku_clean and my_sku_clean == xcore_sku_clean
+    ):  # вариант 2: Мой сайт sku и xcore_sku
+        logger.info("Совпадение по варианту 2: my_sku == xcore_sku")
+        return True
+    if (
+        my_sku_clean and my_sku_clean == insportline_code_clean
+    ):  # вариант 3: Мой сайт sku и insportline
+        logger.info("Совпадение по варианту 3: my_sku == insportline_code")
+        return True
+
+    # Проверка по маппингу артикулов - исправлено
+    if my_sku_clean and my_sku_clean in sku_mapping:
+        matched_sku = sku_mapping[my_sku_clean]
+        if xcore_sku_clean and matched_sku == xcore_sku_clean:
+            logger.info(f"Совпадение по маппингу: {my_sku_clean} -> {xcore_sku_clean}")
+            return True
+        # Здесь может потребоваться дополнительная логика для поиска строк с совпадающими артикулами
+
+    if xcore_sku_clean and xcore_sku_clean in sku_mapping:
+        matched_sku = sku_mapping[xcore_sku_clean]
+        if my_sku_clean and matched_sku == my_sku_clean:
+            logger.info(f"Совпадение по маппингу: {xcore_sku_clean} -> {my_sku_clean}")
+            return True
+        # Здесь может потребоваться дополнительная логика для поиска строк с совпадающими артикулами
+
+    return False
+
+
+def filter_prices(my_price, valid_prices, xcore_price, insportline_price):
+    """
+    Фильтрует цены с учетом всех условий и ограничений.
+
+    :param my_price: Цена на 'Моем сайте'
+    :param valid_prices: Список валидных цен поставщиков
+    :param xcore_price: Цена Xcore
+    :param insportline_price: Цена Insportline
+    :return: Отфильтрованный список цен
+    """
+    # Создаем копию для безопасной фильтрации
+    filtered_prices = valid_prices.copy()
+
+    # Фильтруем цены, если разница между ними более 50%
+    if len(filtered_prices) > 1:
+        min_price = min(filtered_prices)
+        max_price = max(filtered_prices)
+
+        # Проверяем разницу между минимальной и максимальной ценой
+        if max_price / min_price > 1.5:  # разница более 50%
+            # Определяем, какую цену исключить
+            if xcore_price in filtered_prices and insportline_price in filtered_prices:
+                # Если обе цены валидны, удаляем выброс
+                if xcore_price / insportline_price > 1.5:
+                    filtered_prices.remove(xcore_price)
+                    logger.info(
+                        f"Исключена цена Xcore {xcore_price}, так как она отличается от цены Insportline {insportline_price} более чем на 50%"
+                    )
+                elif insportline_price / xcore_price > 1.5:
+                    filtered_prices.remove(insportline_price)
+                    logger.info(
+                        f"Исключена цена Insportline {insportline_price}, так как она отличается от цены Xcore {xcore_price} более чем на 50%"
+                    )
+
+    # Проверяем случай, когда цена конкурента ниже нашей на 30% и более
+    if my_price > 0:
+        for price in valid_prices[:]:  # Создаем копию для безопасной итерации
+            if price / my_price < 0.7:  # Цена поставщика ниже нашей более чем на 30%
+                if price in filtered_prices:
+                    filtered_prices.remove(price)
+                    logger.info(
+                        f"Исключена цена {price}, так как она ниже нашей цены {my_price} более чем на 30%"
+                    )
+
+    return filtered_prices
+
+
+def calculate_new_price(my_price, filtered_prices):
+    """
+    Рассчитывает новую цену на основе отфильтрованных цен поставщиков.
+
+    :param my_price: Цена на 'Моем сайте'
+    :param filtered_prices: Отфильтрованный список цен поставщиков
+    :return: Новая цена
+    """
+    if not filtered_prices:
+        # Если после фильтрации не осталось валидных цен, используем нашу цену
+        logger.info(
+            f"После фильтрации не осталось валидных цен. Используем нашу цену: {my_price}"
+        )
+        return my_price
+
+    min_supplier_price = min(filtered_prices)
+
+    # Проверяем, является ли наша текущая цена самой низкой
+    if my_price > 0 and my_price < min_supplier_price:
+        # Если наша цена ниже минимальной цены поставщиков, оставляем нашу цену
+        # logger.info(
+        #     f"Наша цена {my_price} ниже минимальной цены поставщиков {min_supplier_price}. Оставляем нашу цену."
+        # )
+        return my_price
+    else:
+        # Рассчитываем новую цену с небольшим случайным отклонением (3-5% ниже минимальной цены поставщика)
+        discount_factor = round(random.uniform(0.95, 0.97), 2)
+        new_price = min_supplier_price * discount_factor
+        # logger.info(
+        #     f"Рассчитана новая цена: {new_price} (коэффициент: {discount_factor} * {min_supplier_price})"
+        # )
+        return round(new_price, 2)
+
+
+def process_prices(source_sheet_name, result_sheet_name="result"):
+    """
+    Обрабатывает данные из исходного листа, сравнивает цены и загружает
+    результаты в лист результатов.
+
+    :param source_sheet_name: Имя исходного листа с данными
+    :param result_sheet_name: Имя листа для результатов (по умолчанию "result")
+    :return: DataFrame с результатами
+    """
+    try:
+        # Получаем данные в DataFrame
+        df = get_sheet_data(source_sheet_name)
+
+        # Переименуем колонки для удобства (уберем пробелы)
+        df.columns = [col.replace(" ", "_") for col in df.columns]
+
+        # Создаем маппинг артикулов с учетом префиксов
+        sku_mapping = create_sku_mapping(df)
+
+        # Создаем DataFrame для результатов
+        result_df = pd.DataFrame(
+            columns=[
+                "Артикул",
+                "стара_ціна",
+                "нова_ціна",
+                "Ціна_Xcore",
+                "Ціна_Insportline",
+            ]
+        )
+
+        # Словари для хранения данных по артикулам
+        my_site_data = {}  # {sku: price}
+        xcore_data = {}  # {sku: price}
+        insportline_data = {}  # {sku: price}
+
+        # Шаг 1: Собираем все данные по артикулам
+        for _, row in df.iterrows():
+            my_sku = str(row["Мой_сайт_sku"]).strip()
+            xcore_sku = str(row.get("xcore_sku", "")).strip()
+            insportline_code = str(row.get("insportline_vendor_code", "")).strip()
+
+            # Сохраняем данные по моему сайту
+            if my_sku:
+                try:
+                    my_price = (
+                        float(row["Мой_сайт_цена"])
+                        if pd.notna(row.get("Мой_сайт_цена"))
+                        else 0
+                    )
+                    my_site_data[my_sku] = my_price
+                except (ValueError, TypeError):
+                    my_site_data[my_sku] = 0
+
+            # Сохраняем данные по Xcore
+            if xcore_sku:
+                try:
+                    xcore_price = (
+                        float(row.get("xcore_price", 0))
+                        if pd.notna(row.get("xcore_price"))
+                        else 0
+                    )
+                    if xcore_price > 0:
+                        xcore_data[xcore_sku] = xcore_price
+                except (ValueError, TypeError):
+                    pass
+
+            # Сохраняем данные по Insportline
+            if insportline_code:
+                try:
+                    insportline_price = (
+                        float(row.get("insportline_цена", 0))
+                        if pd.notna(row.get("insportline_цена"))
+                        else 0
+                    )
+                    if insportline_price > 0:
+                        insportline_data[insportline_code] = insportline_price
+                except (ValueError, TypeError):
+                    pass
+
+        logger.info(
+            f"Собрано артикулов: my_site={len(my_site_data)}, xcore={len(xcore_data)}, insportline={len(insportline_data)}"
+        )
+
+        # Шаг 2: Обрабатываем собранные данные
+        processed_count = 0
+        matched_count = 0
+
+        for my_sku, my_price in my_site_data.items():
+            processed_count += 1
+
+            # Инициализируем цены поставщиков
+            xcore_price = 0
+            insportline_price = 0
+
+            # Проверяем прямое совпадение для Xcore
+            if my_sku in xcore_data:
+                xcore_price = xcore_data[my_sku]
+                # logger.info(f"Прямое совпадение для {my_sku} с Xcore: {xcore_price}")
+            # Проверяем совпадение через маппинг для Xcore
+            elif my_sku in sku_mapping and sku_mapping[my_sku] in xcore_data:
+                mapped_sku = sku_mapping[my_sku]
+                xcore_price = xcore_data[mapped_sku]
+                # logger.info(
+                #     f"Совпадение через маппинг для {my_sku} -> {mapped_sku} с Xcore: {xcore_price}"
+                # )
+
+            # Проверяем прямое совпадение для Insportline
+            if my_sku in insportline_data:
+                insportline_price = insportline_data[my_sku]
+                # logger.info(
+                #     f"Прямое совпадение для {my_sku} с Insportline: {insportline_price}"
+                # )
+
+            # Определяем, есть ли совпадение хотя бы с одним поставщиком
+            is_match = xcore_price > 0 or insportline_price > 0
+
+            if not is_match:
+                # logger.info(f"Нет совпадений для артикула {my_sku}")
+                continue
+
+            matched_count += 1
+
+            # Проверяем валидность цен (игнорируем цены 1 или 2)
+            valid_prices = []
+
+            if xcore_price > 2:
+                valid_prices.append(xcore_price)
+
+            if insportline_price > 2:
+                valid_prices.append(insportline_price)
+
+            # Проверяем наличие валидных цен
+            if not valid_prices:
+                logger.info(f"Для артикула {my_sku} нет валидных цен поставщиков")
+                continue
+
+            # Фильтруем цены
+            filtered_prices = filter_prices(
+                my_price, valid_prices, xcore_price, insportline_price
+            )
+
+            # Рассчитываем новую цену
+            new_price = calculate_new_price(my_price, filtered_prices)
+
+            # Добавляем результат
+            result_df = result_df._append(
+                {
+                    "Артикул": my_sku,
+                    "стара_ціна": my_price,
+                    "нова_ціна": new_price,
+                    "Ціна_Xcore": xcore_price if xcore_price > 2 else "-",
+                    "Ціна_Insportline": (
+                        insportline_price if insportline_price > 2 else "-"
+                    ),
+                },
+                ignore_index=True,
+            )
+
+        logger.info(
+            f"Обработано {processed_count} позиций, найдено совпадений: {matched_count}"
+        )
+
+        # Выгружаем результаты в лист "result" используя функцию update_sheet_with_data
+        try:
+            # Получаем лист для результатов
+            result_sheet = get_google_sheet(result_sheet_name)
+
+            # Преобразуем DataFrame в список словарей для передачи в функцию update_sheet_with_data
+            # Переименуем столбцы обратно для правильного отображения в таблице
+            result_df_renamed = result_df.rename(
+                columns={
+                    "Артикул": "Артикул",
+                    "стара_ціна": "стара ціна",
+                    "нова_ціна": "нова ціна",
+                    "Ціна_Xcore": "Ціна Xcore",
+                    "Ціна_Insportline": "Ціна Insportline",
+                }
+            )
+
+            # Преобразуем DataFrame в список словарей
+            result_data = result_df_renamed.to_dict("records")
+
+            # Используем готовую функцию для обновления листа
+            update_sheet_with_data(result_sheet, result_data)
+
+            logger.info(f"Результаты выгружены в лист '{result_sheet_name}'.")
+        except Exception as e:
+            logger.error(
+                f"Ошибка при выгрузке результатов в лист '{result_sheet_name}': {e}"
+            )
+            raise
+
+        return result_df
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке данных: {e}")
+        raise
 
 
 def download_xml(url, headers):
@@ -170,7 +588,7 @@ def download_xml(url, headers):
         response = requests.get(
             url,
             headers=headers,
-            timeout=100,
+            timeout=200,
         )
 
         # Проверка успешности запроса
@@ -213,42 +631,15 @@ def download_all_xml_files():
     return results
 
 
-def parse_sitemap_urls():
+def normalize_sku(sku):
     """
-    Парсит XML sitemap и возвращает список URL из тегов <url><loc>
-
-    Args:
-        file_path (str): путь к XML файлу
-
-    Returns:
-        list: список URL-ов
+    Нормализует SKU, удаляя префикс 'INS' если он есть.
+    Например: 'INS9410-3' -> '9410-3'
     """
-    urls = []
-    for xml_file in xml_directory.glob("*.xml"):
-        try:
-            # Парсим XML файл
-            tree = ET.parse(xml_file)
-            root = tree.getroot()
-
-            # Определяем пространство имен (namespace), если оно есть
-            namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-
-            # Ищем все теги <url> и извлекаем <loc>
-            for url in root.findall(".//sitemap:url", namespace):
-                loc = url.find("sitemap:loc", namespace)
-
-                if loc is not None and loc.text:
-                    urls.append(loc.text)
-
-            # return urls
-
-        except ET.ParseError as e:
-            print(f"Ошибка парсинга XML: {e}")
-            return []
-        except FileNotFoundError:
-            print(f"Файл {xml_file} не найден")
-            return []
-    logger.info(f"Найдено {len(urls)} URL-ов")
+    if sku and isinstance(sku, str):
+        if sku.startswith("INS"):
+            return sku[3:]  # Удаляем первые 3 символа (INS)
+    return sku
 
 
 def parsin_xml():
@@ -475,249 +866,23 @@ def parsin_xml():
     # update_sheet_with_data(sheet, result)
 
 
-def normalize_sku(sku):
-    """
-    Нормализует SKU, удаляя префикс 'INS' если он есть.
-    Например: 'INS9410-3' -> '9410-3'
-    """
-    if sku and isinstance(sku, str):
-        if sku.startswith("INS"):
-            return sku[3:]  # Удаляем первые 3 символа (INS)
-    return sku
-
-
-def extract_xml_value(element, tag_name):
-    """Извлекает значение тега из XML элемента или возвращает 'N/A', если тег не найден."""
-    node = element.find(tag_name)
-    return node.text if node is not None else None
-
-
-def get_sheet_data(sheet_name):
-    """Извлекает данные из указанного листа Google таблицы и возвращает их в виде pandas DataFrame."""
-    try:
-        # Получаем лист
-        worksheet = get_google_sheet(sheet_name)
-
-        # Получаем все записи из листа
-        data = worksheet.get_all_records()
-
-        # Преобразуем в DataFrame
-        df = pd.DataFrame(data)
-
-        logger.info(
-            f"Успешно получены данные из листа '{sheet_name}'. Строк: {len(df)}"
-        )
-        return df
-    except Exception as e:
-        logger.error(f"Ошибка при получении данных из листа '{sheet_name}': {e}")
-        raise
-
-
-def process_prices(source_sheet_name, result_sheet_name="result"):
-    """
-    Обрабатывает данные из исходного листа, сравнивает цены и загружает
-    результаты в лист результатов.
-
-    :param source_sheet_name: Имя исходного листа с данными
-    :param result_sheet_name: Имя листа для результатов (по умолчанию "result")
-    :return: DataFrame с результатами
-    """
-    try:
-        # Получаем данные в DataFrame
-        df = get_sheet_data(source_sheet_name)
-
-        # Переименуем колонки для удобства (уберем пробелы)
-        df.columns = [col.replace(" ", "_") for col in df.columns]
-
-        # Создаем DataFrame для результатов
-        result_df = pd.DataFrame(
-            columns=[
-                "Артикул",
-                "стара_ціна",
-                "нова_ціна",
-                "Ціна_Xcore",
-                "Ціна_Insportline",
-            ]
-        )
-
-        # Обрабатываем каждую строку
-        for _, row in df.iterrows():
-            # Проверяем совпадение артикулов (один из трех вариантов)
-            my_sku = str(row["Мой_сайт_sku"])
-            insportline_code = str(row.get("insportline_vendor_code", ""))
-            xcore_sku = str(row.get("xcore_sku", ""))
-
-            # Дополнительная проверка для префиксов MBS/MS
-            if my_sku.startswith("MBS-") and xcore_sku.startswith("MS-"):
-                my_sku_normalized = my_sku.replace("MBS-", "")
-                xcore_sku_normalized = xcore_sku.replace("MS-", "")
-                is_prefix_match = my_sku_normalized == xcore_sku_normalized
-            elif my_sku.startswith("MS-") and xcore_sku.startswith("MBS-"):
-                my_sku_normalized = my_sku.replace("MS-", "")
-                xcore_sku_normalized = xcore_sku.replace("MBS-", "")
-                is_prefix_match = my_sku_normalized == xcore_sku_normalized
-            else:
-                is_prefix_match = False
-
-            # Проверяем, что хотя бы один из вариантов совпадения артикулов есть
-            is_match = (
-                (my_sku and insportline_code and xcore_sku)  # вариант 1: все артикулы
-                or (
-                    my_sku and my_sku == xcore_sku
-                )  # вариант 2: Мой сайт sku и xcore_sku
-                or (
-                    my_sku and my_sku == insportline_code
-                )  # вариант 3: Мой сайт sku и insportline
-                or is_prefix_match  # вариант 4: совпадение с учетом префиксов MBS/MS
-            )
-
-            if not is_match:
-                continue
-
-            # Получаем текущую цену на сайте
-            try:
-                my_price = (
-                    float(row["Мой_сайт_цена"])
-                    if pd.notna(row.get("Мой_сайт_цена"))
-                    else 0
-                )
-            except (ValueError, TypeError):
-                my_price = 0
-
-            # Получаем цены поставщиков
-            try:
-                insportline_price = (
-                    float(row.get("insportline_цена", 0))
-                    if pd.notna(row.get("insportline_цена"))
-                    else 0
-                )
-            except (ValueError, TypeError):
-                insportline_price = 0
-
-            try:
-                xcore_price = (
-                    float(row.get("xcore_price", 0))
-                    if pd.notna(row.get("xcore_price"))
-                    else 0
-                )
-            except (ValueError, TypeError):
-                xcore_price = 0
-
-            # Проверяем валидность цен (игнорируем цены 1 или 2)
-            valid_prices = []
-
-            if xcore_price > 2:
-                valid_prices.append(xcore_price)
-
-            if insportline_price > 2:
-                valid_prices.append(insportline_price)
-
-            # Проверяем наличие валидных цен
-            if not valid_prices:
-                continue
-
-            # Находим минимальную валидную цену с учетом условий
-            filtered_prices = valid_prices.copy()
-
-            # Фильтруем цены, если разница между ними более 50%
-            if len(valid_prices) > 1:
-                min_price = min(valid_prices)
-                max_price = max(valid_prices)
-
-                # Проверяем разницу между минимальной и максимальной ценой
-                if max_price / min_price > 1.5:  # разница более 50%
-                    # Определяем, какую цену исключить
-                    if (
-                        xcore_price in valid_prices
-                        and insportline_price in valid_prices
-                    ):
-                        # Если обе цены валидны, удаляем выброс
-                        if xcore_price / insportline_price > 1.5:
-                            filtered_prices.remove(xcore_price)
-                        elif insportline_price / xcore_price > 1.5:
-                            filtered_prices.remove(insportline_price)
-            # Проверяем случай, когда цена конкурента ниже нашей на 30% и более
-            if my_price > 0:
-                for price in valid_prices[:]:  # Создаем копию для безопасной итерации
-                    if (
-                        price / my_price < 0.7
-                    ):  # Цена поставщика ниже нашей более чем на 30%
-                        if price in filtered_prices:
-                            filtered_prices.remove(price)
-
-            # Если после фильтрации остались цены
-            # Теперь работаем с отфильтрованным списком
-            if filtered_prices:
-                min_supplier_price = min(filtered_prices)
-
-                # Проверяем, является ли наша текущая цена самой низкой
-                if my_price > 0 and my_price < min_supplier_price:
-                    # Если наша цена ниже минимальной цены поставщиков, оставляем нашу цену
-                    new_price = my_price
-                else:
-                    # Рассчитываем новую цену с небольшим случайным отклонением
-                    discount_factor = round(random.uniform(0.95, 0.97), 2)
-                    new_price = min_supplier_price * discount_factor
-
-                # Добавляем результат
-                result_df = result_df._append(
-                    {
-                        "Артикул": my_sku,
-                        "стара_ціна": my_price,
-                        "нова_ціна": round(new_price, 2),
-                        "Ціна_Xcore": xcore_price if xcore_price > 2 else "-",
-                        "Ціна_Insportline": (
-                            insportline_price if insportline_price > 2 else "-"
-                        ),
-                    },
-                    ignore_index=True,
-                )
-            else:
-                # Если после фильтрации не осталось валидных цен, используем нашу цену
-                new_price = my_price
-
-        # Выгружаем результаты в лист "result" используя функцию update_sheet_with_data
-        try:
-            # Получаем лист для результатов
-            result_sheet = get_google_sheet(result_sheet_name)
-
-            # Преобразуем DataFrame в список словарей для передачи в функцию update_sheet_with_data
-            # Переименуем столбцы обратно для правильного отображения в таблице
-            result_df_renamed = result_df.rename(
-                columns={
-                    "Артикул": "Артикул",
-                    "стара_ціна": "стара ціна",
-                    "нова_ціна": "нова ціна",
-                    "Ціна_Xcore": "Ціна Xcore",
-                    "Ціна_Insportline": "Ціна Insportline",
-                }
-            )
-
-            # Преобразуем DataFrame в список словарей
-            result_data = result_df_renamed.to_dict("records")
-
-            # Используем готовую функцию для обновления листа
-            update_sheet_with_data(result_sheet, result_data)
-
-            logger.info(
-                f"Обработано {len(result_df)} товаров. Результаты выгружены в лист '{result_sheet_name}'."
-            )
-        except Exception as e:
-            logger.error(
-                f"Ошибка при выгрузке результатов в лист '{result_sheet_name}': {e}"
-            )
-            raise
-
-        return result_df
-
-    except Exception as e:
-        logger.error(f"Ошибка при обработке данных: {e}")
-        raise
-
-
+# Пример использования
 if __name__ == "__main__":
+    get_json_xcore()
     download_all_xml_files()
     parsin_xml()
     source_sheet = "Data"  # Имя листа с исходными данными
     result_sheet = "result"  # Имя листа для результатов
-    results = process_prices(source_sheet, result_sheet)
+
+    try:
+        results = process_prices(source_sheet, result_sheet)
+        print(f"Обработано товаров: {len(results)}")
+    except gspread.exceptions.APIError as e:
+        if "429" in str(e):
+            print(
+                "Превышена квота API Google Sheets. Пожалуйста, подождите несколько минут и попробуйте снова."
+            )
+        else:
+            print(f"Ошибка API: {e}")
+    except Exception as e:
+        print(f"Произошла ошибка: {e}")

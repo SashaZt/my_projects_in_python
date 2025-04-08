@@ -3,7 +3,7 @@ import hashlib
 import json
 import os
 import re
-import shutil
+
 import subprocess
 import sys
 import time
@@ -530,12 +530,12 @@ def pars_htmls():
 
     with open(output_json_file, "w", encoding="utf-8") as json_file:
         json.dump(all_product, json_file, ensure_ascii=False, indent=4)
-    logger.info(f"Данные успешно сохранены в {output_json_file}")
-    source_path = "/home/rsa-key-20241114/xcore_com_ua/data/xcore_com_ua.json"
-    destination_path = "/home/rsa-key-20241114/table/data/xcore_com_ua.json"
+    # logger.info(f"Данные успешно сохранены в {output_json_file}")
+    # source_path = "/home/rsa-key-20241114/xcore_com_ua/data/xcore_com_ua.json"
+    # destination_path = "/home/rsa-key-20241114/table/data/xcore_com_ua.json"
 
-    shutil.copy2(source_path, destination_path)
-    logger.info(f"Файл {destination_path} перемещен ")
+    # shutil.copy2(source_path, destination_path)
+    # logger.info(f"Файл {destination_path} перемещен ")
     # Получение листа Google Sheets
     if list_all:
         sheet = get_google_sheet(SHEET_ALL)
