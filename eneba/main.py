@@ -16,7 +16,9 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from logger import logger
 from loguru import logger
+from main_bd import get_product_data, load_and_save_data
 
 # Пути и директории
 current_directory = Path.cwd()
@@ -27,6 +29,7 @@ log_directory.mkdir(parents=True, exist_ok=True)
 output_xlsx_file = data_directory / "output.xlsx"
 output_new_xlsx_file = data_directory / "new_output.xlsx"
 output_json_file = data_directory / "output.json"
+output_json_from_bd_file = data_directory / "bd_json.json"
 output_csv_file = data_directory / "output.csv"
 html_directory = current_directory / "html"
 html_directory.mkdir(parents=True, exist_ok=True)
@@ -203,6 +206,24 @@ def scrap_html(html_file, output_json_file=None):
         return None
 
 
+def clean_product_name(product_name, max_length=24):
+    """
+    Очищает product_name от спецсимволов, заменяя их на подчеркивание,
+    и ограничивает длину строки
+    """
+    # Берем первые max_length символов
+    truncated = product_name[:max_length] if product_name else ""
+
+    # Заменяем спецсимволы на подчеркивание
+    cleaned = re.sub(r"[^\w\s]", "_", truncated)
+
+    # Заменяем пробелы на подчеркивание и убираем повторяющиеся подчеркивания
+    cleaned = re.sub(r"\s+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned)
+
+    return cleaned
+
+
 def process_apollo_data(apollo_data):
     """
     Обрабатывает данные Apollo State и формирует список товаров
@@ -281,16 +302,18 @@ def process_apollo_data(apollo_data):
         # Получаем slug продукта
         product_slug_str = product.get("slug", "")
         product_slug = f"{BASE_URL}{product_slug_str}"
-        all_slugs.add(product_slug)
         # Получаем URL изображения
         img_url = ""
         cover_data = product.get('cover({"size":300})')
         if cover_data and "src" in cover_data:
             img_url = cover_data["src"]
-
+        cleaned_name = clean_product_name(
+            product_name
+        )  # Результат: "Product_Name_Special"
         # Формируем запись согласно требуемым заголовкам
         item = {
-            "Код_товару": product_name[:24],
+            "product_slug": product_slug,
+            "Код_товару": cleaned_name,
             "Назва_позиції": f"{product_name} Код для Xbox One/Series S|X",
             "Назва_позиції_укр": f"{product_name} Код для Xbox One/Series S|X",
             "Пошукові_запити": f"{product_name},Xbox,xbox ігри,xbox game pass ultimate активация,xbox game pass для консолей,подписка xbox game pass пк,xbox game pass ultimate,xbox game pass 1 месяц,xbox game pass ultimate 5 месяцев,xbox game pass ultimate 5 місяців,xbox game pass ultimate 9 місяців,xbox game pass ultimate 25 місяців,xbox game pass ultimate 13 місяців,xbox game pass ultimate 17 місяців,xbox game pass ultimate продление,подписка xbox game pass ultimate 1 месяц,подписка xbox game pass ultimate 5 месяцев,подписка xbox game pass ultimate 9 месяцев,подписка xbox game pass ultimate 24 месяца,подписка xbox game pass ultimate 13 месяцев,подписка xbox game pass ultimate 17 месяцев,підписка xbox game pass ultimate 5 місяців,підписка xbox game pass ultimate 9 місяців,підписка xbox game pass ultimate 24 місяці,підписка xbox game pass ultimate 13 місяців,підписка xbox game pass ultimate 12 місяців,підписка xbox game pass ultimate 17 місяців,",
@@ -301,46 +324,46 @@ def process_apollo_data(apollo_data):
             "Ціна": price_uah,
             "Валюта": "UAH",
             "Одиниця_виміру": "шт.",
-            "Мінімальний_обсяг_замовлення": "",
-            "Оптова_ціна": "",
-            "Мінімальне_замовлення_опт": "",
+            "Мінімальний_обсяг_замовлення": None,
+            "Оптова_ціна": None,
+            "Мінімальне_замовлення_опт": None,
             "Посилання_зображення": img_url,
             "Наявність": "!",
-            "Кількість": "",
+            "Кількість": None,
             "Номер_групи": "129793815",
             "Назва_групи": "Игры для Xbox",
             "Посилання_підрозділу": "https://prom.ua/Video-igry",
-            "Можливість_поставки": "",
-            "Термін_поставки": "",
-            "Спосіб_пакування": "",
-            "Спосіб_пакування_укр": "",
-            "Унікальний_ідентифікатор": "",
-            "Ідентифікатор_товару": "",
+            "Можливість_поставки": None,
+            "Термін_поставки": None,
+            "Спосіб_пакування": None,
+            "Спосіб_пакування_укр": None,
+            "Унікальний_ідентифікатор": None,
+            "Ідентифікатор_товару": None,
             "Ідентифікатор_підрозділу": "180606",
-            "Ідентифікатор_групи": "",
+            "Ідентифікатор_групи": None,
             "Виробник": "Microsoft",
             "Країна_виробник": "США",
             "Знижка": "5%",
-            "ID_групи_різновидів": "",
-            "Особисті_нотатки": "",
-            "Продукт_на_сайті": "",
-            "Термін_дії_знижки_від": "",
-            "Термін_дії_знижки_до": "",
+            "ID_групи_різновидів": None,
+            "Особисті_нотатки": None,
+            "Продукт_на_сайті": None,
+            "Термін_дії_знижки_від": None,
+            "Термін_дії_знижки_до": None,
             "Ціна_від": "-",
             "Ярлик": "Топ",
-            "HTML_заголовок": "",
-            "HTML_заголовок_укр": "",
-            "HTML_опис": "",
-            "HTML_опис_укр": "",
-            "Код_маркування_(GTIN)": "",
-            "Номер_пристрою_(MPN)": "",
-            "Вага,кг": "",
-            "Ширина,см": "",
-            "Висота,см": "",
-            "Довжина,см": "",
-            "Де_знаходиться_товар": "",
+            "HTML_заголовок": None,
+            "HTML_заголовок_укр": None,
+            "HTML_опис": None,
+            "HTML_опис_укр": None,
+            "Код_маркування_(GTIN)": None,
+            "Номер_пристрою_(MPN)": None,
+            "Вага,кг": None,
+            "Ширина,см": None,
+            "Висота,см": None,
+            "Довжина,см": None,
+            "Де_знаходиться_товар": None,
             "Назва_Характеристики": "Платформа",
-            "Одиниця_виміру_Характеристики": "",
+            "Одиниця_виміру_Характеристики": None,
             "Значення_Характеристики": "Xbox Series X",
         }
 
@@ -451,14 +474,14 @@ def save_products_to_excel(all_products, output_file):
     df = pd.DataFrame(all_products)
     logger.info(f"Создан DataFrame из {len(df)} товаров")
 
-    # Удаляем дубли, оставляя позиции с минимальной ценой
-    df_filtered = remove_duplicates_by_price(df)
+    # # Удаляем дубли, оставляя позиции с минимальной ценой
+    # df_filtered = remove_duplicates_by_price(df)
 
     # Сохраняем в Excel
-    df_filtered.to_excel(output_file, index=False)
+    df.to_excel(output_file, index=False)
     logger.info(f"Данные успешно сохранены в {output_file}")
 
-    return df_filtered
+    return df
 
 
 def download_pages(base_url, start_page, num_pages, cookies, headers, delay):
@@ -569,15 +592,115 @@ def process_html_files():
             logger.error(
                 f"Не удалось извлечь данные Apollo State из файла {html_file.name}"
             )
-    url_data = pd.DataFrame(all_urls, columns=["url"])
-    url_data.to_csv(output_csv_file, index=False)
+    # url_data = pd.DataFrame(all_urls, columns=["url"])
+    # url_data.to_csv(output_csv_file, index=False)
     # Сохраняем результат в Excel
+
     if all_products:
-        save_products_to_excel(all_products, output_xlsx_file)
+        all_products = remove_duplicates_by_price_json(all_products)
+        with open(output_json_from_bd_file, "w", encoding="utf-8") as json_file:
+            json.dump(all_products, json_file, ensure_ascii=False, indent=4)
+        data_without_slug = remove_keys_from_dicts_list(all_products, ["product_slug"])
+        save_products_to_excel(data_without_slug, output_xlsx_file)
+        load_and_save_data(output_json_from_bd_file)
     else:
         logger.error("Не найдено товаров для сохранения")
 
     return all_products
+
+
+def remove_duplicates_by_price_json(all_products):
+    """
+    Удаляет дубли товаров в списке словарей JSON, оставляя только позиции с наименьшей ценой
+
+    Args:
+        all_products (list): Список словарей с товарами
+
+    Returns:
+        list: Обработанный список словарей без дублей
+    """
+    # Проверка, что входные данные не пустые
+    if not all_products:
+        print("Список товаров пуст")
+        return all_products
+
+    # Создаем словарь для хранения товаров по их названиям
+    products_by_name = {}
+
+    # Вывод исходного количества товаров
+    initial_count = len(all_products)
+    logger.info(f"Всего товаров до обработки: {initial_count}")
+
+    # Первый проход: группировка товаров по названию
+    for product in all_products:
+        # Проверяем наличие необходимых ключей
+        if "Назва_позиції" not in product or "Ціна" not in product:
+            continue
+
+        name = product["Назва_позиції"]
+        price_str = product["Ціна"]
+
+        # Преобразуем цену в числовой формат
+        try:
+            price_num = (
+                float(price_str.replace(",", "."))
+                if price_str and price_str.strip()
+                else float("inf")
+            )
+        except (ValueError, AttributeError):
+            price_num = float("inf")
+
+        # Добавляем информацию о товаре в словарь
+        if name not in products_by_name:
+            products_by_name[name] = []
+
+        products_by_name[name].append({"product": product, "price_num": price_num})
+
+    # Создаем список для хранения уникальных товаров
+    unique_products = []
+
+    # Второй проход: выбираем товары с минимальной ценой
+    for name, products in products_by_name.items():
+        # Если это не дубль, просто добавляем товар
+        if len(products) <= 1:
+            unique_products.append(products[0]["product"])
+            continue
+
+        # Сортируем товары по цене (от меньшей к большей)
+        sorted_products = sorted(products, key=lambda x: x["price_num"])
+
+        # Если есть дубли, логируем информацию
+        logger.info(f"Найдены дубли: '{name}'")
+
+        # Добавляем товар с минимальной ценой в список уникальных товаров
+        min_price_product = sorted_products[0]["product"]
+        unique_products.append(min_price_product)
+        logger.info(f"  - ОСТАВЛЕНА: Цена {min_price_product['Ціна']}")
+
+        # Логируем информацию об удаленных товарах
+        for product_info in sorted_products[1:]:
+            logger.info(f"  - УДАЛЕНА: Цена {product_info['product']['Ціна']}")
+
+    # Выводим итоговую статистику
+    removed_count = initial_count - len(unique_products)
+    logger.info(f"Удалено дублирующихся позиций: {removed_count}")
+    logger.info(f"Всего товаров после обработки: {len(unique_products)}")
+
+    return unique_products
+
+
+def remove_keys_from_dicts_list(dicts_list, keys_to_remove):
+    """
+    Удаляет указанные ключи из списка словарей
+    """
+    return [remove_keys_from_dict(d, keys_to_remove) for d in dicts_list]
+
+
+def remove_keys_from_dict(dictionary, keys_to_remove):
+    """
+    Удаляет указанные ключи из словаря
+    """
+    return {k: v for k, v in dictionary.items() if k not in keys_to_remove}
 
 
 def update_prices_from_config():

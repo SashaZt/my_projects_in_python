@@ -547,6 +547,18 @@ def process_prices(source_sheet_name, result_sheet_name="result"):
             insportline_code = str(row.get("insportline_vendor_code", ""))
             xcore_sku = str(row.get("xcore_sku", ""))
 
+            # Дополнительная проверка для префиксов MBS/MS
+            if my_sku.startswith("MBS-") and xcore_sku.startswith("MS-"):
+                my_sku_normalized = my_sku.replace("MBS-", "")
+                xcore_sku_normalized = xcore_sku.replace("MS-", "")
+                is_prefix_match = my_sku_normalized == xcore_sku_normalized
+            elif my_sku.startswith("MS-") and xcore_sku.startswith("MBS-"):
+                my_sku_normalized = my_sku.replace("MS-", "")
+                xcore_sku_normalized = xcore_sku.replace("MBS-", "")
+                is_prefix_match = my_sku_normalized == xcore_sku_normalized
+            else:
+                is_prefix_match = False
+
             # Проверяем, что хотя бы один из вариантов совпадения артикулов есть
             is_match = (
                 (my_sku and insportline_code and xcore_sku)  # вариант 1: все артикулы
@@ -556,6 +568,7 @@ def process_prices(source_sheet_name, result_sheet_name="result"):
                 or (
                     my_sku and my_sku == insportline_code
                 )  # вариант 3: Мой сайт sku и insportline
+                or is_prefix_match  # вариант 4: совпадение с учетом префиксов MBS/MS
             )
 
             if not is_match:
