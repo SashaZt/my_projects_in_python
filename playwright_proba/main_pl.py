@@ -837,44 +837,10 @@ async def run(playwright):
     page = await context.new_page()
 
     # Переходим на страницу логина
-    await page.goto("https://tripoli.land/users/sign_in?sign_in_source=%2F")
-    await asyncio.sleep(1)  # Пауза 1 секунда
-
-    # Вводим логин
-    await page.fill(
-        "input#user_email", "mironova5533@gmail.com"
-    )  # Замените на ваш email
-    await asyncio.sleep(1)
-
-    # Вводим пароль
-    await page.fill("input#user_password", "Tradit1y44")  # Замените на ваш пароль
-    await asyncio.sleep(1)
-
-    # Нажимаем кнопку "Войти"
-    await page.click("#new_user > div:nth-child(7) > button")
-    await asyncio.sleep(1)
-
-    # Переходим на страницу с производителями
     await page.goto(
-        "https://tripoli.land/farmers/proizvoditeli-zerna/zhitomirskaya/proizvoditeli-gorokha"
+        "https://www.eneba.com/xbox-far-cry-new-dawn-xbox-one-xbox-live-key-europe"
     )
-    await asyncio.sleep(1)
-
-    # Находим все элементы с классом call-popup и кликаем по ним
-    popup_elements = await page.query_selector_all("span.call-popup")
-
-    for element in popup_elements:
-        try:
-            await element.click()
-            print(f"Кликнули на элемент: {await element.inner_text()}")
-            await asyncio.sleep(30)  # Пауза 30 секунд между кликами
-            output_file = current_directory / "Page_01.html"
-            html_content = await page.content()
-            with open(output_file, "w", encoding="utf-8") as file:
-                file.write(html_content)
-        except Exception as e:
-            print(f"Ошибка при клике: {e}")
-            continue
+    await asyncio.sleep(100)  # Пауза 1 секунда
 
     # Закрываем браузер
     await browser.close()

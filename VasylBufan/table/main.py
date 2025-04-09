@@ -141,6 +141,34 @@ def get_sheet_data(sheet_name):
         raise
 
 
+# Рабочая функция для обновления данных в Google Sheets
+# def update_sheet_with_data(sheet, data, total_rows=50000):
+#     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
+#     if not data:
+#         raise ValueError("Данные для обновления отсутствуют.")
+
+#     # Заголовки из ключей словаря
+#     headers = list(data[0].keys())
+
+#     # Запись заголовков в первую строку
+#     sheet.update(values=[headers], range_name="A1", value_input_option="RAW")
+
+#     # Формирование строк для записи
+#     rows = [[entry.get(header, "") for header in headers] for entry in data]
+
+#     # Добавление пустых строк до общего количества total_rows
+#     if len(rows) < total_rows:
+#         empty_row = [""] * len(headers)
+#         rows.extend([empty_row] * (total_rows - len(rows)))
+
+#     # Определение диапазона для записи данных
+#     end_col = chr(65 + len(headers) - 1)  # Преобразование индекса в букву (A, B, C...)
+#     range_name = f"A2:{end_col}{total_rows + 1}"
+
+
+#     # Запись данных в лист
+#     sheet.update(values=rows, range_name=range_name, value_input_option="USER_ENTERED")
+#     logger.info(f"Обновлено {len(data)} строк в Google Sheets")
 def update_sheet_with_data(sheet, data, total_rows=50000):
     """Записывает данные в указанные столбцы листа Google Sheets с использованием пакетного обновления."""
     if not data:
@@ -149,24 +177,32 @@ def update_sheet_with_data(sheet, data, total_rows=50000):
     # Заголовки из ключей словаря
     headers = list(data[0].keys())
 
+    # Получаем имя листа для проверки
+    sheet_title = sheet.title
+
     # Запись заголовков в первую строку
     sheet.update(values=[headers], range_name="A1", value_input_option="RAW")
 
     # Формирование строк для записи
     rows = [[entry.get(header, "") for header in headers] for entry in data]
 
+    # Определяем стартовую строку в зависимости от имени листа
+    start_row = 101 if sheet_title == "Data" else 2
+
     # Добавление пустых строк до общего количества total_rows
-    if len(rows) < total_rows:
+    if start_row + len(rows) < total_rows:
         empty_row = [""] * len(headers)
-        rows.extend([empty_row] * (total_rows - len(rows)))
+        rows.extend([empty_row] * (total_rows - len(rows) - start_row + 2))
 
     # Определение диапазона для записи данных
     end_col = chr(65 + len(headers) - 1)  # Преобразование индекса в букву (A, B, C...)
-    range_name = f"A2:{end_col}{total_rows + 1}"
+    range_name = f"A{start_row}:{end_col}{total_rows + 1}"
 
     # Запись данных в лист
     sheet.update(values=rows, range_name=range_name, value_input_option="USER_ENTERED")
-    logger.info(f"Обновлено {len(data)} строк в Google Sheets")
+    logger.info(
+        f"Обновлено {len(data)} строк в Google Sheets, начиная со строки {start_row}"
+    )
 
 
 def create_sku_mapping(df):

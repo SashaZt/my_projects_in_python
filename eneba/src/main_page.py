@@ -16,77 +16,26 @@ from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from logger import logger
+from config_utils import load_config
 from loguru import logger
-from main_bd import get_product_data, load_and_save_data
-
-# Пути и директории
-current_directory = Path.cwd()
-data_directory = current_directory / "data"
-log_directory = current_directory / "log"
-data_directory.mkdir(parents=True, exist_ok=True)
-log_directory.mkdir(parents=True, exist_ok=True)
-output_xlsx_file = data_directory / "output.xlsx"
-output_new_xlsx_file = data_directory / "new_output.xlsx"
-output_json_file = data_directory / "output.json"
-output_json_from_bd_file = data_directory / "bd_json.json"
-output_csv_file = data_directory / "output.csv"
-html_directory = current_directory / "html"
-html_directory.mkdir(parents=True, exist_ok=True)
-config_file = current_directory / "config.json"
-log_file_path = log_directory / "log_message.log"
+from main_bd import load_and_save_data
 
 BASE_URL = "https://www.eneba.com/"
+# Базовая директория — текущая рабочая директория
+BASE_DIR = Path(__file__).parent.parent
+config = load_config()
 
-
-def load_config():
-    """
-    Загружает конфигурацию из JSON файла
-
-    Returns:
-        dict: Словарь с конфигурацией
-    """
-    try:
-        with open(config_file, "r", encoding="utf-8") as f:
-            config = json.load(f)
-        logger.info("Конфигурация успешно загружена")
-        return config
-    except Exception as e:
-        logger.error(f"Ошибка при загрузке конфигурации: {str(e)}")
-        # Возвращаем значения по умолчанию, если файл не найден
-        return {
-            "site": {
-                "url": "https://www.eneba.com/store/games?drms[]=xbox&regions[]=argentina&regions[]=united_states&regions[]=turkey&sortBy=POPULARITY_DESC&types[]=game",
-                "start": "1",
-                "pages": "1",
-                "delay": "2",
-            },
-            "cookies": {},
-            "headers": {
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
-            },
-        }
-
-
-def extract_url_params(url):
-    """
-    Извлекает параметры из URL
-
-    Args:
-        url (str): URL для анализа
-
-    Returns:
-        dict: Словарь параметров
-    """
-    parsed_url = urlparse(url)
-    params = parse_qs(parsed_url.query)
-
-    # Преобразуем списки с одним элементом в простые значения
-    for key, value in params.items():
-        if len(value) == 1:
-            params[key] = value[0]
-
-    return params
+# Получаем параметры из конфигурации
+url = config["site"]["url"]
+start_page = int(config["site"]["start"])
+num_pages = int(config["site"]["pages"])
+delay = int(config["site"]["delay"])
+cookies = config["cookies"]
+headers = config["headers"]
+output_json = BASE_DIR / config["files"]["output_json"]
+output_xlsx = BASE_DIR / config["files"]["output_xlsx"]
+new_output_xlsx = BASE_DIR / config["files"]["new_output_xlsx"]
+html_page = BASE_DIR / config["directories"]["html_page"]
 
 
 def build_url_for_page(base_url, page_number):
@@ -301,7 +250,6 @@ def process_apollo_data(apollo_data):
 
         # Получаем slug продукта
         product_slug_str = product.get("slug", "")
-        product_slug = f"{BASE_URL}{product_slug_str}"
         # Получаем URL изображения
         img_url = ""
         cover_data = product.get('cover({"size":300})')
@@ -312,7 +260,7 @@ def process_apollo_data(apollo_data):
         )  # Результат: "Product_Name_Special"
         # Формируем запись согласно требуемым заголовкам
         item = {
-            "product_slug": product_slug,
+            "product_slug": product_slug_str,
             "Код_товару": cleaned_name,
             "Назва_позиції": f"{product_name} Код для Xbox One/Series S|X",
             "Назва_позиції_укр": f"{product_name} Код для Xbox One/Series S|X",
@@ -372,87 +320,87 @@ def process_apollo_data(apollo_data):
     return result, all_slugs
 
 
-def remove_duplicates_by_price(df):
-    """
-    Удаляет дубли товаров, оставляя только позиции с наименьшей ценой
+# def remove_duplicates_by_price(df):
+#     """
+#     Удаляет дубли товаров, оставляя только позиции с наименьшей ценой
 
-    Args:
-        df (pandas.DataFrame): Датафрейм с товарами
+#     Args:
+#         df (pandas.DataFrame): Датафрейм с товарами
 
-    Returns:
-        pandas.DataFrame: Обработанный датафрейм без дублей
-    """
-    logger.info("Начинаем проверку и удаление дублей по наименованию товара...")
+#     Returns:
+#         pandas.DataFrame: Обработанный датафрейм без дублей
+#     """
+#     logger.info("Начинаем проверку и удаление дублей по наименованию товара...")
 
-    # Проверяем наличие необходимых колонок
-    if "Назва_позиції" not in df.columns or "Ціна" not in df.columns:
-        logger.error(
-            "В данных отсутствуют необходимые колонки 'Назва_позиції' или 'Ціна'"
-        )
-        return df
+#     # Проверяем наличие необходимых колонок
+#     if "Назва_позиції" not in df.columns or "Ціна" not in df.columns:
+#         logger.error(
+#             "В данных отсутствуют необходимые колонки 'Назва_позиції' или 'Ціна'"
+#         )
+#         return df
 
-    # Сохраняем исходное количество строк
-    initial_count = len(df)
-    logger.info(f"Всего товаров до обработки: {initial_count}")
+#     # Сохраняем исходное количество строк
+#     initial_count = len(df)
+#     logger.info(f"Всего товаров до обработки: {initial_count}")
 
-    # Конвертируем цены из строкового формата с запятой в числовой формат
-    df["Ціна_числовая"] = df["Ціна"].apply(
-        lambda x: (
-            float(str(x).replace(",", ".")) if pd.notna(x) and str(x).strip() else None
-        )
-    )
+#     # Конвертируем цены из строкового формата с запятой в числовой формат
+#     df["Ціна_числовая"] = df["Ціна"].apply(
+#         lambda x: (
+#             float(str(x).replace(",", ".")) if pd.notna(x) and str(x).strip() else None
+#         )
+#     )
 
-    # Находим дубли по наименованию
-    duplicates = df[df.duplicated(subset=["Назва_позиції"], keep=False)]
+#     # Находим дубли по наименованию
+#     duplicates = df[df.duplicated(subset=["Назва_позиції"], keep=False)]
 
-    if duplicates.empty:
-        logger.info("Дублей не обнаружено")
-        # Удаляем временную колонку
-        if "Ціна_числовая" in df.columns:
-            df = df.drop("Ціна_числовая", axis=1)
-        return df
+#     if duplicates.empty:
+#         logger.info("Дублей не обнаружено")
+#         # Удаляем временную колонку
+#         if "Ціна_числовая" in df.columns:
+#             df = df.drop("Ціна_числовая", axis=1)
+#         return df
 
-    # Группируем дублирующиеся позиции
-    duplicate_groups = duplicates.groupby("Назва_позиції")
+#     # Группируем дублирующиеся позиции
+#     duplicate_groups = duplicates.groupby("Назва_позиції")
 
-    # Создаем список индексов строк для удаления
-    indices_to_remove = []
+#     # Создаем список индексов строк для удаления
+#     indices_to_remove = []
 
-    # Перебираем группы дублей
-    for name, group in duplicate_groups:
-        if len(group) <= 1:
-            continue
+#     # Перебираем группы дублей
+#     for name, group in duplicate_groups:
+#         if len(group) <= 1:
+#             continue
 
-        # Сортируем группу по цене (от меньшей к большей)
-        sorted_group = group.sort_values("Ціна_числовая")
+#         # Сортируем группу по цене (от меньшей к большей)
+#         sorted_group = group.sort_values("Ціна_числовая")
 
-        # Получаем минимальную цену
-        min_price = sorted_group["Ціна"].iloc[0]
+#         # Получаем минимальную цену
+#         min_price = sorted_group["Ціна"].iloc[0]
 
-        # Логируем информацию о дублях
-        logger.info(f"Найдены дубли: '{name}'")
+#         # Логируем информацию о дублях
+#         logger.info(f"Найдены дубли: '{name}'")
 
-        for idx, row in sorted_group.iterrows():
-            price = row["Ціна"]
-            if idx == sorted_group.index[0]:  # Это строка с минимальной ценой
-                logger.info(f"  - ОСТАВЛЕНА: Цена {price}")
-            else:
-                logger.info(f"  - УДАЛЕНА: Цена {price}")
-                indices_to_remove.append(idx)
+#         for idx, row in sorted_group.iterrows():
+#             price = row["Ціна"]
+#             if idx == sorted_group.index[0]:  # Это строка с минимальной ценой
+#                 logger.info(f"  - ОСТАВЛЕНА: Цена {price}")
+#             else:
+#                 logger.info(f"  - УДАЛЕНА: Цена {price}")
+#                 indices_to_remove.append(idx)
 
-    # Удаляем дубли с более высокой ценой
-    df_filtered = df.drop(indices_to_remove)
+#     # Удаляем дубли с более высокой ценой
+#     df_filtered = df.drop(indices_to_remove)
 
-    # Удаляем временную колонку
-    if "Ціна_числовая" in df_filtered.columns:
-        df_filtered = df_filtered.drop("Ціна_числовая", axis=1)
+#     # Удаляем временную колонку
+#     if "Ціна_числовая" in df_filtered.columns:
+#         df_filtered = df_filtered.drop("Ціна_числовая", axis=1)
 
-    # Выводим итоговую статистику
-    removed_count = initial_count - len(df_filtered)
-    logger.info(f"Удалено дублирующихся позиций: {removed_count}")
-    logger.info(f"Всего товаров после обработки: {len(df_filtered)}")
+#     # Выводим итоговую статистику
+#     removed_count = initial_count - len(df_filtered)
+#     logger.info(f"Удалено дублирующихся позиций: {removed_count}")
+#     logger.info(f"Всего товаров после обработки: {len(df_filtered)}")
 
-    return df_filtered
+#     return df_filtered
 
 
 def save_products_to_excel(all_products, output_file):
@@ -502,8 +450,7 @@ def download_pages(base_url, start_page, num_pages, cookies, headers, delay):
     # Проверяем существующие файлы HTML
     existing_files = []
     page_pattern = re.compile(r"eneba_page_(\d+)\.html")
-
-    for file in html_directory.glob("eneba_page_*.html"):
+    for file in html_page.glob("eneba_page_*.html"):
         match = page_pattern.search(file.name)
         if match:
             existing_files.append(int(match.group(1)))
@@ -533,7 +480,7 @@ def download_pages(base_url, start_page, num_pages, cookies, headers, delay):
         logger.info(f"Скачивание страницы {page}...")
 
         # Создаем имя файла для текущей страницы
-        page_html_file = html_directory / f"eneba_page_{page}.html"
+        page_html_file = html_page / f"eneba_page_{page}.html"
 
         # Собираем URL для текущей страницы
         page_url = build_url_for_page(base_url, page)
@@ -574,7 +521,7 @@ def process_html_files():
     #     f"Найдено HTML-файлов для обработки: {len(html_directory.glob("*.html"))}"
     # )
     all_urls = []
-    for html_file in html_directory.glob("*.html"):
+    for html_file in html_page.glob("*.html"):
         logger.info(f"Обработка файла: {html_file.name}")
 
         # Извлекаем данные Apollo State
@@ -598,11 +545,11 @@ def process_html_files():
 
     if all_products:
         all_products = remove_duplicates_by_price_json(all_products)
-        with open(output_json_from_bd_file, "w", encoding="utf-8") as json_file:
+        with open(output_json, "w", encoding="utf-8") as json_file:
             json.dump(all_products, json_file, ensure_ascii=False, indent=4)
         data_without_slug = remove_keys_from_dicts_list(all_products, ["product_slug"])
-        save_products_to_excel(data_without_slug, output_xlsx_file)
-        load_and_save_data(output_json_from_bd_file)
+        save_products_to_excel(data_without_slug, output_xlsx)
+        load_and_save_data(output_json)
     else:
         logger.error("Не найдено товаров для сохранения")
 
@@ -711,8 +658,6 @@ def update_prices_from_config():
         bool: True если обновление успешно, иначе False
     """
     try:
-        # Загружаем конфигурацию
-        config = load_config()
 
         # Проверяем наличие секции price_rules в конфигурации
         if "price_rules" not in config:
@@ -725,8 +670,8 @@ def update_prices_from_config():
         for rule in price_rules:
             logger.info(f"Диапазон {rule['min']}-{rule['max']}: +{rule['percentage']}%")
 
-        logger.info(f"Открываем файл {output_xlsx_file}")
-        df = pd.read_excel(output_xlsx_file)
+        logger.info(f"Открываем файл {output_xlsx}")
+        df = pd.read_excel(output_xlsx)
 
         # Проверяем наличие колонки "Ціна"
         if "Ціна" not in df.columns:
@@ -794,7 +739,7 @@ def update_prices_from_config():
                 )
 
         # Сохраняем обновленный DataFrame в новый файл
-        updated_df.to_excel(output_new_xlsx_file, index=False)
+        updated_df.to_excel(new_output_xlsx, index=False)
 
         # Выводим статистику по диапазонам
         logger.info("Статистика по диапазонам цен:")
@@ -805,7 +750,7 @@ def update_prices_from_config():
         logger.info(
             f"Обновление цен завершено. Обработано строк: {total_rows}, изменено: {updated_rows}"
         )
-        logger.info(f"Результат сохранен в {output_new_xlsx_file}")
+        logger.info(f"Результат сохранен в {new_output_xlsx}")
 
         return True
 
@@ -815,16 +760,8 @@ def update_prices_from_config():
 
 
 def main():
-    # Загружаем конфигурацию
-    config = load_config()
 
-    # Получаем параметры из конфигурации
-    url = config["site"]["url"]
-    start_page = int(config["site"]["start"])
-    num_pages = int(config["site"]["pages"])
-    delay = int(config["site"]["delay"])
-    cookies = config["cookies"]
-    headers = config["headers"]
+    # Загружаем конфигурацию
 
     logger.info("Запуск скрапера с параметрами из config.json:")
     logger.info(f"URL: {url}")
@@ -855,17 +792,15 @@ def main():
         update_prices_from_config()
         time.sleep(2)
     elif choice == "4":
-        if os.path.exists(html_directory):
-            shutil.rmtree(html_directory)
-        html_directory.mkdir(parents=True, exist_ok=True)
-
+        if os.path.exists(html_page):
+            shutil.rmtree(html_page)
+        html_page.mkdir(parents=True, exist_ok=True)
+    elif choice == "0":
+        logger.info("Выход из программы")
+        exit(0)
     else:
         logger.error("Некорректный выбор операции")
 
 
 if __name__ == "__main__":
-    # Настраиваем логгер
-    logger.add(data_directory / "scraper.log", rotation="10 MB", level="INFO")
-    logger.info("Запуск скрапера")
-
     main()

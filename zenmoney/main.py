@@ -63,7 +63,8 @@ def get_config():
 config = get_config()
 SPREADSHEET = config["google"]["spreadsheet"]
 SHEET = config["google"]["sheet"]
-BASE_URL = config["google"]["sheet"]
+BASE_URL = config["BASE_URL"]
+TOKEN = config["TOKEN"]
 # Базовый URL API
 
 
@@ -944,16 +945,17 @@ if __name__ == "__main__":
     # transactions = get_transactions_by_account(TOKEN, target_account_id)
 
     # sample = parsing_transaction()
-    # # # Создаем базу данных
-    # create_sqlite_db()
+    # # # # Создаем базу данных
+    # # create_sqlite_db()
 
-    # # # Подготавливаем транзакции
+    # # # # Подготавливаем транзакции
     # prepared_data = prepare_transactions_for_db(sample)
     # save_transactions_to_db(prepared_data)
+    for i in range(1, 9):
 
-    target_date = "2025-03-27"
-    bank_account = "Amehan MONO WHITE"
-    transactions = get_transactions_by_date(target_date, None, "Amehan MONO WHITE")
-    sheet_raw = load_product_data("sheet_raw.json")
-    for transaction in transactions:
-        process_transaction_to_sheet(transaction, sheet_raw)
+        target_date = f"2025-04-0{i}"
+        bank_account = "Amehan MONO WHITE"
+        transactions = get_transactions_by_date(target_date, bank_account, None)
+        sheet_raw = load_product_data("sheet_raw.json")
+        for transaction in transactions:
+            process_transaction_to_sheet(transaction, sheet_raw)
