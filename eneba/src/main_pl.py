@@ -1,8 +1,10 @@
+# src/main_pl.py
 import asyncio
 import json
 import random
 from pathlib import Path
 
+from category_manager import category_manager
 from config_utils import load_config
 from logger import logger
 from main_bd import get_product_data
@@ -12,12 +14,47 @@ BASE_URL = "https://www.eneba.com/"
 # Базовая директория — текущая рабочая директория
 BASE_DIR = Path(__file__).parent.parent
 config = load_config()
-html_product = BASE_DIR / config["directories"]["html_product"]
-json_directory = BASE_DIR / config["directories"]["json"]
-bd_json = BASE_DIR / config["files"]["bd_json"]
+
+
+# Обновлено: Используем пути из менеджера категорий
+def get_paths():
+    """Получает пути к директориям и файлам для текущей категории"""
+    # Пробуем получить пути из менеджера категорий
+    html_product = category_manager.get_category_html_dir()
+    json_directory = category_manager.get_category_json_dir()
+    category_files = category_manager.get_category_data_files()
+
+    if not (html_product and json_directory and category_files):
+        # Если не удалось, используем стандартные пути
+        html_product = BASE_DIR / config["directories"]["html_product"]
+        json_directory = BASE_DIR / config["directories"]["json"]
+        bd_json = BASE_DIR / config["files"]["bd_json"]
+        logger.warning("Используются стандартные пути к файлам")
+    else:
+        bd_json = category_files["bd_json"]
+        logger.info(
+            f"Используются пути для категории: {category_manager.current_category}"
+        )
+
+    # Создаем директории, если они не существуют
+    html_product.mkdir(parents=True, exist_ok=True)
+    json_directory.mkdir(parents=True, exist_ok=True)
+
+    return html_product, json_directory, bd_json
 
 
 async def run(playwright, urls):
+    # Получаем пути для текущей категории
+    html_product, json_directory, bd_json = get_paths()
+
+    # Проверяем валидность путей
+    if not (html_product and json_directory):
+        logger.error("Не удалось получить пути для сохранения файлов")
+        return
+
+    logger.info(f"Файлы HTML будут сохранены в: {html_product}")
+    logger.info(f"Файлы JSON будут сохранены в: {json_directory}")
+
     # Запускаем браузер
     browser = await playwright.chromium.launch(headless=False)
     context = await browser.new_context(
@@ -31,53 +68,12 @@ async def run(playwright, urls):
     )
     page = await context.new_page()
 
-    # Функция для перехвата запросов
-    async def handle_request(request):
-        if request.url == "https://www.eneba.com/graphql/" and request.method == "POST":
-            try:
-                post_data = request.post_data
-                if post_data:
-                    payload = json.loads(post_data)
-                    operation_name = payload.get("operationName")
-                    if (
-                        operation_name == "WickedNoCache"
-                    ):  # Оставляем только WickedNoCache
-                        request_data = {
-                            "url": request.url,
-                            "method": request.method,
-                            "operationName": operation_name,
-                            "payload": payload,
-                        }
-                        request._captured_data = request_data
-            except Exception as e:
-                logger.error(f"Ошибка при обработке запроса: {e}")
-
-    # Функция для перехвата ответов
-    async def handle_response(response):
-        if (
-            response.url == "https://www.eneba.com/graphql/"
-            and response.request.method == "POST"
-        ):
-            try:
-                request_data = getattr(response.request, "_captured_data", None)
-                if request_data and request_data["operationName"] == "WickedNoCache":
-                    response_json = await response.json()
-                    captured_data.append(
-                        {"request": request_data, "response": response_json}
-                    )
-                    captured_operations.add(request_data["operationName"])
-                    logger.info(
-                        f"Перехвачен ответ для: {request_data['operationName']}"
-                    )
-            except Exception as e:
-                logger.error(f"Ошибка при обработке ответа: {e}")
-
-    # Подключаем обработчики
-    page.on("request", handle_request)
-    page.on("response", handle_response)
-
     # Обрабатываем каждый URL
     for product_slug_str in urls:
+        # Очищаем данные перед обработкой новой страницы
+        captured_data = []
+        captured_operations = set()
+
         product_slug = product_slug_str["product_slug"]
         # Формируем имена файлов
         price_file = json_directory / f"{product_slug.replace('/', '_')}_price.json"
@@ -88,6 +84,57 @@ async def run(playwright, urls):
             logger.info(f"Файлы для {product_slug} уже существуют, пропускаем")
             continue
 
+        # Функция для перехвата запросов
+        async def handle_request(request):
+            if (
+                request.url == "https://www.eneba.com/graphql/"
+                and request.method == "POST"
+            ):
+                try:
+                    post_data = request.post_data
+                    if post_data:
+                        payload = json.loads(post_data)
+                        operation_name = payload.get("operationName")
+                        if (
+                            operation_name == "WickedNoCache"
+                        ):  # Оставляем только WickedNoCache
+                            request_data = {
+                                "url": request.url,
+                                "method": request.method,
+                                "operationName": operation_name,
+                                "payload": payload,
+                            }
+                            request._captured_data = request_data
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке запроса: {e}")
+
+        # Функция для перехвата ответов
+        async def handle_response(response):
+            if (
+                response.url == "https://www.eneba.com/graphql/"
+                and response.request.method == "POST"
+            ):
+                try:
+                    request_data = getattr(response.request, "_captured_data", None)
+                    if (
+                        request_data
+                        and request_data["operationName"] == "WickedNoCache"
+                    ):
+                        response_json = await response.json()
+                        captured_data.append(
+                            {"request": request_data, "response": response_json}
+                        )
+                        captured_operations.add(request_data["operationName"])
+                        logger.info(
+                            f"Перехвачен ответ для: {request_data['operationName']}"
+                        )
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке ответа: {e}")
+
+        # Подключаем обработчики
+        page.on("request", handle_request)
+        page.on("response", handle_response)
+
         # Попытка загрузки страницы с повторами
         max_retries = 5  # Максимальное количество попыток
         retry_count = 0
@@ -95,10 +142,6 @@ async def run(playwright, urls):
 
         while retry_count < max_retries and not page_loaded:
             try:
-                # Очищаем данные перед обработкой новой страницы
-                captured_data = []
-                captured_operations = set()
-
                 # Переходим на страницу с таймаутом
                 logger.info(
                     f"Попытка {retry_count + 1}: Переход на страницу: {BASE_URL}{product_slug}"
@@ -147,6 +190,10 @@ async def run(playwright, urls):
                         f"Все {max_retries} попыток загрузить страницу для {product_slug} не удались"
                     )
 
+        # Убираем обработчики перед обработкой следующего продукта
+        page.remove_listener("request", handle_request)
+        page.remove_listener("response", handle_response)
+
         # Если страница была успешно загружена, сохраняем данные
         if page_loaded:
             # Сохраняем данные в JSON-файл, если есть
@@ -183,7 +230,48 @@ async def main(urls):
         await run(playwright, urls)
 
 
+def init_category():
+    """Инициализирует категорию на основе выбора пользователя"""
+    categories = category_manager.get_categories()
+    print("\nДоступные категории:")
+    for i, (cat_id, cat_info) in enumerate(categories.items(), 1):
+        print(f"{i}. {cat_info['name']} (ID: {cat_id})")
+
+    try:
+        cat_choice = int(input("\nВыберите категорию (номер): "))
+        cat_keys = list(categories.keys())
+        selected_category = cat_keys[cat_choice - 1]
+
+        if not category_manager.set_current_category(selected_category):
+            logger.error(f"Не удалось установить категорию {selected_category}")
+            return None
+
+        category_info = category_manager.get_current_category_info()
+        logger.info(
+            f"Выбрана категория: {category_info['name']} (ID: {category_info['id']})"
+        )
+        return category_info
+    except (ValueError, IndexError):
+        logger.error("Некорректный выбор категории")
+        return None
+
+
 if __name__ == "__main__":
-    skugs = get_product_data()
-    # logger.info(skugs)
+    # Инициализация категории
+    category_info = init_category()
+    if not category_info:
+        logger.error("Не удалось инициализировать категорию")
+        exit(1)
+
+    # Получаем данные продуктов из БД для выбранной категории
+    category_id = category_info.get("id")
+    skugs = get_product_data(category_id=category_id)
+
+    if not skugs:
+        logger.error(f"Нет данных для обработки в категории {category_id}")
+        exit(1)
+
+    logger.info(f"Найдено {len(skugs)} товаров для обработки в категории {category_id}")
+
+    # Запускаем обработку
     asyncio.run(main(skugs))

@@ -1,3 +1,4 @@
+# src/main_bd.py
 import json
 import re
 import sqlite3
@@ -44,7 +45,6 @@ FIELD_MAPPING = {
     "Ідентифікатор_групи": "group_id",
     "Виробник": "manufacturer",
     "Країна_виробник": "country",
-    "Знижка": "discount",
     "ID_групи_різновидів": "variety_group_id",
     "Особисті_нотатки": "personal_notes",
     "Продукт_на_сайті": "product_on_site",
@@ -113,7 +113,6 @@ def create_database():
         group_id TEXT,
         manufacturer TEXT,
         country TEXT,
-        discount TEXT,
         variety_group_id TEXT,
         personal_notes TEXT,
         product_on_site TEXT,
@@ -246,14 +245,28 @@ def insert_data_from_json(json_data):
     logger.info(f"- Всего обработано записей: {len(data)}")
 
 
-def get_product_data():
+# Добавить параметр category_id в функцию get_product_data
+def get_product_data(category_id=None):
     """
     Возвращает product_slug, product_code и price из базы данных
+
+    Args:
+        category_id (str, optional): ID категории для фильтрации
+
+    Returns:
+        list: Список словарей с product_slug, product_code и price
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    cursor.execute("SELECT product_slug, product_code, price FROM products")
+    # Если указан category_id, добавляем условие фильтрации
+    if category_id:
+        query = "SELECT product_slug, product_code, price FROM products WHERE group_number = ?"
+        cursor.execute(query, (category_id,))
+    else:
+        # Иначе выбираем все записи
+        cursor.execute("SELECT product_slug, product_code, price FROM products")
+
     result = cursor.fetchall()
 
     # Преобразуем результат в список словарей
@@ -325,12 +338,13 @@ def reverse_map_to_ukrainian(data):
     return result
 
 
-def update_prices_and_images(json_file_path):
+def update_prices_and_images(json_file_path, category_id=None):
     """
     Обновляет цены и добавляет изображения в базу данных на основе предоставленных данных
 
     Args:
         json_file_path (str or Path): Путь к JSON-файлу с данными
+        category_id (str, optional): ID категории для фильтрации
 
     Returns:
         tuple: (updated_prices, updated_images, errors) - количество обновлений цен, изображений и ошибок
@@ -357,11 +371,15 @@ def update_prices_and_images(json_file_path):
             continue
 
         try:
-            # Проверяем существование записи
-            cursor.execute(
-                "SELECT product_slug, image_url FROM products WHERE product_slug = ?",
-                (slug,),
-            )
+            # Проверяем существование записи (с учетом категории, если указана)
+            if category_id:
+                query = "SELECT product_slug, image_url FROM products WHERE product_slug = ? AND group_number = ?"
+                cursor.execute(query, (slug, category_id))
+            else:
+                cursor.execute(
+                    "SELECT product_slug, image_url FROM products WHERE product_slug = ?",
+                    (slug,),
+                )
             result = cursor.fetchone()
 
             if not result:
@@ -451,10 +469,13 @@ def update_prices_and_images(json_file_path):
     return updated_prices, updated_images, errors
 
 
-def get_all_data_ukrainian_headers():
+def get_all_data_ukrainian_headers(category_id=None):
     """
     Возвращает все данные из базы данных, кроме id и product_slug,
     с украинскими названиями заголовков
+
+    Args:
+        category_id (str, optional): ID категории для фильтрации
 
     Returns:
         list: Список словарей с данными с украинскими ключами
@@ -470,15 +491,20 @@ def get_all_data_ukrainian_headers():
     columns = [
         column[1]
         for column in columns_info
-        if column[1] not in ["id", "product_slug", "discount", "upload_date"]
+        if column[1] not in ["id", "product_slug", "upload_date"]
     ]
 
     # Создаем обратное отображение (с английского на украинский)
     reverse_mapping = {v: k for k, v in FIELD_MAPPING.items()}
 
-    # Выполняем запрос
-    query = f"SELECT {', '.join(columns)} FROM products"
-    cursor.execute(query)
+    # Выполняем запрос с возможной фильтрацией по категории
+    if category_id:
+        query = f"SELECT {', '.join(columns)} FROM products WHERE group_number = ?"
+        cursor.execute(query, (category_id,))
+    else:
+        query = f"SELECT {', '.join(columns)} FROM products"
+        cursor.execute(query)
+
     rows = cursor.fetchall()
 
     # Преобразуем результат в список словарей с украинскими ключами

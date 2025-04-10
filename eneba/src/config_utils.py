@@ -1,4 +1,4 @@
-# config_utils.py
+# /src/config_utils.py
 import json
 from pathlib import Path
 

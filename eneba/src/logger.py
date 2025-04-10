@@ -1,10 +1,12 @@
-# logger.py
+# /src/logger.py
 import sys
 from pathlib import Path
 
 from loguru import logger
 
 BASE_DIR = Path(__file__).parent.parent  # Для модулей в папке src
+
+
 def setup_logging():
     """Настройка логирования для всего приложения"""
     current_directory = Path.cwd()
