@@ -5,21 +5,15 @@ import math
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+from category_manager import category_manager
 from config_utils import load_config
 from logger import logger
 from main_bd import get_all_data_ukrainian_headers, update_prices_and_images
+from path_manager import get_path, is_initialized, select_category_and_init_paths
 
-# Пути и директории
-
+# Базовая директория
 BASE_DIR = Path(__file__).parent.parent
 config = load_config()
-
-# Получаем параметры из конфигурации
-html_product = BASE_DIR / config["directories"]["html_product"]
-output_path = BASE_DIR / config["files"]["output_xlsx"]
-bd_json = BASE_DIR / config["files"]["bd_json"]
-temp_json = BASE_DIR / config["files"]["temp_json"]
-json_dir = BASE_DIR / config["directories"]["json"]
 
 
 def process_price_data(data):
@@ -80,67 +74,91 @@ def process_price_data(data):
 
 
 def parse_json_and_html_files():
+    """Обрабатывает JSON и HTML файлы для текущей категории"""
+    # Получаем пути для текущей категории
+    html_product = get_path("html_product")
+    json_dir = get_path("json_dir")
+    bd_json = get_path("bd_json")
+    output_path = get_path("output_xlsx")
+    category_id = get_path("category_id")
+    logger.info(f"Обрабатываем JSON файлы из: {json_dir}")
+    logger.info(f"Ищем HTML файлы в: {html_product}")
+
     all_data = []
-    for json_file in json_dir.glob("*.json"):
+    json_files = list(json_dir.glob("*_price.json"))
+    logger.info(f"Найдено {len(json_files)} JSON файлов для обработки")
+
+    for json_file in json_files:
         filename = json_file.stem
         logger.debug(f"Обрабатываем файл: {filename}")
 
         # Разделяем имя файла по '_'
         parts = filename.split("_")
-        if len(parts) < 2:
+        if len(parts) < 2 or parts[-1] != "price":
             logger.warning(f"Некорректное имя файла: {filename}, пропускаем")
             continue
 
+        # Убираем '_price' из имени для получения slug
         slug = "_".join(parts[:-1])
 
         # Открываем файл и загружаем данные
-        with open(json_file, "r", encoding="utf-8") as f:
-            data_json = json.load(f)
+        try:
+            with open(json_file, "r", encoding="utf-8") as f:
+                data_json = json.load(f)
+        except Exception as e:
+            logger.error(f"Ошибка при чтении файла {json_file}: {str(e)}")
+            continue
 
         # Извлекаем цену
         price = process_price_data(data_json)
-        # Преобразуем строку в число с плавающей точкой
+        # Преобразуем в число с плавающей точкой
         if not price:
             price = 0
         price_uah_float = float(price)
         # Округляем в большую сторону до целого
         price_uah_rounded = math.ceil(price_uah_float)
         price_uah = str(price_uah_rounded).replace(".", ",")
+
         # Ищем соответствующий HTML-файл по slug
-        # Пробуем несколько вариантов имени файла
-        possible_html_files = [
-            html_product / f"{slug}.html",
-            html_product / f"{slug.replace('/', '_')}.html",
-            # Можно добавить другие варианты поиска файла при необходимости
-        ]
+        html_file = html_product / f"{slug}.html"
 
-        html_file_found = None
-        for possible_file in possible_html_files:
-            if possible_file.exists():
-                html_file_found = possible_file
-                break
-
-        image_urls = None
-        if html_file_found:
-            logger.debug(f"Найден HTML-файл {html_file_found.name} для {slug}")
-            # Извлекаем данные Apollo State из HTML-файла
-            apollo_data = scrap_html(html_file_found)
-
-            if apollo_data:
-                # Извлекаем URL-адреса изображений
-                image_urls = extract_media_urls(apollo_data)
-                logger.debug(f"Извлечено {len(image_urls)} изображений для {slug}")
-            else:
-                logger.error(
-                    f"Не удалось извлечь данные Apollo State из {html_file_found}"
+        if not html_file.exists():
+            # Пробуем альтернативное имя
+            html_file = html_product / f"{slug.replace('/', '_')}.html"
+            if not html_file.exists():
+                logger.warning(f"HTML-файл для {slug} не найден")
+                # Добавляем запись без изображений
+                result = {"slug": slug, "price": price_uah, "images": []}
+                all_data.append(result)
+                logger.info(
+                    f"Обработан {slug}: цена={price_uah}, изображений=0 (HTML не найден)"
                 )
-        else:
-            logger.warning(f"HTML-файл для {slug} не найден")
+                continue
+
+        # Извлекаем данные Apollo State из HTML-файла
+        apollo_data = scrap_html(html_file)
+
+        if not apollo_data:
+            logger.error(f"Не удалось извлечь данные Apollo State из {html_file}")
+            # Добавляем запись без изображений
+            result = {"slug": slug, "price": price_uah, "images": []}
+            all_data.append(result)
+            logger.info(
+                f"Обработан {slug}: цена={price_uah}, изображений=0 (ошибка Apollo)"
+            )
+            continue
+
+        # Извлекаем URL-адреса изображений
+        image_urls = extract_media_urls(apollo_data)
+        if not image_urls:
+            image_urls = []
 
         # Формируем результат с ценой и URL-адресами изображений
         result = {"slug": slug, "price": price_uah, "images": image_urls}
         all_data.append(result)
-        logger.info(f"Обработан {slug}: цена={price}, изображений={len(image_urls)}")
+        logger.info(
+            f"Обработан {slug}: цена={price_uah}, изображений={len(image_urls)}"
+        )
 
     # Сохраняем все данные в JSON-файл
     with open(bd_json, "w", encoding="utf-8") as out_file:
@@ -149,7 +167,7 @@ def parse_json_and_html_files():
     logger.info(
         f"Данные сохранены в {bd_json}, всего обработано {len(all_data)} товаров"
     )
-    return all_data
+    return all_data, bd_json
 
 
 def extract_media_urls(apollo_data):
@@ -234,6 +252,11 @@ def save_to_excel(data, output_path):
     Returns:
         bool: True, если сохранение успешно, иначе False
     """
+    html_product = get_path("html_product")
+    json_dir = get_path("json_dir")
+    bd_json = get_path("bd_json")
+    output_path = get_path("output_xlsx")
+    category_id = get_path("category_id")
     try:
         import pandas as pd
 
@@ -251,16 +274,23 @@ def save_to_excel(data, output_path):
         return False
 
 
-def export_data_to_excel():
+def export_data_to_excel(category_id=None):
     """
     Экспортирует данные из базы в Excel файл
+
+    Args:
+        category_id (str, optional): ID категории для фильтрации
     """
+    # Получаем пути для текущей категории
+
     # Получаем данные из базы с украинскими заголовками
-    data = get_all_data_ukrainian_headers()
-
+    data = get_all_data_ukrainian_headers(category_id=category_id)
+    html_product = get_path("html_product")
+    json_dir = get_path("json_dir")
+    bd_json = get_path("bd_json")
+    output_path = get_path("output_xlsx")
+    category_id = get_path("category_id")
     if data:
-        # Определяем путь к выходному файлу
-
         # Сохраняем данные в Excel
         success = save_to_excel(data, output_path)
 
@@ -272,10 +302,57 @@ def export_data_to_excel():
         logger.warning("Нет данных для экспорта")
 
 
+def init_category():
+    """Инициализирует категорию на основе выбора пользователя"""
+    categories = category_manager.get_categories()
+    print("\nДоступные категории:")
+    for i, (cat_id, cat_info) in enumerate(categories.items(), 1):
+        print(f"{i}. {cat_info['name']} (ID: {cat_id})")
+
+    try:
+        cat_choice = int(input("\nВыберите категорию (номер): "))
+        cat_keys = list(categories.keys())
+        selected_category = cat_keys[cat_choice - 1]
+
+        if not category_manager.set_current_category(selected_category):
+            logger.error(f"Не удалось установить категорию {selected_category}")
+            return None
+
+        category_info = category_manager.get_current_category_info()
+        logger.info(
+            f"Выбрана категория: {category_info['name']} (ID: {category_info['id']})"
+        )
+        return category_info
+    except (ValueError, IndexError):
+        logger.error("Некорректный выбор категории")
+        return None
+
+
 if __name__ == "__main__":
-    # Собираем данные с json и html
-    parse_json_and_html_files()
-    # Обновляем данные в бд
-    update_prices_and_images(bd_json)
-    # Експортируем в ексель
-    export_data_to_excel()
+    # Инициализация категории
+    category_info = select_category_and_init_paths()
+
+    category_id = get_path("category_id")
+    if not category_info:
+        logger.error("Не удалось инициализировать категорию")
+        exit(1)
+
+    # Собираем данные из JSON и HTML файлов
+    all_data, bd_json_path = parse_json_and_html_files()
+
+    if not all_data:
+        logger.warning("Нет данных для обновления")
+        exit(0)
+
+    # Обновляем данные в БД
+    updated_prices, updated_images, errors = update_prices_and_images(
+        bd_json_path, category_id=category_id
+    )
+
+    logger.info(f"Обновление данных завершено:")
+    logger.info(f"- Обновлено цен: {updated_prices}")
+    logger.info(f"- Обновлено изображений: {updated_images}")
+    logger.info(f"- Ошибок: {errors}")
+
+    # Экспортируем в Excel для выбранной категории
+    export_data_to_excel(category_id=category_id)

@@ -8,6 +8,7 @@ from category_manager import category_manager
 from config_utils import load_config
 from logger import logger
 from main_bd import get_product_data
+from path_manager import get_path, is_initialized, select_category_and_init_paths
 from playwright.async_api import async_playwright
 
 BASE_URL = "https://www.eneba.com/"
@@ -16,37 +17,11 @@ BASE_DIR = Path(__file__).parent.parent
 config = load_config()
 
 
-# Обновлено: Используем пути из менеджера категорий
-def get_paths():
-    """Получает пути к директориям и файлам для текущей категории"""
-    # Пробуем получить пути из менеджера категорий
-    html_product = category_manager.get_category_html_dir()
-    json_directory = category_manager.get_category_json_dir()
-    category_files = category_manager.get_category_data_files()
-
-    if not (html_product and json_directory and category_files):
-        # Если не удалось, используем стандартные пути
-        html_product = BASE_DIR / config["directories"]["html_product"]
-        json_directory = BASE_DIR / config["directories"]["json"]
-        bd_json = BASE_DIR / config["files"]["bd_json"]
-        logger.warning("Используются стандартные пути к файлам")
-    else:
-        bd_json = category_files["bd_json"]
-        logger.info(
-            f"Используются пути для категории: {category_manager.current_category}"
-        )
-
-    # Создаем директории, если они не существуют
-    html_product.mkdir(parents=True, exist_ok=True)
-    json_directory.mkdir(parents=True, exist_ok=True)
-
-    return html_product, json_directory, bd_json
-
-
 async def run(playwright, urls):
     # Получаем пути для текущей категории
-    html_product, json_directory, bd_json = get_paths()
-
+    html_product = get_path("html_product")
+    json_directory = get_path("json_dir")
+    category_id = get_path("category_id")
     # Проверяем валидность путей
     if not (html_product and json_directory):
         logger.error("Не удалось получить пути для сохранения файлов")
@@ -258,13 +233,14 @@ def init_category():
 
 if __name__ == "__main__":
     # Инициализация категории
+    category_id = get_path("category_id")
     category_info = init_category()
     if not category_info:
         logger.error("Не удалось инициализировать категорию")
         exit(1)
 
     # Получаем данные продуктов из БД для выбранной категории
-    category_id = category_info.get("id")
+
     skugs = get_product_data(category_id=category_id)
 
     if not skugs:

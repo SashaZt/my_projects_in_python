@@ -133,6 +133,7 @@ class CategoryManager:
 
         return {
             "output_xlsx": data_dir / f"{self.current_category}_output.xlsx",
+            "export_xlsx": data_dir / f"{self.current_category}_export.xlsx",
             "new_output_xlsx": data_dir / f"{self.current_category}_new_output.xlsx",
             "output_json": data_dir / f"{self.current_category}_output.json",
             "bd_json": data_dir / f"{self.current_category}_bd_json.json",
@@ -149,7 +150,7 @@ class CategoryManager:
         Returns:
             dict: Отформатированный шаблон товара
         """
-        logger.debug(f"Получены данные продукта: {product_data}")
+        # logger.debug(f"Получены данные продукта: {product_data}")
         template = self.get_category_template()
         if not template:
             logger.error("Шаблон для текущей категории не найден")
@@ -191,7 +192,7 @@ class CategoryManager:
 
                 item[key] = re.sub(r"\{[^{}]*\}", "", value)
 
-        logger.debug(f"Сформирован шаблон товара: {item}")
+        # logger.debug(f"Сформирован шаблон товара: {item}")
         return item
 
 

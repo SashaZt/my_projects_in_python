@@ -16,58 +16,43 @@ from bs4 import BeautifulSoup
 from category_manager import category_manager
 from config_utils import load_config
 from loguru import logger
-from main_bd import load_and_save_data
+from main_bd import load_and_save_data, update_unique_ids_in_db
+from path_manager import get_path, is_initialized, select_category_and_init_paths
 
 BASE_URL = "https://www.eneba.com/"
 # Базовая директория — текущая рабочая директория
 BASE_DIR = Path(__file__).parent.parent
 config = load_config()
 
-# Получаем параметры из конфигурации
-# url = config["site"]["url"]
-# start_page = int(config["site"]["start"])
-# num_pages = int(config["site"]["pages"])
-# delay = int(config["site"]["delay"])
 cookies = config["cookies"]
 headers = config["headers"]
-# output_json = BASE_DIR / config["files"]["output_json"]
-# output_xlsx = BASE_DIR / config["files"]["output_xlsx"]
-# new_output_xlsx = BASE_DIR / config["files"]["new_output_xlsx"]
-# html_page = BASE_DIR / config["directories"]["html_page"]
-# Эти переменные будут определены после выбора категории в main()
-url = None
-html_page = None
-output_json = None
-output_xlsx = None
-new_output_xlsx = None
-start_page = None
-num_pages = None
-delay = None
+# Получаем инициализированные пути
 
 
-def init_category_paths(category_id=None):
-    """Инициализирует пути на основе выбранной категории"""
-    global url, html_page, output_json, output_xlsx, new_output_xlsx, start_page, num_pages, delay
+# def init_category_paths(category_id=None):
+#     """Инициализирует пути на основе выбранной категории"""
+#     global url, html_page, output_json, output_xlsx, new_output_xlsx, start_page, num_pages, delay, export_xlsx
 
-    if category_id:
-        if not category_manager.set_current_category(category_id):
-            logger.error(f"Не удалось установить категорию {category_id}")
-            return False
+#     if category_id:
+#         if not category_manager.set_current_category(category_id):
+#             logger.error(f"Не удалось установить категорию {category_id}")
+#             return False
 
-    url = category_manager.get_category_url()
-    html_page = category_manager.get_category_page_dir()
-    category_files = category_manager.get_category_data_files()
-    output_json = category_files["output_json"]
-    output_xlsx = category_files["output_xlsx"]
-    new_output_xlsx = category_files["new_output_xlsx"]
-    start_page = int(category_manager.get_category_start_page())
-    num_pages = int(category_manager.get_category_url_pages())
-    delay = int(category_manager.get_category_url_delay())
+#     url = category_manager.get_category_url()
+#     html_page = category_manager.get_category_page_dir()
+#     category_files = category_manager.get_category_data_files()
+#     output_json = category_files["output_json"]
+#     output_xlsx = category_files["output_xlsx"]
+#     export_xlsx = category_files["export_xlsx"]
+#     new_output_xlsx = category_files["new_output_xlsx"]
+#     start_page = int(category_manager.get_category_start_page())
+#     num_pages = int(category_manager.get_category_url_pages())
+#     delay = int(category_manager.get_category_url_delay())
 
-    logger.info(
-        f"Пути инициализированы для категории: {category_manager.current_category}"
-    )
-    return True
+#     logger.info(
+#         f"Пути инициализированы для категории: {category_manager.current_category}"
+#     )
+#     return True
 
 
 def build_url_for_page(base_url, page_number):
@@ -300,65 +285,7 @@ def process_apollo_data(apollo_data):
         cover_data = product.get('cover({"size":300})')
         if cover_data and "src" in cover_data:
             img_url = cover_data["src"]
-        cleaned_name = clean_product_name(
-            product_name
-        )  # Результат: "Product_Name_Special"
-        # Формируем запись согласно требуемым заголовкам
-        # item = {
-        #     "product_slug": product_slug_str,
-        #     "Код_товару": cleaned_name,
-        #     "Назва_позиції": f"{product_name} Код для Xbox One/Series S|X",
-        #     "Назва_позиції_укр": f"{product_name} Код для Xbox One/Series S|X",
-        #     "Пошукові_запити": f"{product_name},Xbox,xbox ігри,xbox game pass ultimate активация,xbox game pass для консолей,подписка xbox game pass пк,xbox game pass ultimate,xbox game pass 1 месяц,xbox game pass ultimate 5 месяцев,xbox game pass ultimate 5 місяців,xbox game pass ultimate 9 місяців,xbox game pass ultimate 25 місяців,xbox game pass ultimate 13 місяців,xbox game pass ultimate 17 місяців,xbox game pass ultimate продление,подписка xbox game pass ultimate 1 месяц,подписка xbox game pass ultimate 5 месяцев,подписка xbox game pass ultimate 9 месяцев,подписка xbox game pass ultimate 24 месяца,подписка xbox game pass ultimate 13 месяцев,подписка xbox game pass ultimate 17 месяцев,підписка xbox game pass ultimate 5 місяців,підписка xbox game pass ultimate 9 місяців,підписка xbox game pass ultimate 24 місяці,підписка xbox game pass ultimate 13 місяців,підписка xbox game pass ultimate 12 місяців,підписка xbox game pass ultimate 17 місяців,",
-        #     "Пошукові_запити_укр": f"{product_name},Xbox,xbox ігри,xbox game pass ultimate активация,xbox game pass для консолей,подписка xbox game pass пк,xbox game pass ultimate,xbox game pass 1 месяц,xbox game pass ultimate 5 месяцев,xbox game pass ultimate 5 місяців,xbox game pass ultimate 9 місяців,xbox game pass ultimate 25 місяців,xbox game pass ultimate 13 місяців,xbox game pass ultimate 17 місяців,xbox game pass ultimate продление,подписка xbox game pass ultimate 1 месяц,подписка xbox game pass ultimate 5 месяцев,подписка xbox game pass ultimate 9 месяцев,подписка xbox game pass ultimate 24 месяца,подписка xbox game pass ultimate 13 месяцев,подписка xbox game pass ultimate 17 месяцев,підписка xbox game pass ultimate 5 місяців,підписка xbox game pass ultimate 9 місяців,підписка xbox game pass ultimate 24 місяці,підписка xbox game pass ultimate 13 місяців,підписка xbox game pass ultimate 12 місяців,підписка xbox game pass ultimate 17 місяців,",
-        #     "Опис": f"<p><strong>Добро пожаловать в наш магазин цифровых товаров &laquo;XGames_Store&raquo; у нас лучшие цены и предложения!!!</strong></p><p><strong>Пожалуйста, внимательно ознакомьтесь с описанием перед покупкой.</strong></p><p><strong>Вы получите лицензионный цифровой код для активации игры {product_name}!</strong></p><p><strong>Доставка осуществляется только по полной предоплате.<br />Доставка цифрового товара через Telegram/Viber/Whatsapp/Email !!!</strong></p><p><strong>Игра активируется навсегда на вашем аккаунте Microsoft !</strong></p><p><strong>Предоставляем инструкцию и помогаем с активацией (Во время активации может понадобиться VPN или изменение региона / страны).<br /><br />В наличии более 1000 игр для консолей XBOX!</strong></p>",
-        #     "Опис_укр": f"<p><strong>Ласкаво просимо до нашого магазину цифрових товарів &quot;XGames_Store&quot; у нас найкращі ціни та пропозиції!!</strong></p><p><strong>Будь ласка, уважно ознайомтесь з описом перед покупкою.</strong></p><p><strong>Ви отримаєте ліцензійний цифровий код для активації гри {product_name}!</strong></p><p><strong>Доставка здійснюється тільки за повною передоплатою.<br />Доставка цифрового товару через Telegram/Viber/Whatsapp/Email !!!</strong></p><p><strong>Гра активується назавжди на вашому акаунті Microsoft !</strong></p><p><strong>Надаємо інструкцію та допомагаємо з активацією (Під час активації може знадобитись VPN або зміна регіону/країни).<br /><br />В наявності більше 1000 ігор для консолей XBOX!</strong></p>",
-        #     "Тип_товару": "r",
-        #     "Ціна": price_uah,
-        #     "Валюта": "UAH",
-        #     "Одиниця_виміру": "шт.",
-        #     "Мінімальний_обсяг_замовлення": None,
-        #     "Оптова_ціна": None,
-        #     "Мінімальне_замовлення_опт": None,
-        #     "Посилання_зображення": img_url,
-        #     "Наявність": "!",
-        #     "Кількість": None,
-        #     "Номер_групи": "129793815",
-        #     "Назва_групи": "Игры для Xbox",
-        #     "Посилання_підрозділу": "https://prom.ua/Video-igry",
-        #     "Можливість_поставки": None,
-        #     "Термін_поставки": None,
-        #     "Спосіб_пакування": None,
-        #     "Спосіб_пакування_укр": None,
-        #     "Унікальний_ідентифікатор": None,
-        #     "Ідентифікатор_товару": None,
-        #     "Ідентифікатор_підрозділу": "180606",
-        #     "Ідентифікатор_групи": None,
-        #     "Виробник": "Microsoft",
-        #     "Країна_виробник": "США",
-        #     "Знижка": "5%",
-        #     "ID_групи_різновидів": None,
-        #     "Особисті_нотатки": None,
-        #     "Продукт_на_сайті": None,
-        #     "Термін_дії_знижки_від": None,
-        #     "Термін_дії_знижки_до": None,
-        #     "Ціна_від": "-",
-        #     "Ярлик": "Топ",
-        #     "HTML_заголовок": None,
-        #     "HTML_заголовок_укр": None,
-        #     "HTML_опис": None,
-        #     "HTML_опис_укр": None,
-        #     "Код_маркування_(GTIN)": None,
-        #     "Номер_пристрою_(MPN)": None,
-        #     "Вага,кг": None,
-        #     "Ширина,см": None,
-        #     "Висота,см": None,
-        #     "Довжина,см": None,
-        #     "Де_знаходиться_товар": None,
-        #     "Назва_Характеристики": "Платформа",
-        #     "Одиниця_виміру_Характеристики": None,
-        #     "Значення_Характеристики": "Xbox Series X",
-        # }
+        cleaned_name = clean_product_name(product_name)
         product_data = {
             "product_slug": product_slug_str,
             "product_name": product_name,
@@ -404,7 +331,7 @@ def save_products_to_excel(all_products, output_file):
     return df
 
 
-def download_pages(base_url, start_page, num_pages, cookies, headers, delay):
+def download_pages(base_url, cookies, headers):
     """
     Скачивает HTML-страницы с сайта и сохраняет их в директорию html
 
@@ -420,6 +347,11 @@ def download_pages(base_url, start_page, num_pages, cookies, headers, delay):
         int: Количество успешно скачанных страниц
     """
     # Проверяем существующие файлы HTML
+    start_page = get_path("start_page")
+    num_pages = get_path("num_pages")
+    delay = get_path("delay")
+    html_page = get_path("html_page")
+
     existing_files = []
     page_pattern = re.compile(r"eneba_page_(\d+)\.html")
     for file in html_page.glob("eneba_page_*.html"):
@@ -485,6 +417,10 @@ def process_html_files():
     Returns:
         list: Список всех товаров
     """
+    html_page = get_path("html_page")
+    output_json = get_path("output_json")
+    output_xlsx = get_path("output_xlsx")
+
     logger.info("Начинаем обработку HTML-файлов...")
 
     all_products = []
@@ -494,7 +430,7 @@ def process_html_files():
     # )
     all_urls = []
     for html_file in html_page.glob("*.html"):
-        logger.info(f"Обработка файла: {html_file.name}")
+        # logger.info(f"Обработка файла: {html_file.name}")
 
         # Извлекаем данные Apollo State
         apollo_data = scrap_html(html_file)
@@ -506,7 +442,7 @@ def process_html_files():
             # Добавляем продукты к общему списку
             all_products.extend(page_products)
             all_urls.extend(urls)
-            logger.info(f"Извлечено товаров из {html_file.name}: {len(page_products)}")
+            # logger.info(f"Извлечено товаров из {html_file.name}: {len(page_products)}")
         else:
             logger.error(
                 f"Не удалось извлечь данные Apollo State из файла {html_file.name}"
@@ -630,6 +566,9 @@ def update_prices_from_config():
     Returns:
         bool: True если обновление успешно, иначе False
     """
+    output_xlsx = get_path("output_xlsx")
+    new_output_xlsx = get_path("new_output_xlsx")
+
     try:
 
         # Проверяем наличие секции price_rules в конфигурации
@@ -695,9 +634,9 @@ def update_prices_from_config():
 
                 # Увеличиваем цену на указанный процент
                 new_price = current_price * (1 + percentage / 100)
-
+                price_uah_rounded = math.ceil(new_price)
                 # Форматируем цену обратно в строку с запятой
-                new_price_str = str(round(new_price, 2)).replace(".", ",")
+                new_price_str = str(round(price_uah_rounded, 2)).replace(".", ",")
 
                 # Обновляем цену в DataFrame
                 updated_df.at[index, "Ціна"] = new_price_str
@@ -732,6 +671,97 @@ def update_prices_from_config():
         return False
 
 
+def extract_ids_from_excel():
+    """
+    Извлекает Код_товару и Унікальний_ідентифікатор из Excel-файла
+
+    Args:
+        file_path (str): Путь к Excel-файлу
+
+    Returns:
+        dict: Словарь с product_code в качестве ключа и unique_id в качестве значения
+    """
+    export_xlsx = get_path("export_xlsx")
+
+    try:
+
+        # Загружаем Excel-файл
+        logger.info(f"Загрузка Excel-файла: {export_xlsx}")
+        df = pd.read_excel(export_xlsx)
+
+        # Получаем реальные названия колонок
+        column_names = list(df.columns)
+        # logger.info(f"Найденные колонки в файле: {column_names}")
+
+        # Словарь для маппинга возможных имен колонок
+        column_mapping = {
+            "Назва_позиції": ["Назва_позиції", "Код товару", "Код", "A"],
+            "Унікальний_ідентифікатор": [
+                "Унікальний_ідентифікатор",
+                "Унікальний ідентифікатор",
+                "ID",
+                "Y",
+            ],
+        }
+
+        # Находим реальные имена колонок
+        real_columns = {}
+        for req_col, possible_names in column_mapping.items():
+            found = False
+            for name in possible_names:
+                if name in column_names:
+                    real_columns[req_col] = name
+                    found = True
+                    break
+
+            if not found:
+                # Если колонка не найдена по имени, попробуем по индексу
+                if req_col == "Назва_позиції" and len(column_names) > 0:
+                    # Первая колонка (A)
+                    real_columns[req_col] = column_names[0]
+                    logger.warning(
+                        f"Колонка 'Назва_позиції' не найдена по имени. Используем первую колонку: {column_names[0]}"
+                    )
+                elif req_col == "Унікальний_ідентифікатор" and len(column_names) > 24:
+                    # 25-я колонка (Y)
+                    real_columns[req_col] = column_names[24]
+                    logger.warning(
+                        f"Колонка 'Унікальний_ідентифікатор' не найдена по имени. Используем колонку Y: {column_names[24]}"
+                    )
+                else:
+                    logger.error(f"Не удалось найти колонку {req_col} в файле")
+                    return None
+
+        logger.info(f"Используемые колонки: {real_columns}")
+
+        # Извлекаем данные
+        result = {}
+        for idx, row in df.iterrows():
+            product_code = row[real_columns["Назва_позиції"]]
+            unique_id = row[real_columns["Унікальний_ідентифікатор"]]
+
+            # Пропускаем записи с пустыми значениями
+            if pd.isna(product_code) or pd.isna(unique_id):
+                continue
+
+            # Преобразуем значения к строкам
+            product_code = str(product_code).strip()
+            unique_id = str(unique_id).strip()
+
+            # Добавляем в результат, только если оба значения не пусты
+            if product_code and unique_id:
+                result[product_code] = unique_id
+
+        logger.info(f"Извлечено {len(result)} пар ID из Excel-файла")
+        logger.info(result)
+        update_unique_ids_in_db(result)
+        return result
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке Excel-файла: {str(e)}")
+        return None
+
+
 def main():
     categories = category_manager.get_categories()
     print("\nДоступные категории:")
@@ -743,10 +773,10 @@ def main():
         cat_keys = list(categories.keys())
         selected_category = cat_keys[cat_choice - 1]
 
-        # Инициализируем пути для выбранной категории
-        if not init_category_paths(selected_category):
-            logger.error("Не удалось инициализировать пути для категории")
-            return
+        # # Инициализируем пути для выбранной категории
+        # if not init_category_paths(selected_category):
+        #     logger.error("Не удалось инициализировать пути для категории")
+        #     return
 
         logger.info(f"Выбрана категория: {categories[selected_category]['name']}")
     except (ValueError, IndexError):
@@ -754,6 +784,11 @@ def main():
         return
 
     # Загружаем конфигурацию
+    url = get_path("url")
+    start_page = get_path("start_page")
+    num_pages = get_path("num_pages")
+    delay = get_path("delay")
+    html_page = get_path("html_page")
 
     logger.info("Запуск скрапера с параметрами из config.json:")
     logger.info(f"URL: {url}")

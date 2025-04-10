@@ -45,6 +45,7 @@ FIELD_MAPPING = {
     "Ідентифікатор_групи": "group_id",
     "Виробник": "manufacturer",
     "Країна_виробник": "country",
+    "Знижка": "discount",
     "ID_групи_різновидів": "variety_group_id",
     "Особисті_нотатки": "personal_notes",
     "Продукт_на_сайті": "product_on_site",
@@ -113,6 +114,7 @@ def create_database():
         group_id TEXT,
         manufacturer TEXT,
         country TEXT,
+        discount TEXT,
         variety_group_id TEXT,
         personal_notes TEXT,
         product_on_site TEXT,
@@ -142,7 +144,7 @@ def create_database():
     conn.commit()
     conn.close()
 
-    logger.info("База данных с англоязычными колонками успешно создана")
+    # logger.info("База данных с англоязычными колонками успешно создана")
 
 
 def insert_data_from_json(json_data):
@@ -216,7 +218,7 @@ def insert_data_from_json(json_data):
 
                 cursor.execute(update_query, update_values)
                 updated_count += 1
-                logger.debug(f"Обновлена запись с product_slug: {product_slug}")
+                # logger.debug(f"Обновлена запись с product_slug: {product_slug}")
             else:
                 # Если записи нет, добавляем новую
                 columns = ", ".join([f'"{k}"' for k in item_eng.keys()])
@@ -494,8 +496,20 @@ def get_all_data_ukrainian_headers(category_id=None):
         if column[1] not in ["id", "product_slug", "upload_date"]
     ]
 
+    # Проверяем наличие поля discount в списке колонок
+    if "discount" not in columns:
+        logger.warning("Поле 'discount' отсутствует в структуре таблицы")
+    else:
+        logger.debug("Поле 'discount' найдено в структуре таблицы")
+
     # Создаем обратное отображение (с английского на украинский)
     reverse_mapping = {v: k for k, v in FIELD_MAPPING.items()}
+
+    # # Проверяем маппинг для поля discount
+    # if "discount" in reverse_mapping:
+    #     logger.debug(f"Маппинг для 'discount': {reverse_mapping['discount']}")
+    # else:
+    #     logger.warning("Поле 'discount' отсутствует в обратном маппинге")
 
     # Выполняем запрос с возможной фильтрацией по категории
     if category_id:
@@ -515,6 +529,13 @@ def get_all_data_ukrainian_headers(category_id=None):
             # Если есть соответствующий украинский ключ, используем его
             ukrainian_key = reverse_mapping.get(column, column)
             item[ukrainian_key] = row[i]
+
+            # Проверяем специально поле discount
+            if column == "discount":
+                logger.debug(
+                    f"Обработка поля 'discount': '{row[i]}' -> '{ukrainian_key}'"
+                )
+
         result.append(item)
 
     conn.close()
@@ -523,3 +544,83 @@ def get_all_data_ukrainian_headers(category_id=None):
         f"Получено {len(result)} записей из базы данных с украинскими заголовками"
     )
     return result
+
+
+def update_unique_ids_in_db(id_mapping):
+    """
+    Обновляет значения unique_id в базе данных
+
+    Args:
+        id_mapping (dict): Словарь с product_code в качестве ключа и unique_id в качестве значения
+
+    Returns:
+        tuple: (обновлено, ошибок)
+    """
+    if not id_mapping:
+        logger.error("Пустой словарь ID для обновления")
+        return 0, 0
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    updated = 0
+    errors = 0
+    not_found = 0
+
+    # Проверяем существование таблицы
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='products'"
+    )
+    if not cursor.fetchone():
+        logger.error("Таблица 'products' не существует в базе данных")
+        conn.close()
+        return 0, 0
+
+    # Проверяем существование колонок
+    cursor.execute("PRAGMA table_info(products)")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    if "product_name" not in columns or "unique_id" not in columns:
+        logger.error("Необходимые колонки не найдены в таблице 'products'")
+        conn.close()
+        return 0, 0
+
+    # Создаем словарь существующих кодов товаров для оптимизации запросов
+    cursor.execute("SELECT product_name FROM products")
+    existing_codes = set(row[0] for row in cursor.fetchall() if row[0])
+
+    # Обновляем unique_id для каждого product_code
+    for product_name, unique_id in id_mapping.items():
+        try:
+            if product_name in existing_codes:
+                cursor.execute(
+                    "UPDATE products SET unique_id = ? WHERE product_name = ?",
+                    (unique_id, product_name),
+                )
+
+                if cursor.rowcount > 0:
+                    updated += 1
+                    if updated % 100 == 0:  # Логируем каждые 100 обновлений
+                        logger.info(f"Обновлено записей: {updated}")
+                else:
+                    not_found += 1
+            else:
+                not_found += 1
+                if not_found % 100 == 0:  # Логируем каждые 100 не найденных
+                    logger.warning(f"Код товара не найден в БД: {product_name}")
+
+        except sqlite3.Error as e:
+            logger.error(
+                f"Ошибка при обновлении записи с кодом {product_name}: {str(e)}"
+            )
+            errors += 1
+
+    conn.commit()
+    conn.close()
+
+    logger.info("Обновление уникальных идентификаторов завершено:")
+    logger.info(f"- Обновлено записей: {updated}")
+    logger.info(f"- Не найдено кодов товаров: {not_found}")
+    logger.info(f"- Ошибок: {errors}")
+
+    return updated, errors
