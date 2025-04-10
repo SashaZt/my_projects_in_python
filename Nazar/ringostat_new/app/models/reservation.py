@@ -1,11 +1,24 @@
-from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, Text, JSON, BigInteger
-from sqlalchemy.orm import relationship
-from app.core.base import Base
+# Обновленная модель Reservation
 import time
+
+from app.core.base import Base
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    Column,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import relationship
 
 
 class Customer(Base):
     """Model for customer information."""
+
     __tablename__ = "customers"
 
     id = Column(String(255), primary_key=True, index=True)
@@ -20,14 +33,19 @@ class Customer(Base):
 
 class RoomReservation(Base):
     """Model for room reservation information."""
+
     __tablename__ = "room_reservations"
 
     roomReservationId = Column(String(255), primary_key=True, index=True)
     reservationId = Column(String(255), ForeignKey("reservations.id"), nullable=False)
     roomId = Column(String(255), nullable=False)
     categoryId = Column(Integer, nullable=False)
-    arrival = Column(BigInteger, nullable=False)  # Изменено на BigInteger для больших значений времени
-    departure = Column(BigInteger, nullable=False)  # Изменено на BigInteger для больших значений времени
+    arrival = Column(
+        BigInteger, nullable=False
+    )  # Изменено на BigInteger для больших значений времени
+    departure = Column(
+        BigInteger, nullable=False
+    )  # Изменено на BigInteger для больших значений времени
     guestName = Column(String(255), nullable=False)
     numberOfGuests = Column(Integer, nullable=False)
     rateId = Column(Integer, nullable=False)
@@ -46,6 +64,7 @@ class RoomReservation(Base):
 
 class Reservation(Base):
     """Model for reservation information."""
+
     __tablename__ = "reservations"
 
     id = Column(String(255), primary_key=True, index=True)
@@ -53,20 +72,29 @@ class Reservation(Base):
     customerId = Column(String(255), ForeignKey("customers.id"), nullable=False)
     status = Column(String(50), nullable=False)
     services = Column(JSON, nullable=True, default=list)
-    bookedAt = Column(BigInteger, nullable=False)  # Изменено на BigInteger для больших значений времени
-    modifiedAt = Column(BigInteger, nullable=False)  # Изменено на BigInteger для больших значений времени
+    bookedAt = Column(
+        BigInteger, nullable=False
+    )  # Изменено на BigInteger для больших значений времени
+    modifiedAt = Column(
+        BigInteger, nullable=False
+    )  # Изменено на BigInteger для больших значений времени
     source = Column(String(255), nullable=False)
     responsibleUserId = Column(Integer, nullable=False)
 
+    # Добавляем поле для отслеживания статуса webhook
+    status_webhook = Column(Boolean, default=False, nullable=False)
+
     # Relationships
     customer = relationship("Customer", back_populates="reservations")
-    rooms = relationship("RoomReservation", back_populates="reservation", cascade="all, delete-orphan")
+    rooms = relationship(
+        "RoomReservation", back_populates="reservation", cascade="all, delete-orphan"
+    )
 
     def __init__(self, **kwargs):
         """Initialize reservation with current timestamps if not provided."""
         current_time = int(time.time() * 1000)  # Current time in milliseconds
-        if 'bookedAt' not in kwargs:
-            kwargs['bookedAt'] = current_time
-        if 'modifiedAt' not in kwargs:
-            kwargs['modifiedAt'] = current_time
+        if "bookedAt" not in kwargs:
+            kwargs["bookedAt"] = current_time
+        if "modifiedAt" not in kwargs:
+            kwargs["modifiedAt"] = current_time
         super().__init__(**kwargs)

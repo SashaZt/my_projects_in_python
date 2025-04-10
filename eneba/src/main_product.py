@@ -5,6 +5,7 @@
 # Скрипт использует файл конфигурации config.json в формате
 
 import json
+import math
 from pathlib import Path
 
 from bs4 import BeautifulSoup
@@ -27,7 +28,7 @@ json_dir = BASE_DIR / config["directories"]["json"]
 
 def process_price_data(data):
     """Обработка данных из файла с ценами"""
-    logger.info("Обработка цен")
+    # logger.info("Обработка цен")
     try:
         # Если данные представлены как список (из файла), берем первый элемент
         if isinstance(data, list):
@@ -67,14 +68,14 @@ def process_price_data(data):
             if price:
                 # Цена в копейках, делим на 100 для получения гривен
                 all_prices.append(price / 100)
-                logger.debug(f"Найдена цена: {price/100} UAH")
+                # logger.debug(f"Найдена цена: {price/100} UAH")
 
         if not all_prices:
             logger.warning("Не найдено ни одной цены в аукционах")
             return None
 
         min_price = min(all_prices)
-        logger.info(f"Минимальная цена: {min_price} UAH")
+        # logger.info(f"Минимальная цена: {min_price} UAH")
         return min_price
 
     except Exception as e:
@@ -102,7 +103,13 @@ def parse_json_and_html_files():
 
         # Извлекаем цену
         price = process_price_data(data_json)
-
+        # Преобразуем строку в число с плавающей точкой
+        if not price:
+            price = 0
+        price_uah_float = float(price)
+        # Округляем в большую сторону до целого
+        price_uah_rounded = math.ceil(price_uah_float)
+        price_uah = str(price_uah_rounded).replace(".", ",")
         # Ищем соответствующий HTML-файл по slug
         # Пробуем несколько вариантов имени файла
         possible_html_files = [
@@ -135,7 +142,7 @@ def parse_json_and_html_files():
             logger.warning(f"HTML-файл для {slug} не найден")
 
         # Формируем результат с ценой и URL-адресами изображений
-        result = {"slug": slug, "price": price, "images": image_urls}
+        result = {"slug": slug, "price": price_uah, "images": image_urls}
         all_data.append(result)
         logger.info(f"Обработан {slug}: цена={price}, изображений={len(image_urls)}")
 
@@ -270,9 +277,9 @@ def export_data_to_excel():
 
 
 if __name__ == "__main__":
-    # # Собираем данные с json и html
-    # parse_json_and_html_files()
-    # # Обновляем данные в бд
-    # update_prices_and_images(bd_json)
-    # # Експортируем в ексель
-    # export_data_to_excel()
+    # Собираем данные с json и html
+    parse_json_and_html_files()
+    # Обновляем данные в бд
+    update_prices_and_images(bd_json)
+    # Експортируем в ексель
+    export_data_to_excel()

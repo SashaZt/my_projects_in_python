@@ -5,6 +5,7 @@
 # Скрипт использует файл конфигурации config.json в формате
 
 import json
+import math
 import os
 import random
 import re
@@ -218,8 +219,21 @@ def process_apollo_data(apollo_data):
         price_uah = None
         price_data = auction.get('price({"currency":"UAH"})')
         if price_data and "amount" in price_data:
-            price_uah_str = str(price_data["amount"] / 100)
-            price_uah = price_uah_str.replace(".", ",") if price_uah_str else None
+            price_uah_str = str(
+                price_data["amount"] / 100
+            )  # Получаем строку, например "50.35"
+            if price_uah_str:
+                price_uah_float = float(
+                    price_uah_str
+                )  # Преобразуем строку в число с плавающей точкой
+                price_uah_rounded = math.ceil(
+                    price_uah_float
+                )  # Округляем в большую сторону до целого
+                price_uah = str(price_uah_rounded).replace(
+                    ".", ","
+                )  # Преобразуем обратно в строку и меняем точку на запятую
+            else:
+                price_uah = None
 
         # Получаем имя продукта
         product_name = product.get("name", "")
@@ -318,89 +332,6 @@ def process_apollo_data(apollo_data):
         result.append(item)
 
     return result, all_slugs
-
-
-# def remove_duplicates_by_price(df):
-#     """
-#     Удаляет дубли товаров, оставляя только позиции с наименьшей ценой
-
-#     Args:
-#         df (pandas.DataFrame): Датафрейм с товарами
-
-#     Returns:
-#         pandas.DataFrame: Обработанный датафрейм без дублей
-#     """
-#     logger.info("Начинаем проверку и удаление дублей по наименованию товара...")
-
-#     # Проверяем наличие необходимых колонок
-#     if "Назва_позиції" not in df.columns or "Ціна" not in df.columns:
-#         logger.error(
-#             "В данных отсутствуют необходимые колонки 'Назва_позиції' или 'Ціна'"
-#         )
-#         return df
-
-#     # Сохраняем исходное количество строк
-#     initial_count = len(df)
-#     logger.info(f"Всего товаров до обработки: {initial_count}")
-
-#     # Конвертируем цены из строкового формата с запятой в числовой формат
-#     df["Ціна_числовая"] = df["Ціна"].apply(
-#         lambda x: (
-#             float(str(x).replace(",", ".")) if pd.notna(x) and str(x).strip() else None
-#         )
-#     )
-
-#     # Находим дубли по наименованию
-#     duplicates = df[df.duplicated(subset=["Назва_позиції"], keep=False)]
-
-#     if duplicates.empty:
-#         logger.info("Дублей не обнаружено")
-#         # Удаляем временную колонку
-#         if "Ціна_числовая" in df.columns:
-#             df = df.drop("Ціна_числовая", axis=1)
-#         return df
-
-#     # Группируем дублирующиеся позиции
-#     duplicate_groups = duplicates.groupby("Назва_позиції")
-
-#     # Создаем список индексов строк для удаления
-#     indices_to_remove = []
-
-#     # Перебираем группы дублей
-#     for name, group in duplicate_groups:
-#         if len(group) <= 1:
-#             continue
-
-#         # Сортируем группу по цене (от меньшей к большей)
-#         sorted_group = group.sort_values("Ціна_числовая")
-
-#         # Получаем минимальную цену
-#         min_price = sorted_group["Ціна"].iloc[0]
-
-#         # Логируем информацию о дублях
-#         logger.info(f"Найдены дубли: '{name}'")
-
-#         for idx, row in sorted_group.iterrows():
-#             price = row["Ціна"]
-#             if idx == sorted_group.index[0]:  # Это строка с минимальной ценой
-#                 logger.info(f"  - ОСТАВЛЕНА: Цена {price}")
-#             else:
-#                 logger.info(f"  - УДАЛЕНА: Цена {price}")
-#                 indices_to_remove.append(idx)
-
-#     # Удаляем дубли с более высокой ценой
-#     df_filtered = df.drop(indices_to_remove)
-
-#     # Удаляем временную колонку
-#     if "Ціна_числовая" in df_filtered.columns:
-#         df_filtered = df_filtered.drop("Ціна_числовая", axis=1)
-
-#     # Выводим итоговую статистику
-#     removed_count = initial_count - len(df_filtered)
-#     logger.info(f"Удалено дублирующихся позиций: {removed_count}")
-#     logger.info(f"Всего товаров после обработки: {len(df_filtered)}")
-
-#     return df_filtered
 
 
 def save_products_to_excel(all_products, output_file):

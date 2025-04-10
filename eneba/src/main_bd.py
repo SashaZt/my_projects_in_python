@@ -378,12 +378,23 @@ def update_prices_and_images(json_file_path):
             else:
                 price_str = "0"  # Если price = null, устанавливаем "0"
 
-            cursor.execute(
-                "UPDATE products SET price = ? WHERE product_slug = ?",
-                (price_str, slug),
-            )
+            # Если цена "0", также обновляем availability на "-"
+            if price_str == "0":
+                cursor.execute(
+                    "UPDATE products SET price = ?, availability = ? WHERE product_slug = ?",
+                    (price_str, "-", slug),
+                )
+                logger.debug(
+                    f"Обновлена цена для {slug}: {price_str} и availability: '-'"
+                )
+            else:
+                cursor.execute(
+                    "UPDATE products SET price = ? WHERE product_slug = ?",
+                    (price_str, slug),
+                )
+                logger.debug(f"Обновлена цена для {slug}: {price_str}")
+
             updated_prices += 1
-            logger.debug(f"Обновлена цена для {slug}: {price_str}")
 
             # Обновляем изображения, если они предоставлены
             if images:

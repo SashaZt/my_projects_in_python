@@ -227,6 +227,8 @@ def post_reservation(reservation_data: Dict[str, Any]) -> bool:
     url = f"{BASE_URL}{endpoint}"
 
     try:
+        logger.info(reservation_data)
+        exit(0)
         # Преобразуем данные в JSON строку
         json_data = json.dumps(reservation_data)
 
@@ -491,8 +493,8 @@ def write_orders_to_api():
 
 # Пример использования функции
 if __name__ == "__main__":
-    get_token()
-    fetch_orders()
+    # get_token()
+    # fetch_orders()
     success = write_orders_to_api()
     if success:
         logger.info("Все бронирования успешно отправлены")

@@ -1,8 +1,8 @@
-#app/services/reservation_service.py
+# app/services/reservation_service.py
 import time
 import uuid
-from typing import List, Optional, Dict, Any
-from sqlalchemy import select, update
+from typing import Any, Dict, List, Optional
+
 from app.models.reservation import Customer, Reservation, RoomReservation
 from app.schemas.reservation import (
     ReservationCreate,
@@ -27,15 +27,17 @@ class ReservationService:
             logger.debug(f"Начало создания бронирования с ID: {reservation_data.id}")
 
             # Проверяем, существует ли уже бронирование с таким ID
-            exist_query = select(Reservation).where(Reservation.id == reservation_data.id)
+            exist_query = select(Reservation).where(
+                Reservation.id == reservation_data.id
+            )
             result = await db.execute(exist_query)
             existing_reservation = result.scalars().first()
-            
+
             if existing_reservation:
                 logger.info(f"Бронирование с ID {reservation_data.id} уже существует")
                 # Возвращаем существующее бронирование
                 return await ReservationService.get_reservation(db, reservation_data.id)
-            
+
             # Set current timestamp if not provided
             current_time = int(time.time() * 1000)
             if not reservation_data.bookedAt:
@@ -56,7 +58,7 @@ class ReservationService:
                 remarks=reservation_data.customer.remarks,
             )
             db.add(customer)
-            
+
             logger.debug("Создание объектов номеров")
 
             # Create reservation
@@ -70,6 +72,7 @@ class ReservationService:
                 modifiedAt=reservation_data.modifiedAt,
                 source=reservation_data.source,
                 responsibleUserId=reservation_data.responsibleUserId,
+                status_webhook=False,  # Устанавливаем False по умолчанию
             )
             db.add(reservation)
 
@@ -82,22 +85,30 @@ class ReservationService:
                 )
                 room_result = await db.execute(room_query)
                 existing_room = room_result.scalars().first()
-                
+
                 if existing_room:
-                    logger.debug(f"Комната {room_data.roomReservationId} уже существует")
+                    logger.debug(
+                        f"Комната {room_data.roomReservationId} уже существует"
+                    )
                     # Обновляем существующую комнату
                     room_update_data = {
-                        key: value for key, value in room_data.dict().items()
+                        key: value
+                        for key, value in room_data.dict().items()
                         if key != "roomReservationId" and value is not None
                     }
-                    
-                    if room_update_data:  # Этот блок должен быть внутри if existing_room
+
+                    if (
+                        room_update_data
+                    ):  # Этот блок должен быть внутри if existing_room
                         await db.execute(
                             update(RoomReservation)
-                            .where(RoomReservation.roomReservationId == room_data.roomReservationId)
+                            .where(
+                                RoomReservation.roomReservationId
+                                == room_data.roomReservationId
+                            )
                             .values(**room_update_data)
                         )
-                        
+
                     # Добавляем данные существующей комнаты в результат
                     room_data_dict = {
                         "roomReservationId": existing_room.roomReservationId,
@@ -115,7 +126,7 @@ class ReservationService:
                         "locked": existing_room.locked,
                         "detailed": existing_room.detailed,
                         "addOns": existing_room.addOns,
-                        "guestExtraCharges": existing_room.guestExtraCharges
+                        "guestExtraCharges": existing_room.guestExtraCharges,
                     }
                     room_reservations.append(room_data_dict)
                 else:
@@ -140,29 +151,31 @@ class ReservationService:
                         guestExtraCharges=room_data.guestExtraCharges,
                     )
                     db.add(room_reservation)
-                    room_reservations.append({
-                        "roomReservationId": room_data.roomReservationId,
-                        "roomId": room_data.roomId,
-                        "categoryId": room_data.categoryId,
-                        "arrival": room_data.arrival,
-                        "departure": room_data.departure,
-                        "guestName": room_data.guestName,
-                        "numberOfGuests": room_data.numberOfGuests,
-                        "rateId": room_data.rateId,
-                        "status": room_data.status,
-                        "currencyCode": room_data.currencyCode,
-                        "invoice": room_data.invoice,
-                        "paid": room_data.paid,
-                        "locked": room_data.locked,
-                        "detailed": room_data.detailed,
-                        "addOns": room_data.addOns,
-                        "guestExtraCharges": room_data.guestExtraCharges
-                    })
+                    room_reservations.append(
+                        {
+                            "roomReservationId": room_data.roomReservationId,
+                            "roomId": room_data.roomId,
+                            "categoryId": room_data.categoryId,
+                            "arrival": room_data.arrival,
+                            "departure": room_data.departure,
+                            "guestName": room_data.guestName,
+                            "numberOfGuests": room_data.numberOfGuests,
+                            "rateId": room_data.rateId,
+                            "status": room_data.status,
+                            "currencyCode": room_data.currencyCode,
+                            "invoice": room_data.invoice,
+                            "paid": room_data.paid,
+                            "locked": room_data.locked,
+                            "detailed": room_data.detailed,
+                            "addOns": room_data.addOns,
+                            "guestExtraCharges": room_data.guestExtraCharges,
+                        }
+                    )
 
             # Важно: commit должен быть после цикла, а не внутри него
             logger.debug("Выполнение commit в базу данных")
             await db.commit()
-            
+
             # Вместо загрузки объекта из базы, вернем созданные данные
             result = {
                 "id": reservation_data.id,
@@ -171,7 +184,7 @@ class ReservationService:
                     "name": reservation_data.customer.name,
                     "email": reservation_data.customer.email,
                     "telephone": reservation_data.customer.telephone,
-                    "remarks": reservation_data.customer.remarks
+                    "remarks": reservation_data.customer.remarks,
                 },
                 "rooms": room_reservations,
                 "status": reservation_data.status,
@@ -179,7 +192,7 @@ class ReservationService:
                 "bookedAt": reservation_data.bookedAt,
                 "modifiedAt": reservation_data.modifiedAt,
                 "source": reservation_data.source,
-                "responsibleUserId": reservation_data.responsibleUserId
+                "responsibleUserId": reservation_data.responsibleUserId,
             }
 
             logger.info(f"Created new reservation with ID: {reservation_data.id}")
@@ -207,37 +220,43 @@ class ReservationService:
                 return None
 
             # Получаем данные клиента
-            customer_query = select(Customer).where(Customer.id == reservation.customerId)
+            customer_query = select(Customer).where(
+                Customer.id == reservation.customerId
+            )
             customer_result = await db.execute(customer_query)
             customer = customer_result.scalars().first()
 
             # Получаем данные номеров
-            rooms_query = select(RoomReservation).where(RoomReservation.reservationId == reservation_id)
+            rooms_query = select(RoomReservation).where(
+                RoomReservation.reservationId == reservation_id
+            )
             rooms_result = await db.execute(rooms_query)
             rooms = rooms_result.scalars().all()
-            
+
             # Формируем ответ
             rooms_data = []
             for room in rooms:
-                rooms_data.append({
-                    "roomReservationId": room.roomReservationId,
-                    "roomId": room.roomId,
-                    "categoryId": room.categoryId,
-                    "arrival": room.arrival,
-                    "departure": room.departure,
-                    "guestName": room.guestName,
-                    "numberOfGuests": room.numberOfGuests,
-                    "rateId": room.rateId,
-                    "status": room.status,
-                    "currencyCode": room.currencyCode,
-                    "invoice": room.invoice,
-                    "paid": room.paid,
-                    "locked": room.locked,
-                    "detailed": room.detailed,
-                    "addOns": room.addOns,
-                    "guestExtraCharges": room.guestExtraCharges
-                })
-            
+                rooms_data.append(
+                    {
+                        "roomReservationId": room.roomReservationId,
+                        "roomId": room.roomId,
+                        "categoryId": room.categoryId,
+                        "arrival": room.arrival,
+                        "departure": room.departure,
+                        "guestName": room.guestName,
+                        "numberOfGuests": room.numberOfGuests,
+                        "rateId": room.rateId,
+                        "status": room.status,
+                        "currencyCode": room.currencyCode,
+                        "invoice": room.invoice,
+                        "paid": room.paid,
+                        "locked": room.locked,
+                        "detailed": room.detailed,
+                        "addOns": room.addOns,
+                        "guestExtraCharges": room.guestExtraCharges,
+                    }
+                )
+
             reservation_data = {
                 "id": reservation.id,
                 "organizationId": reservation.organizationId,
@@ -245,7 +264,7 @@ class ReservationService:
                     "name": customer.name,
                     "email": customer.email,
                     "telephone": customer.telephone,
-                    "remarks": customer.remarks
+                    "remarks": customer.remarks,
                 },
                 "rooms": rooms_data,
                 "status": reservation.status,
@@ -253,7 +272,7 @@ class ReservationService:
                 "bookedAt": reservation.bookedAt,
                 "modifiedAt": reservation.modifiedAt,
                 "source": reservation.source,
-                "responsibleUserId": reservation.responsibleUserId
+                "responsibleUserId": reservation.responsibleUserId,
             }
 
             logger.info(f"Retrieved reservation with ID: {reservation_id}")
@@ -309,73 +328,97 @@ class ReservationService:
             reservation_list = []
             for reservation in reservations:
                 # Получаем связанного клиента
-                customer_query = select(Customer).where(Customer.id == reservation.customerId)
+                customer_query = select(Customer).where(
+                    Customer.id == reservation.customerId
+                )
                 customer_result = await db.execute(customer_query)
                 customer = customer_result.scalars().first()
-                
+
                 if not customer:
-                    logger.warning(f"Customer for reservation {reservation.id} not found")
+                    logger.warning(
+                        f"Customer for reservation {reservation.id} not found"
+                    )
                     continue
 
                 # Получаем связанные номера
-                rooms_query = select(RoomReservation).where(RoomReservation.reservationId == reservation.id)
+                rooms_query = select(RoomReservation).where(
+                    RoomReservation.reservationId == reservation.id
+                )
                 rooms_result = await db.execute(rooms_query)
                 rooms = rooms_result.scalars().all()
-                
+
                 # Проверяем фильтры, связанные с номерами
                 skip_reservation = False
                 if filters:
-                    if (filters.arrival_from or filters.arrival_to or 
-                        filters.departure_from or filters.departure_to):
-                        
+                    if (
+                        filters.arrival_from
+                        or filters.arrival_to
+                        or filters.departure_from
+                        or filters.departure_to
+                    ):
+
                         room_matches = False
                         for room in rooms:
                             matches = True
-                            if filters.arrival_from and room.arrival < filters.arrival_from:
+                            if (
+                                filters.arrival_from
+                                and room.arrival < filters.arrival_from
+                            ):
                                 matches = False
                             if filters.arrival_to and room.arrival > filters.arrival_to:
                                 matches = False
-                            if filters.departure_from and room.departure < filters.departure_from:
+                            if (
+                                filters.departure_from
+                                and room.departure < filters.departure_from
+                            ):
                                 matches = False
-                            if filters.departure_to and room.departure > filters.departure_to:
+                            if (
+                                filters.departure_to
+                                and room.departure > filters.departure_to
+                            ):
                                 matches = False
-                            
+
                             if matches:
                                 room_matches = True
                                 break
-                        
+
                         if not room_matches:
                             skip_reservation = True
-                    
+
                     # Проверяем фильтр по имени клиента
-                    if filters.customer_name and filters.customer_name.lower() not in customer.name.lower():
+                    if (
+                        filters.customer_name
+                        and filters.customer_name.lower() not in customer.name.lower()
+                    ):
                         skip_reservation = True
-                
+
                 if skip_reservation:
                     continue
-                
+
                 # Форматируем данные номеров
                 rooms_data = []
                 for room in rooms:
-                    rooms_data.append({
-                        "roomReservationId": room.roomReservationId,
-                        "roomId": room.roomId,
-                        "categoryId": room.categoryId,
-                        "arrival": room.arrival,
-                        "departure": room.departure,
-                        "guestName": room.guestName,
-                        "numberOfGuests": room.numberOfGuests,
-                        "rateId": room.rateId,
-                        "status": room.status,
-                        "currencyCode": room.currencyCode,
-                        "invoice": room.invoice,
-                        "paid": room.paid,
-                        "locked": room.locked,
-                        "detailed": room.detailed,
-                        "addOns": room.addOns,
-                        "guestExtraCharges": room.guestExtraCharges
-                    })
-                
+                    rooms_data.append(
+                        {
+                            "roomReservationId": room.roomReservationId,
+                            "roomId": room.roomId,
+                            "categoryId": room.categoryId,
+                            "arrival": room.arrival,
+                            "departure": room.departure,
+                            "guestName": room.guestName,
+                            "numberOfGuests": room.numberOfGuests,
+                            "rateId": room.rateId,
+                            "status": room.status,
+                            "currencyCode": room.currencyCode,
+                            "invoice": room.invoice,
+                            "paid": room.paid,
+                            "locked": room.locked,
+                            "detailed": room.detailed,
+                            "addOns": room.addOns,
+                            "guestExtraCharges": room.guestExtraCharges,
+                        }
+                    )
+
                 # Формируем данные бронирования
                 reservation_data = {
                     "id": reservation.id,
@@ -384,7 +427,7 @@ class ReservationService:
                         "name": customer.name,
                         "email": customer.email,
                         "telephone": customer.telephone,
-                        "remarks": customer.remarks
+                        "remarks": customer.remarks,
                     },
                     "rooms": rooms_data,
                     "status": reservation.status,
@@ -392,9 +435,9 @@ class ReservationService:
                     "bookedAt": reservation.bookedAt,
                     "modifiedAt": reservation.modifiedAt,
                     "source": reservation.source,
-                    "responsibleUserId": reservation.responsibleUserId
+                    "responsibleUserId": reservation.responsibleUserId,
                 }
-                
+
                 reservation_list.append(reservation_data)
 
             logger.info(f"Retrieved {len(reservation_list)} reservations")
@@ -414,18 +457,24 @@ class ReservationService:
             check_query = select(Reservation).where(Reservation.id == reservation_id)
             result = await db.execute(check_query)
             reservation = result.scalars().first()
-            
+
             if not reservation:
-                logger.warning(f"Cannot update: Reservation with ID {reservation_id} not found")
+                logger.warning(
+                    f"Cannot update: Reservation with ID {reservation_id} not found"
+                )
                 return None
-                
+
             # Получаем данные клиента
-            customer_query = select(Customer).where(Customer.id == reservation.customerId)
+            customer_query = select(Customer).where(
+                Customer.id == reservation.customerId
+            )
             customer_result = await db.execute(customer_query)
             customer = customer_result.scalars().first()
-            
+
             if not customer:
-                logger.warning(f"Cannot update: Customer for reservation {reservation_id} not found")
+                logger.warning(
+                    f"Cannot update: Customer for reservation {reservation_id} not found"
+                )
                 return None
 
             # Set current timestamp for modification
@@ -466,39 +515,43 @@ class ReservationService:
                     except Exception as e:
                         logger.error(f"Ошибка при обновлении customer: {str(e)}")
                         # Альтернативное обновление по отдельным полям
-                        if 'name' in customer_dict:
+                        if "name" in customer_dict:
                             await db.execute(
                                 update(Customer)
                                 .where(Customer.id == reservation.customerId)
-                                .values(name=customer_dict['name'])
+                                .values(name=customer_dict["name"])
                             )
-                        if 'email' in customer_dict:
+                        if "email" in customer_dict:
                             await db.execute(
                                 update(Customer)
                                 .where(Customer.id == reservation.customerId)
-                                .values(email=customer_dict['email'])
+                                .values(email=customer_dict["email"])
                             )
-                        if 'telephone' in customer_dict:
+                        if "telephone" in customer_dict:
                             await db.execute(
                                 update(Customer)
                                 .where(Customer.id == reservation.customerId)
-                                .values(telephone=customer_dict['telephone'])
+                                .values(telephone=customer_dict["telephone"])
                             )
-                        if 'remarks' in customer_dict:
+                        if "remarks" in customer_dict:
                             await db.execute(
                                 update(Customer)
                                 .where(Customer.id == reservation.customerId)
-                                .values(remarks=customer_dict['remarks'])
+                                .values(remarks=customer_dict["remarks"])
                             )
-
 
             # Update room reservations if provided
             rooms_updated = False
             if reservation_data.rooms:
                 # Get existing room reservations
-                rooms_query = select(RoomReservation).where(RoomReservation.reservationId == reservation_id)
+                rooms_query = select(RoomReservation).where(
+                    RoomReservation.reservationId == reservation_id
+                )
                 rooms_result = await db.execute(rooms_query)
-                existing_rooms = {room.roomReservationId: room for room in rooms_result.scalars().all()}
+                existing_rooms = {
+                    room.roomReservationId: room
+                    for room in rooms_result.scalars().all()
+                }
 
                 # Process each room in the update data
                 for room_data in reservation_data.rooms:

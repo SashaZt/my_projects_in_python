@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -13,9 +14,13 @@ from app.api.post_routes import router as post_router  # Роутер для POS
 from app.api.reservation_routes import (
     router as reservation_router,  # Добавляем роутер для бронирований
 )
+from app.api.webhook_routes import (
+    router as webhook_router,  # Добавляем роутер для webhook
+)
 from app.core.config import SSL_CERTFILE, SSL_KEYFILE  # Настройки SSL.
 from app.core.database import engine  # Подключение к базе данных.
 from app.core.dependencies import get_db  # Зависимость для работы с базой.
+from app.tasks.webhook_tasks import start_webhook_task
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware  # Для настройки CORS.
 from fastapi.responses import JSONResponse  # Формат ответа в JSON.
@@ -46,16 +51,36 @@ logger.add(
     enqueue=True,
 )
 
+# Глобальная переменная для хранения задачи webhook
+webhook_task = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Глобальная переменная для хранения задачи
+    global webhook_task
+
     try:
         # Проверка подключения к базе
         async with engine.begin() as conn:
             await conn.run_sync(
                 lambda conn: logger.debug("Database connection successful")
             )
+
+        # Запускаем задачу для обработки webhook каждую минуту
+        logger.info("Starting webhook task")
+        webhook_task = asyncio.create_task(start_webhook_task(interval_seconds=60))
+
         yield
+
+        # Код выполняется при завершении работы приложения
+        if webhook_task:
+            logger.info("Cancelling webhook task")
+            webhook_task.cancel()
+            try:
+                await webhook_task
+            except asyncio.CancelledError:
+                logger.info("Webhook task cancelled successfully")
     except Exception as e:
         # Логирование ошибок на этапе старта приложения.
         logger.error(f"Failed during app startup: {e}")
@@ -63,9 +88,7 @@ async def lifespan(app: FastAPI):
 
 
 # Создание приложения FastAPI
-app = FastAPI(
-    lifespan=lifespan
-)  # lifespan: Связывается с жизненным циклом приложения для обработки событий запуска и завершения.
+app = FastAPI(lifespan=lifespan)  # lifespan обрабатывает события запуска и завершения
 
 # Настройки CORS
 app.add_middleware(
@@ -88,15 +111,16 @@ async def log_middleware(request: Request, call_next):
     return response
 
 
-# # Подключение маршрутов
+# Подключение маршрутов
 app.include_router(post_router)  # Роутер для POST-запросов.
 app.include_router(get_routes)  # Роутер для GET-запросов.
 app.include_router(olx_router)  # Добавляем OLX роутер
 app.include_router(olx_message_router)
 app.include_router(olx_token_router)
 app.include_router(reservation_router)  # Добавляем роутер для бронирований
+app.include_router(webhook_router)  # Добавляем роутер для webhook
 app.include_router(auth_router)  # Роутер для EasySMS
-
+app.include_router(webhook_router)
 # Выводим все зарегистрированные маршруты
 logger.debug("Registered routes:")
 for route in app.routes:
