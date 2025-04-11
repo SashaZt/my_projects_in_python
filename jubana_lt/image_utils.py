@@ -31,41 +31,48 @@ headers = {
     'upgrade-insecure-requests': '1',
     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
 }
-def extract_product_images(html_content: str) -> List[Dict[str, str]]:
+def extract_product_images(html_content: str) -> str:
     """
-    Извлекает информацию о фотографиях продукта из HTML.
+    Извлекает ссылки на все изображения продукта в максимальном качестве из HTML.
 
     Args:
         html_content (str): HTML содержимое страницы
 
     Returns:
-        List[Dict[str, str]]: Список словарей с информацией о фотографиях
+        str: Список URL изображений в максимальном качестве, разделенных запятыми
     """
     try:
         soup = BeautifulSoup(html_content, "lxml")
-        images = []
-
+        best_image_urls = []
+        
         # Ищем все изображения в галерее продукта
         gallery_images = soup.select(".gallery-container .product-gallery-element")
-
+        
+        # Если галерея пуста, ищем любые подходящие изображения
+        if not gallery_images:
+            gallery_images = soup.select("img[data-src], img[src]")
+        
         for img in gallery_images:
-            image_info = {
-                "title": img.get("title", ""),
-                "alt": img.get("alt", ""),
-                "src": img.get("src", ""),
-                "data_src": img.get(
-                    "data-src", ""
-                )
-            }
-
-            # Если есть родительский элемент source, добавляем информацию о разных размерах
-            source_parent = img.parent.find("source")
+            best_url = ""
+            max_resolution = 0
+            
+            # Проверяем data-src (обычно там более высокое качество)
+            img_url = img.get("data-src", "")
+            
+            # Если data-src пуст, используем обычный src
+            if not img_url:
+                img_url = img.get("src", "")
+            
+            # Начинаем с этого URL как базового
+            best_url = img_url
+            
+            # Проверяем источник изображения высокого разрешения
+            source_parent = img.parent.find("source") if img.parent else None
             if source_parent and source_parent.has_attr("srcset"):
                 srcset = source_parent["srcset"]
                 # Разбираем srcset на отдельные изображения разных размеров
                 srcset_parts = srcset.split(",")
-                resolutions = {}
-
+                
                 for part in srcset_parts:
                     part = part.strip()
                     if part:
@@ -73,67 +80,26 @@ def extract_product_images(html_content: str) -> List[Dict[str, str]]:
                         url_resolution = part.split(" ")
                         if len(url_resolution) >= 2:
                             url = url_resolution[0]
-                            resolution = url_resolution[1]
-                            resolutions[resolution] = url
-
-                if resolutions:
-                    image_info["resolutions"] = resolutions
-
-            # Добавляем только если есть хотя бы URL изображения
-            if image_info["src"] or image_info["data_src"]:
-                # Удаляем дубликаты изображений, проверяя по URL
-                if not any(img_info["src"] == image_info["src"] for img_info in images):
-                    images.append(image_info)
-
-        # Если в галерее не нашли изображения, ищем на всей странице
-        if not images:
-            all_images = soup.select("img")
-            for img in all_images:
-                # Фильтруем только изображения продукта (обычно имеют определенные классы или атрибуты)
-                if (
-                    "product" in str(img.get("class", ""))
-                    or "gallery" in str(img.get("class", ""))
-                    or "item" in str(img.get("class", ""))
-                ):
-                    image_info = {
-                        # "title": img.get("title", ""),
-                        # "alt": img.get("alt", ""),
-                        # "src": img.get("src", ""),
-                        "data_src": img.get("data-src", ""),
-                    }
-
-                    # Добавляем только если есть хотя бы URL изображения
-                    if image_info["src"] or image_info["data_src"]:
-                        # Удаляем дубликаты
-                        if not any(
-                            img_info["src"] == image_info["src"] for img_info in images
-                        ):
-                            images.append(image_info)
-
-        # # Обрабатываем thumbnails (миниатюры), если они есть отдельно
-        # thumbnail_images = soup.select(".gallery-container-thumbnails img")
-        # thumbnail_info = []
-
-        # for thumbnail in thumbnail_images:
-        #     thumb_info = {
-        #         "title": thumbnail.get("title", ""),
-        #         "alt": thumbnail.get("alt", ""),
-        #         "src": thumbnail.get("src", ""),
-        #         "data_item_index": thumbnail.get("data-item-index", ""),
-        #     }
-
-        #     # Добавляем только если есть хотя бы URL миниатюры
-        #     if thumb_info["src"]:
-        #         thumbnail_info.append(thumb_info)
-
-        # # Если нашли миниатюры, добавляем их к результату
-        # if thumbnail_info:
-        #     return {"main_images": images, "thumbnails": thumbnail_info}
-
-        return images
+                            resolution_str = url_resolution[1].replace("x", "")
+                            try:
+                                resolution = float(resolution_str)
+                                # Ищем изображение с максимальным разрешением
+                                if resolution > max_resolution:
+                                    max_resolution = resolution
+                                    best_url = url
+                            except ValueError:
+                                pass
+            
+            # Если нашли хороший URL, добавляем его в список
+            if best_url and best_url not in best_image_urls:
+                best_image_urls.append(best_url)
+        
+        # Объединяем все URL через запятую
+        return ",".join(best_image_urls)
+    
     except Exception as e:
         logger.error(f"Ошибка при извлечении фотографий продукта: {e}")
-        return []
+        return ""
 
 
 def download_product_images(
@@ -222,65 +188,7 @@ def download_product_images(
             except Exception as e:
                 logger.error(f"Ошибка при скачивании изображения {img_url}: {e}")
 
-        # # Если у нас также есть thumbnails, скачаем и их
-        # if isinstance(image_info, dict) and "thumbnails" in image_info:
-        #     thumbnails_dir = output_path / "thumbnails"
-        #     thumbnails_dir.mkdir(parents=True, exist_ok=True)
-
-        #     for idx, thumb_data in enumerate(image_info["thumbnails"]):
-        #         thumb_url = thumb_data.get("src")
-
-        #         if not thumb_url:
-        #             continue
-
-        #         # Проверяем, является ли URL относительным
-        #         if not thumb_url.startswith(("http://", "https://")):
-        #             base_url = "https://www.jubana.lt"
-        #             if not thumb_url.startswith("/"):
-        #                 thumb_url = "/" + thumb_url
-        #             thumb_url = base_url + thumb_url
-
-        #         # Получаем расширение файла из URL
-        #         path_parts = urlparse(thumb_url).path.split("/")
-        #         if "." in path_parts[-1]:
-        #             ext = path_parts[-1].split(".")[-1]
-        #             if "?" in ext:
-        #                 ext = ext.split("?")[0]
-        #         else:
-        #             ext = "jpg"
-
-        #         # Формируем имя файла
-        #         if product_id:
-        #             filename = f"{product_id}_thumb_{idx+1}.{ext}"
-        #         else:
-        #             name_base = (
-        #                 thumb_data.get("title")
-        #                 or thumb_data.get("alt")
-        #                 or f"thumbnail_{idx+1}"
-        #             )
-        #             name_base = "".join(
-        #                 c for c in name_base if c.isalnum() or c in [" ", "_", "-"]
-        #             )
-        #             name_base = name_base.replace(" ", "_")
-        #             filename = f"{name_base}.{ext}"
-
-        #         file_path = thumbnails_dir / filename
-
-        #         # Скачиваем миниатюру
-        #         try:
-        #             response = requests.get(thumb_url, timeout=30, stream=True)
-        #             if response.status_code == 200:
-        #                 with open(file_path, "wb") as f:
-        #                     for chunk in response.iter_content(1024):
-        #                         f.write(chunk)
-        #                 downloaded_files.append(str(file_path))
-        #                 logger.info(f"Скачана миниатюра: {file_path}")
-        #             else:
-        #                 logger.warning(
-        #                     f"Не удалось скачать миниатюру {thumb_url}. Код ответа: {response.status_code}"
-        #                 )
-        #         except Exception as e:
-        #             logger.error(f"Ошибка при скачивании миниатюры {thumb_url}: {e}")
+       
 
         return downloaded_files
     except Exception as e:

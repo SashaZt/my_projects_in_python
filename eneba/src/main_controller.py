@@ -1,6 +1,7 @@
 # src/main_controller.py
 import asyncio
 import shutil
+import time
 from pathlib import Path
 
 from config_utils import load_config
@@ -31,13 +32,14 @@ def display_menu():
     print("1. Полный цикл (скачать HTML -> обработать товары -> обновить цены)")
     print("2. Только скачать HTML-страницы")
     print("3. Только обработать существующие HTML-страницы")
-    print("4. Только загрузить данные о товарах из API")
+    print("4. Скачать данные о товарах")
     print("5. Только обработать JSON и HTML файлы товаров")
     print("6. Только обновить цены")
     print("7. Загрузить уникальные ID товаров из Excel")
     print("8. Очистить временные файлы для категории")
     print("0. Выход")
     print("=" * 50)
+    time.sleep(2)
 
 
 async def run_playwright_process():
@@ -153,6 +155,7 @@ def main():
 
     while True:
         display_menu()
+
         choice = input("Выберите действие (0-8): ").strip()
 
         if choice == "0":
@@ -174,8 +177,8 @@ def main():
 
         elif choice == "2":
             # Только скачать HTML-страницы
-
-            download_pages()
+            url = get_path("url")
+            download_pages(url, cookies, headers)
 
         elif choice == "3":
             # Только обработать существующие HTML-страницы
@@ -189,7 +192,7 @@ def main():
             # Только обработать JSON и HTML файлы товаров
             all_data, bd_json_path = parse_json_and_html_files()
             if all_data:
-
+                category_id = get_path("category_id")
                 updated_prices, updated_images, errors = update_prices_and_images(
                     bd_json_path, category_id=category_id
                 )

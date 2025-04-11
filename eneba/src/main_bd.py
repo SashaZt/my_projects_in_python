@@ -496,11 +496,11 @@ def get_all_data_ukrainian_headers(category_id=None):
         if column[1] not in ["id", "product_slug", "upload_date"]
     ]
 
-    # Проверяем наличие поля discount в списке колонок
-    if "discount" not in columns:
-        logger.warning("Поле 'discount' отсутствует в структуре таблицы")
-    else:
-        logger.debug("Поле 'discount' найдено в структуре таблицы")
+    # # Проверяем наличие поля discount в списке колонок
+    # if "discount" not in columns:
+    #     logger.warning("Поле 'discount' отсутствует в структуре таблицы")
+    # else:
+    #     logger.debug("Поле 'discount' найдено в структуре таблицы")
 
     # Создаем обратное отображение (с английского на украинский)
     reverse_mapping = {v: k for k, v in FIELD_MAPPING.items()}
@@ -530,11 +530,11 @@ def get_all_data_ukrainian_headers(category_id=None):
             ukrainian_key = reverse_mapping.get(column, column)
             item[ukrainian_key] = row[i]
 
-            # Проверяем специально поле discount
-            if column == "discount":
-                logger.debug(
-                    f"Обработка поля 'discount': '{row[i]}' -> '{ukrainian_key}'"
-                )
+            # # Проверяем специально поле discount
+            # if column == "discount":
+            #     logger.debug(
+            #         f"Обработка поля 'discount': '{row[i]}' -> '{ukrainian_key}'"
+            #     )
 
         result.append(item)
 

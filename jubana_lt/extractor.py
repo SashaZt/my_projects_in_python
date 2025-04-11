@@ -31,38 +31,58 @@ class ProductDataExtractor:
             logger.error("HTML не был инициализирован")
             return attributes
 
-        # Ищем блок с атрибутами продукта
-        attribute_divs = self.soup.select(".product-attribute")
+        # Ищем блок с атрибутами продукта - пробуем несколько селекторов
+        attribute_container = self.soup.select_one(".product-attributes")
+        
+        if attribute_container:
+            # Ищем все div с классом product-attribute
+            attribute_divs = attribute_container.select(".product-attribute")
+            
+            if attribute_divs:
+                logger.info(f"Найдено {len(attribute_divs)} блоков атрибутов")
+                
+                # Обрабатываем каждый атрибут
+                for attr_div in attribute_divs:
+                    # Получаем имя атрибута
+                    name_div = attr_div.select_one(".product-attribute-name")
+                    if not name_div:
+                        continue
 
-        if not attribute_divs:
-            logger.warning("Блок атрибутов продукта не найден")
-            # Попробуем извлечь из текста в разделе описания
-            return self.extract_attributes_from_description()
+                    # Очищаем имя от лишних пробелов
+                    attribute_name = name_div.get_text().strip()
 
-        # Обрабатываем каждый атрибут
-        for attr_div in attribute_divs:
-            # Получаем имя атрибута
-            name_div = attr_div.select_one(".product-attribute-name")
-            if not name_div:
-                continue
+                    # Получаем значение атрибута
+                    value_div = attr_div.select_one(".product-attribute-value")
+                    if not value_div:
+                        continue
 
-            # Очищаем имя от лишних пробелов
-            attribute_name = name_div.get_text().strip()
+                    # Очищаем значение от лишних пробелов
+                    attribute_value = value_div.get_text().strip()
 
-            # Получаем значение атрибута
-            value_div = attr_div.select_one(".product-attribute-value")
-            if not value_div:
-                continue
+                    # Преобразуем имя атрибута в ключ словаря
+                    key = attribute_name.lower().replace(" ", "_").replace("(", "_").replace(")", "")
 
-            # Очищаем значение от лишних пробелов
-            attribute_value = value_div.get_text().strip()
-
-            # Преобразуем имя атрибута в ключ словаря
-            key = attribute_name.lower().replace(" ", "_")
-
-            # Добавляем атрибут в словарь
-            attributes[key] = attribute_value
-
+                    # Добавляем атрибут в словарь
+                    attributes[key] = attribute_value
+        
+        # Если атрибуты не найдены в основном блоке, попробуем другие методы
+        if not attributes:
+            individual_attributes = self.soup.select(".attribute.product-attribute")
+            if individual_attributes:
+                logger.info(f"Найдено {len(individual_attributes)} индивидуальных блоков атрибутов")
+                
+                for attr_div in individual_attributes:
+                    name_div = attr_div.select_one(".product-attribute-name")
+                    value_div = attr_div.select_one(".product-attribute-value")
+                    
+                    if name_div and value_div:
+                        attribute_name = name_div.get_text().strip()
+                        attribute_value = value_div.get_text().strip()
+                        key = attribute_name.lower().replace(" ", "_").replace("(", "_").replace(")", "")
+                        attributes[key] = attribute_value
+        
+        # Просто возвращаем найденные атрибуты, даже если их нет
+        # Не вызываем extract_attributes_from_description здесь
         return attributes
 
     def extract_attributes_from_description(self):
@@ -73,42 +93,92 @@ class ProductDataExtractor:
             logger.error("HTML не был инициализирован")
             return attributes
 
-        # Ищем блок с описанием
-        description_div = self.soup.select_one(".tabs-description")
+        # Ищем блок с описанием, пробуем несколько селекторов
+        description_selectors = [".tabs-description", "#tab_description", ".product-description", ".description"]
+        description_div = None
+        
+        for selector in description_selectors:
+            description_div = self.soup.select_one(selector)
+            if description_div:
+                break
+        
         if not description_div:
-            logger.warning("Блок описания не найден")
+            logger.warning("Блок описания не найден по известным селекторам")
             return attributes
 
-        # Ищем параграфы с маркированными списками
+        # Получаем весь текст блока описания
+        description_text = description_div.get_text().strip()
+        
+        # Обрабатываем текст напрямую, разбивая его на строки
+        for line in description_text.split('\n'):
+            line = line.strip()
+            # Удаляем маркеры списка в начале строки
+            line = re.sub(r'^[•*\-\s]+', '', line)
+            
+            # Ищем строки с двоеточием - ключевой признак пары ключ:значение
+            if ':' in line:
+                parts = line.split(':', 1)
+                if len(parts) == 2:
+                    # Очищаем ключ от маркеров списка и специальных символов
+                    key = parts[0].strip().lower()
+                    key = re.sub(r'^[•*\-\s]+', '', key)  # Удаляем маркеры списка в начале
+                    key = key.replace(" ", "_").replace("(", "_").replace(")", "")
+                    
+                    value = parts[1].strip()
+                    attributes[key] = value
+        
+        # Для параграфов и других структурированных элементов
         bullet_paragraphs = description_div.find_all(
-            "p", string=lambda text: text and "•" in text if text else False
+            "p", string=lambda text: text and ("•" in text or "*" in text or "-" in text) if text else False
         )
-
+        
+        if not bullet_paragraphs:
+            bullet_paragraphs = [p for p in description_div.find_all("p") if p.find("strong")]
+            
+            if not bullet_paragraphs:
+                all_paragraphs = description_div.find_all("p")
+                
+                for p in all_paragraphs:
+                    text = p.get_text().strip()
+                    # Удаляем маркеры списка в начале строки
+                    text = re.sub(r'^[•*\-\s]+', '', text)
+                    
+                    if ":" in text:
+                        parts = text.split(":", 1)
+                        if len(parts) == 2:
+                            # Очищаем ключ от маркеров списка и специальных символов
+                            key = parts[0].strip().lower()
+                            key = re.sub(r'^[•*\-\s]+', '', key)  # Удаляем маркеры списка в начале
+                            key = key.replace(" ", "_").replace("(", "_").replace(")", "")
+                            
+                            value = parts[1].strip()
+                            attributes[key] = value
+        
         for p in bullet_paragraphs:
             text = p.get_text().strip()
             if not text:
                 continue
-
-            # Разбиваем текст на строки по маркеру списка
-            lines = [line.strip() for line in text.split("•") if line.strip()]
-
+            
+            # Удаляем маркеры списка в начале каждой строки
+            lines = text.split('\n')
             for line in lines:
-                # Ищем разделители между названием и значением (обычно ":" или разделение с помощью тега <strong>)
+                line = line.strip()
+                # Удаляем маркеры списка в начале строки
+                line = re.sub(r'^[•*\-\s]+', '', line)
+                
                 if ":" in line:
                     parts = line.split(":", 1)
                     if len(parts) == 2:
-                        key = parts[0].strip().lower().replace(" ", "_")
+                        # Очищаем ключ от маркеров списка и специальных символов
+                        key = parts[0].strip().lower()
+                        key = re.sub(r'^[•*\-\s]+', '', key)  # Удаляем маркеры списка в начале
+                        key = key.replace(" ", "_").replace("(", "_").replace(")", "")
+                        
                         value = parts[1].strip()
                         attributes[key] = value
-
-                # Если в параграфе есть теги <strong>, ищем их
-                strong_tags = p.find_all("strong")
-                for strong in strong_tags:
-                    if strong.next_sibling and ":" in str(strong.next_sibling):
-                        key = strong.get_text().strip().lower().replace(" ", "_")
-                        value_text = str(strong.next_sibling).split(":", 1)[1].strip()
-                        attributes[key] = value_text
-
+        
+        # Обработка для <strong> тегов аналогично...
+        
         return attributes
 
     def extract_reference_numbers(self):
@@ -210,17 +280,38 @@ class ProductDataExtractor:
             logger.error("HTML не был инициализирован")
             return product_info
 
-        # Ищем заголовок с названием продукта
-        product_header = self.soup.find("h2")
+        # Ищем заголовок с названием продукта - сначала h1, потом h2
+        product_header = self.soup.find("h1")
+        
+        if not product_header:
+            product_header = self.soup.find("h2")
+        
+        # Также проверяем heading2 div, который может содержать h1
+        if not product_header:
+            heading_div = self.soup.find(id="heading2")
+            if heading_div:
+                product_header = heading_div.find("h1") or heading_div.find("span")
 
         if product_header:
+            # Если найден заголовок, извлекаем текст
             product_text = product_header.get_text().strip()
             product_info["product_name"] = product_text
 
-            # Ищем номер модели (обычно после дефиса)
-            model_match = re.search(r"[-–]\s*(\d+)\s*$", product_text)
-            if model_match:
-                product_info["model"] = model_match.group(1)
+            # Ищем номер модели (может быть в конце после пробела, дефиса или цифры)
+            model_patterns = [
+                r"[-–]\s*(\d+)\s*$",  # После дефиса в конце
+                r"\s+(\d+)\s*$",       # После пробела в конце
+                r"(\d+)$",             # Просто цифры в конце
+                r"for alternator (\d+)", # После фразы "for alternator"
+                r"(\d{5,})"            # Любая последовательность из 5+ цифр
+            ]
+            
+            for pattern in model_patterns:
+                model_match = re.search(pattern, product_text, re.IGNORECASE)
+                if model_match:
+                    product_info["model"] = model_match.group(1)
+                    logger.info(f"Извлечен номер модели с помощью шаблона '{pattern}': {model_match.group(1)}")
+                    break
 
         return product_info
 
@@ -245,25 +336,41 @@ class ProductDataExtractor:
 
         # Извлекаем основную информацию о продукте
         product_info = self.extract_product_info()
+        # logger.info(f"Извлеченная информация о продукте: {product_info}")
         data.update(product_info)
 
-        # Извлекаем атрибуты продукта
-        attributes = self.extract_product_attributes()
-        data.update(attributes)
+        # Извлекаем атрибуты продукта из блока атрибутов
+        attributes_from_product = self.extract_product_attributes()
+        # logger.info(f"Извлеченные атрибуты из блока продукта: {attributes_from_product}")
+        data.update(attributes_from_product)
+        
+        # Извлекаем атрибуты из блока описания независимо
+        attributes_from_description = self.extract_attributes_from_description()
+        # logger.info(f"Извлеченные атрибуты из блока описания: {attributes_from_description}")
+        
+        # Добавляем только те атрибуты из описания, которые еще не были добавлены
+        for key, value in attributes_from_description.items():
+            if key not in data:
+                data[key] = value
+                # logger.info(f"Добавлен атрибут из описания: {key} = {value}")
 
         # Извлекаем референсные номера
         reference_numbers = self.extract_reference_numbers()
         if reference_numbers:
             data["reference_numbers"] = reference_numbers
+            logger.info(f"Извлечено {len(reference_numbers)} групп референсных номеров")
 
         # Извлекаем применения
         applications = self.extract_applications()
         if applications:
             data["applications"] = applications
+            logger.info(f"Извлечено {len(applications)} применений")
 
         # Добавляем информацию об изображениях
         images = self.extract_images()
         if images:
             data["images"] = images
+            # logger.info(f"Извлечено {len(images)} изображений")
 
+        # logger.info(f"Итоговые данные: {data.keys()}")
         return data

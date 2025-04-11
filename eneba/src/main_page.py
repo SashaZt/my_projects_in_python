@@ -102,7 +102,7 @@ def get_html(url, output_file, cookies, headers, delay=2):
     time.sleep(delay)
 
     try:
-        logger.info(f"Загрузка страницы: {url}")
+        # logger.info(f"Загрузка страницы: {url}")
         response = requests.get(
             url,
             cookies=cookies,
