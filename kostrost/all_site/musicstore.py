@@ -7,37 +7,41 @@ from config.logger import logger
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
 json_data_directory = current_directory / "json_data"
-html_directory = current_directory / "html_pages" / "guitarcenter.pl"
-output_file = json_data_directory / "guitarcenter.pl.json"
+html_directory = current_directory / "html_pages" / "www.musicstore.com"
+output_file = json_data_directory / "www.musicstore.com.json"
 
 
 def extract_product_data(data):
+    title = None
+    block = data.find("div", class_="productdata")
+    if block:
+        h1 = block.find("h1")
+        if h1:
+            title = " ".join(span.text.strip() for span in h1.find_all("span")).strip()
 
-    title = data.find("h1", attrs={"itemprop": "name"})
-    if title is not None:
-        title = title.text.strip()
-    price = data.find("td", attrs={"itemprop": "price"}).get("content")
-    gtin13 = data.find("meta", attrs={"itemprop": "gtin13"}).get("content")
+    price = None
+    price_tag = data.find("span", class_="final kor-product-sale-price-value")
+    if price_tag:
+        price = price_tag.text.strip().split("\n")[0]
 
-    # Извлечение доступности по частичному совпадению классов
-    def has_tahoma_alignleft(tag):
-        return (
-            tag.name == "p"
-            and "tahoma13" in tag.get("class", [])
-            and "alignleft" in tag.get("class", [])
-        )
+    article_number = None
+    article_tag = data.find("span", class_="artnr")
+    if article_tag:
+        content_tag = article_tag.find("span", attrs={"content": True})
+        if content_tag:
+            article_number = content_tag.get("content")
 
-    availability_tag = data.find(has_tahoma_alignleft)
     availability = None
+    availability_tag = data.find("span", class_="product-availability")
     if availability_tag:
-        availability = availability_tag.text.strip().split("\n")[0].strip()
-    else:
-        logger.warning("Тег с доступностью не найден")
+        span = availability_tag.find("span")
+        if span:
+            availability = span.text.strip()
 
     all_data = {
         "title": title,
         "price": price,
-        "article_number": gtin13,
+        "article_number": article_number,
         "availability": availability,
     }
     return all_data
@@ -61,7 +65,7 @@ def pars_htmls():
             result = extract_product_data(soup)
 
             if result:
-                logger.info(f"Собранные данные из {html_file.name}: {result}")
+                logger.info(json.dumps(result, ensure_ascii=False, indent=4))
                 all_data.append(result)
             else:
                 logger.warning(f"Не удалось извлечь данные из {html_file.name}")

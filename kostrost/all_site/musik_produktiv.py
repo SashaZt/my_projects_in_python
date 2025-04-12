@@ -6,49 +6,48 @@ from config.logger import logger
 
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
+json_data_directory = current_directory / "json_data"
 html_directory = current_directory / "html_pages" / "www.musik-produktiv.com"
+output_file = json_data_directory / "www.musik-produktiv.com.json"
 
 
-def extract_product_data(product_json):
-    """
-    Извлекает данные продукта из JSON структуры
-
-    Args:
-        product_json (dict): JSON структура продукта
-
-    Returns:
-        dict: Извлеченные данные продукта
-    """
+# Предполагается, что product_json — это список словарей, как в вашем примере
+def extract_product_data(data):
     try:
+        # Если data — строка, парсим её как JSON
+        if isinstance(data, str):
+            data = json.loads(data)
+
+        # Находим первый элемент с "@type": "Product"
+        product_json = next(
+            (item for item in data if item.get("@type") == "Product"), None
+        )
+        if not product_json:
+            raise ValueError("Продукт не найден в JSON")
+
+        # Извлечение title
         title = product_json.get("name")
+        if not title:
+            raise ValueError("Название продукта не найдено")
+
+        # Извлечение других полей
+        price = product_json.get("offers", {}).get("price")
         sku = product_json.get("sku")
-
-        # Извлекаем данные из offers
-        offers = product_json.get("offers", {})
-
-        # Обработка случая, когда offers может быть списком
-        if isinstance(offers, list) and offers:
-            offers = offers[0]
-
-        # Пробуем получить цену разными способами
-        offer_price = None
-        if isinstance(offers, dict):
-            if "price" in offers:
-                offer_price = offers.get("price")
-
-        # Форматируем цену, если она найдена
-        if offer_price:
-            offer_price = str(offer_price).replace(".", ",")
 
         all_data = {
             "title": title,
-            "price": offer_price,
-            "article_number": sku,
+            "price": float(price) if price else None,
             "availability": "availability",
+            "article_number": sku,
         }
+
         return all_data
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Ошибка парсинга JSON: {e}")
+        return None
     except Exception as e:
-        logger.error(f"Ошибка при извлечении данных продукта: {e}")
+        logger.error(f"Ошибка при извлечении данных: {e}")
         return None
 
 
@@ -73,33 +72,20 @@ def pars_htmls():
                 f"В файле {html_file.name} не найдено скриптов с типом application/ld+json"
             )
             continue
-        availability = None
-        # Флаг для отслеживания, был ли найден продукт
-        availability_tag = soup.find("div", class_="stock-status-detail")
-        if availability_tag:
-            availability = availability_tag.text.strip().split("\n")[0].strip()
-        else:
-            logger.warning("Тег с доступностью не найден для другого сайта")
+        availability_tag = soup.find("div", class_="mp-availability").find("b")
+        availability = availability_tag.text.strip() if availability_tag else None
+        logger.info(f"Доступность: {availability}")
         # Перебираем все скрипты JSON-LD
         for script in scripts:
             try:
                 # Получаем текст скрипта и проверяем его наличие
                 script_text = script.string
-                if not script_text or not script_text.strip():
-                    continue
-                # Очищаем JSON от проблемных символов
 
-                # Парсим JSON
-                json_data = json.loads(script_text)
-
-                # Проверяем, является ли это продуктом
-                if isinstance(json_data, dict) and json_data.get("@type") == "Product":
-
-                    # Извлекаем данные основного продукта
-                    main_product = extract_product_data(json_data)
-                    if main_product:
-                        main_product["availability"] = availability
-                        all_data.append(main_product)
+                # Извлекаем данные основного продукта
+                main_product = extract_product_data(script_text)
+                if main_product:
+                    main_product["availability"] = availability
+                    all_data.append(main_product)
 
                     break
             except json.JSONDecodeError as e:
@@ -111,7 +97,7 @@ def pars_htmls():
 
     # Сохраняем данные в JSON
     if all_data:
-        output_file = current_directory / "muziker_data.json"
+
         with output_file.open("w", encoding="utf-8") as f:
             json.dump(all_data, f, ensure_ascii=False, indent=4)
         logger.info(f"Данные сохранены в {output_file}")

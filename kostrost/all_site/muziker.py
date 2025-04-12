@@ -6,7 +6,9 @@ from config.logger import logger
 
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
+json_data_directory = current_directory / "json_data"
 html_directory = current_directory / "html_pages" / "www.muziker.pl"
+output_file = json_data_directory / "www.muziker.pl.json"
 
 
 def extract_product_data(product_json):
@@ -111,7 +113,7 @@ def pars_htmls():
 
     # Сохраняем данные в JSON
     if all_data:
-        output_file = current_directory / "muziker_data.json"
+
         with output_file.open("w", encoding="utf-8") as f:
             json.dump(all_data, f, ensure_ascii=False, indent=4)
         logger.info(f"Данные сохранены в {output_file}")
