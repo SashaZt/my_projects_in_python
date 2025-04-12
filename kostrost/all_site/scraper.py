@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 import requests
-from logger import logger
+from kostrost.all_site.config.logger import logger
 
 
 class ExcelSheetScraper:

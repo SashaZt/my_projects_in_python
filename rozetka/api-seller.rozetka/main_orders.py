@@ -161,6 +161,110 @@ def get_order_details(order_id):
     return None
 
 
+def complete_order(order_id):
+    """
+    Закрывает заказ, последовательно устанавливая:
+    1. Статус 26
+    2. После паузы 5 секунд - статус 6 (Замовлення виконано)
+
+    Args:
+        order_id (int): ID заказа
+
+    Returns:
+        bool: True если заказ успешно закрыт, False в случае ошибки
+    """
+    try:
+        # Получаем текущую информацию о заказе
+        url_status = f"https://api-seller.rozetka.com.ua/orders/{order_id}"
+
+        # Сначала устанавливаем статус 26
+        logger.info(f"Устанавливаем статус 26 для заказа #{order_id}")
+        data_step1 = {
+            "status": 26,
+        }
+
+        # Выполняем первый запрос
+        result_step1 = make_api_request("PUT", url_status, data=data_step1)
+
+        if not result_step1 or not result_step1.get("success"):
+            error_msg = (
+                result_step1.get("errors", {}).get("message", "Неизвестная ошибка")
+                if result_step1
+                else "Нет ответа от API"
+            )
+            error_code = (
+                result_step1.get("errors", {}).get("code", 0) if result_step1 else 0
+            )
+            logger.error(
+                f"Не удалось установить статус 26 для заказа #{order_id}. Ошибка: {error_msg} (код {error_code})"
+            )
+            return False
+
+        logger.info(
+            f"Статус 26 успешно установлен для заказа #{order_id}. Пауза 5 секунд..."
+        )
+        time.sleep(5)
+        data_step2 = {
+            "status": 2,
+        }
+
+        # Выполняем первый запрос
+        result_step2 = make_api_request("PUT", url_status, data=data_step2)
+
+        if not result_step2 or not result_step2.get("success"):
+            error_msg = (
+                result_step2.get("errors", {}).get("message", "Неизвестная ошибка")
+                if result_step2
+                else "Нет ответа от API"
+            )
+            error_code = (
+                result_step2.get("errors", {}).get("code", 0) if result_step2 else 0
+            )
+            logger.error(
+                f"Не удалось установить статус 2 для заказа #{order_id}. Ошибка: {error_msg} (код {error_code})"
+            )
+            return False
+
+        logger.info(
+            f"Статус 2 успешно установлен для заказа #{order_id}. Пауза 5 секунд..."
+        )
+
+        # Пауза 5 секунд между запросами
+        time.sleep(5)
+
+        # Устанавливаем финальный статус 6
+        logger.info(f"Устанавливаем статус 6 для заказа #{order_id}")
+        data_step3 = {
+            "status": 6,
+        }
+
+        # Выполняем второй запрос
+        result_step3 = make_api_request("PUT", url_status, data=data_step3)
+
+        if not result_step3 or not result_step3.get("success"):
+            error_msg = (
+                result_step3.get("errors", {}).get("message", "Неизвестная ошибка")
+                if result_step3
+                else "Нет ответа от API"
+            )
+            error_code = (
+                result_step3.get("errors", {}).get("code", 0) if result_step3 else 0
+            )
+            logger.error(
+                f"Не удалось установить статус 6 для заказа #{order_id}. Ошибка: {error_msg} (код {error_code})"
+            )
+            return False
+
+        logger.info(f"Заказ #{order_id} успешно завершен (статус 6)")
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Неожиданная ошибка при изменении статуса заказа #{order_id}: {e}"
+        )
+        return False
+
+
 def process_orders():
     """Обработка заказов и выборка нужной информации"""
     # Запускаем проверку валидности токена
@@ -350,6 +454,7 @@ if __name__ == "__main__":
 
         result_order = get_next_available_key_for_orders()
         for i, order in enumerate(result_order):
+
             if "error" in order:
                 # Если есть ошибка (например, недостаточно ключей)
                 message_alert = order["error"]
@@ -412,6 +517,13 @@ if __name__ == "__main__":
                 )
                 get_send_email(email, message_email)
                 logger.info(f"Заказ {order_id} обработан")
+                # Закрываем заказ после отправки всех уведомлений
+                if complete_order(order_id):
+                    logger.info(f"Заказ {order_id} обработан и завершен")
+                else:
+                    logger.error(
+                        f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
+                    )
 
             else:
                 match = re.search(r"(\d+)\$", product)
@@ -436,6 +548,13 @@ if __name__ == "__main__":
 
                 get_send_email(email, message_email)
                 logger.info(f"Заказ {order_id} обработан")
+                # Закрываем заказ после отправки всех уведомлений
+                if complete_order(order_id):
+                    logger.info(f"Заказ {order_id} обработан и завершен")
+                else:
+                    logger.error(
+                        f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
+                    )
 
         logger.info("Пауза 10 мин")
         time.sleep(600)

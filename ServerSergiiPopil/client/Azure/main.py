@@ -20,18 +20,18 @@ try:
     # Устанавливаем соединение
     conn = pyodbc.connect(connection_string)
     print("Успешно подключились к базе данных!")
-    
+
     # Создаём курсор для выполнения запросов
     cursor = conn.cursor()
-    
+
     # Тестовый запрос
     cursor.execute("SELECT @@VERSION")
     row = cursor.fetchone()
     print(f"Версия SQL Server: {row[0]}")
-    
+
 except pyodbc.Error as e:
     print(f"Ошибка подключения: {e}")
-    
+
 finally:
     try:
         cursor.close()

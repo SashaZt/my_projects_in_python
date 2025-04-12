@@ -4,7 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 from excel_extractor import extract_column_a_from_excel
-from logger import logger
+from kostrost.all_site.config.logger import logger
 from kostrost.all_site.scraper_api_async import ScraperAPI
 
 # Константы

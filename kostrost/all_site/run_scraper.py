@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-from logger import logger
+from kostrost.all_site.config.logger import logger
 from scraper import ExcelSheetScraper
 
 

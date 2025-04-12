@@ -3,7 +3,7 @@ import os
 import time
 
 import requests
-from logger import logger
+from kostrost.all_site.config.logger import logger
 
 
 class ScraperAPIAsync:
