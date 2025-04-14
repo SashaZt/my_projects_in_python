@@ -75,6 +75,9 @@ def pars_htmls():
         availability_tag = soup.find("div", class_="mp-availability").find("b")
         availability = availability_tag.text.strip() if availability_tag else None
         logger.info(f"Доступность: {availability}")
+        price = soup.find("div", attrs={"class": "font-s"}).text.strip()
+        logger.info(f"Цена: {price}")
+
         # Перебираем все скрипты JSON-LD
         for script in scripts:
             try:
@@ -85,6 +88,7 @@ def pars_htmls():
                 main_product = extract_product_data(script_text)
                 if main_product:
                     main_product["availability"] = availability
+                    main_product["price"] = price.replace(" zł", "")
                     all_data.append(main_product)
 
                     break

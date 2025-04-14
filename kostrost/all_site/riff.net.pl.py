@@ -7,47 +7,39 @@ from config.logger import logger
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
 json_data_directory = current_directory / "json_data"
-html_directory = current_directory / "html_pages" / "guitarcenter.pl"
-output_file = json_data_directory / "guitarcenter.pl.json"
+html_directory = current_directory / "html_pages" / "riff.net.pl"
+output_file = json_data_directory / "riff.net.pl.json"
 
 
 def extract_product_data(data):
 
-    title = data.find("h1", attrs={"itemprop": "name"})
-    if title is not None:
-        title = title.text.strip()
+    title = data.find("h1", attrs={"itemprop": "name"}).find("span")
+    title = title.text.strip()
     price = data.find("td", attrs={"itemprop": "price"})
-    if price is not None:
+    if price:
         price = price.get("content")
     else:
         logger.warning("Тег с ценой не найден")
         price = None
-    gtin13 = data.find("meta", attrs={"itemprop": "gtin13"})
-    if gtin13 is not None:
-        gtin13 = gtin13.get("content")
+    article_number = data.find("span", attrs={"class": "product-ean"})
+    if article_number:
+        article_number = article_number.text.strip()
     else:
         logger.warning("Тег с артикулом не найден")
-        gtin13 = None
+        article_number = None
 
-    # Извлечение доступности по частичному совпадению классов
-    def has_tahoma_alignleft(tag):
-        return (
-            tag.name == "p"
-            and "tahoma13" in tag.get("class", [])
-            and "alignleft" in tag.get("class", [])
-        )
+    availability_tag = data.find("span", attrs={"id": "product-availability"})
 
-    availability_tag = data.find(has_tahoma_alignleft)
-    availability = None
     if availability_tag:
         availability = availability_tag.text.strip().split("\n")[0].strip()
     else:
         logger.warning("Тег с доступностью не найден")
+        availability = None
 
     all_data = {
         "title": title,
         "price": price,
-        "article_number": gtin13,
+        "article_number": article_number,
         "availability": availability,
     }
     return all_data

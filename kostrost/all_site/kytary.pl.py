@@ -13,11 +13,32 @@ output_file = json_data_directory / "kytary.pl.json"
 
 def extract_product_data(data):
 
-    title = data.find("meta", attrs={"itemprop": "name"}).get("content")
-    price = data.find("div", attrs={"class": "price"}).text.replace(" zł", "").strip()
-    sku = data.find("meta", attrs={"itemprop": "sku"}).get("content")
+    title = data.find("meta", attrs={"itemprop": "name"})
+    if title is not None:
+        title = title.get("content").strip()
+    else:
+        logger.warning("Тег с названием не найден")
+        title = None
+    price = data.find("div", attrs={"class": "price"})
+    if price is not None:
+        price = price.get("content")
+    else:
+        logger.warning("Тег с ценой не найден")
+        price = None
+    # Извлечение артикулов
+    sku = data.find("meta", attrs={"itemprop": "sku"})
+    if sku is not None:
+        sku = sku.get("content")
+    else:
+        logger.warning("Тег с артикулом не найден")
+        sku = None
 
-    availability = data.find("div", attrs={"class": "pdpwst"}).text.strip()
+    availability = data.find("div", attrs={"class": "pdpwst"})
+    if availability:
+        availability = availability.text.strip()
+    else:
+        logger.warning("Тег с доступностью не найден")
+        availability = None
 
     all_data = {
         "title": title,

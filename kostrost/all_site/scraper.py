@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 import requests
-from kostrost.all_site.config.logger import logger
+from config.logger import logger
 
 
 class ExcelSheetScraper:
@@ -148,8 +148,8 @@ class ExcelSheetScraper:
 
         logger.info(f"Проверка статуса задания {job_id} для URL {url}")
 
-        max_attempts = 5
-        wait_time = 5  # секунд
+        max_attempts = 2
+        wait_time = 2  # секунд
 
         for attempt in range(max_attempts):
             try:
@@ -277,6 +277,31 @@ class ExcelSheetScraper:
         logger.error(f"Превышено количество попыток проверки статуса задания {job_id}")
         return "timeout", None
 
+    def get_hash_filename_from_url(self, url):
+        """
+        Создает имя файла на основе хеша URL
+
+        Args:
+            url: URL страницы
+
+        Returns:
+            Имя файла для сохранения HTML в формате hash.html
+        """
+        try:
+            import hashlib
+
+            # Используем полный md5 хеш URL
+            url_hash = hashlib.md5(url.encode()).hexdigest()
+
+            # Формируем имя файла в формате hash.html
+            filename = f"{url_hash}.html"
+
+            return filename
+        except Exception as e:
+            logger.error(f"Ошибка при создании хеш-имени файла из URL {url}: {str(e)}")
+            # Возвращаем запасной вариант имени файла
+            return self.get_filename_from_url(url)
+
     def submit_jobs(self, sheet_urls):
         """
         Отправляет задания на скрапинг для всех URL (только асинхронный API)
@@ -299,10 +324,10 @@ class ExcelSheetScraper:
             for url in urls:
                 total_processed += 1
                 # Формируем имя файла на основе URL
-                clean_url = url.strip()
+                # clean_url = url.strip()
 
                 # Получаем имя файла на основе домена и пути (более читаемое имя)
-                filename = self.get_domain_filename_from_url(clean_url)
+                filename = self.get_hash_filename_from_url(url)
                 html_file = sheet_dir / filename
 
                 # Если файл уже существует, пропускаем
@@ -311,11 +336,9 @@ class ExcelSheetScraper:
                     continue
 
                 # Проверяем, нет ли уже задания для этого URL
-                existing_job = self._find_existing_job(clean_url)
+                existing_job = self._find_existing_job(url)
                 if existing_job:
-                    logger.info(
-                        f"Для URL {clean_url} уже есть задание, проверяем его статус"
-                    )
+                    logger.info(f"Для URL {url} уже есть задание, проверяем его статус")
 
                     # Проверяем статус задания
                     job_status, html_content = self.check_existing_job_status(
@@ -328,7 +351,7 @@ class ExcelSheetScraper:
                             f.write(html_content)
 
                         logger.info(
-                            f"URL {clean_url} успешно получен из существующего задания и сохранен в {html_file}"
+                            f"URL {url} успешно получен из существующего задания и сохранен в {html_file}"
                         )
                         total_submitted += 1
 
@@ -341,14 +364,7 @@ class ExcelSheetScraper:
                             logger.error(f"Ошибка при удалении файла задания: {str(e)}")
 
                         continue
-                    elif job_status == "failed" or job_status == "timeout":
-                        # Удаляем неудачное задание
-                        try:
-                            json_file = self.json_dir / f"{existing_job['id']}.json"
-                            json_file.unlink()  # Удаляем файл
-                            logger.info(f"Неудачное задание {json_file} удалено")
-                        except Exception as e:
-                            logger.error(f"Ошибка при удалении файла задания: {str(e)}")
+
                     else:
                         # Задание все еще выполняется, пропускаем URL
                         continue
@@ -364,7 +380,7 @@ class ExcelSheetScraper:
                             url="https://async.scraperapi.com/jobs",
                             json={
                                 "apiKey": self.api_key,
-                                "url": clean_url,
+                                "url": url,
                             },
                             timeout=30,
                         )
@@ -376,7 +392,7 @@ class ExcelSheetScraper:
                             # Сохраняем информацию о задании
                             job_info = {
                                 "id": job_id,
-                                "url": clean_url,
+                                "url": url,
                                 "sheet_name": sheet_name,
                                 "html_file": str(html_file),
                                 "status": "submitted",
@@ -388,26 +404,26 @@ class ExcelSheetScraper:
                                 json.dump(job_info, f, indent=4)
 
                             logger.info(
-                                f"Асинхронное задание {job_id} отправлено для URL {clean_url}"
+                                f"Асинхронное задание {job_id} отправлено для URL {url}"
                             )
                             total_submitted += 1
                             success = True
                             break
                         else:
                             logger.error(
-                                f"Ошибка при отправке задания для URL {clean_url}: {response.status_code} - {response.text}"
+                                f"Ошибка при отправке задания для URL {url}: {response.status_code} - {response.text}"
                             )
                             time.sleep((attempt + 1) * 2)
 
                     except Exception as e:
                         logger.error(
-                            f"Ошибка при отправке задания для URL {clean_url}: {str(e)}"
+                            f"Ошибка при отправке задания для URL {url}: {str(e)}"
                         )
                         time.sleep((attempt + 1) * 2)
 
                 if not success:
                     logger.error(
-                        f"Не удалось отправить задание для URL {clean_url} после {max_retries} попыток"
+                        f"Не удалось отправить задание для URL {url} после {max_retries} попыток"
                     )
 
         logger.info(
@@ -442,7 +458,6 @@ class ExcelSheetScraper:
 
         for json_file in self.json_dir.glob("*.json"):
             try:
-                html_file.parent.mkdir(parents=True, exist_ok=True)
 
                 with open(json_file, "r", encoding="utf-8") as f:
                     job_info = json.load(f)
@@ -451,6 +466,7 @@ class ExcelSheetScraper:
                 url = job_info.get("url")
                 html_file_path = job_info.get("html_file")
                 html_file = Path(html_file_path)
+                html_file.parent.mkdir(parents=True, exist_ok=True)
 
                 # Если файл уже существует, удаляем задание и пропускаем
                 if html_file.exists():
