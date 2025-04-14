@@ -10,6 +10,21 @@ import pandas as pd
 import requests
 from config.logger import logger
 
+current_directory = Path.cwd()
+config_directory = current_directory / "config"
+config_file = config_directory / "config.json"
+excel_file = "thomann.xlsx"
+
+
+def get_config():
+    with open(config_file, "r", encoding="utf-8") as file:
+        data = json.load(file)
+    return data
+
+
+config = get_config()
+API_KEY = config["scraperapi"]["api_key"]
+
 
 class ExcelSheetScraper:
     def __init__(
@@ -559,8 +574,6 @@ class ExcelSheetScraper:
 
 # Пример использования
 if __name__ == "__main__":
-    API_KEY = "d415ddc01cf23948eff76e4447f69372"
-    excel_file = "thomann.xlsx"
 
     scraper = ExcelSheetScraper(API_KEY, excel_file)
 
