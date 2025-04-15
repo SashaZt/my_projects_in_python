@@ -6,7 +6,6 @@ from pathlib import Path
 
 from logger import logger
 from main_alert import send_alert, send_alert_sync
-from main_db import mark_keys_as_sent
 from main_token import load_product_data
 from telethon.errors import SessionPasswordNeededError
 from telethon.sync import TelegramClient
@@ -97,7 +96,6 @@ async def send_message(user_phone, message, key_ids, order_id, codes):
             # Отправляем сообщение
             await client.send_message(users[0], message)
             logger.info("Сообщение отправлено!")
-            mark_keys_as_sent(order_id, key_ids)
 
             # Важная задержка, чтобы избежать превышения лимитов
             await asyncio.sleep(5)

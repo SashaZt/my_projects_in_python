@@ -21,7 +21,7 @@ def extract_product_data(data):
         title = None
     price = data.find("div", attrs={"class": "price"})
     if price is not None:
-        price = price.get("content")
+        price = price.text.strip()
     else:
         logger.warning("Тег с ценой не найден")
         price = None

@@ -74,9 +74,6 @@ headers = {
 
 def read_xlsx():
 
-    shutil.rmtree(html_directory)
-    html_directory.mkdir(parents=True, exist_ok=True)
-
     # Читаем Excel файл, указывая, что первая строка - заголовок
     df = pd.read_excel(output_xlsx_file, header=0)
 
@@ -91,8 +88,7 @@ def read_xlsx():
 
 
 def main_th():
-    if not os.path.exists(html_directory):
-        html_directory.mkdir(parents=True, exist_ok=True)
+
     urls = []
     with open(output_csv_file, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
@@ -246,5 +242,26 @@ def update_excel_with_array(data_array):
 
 if __name__ == "__main__":
     read_xlsx()
-    main_th()
-    pars_htmls()
+    while True:
+        print(
+            "\nВыберите действие:\n"
+            "1. Скачивание данные\n"
+            "2. Записать результат в Ексель\n"
+            "3. Очистить временные файлы\n"
+            "0. Выход"
+        )
+        choice = input("Введите номер действия: ")
+
+        if choice == "1":
+            main_th()
+
+        elif choice == "2":
+            pars_htmls()
+        elif choice == "3":
+            shutil.rmtree(html_directory)
+            if not os.path.exists(html_directory):
+                html_directory.mkdir(parents=True, exist_ok=True)
+        elif choice == "0":
+            exit()
+        else:
+            logger.info("Неверный выбор. Пожалуйста, попробуйте снова.")

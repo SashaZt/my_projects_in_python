@@ -1,3 +1,4 @@
+#/api/main.py
 import sys
 import os
 from contextlib import asynccontextmanager
@@ -14,6 +15,8 @@ from core.logger import logger
 
 # Импорт эндпоинтов
 from endpoints.webhook import router as webhook_router
+from endpoints import bts_webhook
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -65,7 +68,7 @@ async def log_middleware(request: Request, call_next):
 
 # Подключение маршрутов
 app.include_router(webhook_router, prefix="/api/crm/webhook", tags=["webhook"])
-
+app.include_router(bts_webhook.router,prefix="/api/bts/webhook",tags=["bts"])
 
 # Базовый маршрут для проверки здоровья API
 @app.get("/health", tags=["health"])

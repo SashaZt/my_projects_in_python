@@ -139,8 +139,7 @@ async def single_html_one(url):
                         page_number = f"page_{page_number_raw.split('_')[-1]}"
 
                     content = await page.content()
-                    html_file_path = html_files_directory / \
-                        f"0{page_number}.html"
+                    html_file_path = html_files_directory / f"0{page_number}.html"
                     with open(html_file_path, "w", encoding="utf-8") as f:
                         f.write(content)
 
@@ -242,8 +241,7 @@ async def single_html_one_contact(url):
                         """,
                         timeout=10000,  # Время ожидания 10 секунд
                     )
-                    logger.info(
-                        "Номер страницы изменился, переход успешно выполнен.")
+                    logger.info("Номер страницы изменился, переход успешно выполнен.")
                     attempts = 0  # Сбрасываем счетчик попыток, так как переход успешен
                 except Exception as e:
                     attempts += 1
@@ -420,8 +418,7 @@ async def single_html_page_company(url):
                         await next_button.click()
                         await asyncio.sleep(3)
                     except Exception as e:
-                        logger.error(
-                            f"Ошибка при клике на кнопку 'Next Page': {e}")
+                        logger.error(f"Ошибка при клике на кнопку 'Next Page': {e}")
                 else:
                     logger.info(
                         "Кнопка 'Next Page' не найдена или не видна, завершаем обработку."
@@ -530,8 +527,7 @@ def parsing_page():
 
                         # Извлекаем данные
                         serial_number = (
-                            td_elements[0].get_text(
-                                strip=True).replace("№", "").strip()
+                            td_elements[0].get_text(strip=True).replace("№", "").strip()
                         )
                         ad_number = (
                             td_elements[1]
@@ -665,8 +661,10 @@ def parsing_company():
                     if inn_from_content == inn:
                         logger.info("ИНН сходится")
                     else:
-                        logger.info(f"Разные, файл {inn}, внутри {
-                                    inn_from_content}")
+                        logger.info(
+                            f"Разные, файл {inn}, внутри {
+                                    inn_from_content}"
+                        )
         write_inn_to_csv_inn(inn_from_content)
 
         # logger.info(result)
@@ -734,8 +732,10 @@ def parsing_company_():
                     if inn_from_content == inn:
                         logger.info("ИНН сходится")
                     else:
-                        logger.info(f"Разные, файл {inn}, внутри {
-                                    inn_from_content}")
+                        logger.info(
+                            f"Разные, файл {inn}, внутри {
+                                    inn_from_content}"
+                        )
 
         # logger.info(result)
         all_data.append(result)
@@ -764,8 +764,7 @@ def parsing_page_company():
         with html_file.open(encoding="utf-8") as file:
             content: str = file.read()
         soup = BeautifulSoup(content, "lxml")
-        table = soup.find(
-            "table", attrs={"class": "display-table public-table"})
+        table = soup.find("table", attrs={"class": "display-table public-table"})
         if table:
             rows = table.find("tbody").find_all("tr")
 
@@ -796,8 +795,8 @@ def parsing_page_company():
 # Функция для выполнения основной логики
 def main():
     url = "http://zakupki.gov.kg/popp/view/services/registry/suppliers.xhtml"
-    asyncio.run(single_html_one(url))
-    # asyncio.run(single_html_page_company(url))
+    # asyncio.run(single_html_one(url))
+    asyncio.run(single_html_page_company(url))
 
 
 def get_write_json():
@@ -810,7 +809,7 @@ def get_write_json():
             parsed_data = json.load(f)
 
         # Создаем словарь для быстрого поиска по ИНН из parsed_data.json
-        parsed_dict = {entry["ИНН организации"]                       : entry for entry in parsed_data}
+        parsed_dict = {entry["ИНН организации"]: entry for entry in parsed_data}
 
         # Обновление данных в output_html
         for company in output_html:
@@ -823,8 +822,7 @@ def get_write_json():
             json.dump(output_html, f, ensure_ascii=False, indent=4)
 
         # Преобразование списка словарей в DataFrame с учетом всех ключей
-        unique_keys = sorted(
-            {key for item in output_html for key in item.keys()})
+        unique_keys = sorted({key for item in output_html for key in item.keys()})
         normalized_data = [
             {key: item.get(key, None) for key in unique_keys} for item in output_html
         ]
@@ -868,17 +866,14 @@ def delet_html():
 def filter_inn_data():
     try:
         # Загрузка данных из CSV файлов
-        inns_successful = pd.read_csv(
-            "inns_successful.csv", header=None, names=["ИНН"])
+        inns_successful = pd.read_csv("inns_successful.csv", header=None, names=["ИНН"])
         inn_data = pd.read_csv("inn_data.csv", header=None, names=["ИНН"])
 
         # Фильтрация данных: удаление всех значений из inn_data, которые есть в inns_successful
-        filtered_inn_data = inn_data[~inn_data["ИНН"].isin(
-            inns_successful["ИНН"])]
+        filtered_inn_data = inn_data[~inn_data["ИНН"].isin(inns_successful["ИНН"])]
 
         # Сохранение отфильтрованных данных в новый CSV файл
-        filtered_inn_data.to_csv(
-            "filtered_inn_data.csv", index=False, header=False)
+        filtered_inn_data.to_csv("filtered_inn_data.csv", index=False, header=False)
 
     except Exception as e:
         print(f"Произошла ошибка: {e}")
@@ -888,8 +883,8 @@ if __name__ == "__main__":
     # main()
     # parsing_page()
     # parsing_company()
-    get_write_json()
+    # get_write_json()
     # filter_inn_data()
-    parsing_page_company()
-    # delet_html()
-    # parsing_company_()
+    # parsing_page_company()
+    delet_html()
+    parsing_company_()

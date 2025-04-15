@@ -4,31 +4,33 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 from config.logger import logger
 
+name_site = "sklep-muzyczny.com.pl"
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
 json_data_directory = current_directory / "json_data"
-html_directory = current_directory / "html_pages" / "riff.net.pl"
-output_file = json_data_directory / "riff.net.pl.json"
+html_directory = current_directory / "html_pages" / name_site
+output_file = json_data_directory / f"{name_site}.json"
 
 
 def extract_product_data(data):
 
-    title = data.find("h1", attrs={"itemprop": "name"}).find("span")
+    title = data.find("h1", attrs={"class": "pinfo-name"})
     title = title.text.strip()
     price = data.find("span", attrs={"itemprop": "price"})
     if price:
-        price = price.get("content")
+        price = price.get("content").replace("\n\t", "").replace("\t", "")
     else:
         logger.warning("Тег с ценой не найден")
         price = None
-    article_number = data.find("input", attrs={"name": "id_product"})
+
+    article_number = data.find("meta", attrs={"itemprop": "sku"})
     if article_number:
-        article_number = article_number.get("value")
+        article_number = article_number.get("content")
     else:
         logger.warning("Тег с артикулом не найден")
         article_number = None
 
-    availability_tag = data.find("span", attrs={"id": "product-availability"})
+    availability_tag = data.find("div", attrs={"class": "pinfo-stock-info"})
 
     if availability_tag:
         availability = availability_tag.text.strip().split("\n")[0].strip()

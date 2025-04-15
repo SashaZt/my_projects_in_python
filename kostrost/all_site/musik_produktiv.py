@@ -94,8 +94,6 @@ def pars_htmls():
                     break
             except json.JSONDecodeError as e:
                 logger.error(f"Ошибка парсинга JSON: {e}")
-                # Или можно использовать print:
-                logger.info(f"Ошибка парсинга JSON: {e}")
         else:
             logger.error("Product JSON не найден.")
 

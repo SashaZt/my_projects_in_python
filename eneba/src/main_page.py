@@ -684,7 +684,7 @@ def extract_ids_from_excel():
     export_xlsx = get_path("export_xlsx")
 
     try:
-
+        export_xlsx = f"{BASE_DIR}/data/export-products.xlsx"
         # Загружаем Excel-файл
         logger.info(f"Загрузка Excel-файла: {export_xlsx}")
         df = pd.read_excel(export_xlsx)
@@ -695,13 +695,8 @@ def extract_ids_from_excel():
 
         # Словарь для маппинга возможных имен колонок
         column_mapping = {
-            "Назва_позиції": ["Назва_позиції", "Код товару", "Код", "A"],
-            "Унікальний_ідентифікатор": [
-                "Унікальний_ідентифікатор",
-                "Унікальний ідентифікатор",
-                "ID",
-                "Y",
-            ],
+            "Назва_позиції": ["Назва_позиції"],
+            "Унікальний_ідентифікатор": ["Унікальний_ідентифікатор"],
         }
 
         # Находим реальные имена колонок
@@ -750,10 +745,10 @@ def extract_ids_from_excel():
 
             # Добавляем в результат, только если оба значения не пусты
             if product_code and unique_id:
+                # Используем нижний регистр для ключа словаря
                 result[product_code] = unique_id
 
         logger.info(f"Извлечено {len(result)} пар ID из Excel-файла")
-        logger.info(result)
         update_unique_ids_in_db(result)
         return result
 

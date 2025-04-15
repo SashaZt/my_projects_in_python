@@ -592,9 +592,11 @@ def update_unique_ids_in_db(id_mapping):
     # Обновляем unique_id для каждого product_code
     for product_name, unique_id in id_mapping.items():
         try:
+            # Здесь product_name уже в нижнем регистре из предыдущей функции
             if product_name in existing_codes:
+                # Но в запросе используем LOWER для сравнения с БД
                 cursor.execute(
-                    "UPDATE products SET unique_id = ? WHERE product_name = ?",
+                    "UPDATE products SET unique_id = ? WHERE LOWER(product_name) = ?",
                     (unique_id, product_name),
                 )
 

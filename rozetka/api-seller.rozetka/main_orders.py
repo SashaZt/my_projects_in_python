@@ -10,6 +10,7 @@ from main_alert import init_alert_client_sync, send_alert_sync
 from main_db import (
     get_next_available_key_for_orders,
     import_keys_from_files,
+    mark_keys_as_sent,
     save_parsed_orders_to_db,
 )
 from main_mail import get_send_email
@@ -517,6 +518,11 @@ if __name__ == "__main__":
                 )
                 get_send_email(email, message_email)
                 logger.info(f"Заказ {order_id} обработан")
+
+                mark_keys_as_sent(order_id, key_ids)
+                logger.info(
+                    f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
+                )
                 # Закрываем заказ после отправки всех уведомлений
                 if complete_order(order_id):
                     logger.info(f"Заказ {order_id} обработан и завершен")
@@ -549,6 +555,10 @@ if __name__ == "__main__":
                 get_send_email(email, message_email)
                 logger.info(f"Заказ {order_id} обработан")
                 # Закрываем заказ после отправки всех уведомлений
+                mark_keys_as_sent(order_id, key_ids)
+                logger.info(
+                    f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
+                )
                 if complete_order(order_id):
                     logger.info(f"Заказ {order_id} обработан и завершен")
                 else:
