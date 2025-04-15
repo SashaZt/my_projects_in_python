@@ -73,38 +73,7 @@ services:
     ports:
       - "${API_PORT:-5000}:5000"
   # TikTok Client сервис - добавляем новый сервис
-  tiktok-client:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-    container_name: ${PROJECT_NAME:-tiktok-analytics}-client
-    restart: unless-stopped
-    depends_on:
-      - api
-    environment:
-      # Настройки подключения к API
-      API_BASE_URL: http://api:${API_PORT:-5000}/api
-      API_TIMEOUT: ${CLIENT_API_TIMEOUT:-30}
-      API_MAX_RETRIES: ${CLIENT_API_MAX_RETRIES:-10}
-      API_RETRY_DELAY: ${CLIENT_API_RETRY_DELAY:-5}
 
-      # Настройки часового пояса
-      TZ: ${TIMEZONE:-UTC}
-
-      # Настройки логирования
-      LOG_LEVEL: ${CLIENT_LOG_LEVEL:-INFO}
-
-      # Настройки расписания
-      DAILY_SCHEDULE: ${DAILY_SCHEDULE:-"0 0 * * *"}
-      HOURLY_SCHEDULE: ${HOURLY_SCHEDULE:-"0 */4 * * *"}
-    volumes:
-      # Монтирование директорий для данных и логов
-      - ./client/data:/app/data
-      - ./logs/client:/app/logs
-      # Для разработки - отображение кода
-      - ./client:/app
-    networks:
-      - app_network
 
 networks:
   app_network:

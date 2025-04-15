@@ -396,10 +396,10 @@ def update_prices_and_images(json_file_path, category_id=None):
             if price is not None:
                 price_str = str(price).replace(".", ",")
             else:
-                price_str = "0"  # Если price = null, устанавливаем "0"
+                price_str = "1"  # Если price = null, устанавливаем "0"
 
             # Если цена "0", также обновляем availability на "-"
-            if price_str == "0":
+            if price_str == "1":
                 cursor.execute(
                     "UPDATE products SET price = ?, availability = ? WHERE product_slug = ?",
                     (price_str, "-", slug),

@@ -5,6 +5,10 @@ from datetime import datetime
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
+
+# Правильные импорты для обеих таблиц
+from models.orders import orders, order_items  # Импортируем обе таблицы из orders.py
+
 def format_phone(phone):
     """
     Форматирует номер телефона в формат 998-765-354.
@@ -39,12 +43,10 @@ async def save_webhook_to_db(json_data, db):
     Returns:
         int: ID созданного заказа
     """
-    from models.orders import orders, order_items
-
     try:
         # Парсим JSON
         data = json.loads(json_data) if isinstance(json_data, str) else json_data
-        
+        logger.info(data)
         # Извлекаем данные из вебхука
         order_number = data["data"]["id"] or None
         first_name = data["data"]["contacts"][0]["fName"] or None
@@ -55,6 +57,8 @@ async def save_webhook_to_db(json_data, db):
         receiverDelivery = bool(data["data"]["kurer"]) if data["data"]["kurer"] is not None else None  # 1-Вызов курьера, 0-самовывоз в офис BTS.
         receiverAddress = None
         receiver_branch_id = None
+        receiver_city_id = None  # Объявляем переменную заранее
+        
         if receiverDelivery:
             receiverDelivery = 1
             receiverAddress = next(
@@ -152,11 +156,16 @@ async def save_webhook_to_db(json_data, db):
                     "order_id": order_id,
                     "name": product.get("name", "Товар без названия"),
                     "quantity": product.get("amount", 1),
-                    "price": product.get("price", 0)
+                    "price": product.get("price", 0),
+                    "sku": product.get("sku", None)  # Добавляем сохранение поля sku
                 }
                 order_items_data.append(item)
             
             if order_items_data:
+                # Логируем данные товаров перед вставкой для отладки
+                logger.debug(f"Данные товаров для вставки: {order_items_data}")
+                
+                # Вставляем товары
                 await db.execute(insert(order_items).values(order_items_data))
         
         await db.commit()
@@ -204,6 +213,7 @@ async def get_branch_by_id(branch_id, db):
     except Exception as e:
         logger.error(f"Ошибка при получении филиала по ID {branch_id}: {e}")
         return None
+
 def parse_location(location_str):
     # Регулярное выражение:
     # id_(\d+) - захватывает id_ и число

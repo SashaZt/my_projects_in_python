@@ -13,7 +13,7 @@ async def send_order_to_bts(order_data, db_order_id, db):
     """
     from core.config import settings
     import aiohttp
-    from models.orders import orders
+    from models.orders import orders, order_items  # Импортируем обе таблицы из models.orders
     from sqlalchemy import update
     from datetime import datetime, timedelta
     import json
@@ -29,7 +29,6 @@ async def send_order_to_bts(order_data, db_order_id, db):
     
     # Подготавливаем данные для отправки согласно документации API
     bts_data = {
-        
         "senderDelivery": order_data["sender_delivery"],
         "senderCityId": order_data["sender_city_id"],
         "senderAddress": order_data["sender_address"],
@@ -63,7 +62,6 @@ async def send_order_to_bts(order_data, db_order_id, db):
         bts_data["back_money"] = float(order_data["back_money"])
     
     # Если есть товары в заказе, добавляем их как postTypes
-    from models.order_items import order_items
     query = select(order_items).where(order_items.c.order_id == db_order_id)
     result = await db.execute(query)
     items = result.fetchall()
@@ -71,11 +69,20 @@ async def send_order_to_bts(order_data, db_order_id, db):
     if items:
         bts_data["postTypes"] = []
         for item in items:
-            bts_data["postTypes"].append({
+            # Формируем элемент postTypes по формату BTS API
+            post_type = {
                 "name": item.name,
-                "code": f"ITEM{item.id}",  # Генерируем код товара
                 "count": item.quantity
-            })
+            }
+            
+            # Используем SKU как code товара
+            # Если SKU не указан, используем fallback с ID товара
+            if item.sku:
+                post_type["code"] = item.sku
+            else:
+                post_type["code"] = f"ITEM{item.id}"
+                
+            bts_data["postTypes"].append(post_type)
     
     try:
         # Получаем API ключ из настроек
@@ -99,32 +106,6 @@ async def send_order_to_bts(order_data, db_order_id, db):
                 except json.JSONDecodeError:
                     response_data = {"raw_response": response_text}
                 
-                # Обрабатываем ответ
-                # if response.status == 200 and response_data.get("success", False):
-                #     logger.info(f"Заказ успешно отправлен в BTS: {response_data}")
-                    
-                #     # Получаем TTN из ответа (зависит от структуры ответа BTS)
-                #     ttn = response_data.get("data", {}).get("ttn") or response_data.get("ttn")
-                    
-                #     # Обновляем запись в БД с результатами отправки
-                #     await db.execute(
-                #         update(orders)
-                #         .where(orders.c.id == db_order_id)
-                #         .values(
-                #             bts_response=response_data,
-                #             submission_status_bts="success",
-                #             ttn=ttn,
-                #             # Добавьте другие поля, которые могут прийти в ответе
-                #         )
-                #     )
-                #     await db.commit()
-                    
-                #     return {
-                #         "success": True,
-                #         "bts_order_id": response_data.get("data", {}).get("id"),
-                #         "tracking_number": ttn,
-                #         "response": response_data
-                #     }
                 if response.status == 200 and response_data.get("orderId") is not None:
                     logger.info(f"Заказ успешно отправлен в BTS: {response_data}")
                     
@@ -139,7 +120,6 @@ async def send_order_to_bts(order_data, db_order_id, db):
                             bts_response=response_data,
                             submission_status_bts="success",
                             ttn=ttn,
-                            # Добавьте другие поля, которые могут прийти в ответе
                         )
                     )
                     await db.commit()

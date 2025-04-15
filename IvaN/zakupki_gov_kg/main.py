@@ -883,8 +883,9 @@ if __name__ == "__main__":
     # main()
     # parsing_page()
     # parsing_company()
-    # get_write_json()
+    #
     # filter_inn_data()
     # parsing_page_company()
-    delet_html()
-    parsing_company_()
+    # delet_html()
+    # parsing_company_()
+    get_write_json()

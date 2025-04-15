@@ -13,6 +13,7 @@ order_items = Table(
     Column('name', String(255), nullable=False),
     Column('quantity', Integer, nullable=False),
     Column('price', DECIMAL(12, 2), nullable=False),
+    Column('sku', String(100), nullable=True),  # Добавленная колонка для артикула товара
     Column('created_at', TIMESTAMP, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
     Column('updated_at', TIMESTAMP, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
 )
