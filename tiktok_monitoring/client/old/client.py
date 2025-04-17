@@ -114,7 +114,7 @@ class TikTokMonitor:
                                 # Выполняем пакетную вставку
                                 await conn.executemany(query, values)
                     
-                    # logger.info(f"Saved {len(gifts_batch)} gifts to database")
+                    logger.info(f"Saved {len(gifts_batch)} gifts to database")
                     gifts_batch = []
                     last_flush_time = current_time
                 
@@ -128,7 +128,7 @@ class TikTokMonitor:
                     logger.error(f"Problematic gift data: {gifts_batch[0]}")
                 gifts_batch = []
                 await asyncio.sleep(1)
-        
+    
     async def _update_streamers(self):
         """Обновление списка отслеживаемых стримеров"""
         while not self.shutdown_event.is_set():
@@ -246,10 +246,12 @@ class TikTokMonitor:
             
             try:
                 # Пытаемся подключиться с использованием разных идентификаторов
-                name = streamer_info.get("name")
-                connect_id = name if name and name.startswith('@') else unique_id
-                client = TikTokLiveClient(unique_id=connect_id)
-                logger.debug(f"Connecting with unique_id: {connect_id}")
+                if room_id and room_id > 0:
+                    client = TikTokLiveClient(room_id=str(room_id))
+                    logger.debug(f"Connecting with room_id: {room_id}")
+                else:
+                    client = TikTokLiveClient(unique_id=unique_id)
+                    logger.debug(f"Connecting with unique_id: {unique_id}")
                 
                 # Флаг для отслеживания успешного подключения
                 connection_established = False
@@ -283,46 +285,6 @@ class TikTokMonitor:
                             user_id, 
                             event_tiktok_id
                         )
-                        
-                        # Создаем запись в таблице streams
-                        try:
-                            # Проверяем, есть ли уже активный стрим для этого стримера
-                            existing_stream = await self.db.fetchrow(
-                                """
-                                SELECT id FROM streams 
-                                WHERE streamer_id = $1 AND end_time IS NULL
-                                """,
-                                streamer_id
-                            )
-                            
-                            if not existing_stream:
-                                # Создаем новую запись о стриме
-                                stream_id = await self.db.fetchval(
-                                    """
-                                    INSERT INTO streams 
-                                    (streamer_id, tik_tok_user_id, room_id, start_time) 
-                                    VALUES ($1, $2, $3, NOW())
-                                    RETURNING id
-                                    """,
-                                    streamer_id,
-                                    tik_tok_user_id,
-                                    event_room_id or room_id
-                                )
-                                logger.info(f"Created new stream record with ID {stream_id}")
-                            else:
-                                # Обновляем существующий стрим
-                                await self.db.execute(
-                                    """
-                                    UPDATE streams
-                                    SET max_viewers = max_viewers + 1
-                                    WHERE id = $1
-                                    """,
-                                    existing_stream['id']
-                                )
-                                logger.info(f"Updated existing stream record with ID {existing_stream['id']}")
-                        except Exception as e:
-                            logger.error(f"Error creating/updating stream record: {e}")
-                        
                     except Exception as e:
                         logger.error(f"Error in on_connect: {e}")
                 
@@ -340,31 +302,6 @@ class TikTokMonitor:
                     nonlocal connected
                     logger.info(f"Disconnected from {unique_id}")
                     connected = False
-                    
-                    # Закрываем запись о стриме
-                    try:
-                        # Обновляем streamer
-                        await self.db.execute(
-                            """
-                            UPDATE streamers 
-                            SET is_live = FALSE
-                            WHERE id = $1
-                            """, 
-                            streamer_id
-                        )
-                        
-                        # Закрываем текущий стрим
-                        await self.db.execute(
-                            """
-                            UPDATE streams
-                            SET end_time = NOW(),
-                                duration = EXTRACT(EPOCH FROM (NOW() - start_time))::INTEGER
-                            WHERE streamer_id = $1 AND end_time IS NULL
-                            """,
-                            streamer_id
-                        )
-                    except Exception as e:
-                        logger.error(f"Error updating stream end data: {e}")
                     
                 # Запускаем клиент БЕЗ таймаута
                 await client.start()

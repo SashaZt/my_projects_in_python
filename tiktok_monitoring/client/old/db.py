@@ -183,7 +183,7 @@ class Database:
                 result.append({
                     "id": s['id'],
                     "unique_id": tiktok_id,
-                    "name": s['name'],  # Возвращаем имя пользователя (с @)
+                    "name": s['name'],
                     "user_id": s['user_id'],
                     "tiktok_id": s['tiktok_id'],
                     "tik_tok_user_id": s['tik_tok_user_id'],
