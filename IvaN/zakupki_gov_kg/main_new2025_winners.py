@@ -136,21 +136,45 @@ def parse_file(file_path):
             lot_number_text = td_elements[4].get_text(strip=True)
             lot_number = re.sub(r"Номер лота\s*", "", lot_number_text).strip()
 
+            # planned_sum_text = td_elements[5].get_text(strip=True)
+            # planned_sum = re.sub(
+            #     r"Планируемая сумма лота\s*", "", planned_sum_text
+            # ).strip()
+
+            # offered_price_text = td_elements[6].get_text(strip=True)
+            # offered_price = re.sub(
+            #     r"Цена предложенная участником\s*", "", offered_price_text
+            # ).strip()
+
+            # contract_price_text = td_elements[7].get_text(strip=True)
+            # contract_price = re.sub(
+            #     r"Цена контракта\s*", "", contract_price_text
+            # ).strip()
+            # Обработка "Планируемая сумма лота"
+            # Обработка "Планируемая сумма лота"
             planned_sum_text = td_elements[5].get_text(strip=True)
-            planned_sum = re.sub(
+            planned_sum_clean = re.sub(
                 r"Планируемая сумма лота\s*", "", planned_sum_text
             ).strip()
+            # Ищем числа с пробелами (например, "80 000", "121 180")
+            planned_sum_values = re.findall(r"\d+\s\d+", planned_sum_clean)
+            planned_sum = ", ".join(planned_sum_values)
 
+            # Обработка "Цена предложенная участником"
             offered_price_text = td_elements[6].get_text(strip=True)
-            offered_price = re.sub(
+            offered_price_clean = re.sub(
                 r"Цена предложенная участником\s*", "", offered_price_text
             ).strip()
+            offered_price_values = re.findall(r"\d+\s\d+", offered_price_clean)
+            offered_price = ", ".join(offered_price_values)
 
+            # Обработка "Цена контракта"
             contract_price_text = td_elements[7].get_text(strip=True)
-            contract_price = re.sub(
+            contract_price_clean = re.sub(
                 r"Цена контракта\s*", "", contract_price_text
             ).strip()
-
+            contract_price_values = re.findall(r"\d+\s\d+", contract_price_clean)
+            contract_price = ", ".join(contract_price_values)
             contract_number_text = td_elements[8].get_text(strip=True)
             contract_number = re.sub(
                 r"Номер контракта\s*", "", contract_number_text
