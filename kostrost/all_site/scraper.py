@@ -39,7 +39,7 @@ class ExcelSheetScraper:
             base_html_dir: Базовая директория для сохранения HTML файлов
             json_dir: Директория для хранения JSON файлов с заданиями
         """
-        self.api_key = api_key
+        self.api_key = API_KEY
         self.excel_file_path = excel_file_path
         self.base_html_dir = Path(base_html_dir)
         self.json_dir = Path(json_dir)

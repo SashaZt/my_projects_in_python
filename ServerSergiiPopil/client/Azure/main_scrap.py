@@ -15,7 +15,7 @@ def make_request(base_url, params, retries=5, retry_delay=10):
         try:
             query_string = urllib.parse.urlencode(params, quote_via=urllib.parse.quote)
             url = f"{base_url}?{query_string}"
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=30)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -58,7 +58,7 @@ def get_all_pages(category, brand, model, page_limit, params, processed_items=0,
         save_json(response, filename)
         logger.info(f"Сохранен файл: {filename}")
         last_saved_page = page
-        time.sleep(5)
+        # time.sleep(5)
         # Если это последняя страница, возвращаем цену последнего товара
         if page == page_limit:
             products = response.get("products", [])

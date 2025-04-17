@@ -10,7 +10,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копируем исходный код клиента
-COPY logger.py main.py tiktokers.txt /client/
+# COPY . /client/
 
 # Запускаем клиент
 CMD ["python", "main.py"]
