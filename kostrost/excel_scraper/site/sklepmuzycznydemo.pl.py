@@ -12,7 +12,7 @@ sys.path.append(str(BASE_DIR))
 # Теперь можно импортировать из родительской директории
 from config.logger import logger
 
-name_site = "_sklepmuzyczny_demo.pl"
+name_site = "sklepmuzycznydemo.pl"
 config_directory = BASE_DIR / "config"
 json_data_directory = BASE_DIR / "json_data"
 html_directory = BASE_DIR / "html_pages" / name_site
