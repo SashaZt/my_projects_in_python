@@ -1,0 +1,8 @@
+certifi==2025.1.31
+charset-normalizer==3.4.1
+idna==3.10
+loguru==0.7.3
+psycopg2-binary==2.9.10
+pyodbc==5.2.0
+requests==2.32.3
+urllib3==2.4.0
