@@ -9,7 +9,7 @@ from openpyxl import load_workbook
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
 json_data_directory = current_directory / "json_data"
-json_data_directory.mkdir(exist_ok=True)
+
 excel_file = "thomann.xlsx"
 
 
