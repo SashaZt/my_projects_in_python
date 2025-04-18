@@ -65,14 +65,14 @@ async def send_order_to_bts(order_data, db_order_id, db):
     query = select(order_items).where(order_items.c.order_id == db_order_id)
     result = await db.execute(query)
     items = result.fetchall()
-    
     if items:
         bts_data["postTypes"] = []
         for item in items:
             # Формируем элемент postTypes по формату BTS API
             post_type = {
                 "name": item.name,
-                "count": item.quantity
+                "count": item.quantity,
+                "cost": float(item.price)
             }
             
             # Используем SKU как code товара
@@ -83,7 +83,7 @@ async def send_order_to_bts(order_data, db_order_id, db):
                 post_type["code"] = f"ITEM{item.id}"
                 
             bts_data["postTypes"].append(post_type)
-    
+    # logger.info(bts_data)
     try:
         # Получаем API ключ из настроек
         headers = {

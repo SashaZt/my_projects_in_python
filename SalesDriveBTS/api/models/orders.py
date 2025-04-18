@@ -47,7 +47,10 @@ orders = Table(
     Column('bts_response', JSONB, nullable=True),
     Column('crm_response', JSONB, nullable=True),
     Column('created_at', TIMESTAMP, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
-    Column('updated_at', TIMESTAMP, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    Column('updated_at', TIMESTAMP, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
+    Column('delivery_status', String(255)),
+    Column('updated_delivery_status', TIMESTAMP),
+    Column('bts_order_id', String(100))
 )
 
 order_items = Table(
@@ -62,4 +65,5 @@ order_items = Table(
 
     Column('created_at', TIMESTAMP, nullable=False, server_default=text('CURRENT_TIMESTAMP')),
     Column('updated_at', TIMESTAMP, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
+    
 )

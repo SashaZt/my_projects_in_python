@@ -25,6 +25,8 @@ services:
       PG_WORK_MEM: ${PG_WORK_MEM}
       PG_MIN_WAL_SIZE: ${PG_MIN_WAL_SIZE}
       PG_MAX_WAL_SIZE: ${PG_MAX_WAL_SIZE}
+      TZ: ${TIMEZONE:-UTC}
+
     volumes:
       # Монтирование директории данных
       - ${POSTGRES_DATA_DIR:-./pgdata}:${PGDATA:-/var/lib/postgresql/data/pgdata}
@@ -63,6 +65,7 @@ services:
 
       # Дополнительные переменные
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      TZ: ${TIMEZONE:-UTC}
     volumes:
       # Монтирование исходного кода для разработки (если ENVIRONMENT=development)
       - ./api:/api
@@ -72,8 +75,41 @@ services:
       - app_network
     ports:
       - "${API_PORT:-5000}:5000"
-  # TikTok Client сервис - добавляем новый сервис
+  tracker:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.tracker
+    container_name: ${PROJECT_NAME:-crm_bts_middleware}-tracker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    environment:
+      # Переменные для подключения к базе данных
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
 
+      # Переменные среды для BTS API
+      BTS_API_URL: ${BTS_API_URL}
+      BTS_API_KEY: ${BTS_API_KEY}
+      BTS_TIMEOUT: ${BTS_TIMEOUT:-30}
+
+      # Переменные среды для CRM API
+      CRM_API_KEY: ${CRM_API_KEY}
+      CRM_FORM_ID: ${CRM_FORM_ID}
+      CRM_TIMEOUT: ${CRM_TIMEOUT:-30}
+
+      # Прочие переменные окружения
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      TZ: ${TIMEZONE:-UTC}
+    volumes:
+      # Монтирование исходного кода для разработки (если ENVIRONMENT=development)
+      - ./api:/api
+      # Монтирование логов
+      - ./logs:/api/logs
+    networks:
+      - app_network
 
 networks:
   app_network:
