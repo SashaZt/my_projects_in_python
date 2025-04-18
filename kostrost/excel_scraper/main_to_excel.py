@@ -204,5 +204,5 @@ def update_excel_from_json_files(excel_file, json_dir):
 
 # Пример использования
 if __name__ == "__main__":
-
+    logger.info(current_directory)
     update_excel_from_json_files(excel_file, json_data_directory)

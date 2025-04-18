@@ -51,21 +51,6 @@ def extract_product_data(product_json):
         # Форматируем цену, если она найдена
         if offer_price:
             offer_price = str(offer_price).replace(".", ",")
-        # Обработка доступности
-        # availability = offers.get("availability", "").replace("http://schema.org/", "")
-        # logger.info(f"Доступность: {availability}")
-        # schema_terms = r"(InStock|OutOfStock)"  # Шаблон для поиска
-        # all_availability = {
-        #     "InStock": "Towar dostępny",
-        #     "OutOfStock": "Towar niedostępny",
-        # }
-
-        # # Поиск значений доступности
-        # matches = re.findall(schema_terms, availability or "")
-        # result_availability = None
-        # if matches:
-        #     last_term = matches[-1]
-        #     result_availability = all_availability.get(last_term, None)
 
         all_data = {
             "title": title,
@@ -106,11 +91,17 @@ def pars_htmls():
                 script_text = scripts.string
                 # Извлекаем данные основного продукта
                 main_product = extract_product_data(script_text)
+                article_number = None
+                article_tag = soup.find("span", class_="dictionary__producer_code")
+                if article_tag:
+                    article_number = article_tag.text.strip()
+                    main_product["article_number"] = article_number
                 availability_description = soup.find(
                     "div", attrs={"id": "projector_status_description"}
                 )
                 if availability_description:
                     availability_description = availability_description.text.strip()
+
                     main_product["availability"] = availability_description
                 else:
                     availability_label = soup.find(

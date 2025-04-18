@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 from bs4 import BeautifulSoup
-from config.logger import logger
 
 # Получаем абсолютный путь к родительской директории
 BASE_DIR = Path(__file__).parent.parent

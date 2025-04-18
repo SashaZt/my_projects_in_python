@@ -79,7 +79,7 @@ def pars_htmls():
             result = extract_product_data(soup)
 
             if result:
-                logger.info(f"Собранные данные из {html_file.name}: {result}")
+                logger.info(json.dumps(result, ensure_ascii=False, indent=4))
                 all_data.append(result)
             else:
                 logger.warning(f"Не удалось извлечь данные из {html_file.name}")

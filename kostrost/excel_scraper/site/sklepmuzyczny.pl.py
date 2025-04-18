@@ -15,7 +15,7 @@ sys.path.append(str(BASE_DIR))
 # Теперь можно импортировать из родительской директории
 from config.logger import logger
 
-name_site = "euromuza.pl"
+name_site = "sklepmuzyczny.pl"
 config_directory = BASE_DIR / "config"
 json_data_directory = BASE_DIR / "json_data"
 html_directory = BASE_DIR / "html_pages" / name_site
@@ -26,16 +26,16 @@ def extract_product_data(data):
 
     title = data.find("h1", attrs={"itemprop": "name"})
     title = title.text.strip()
-    price = data.find("span", attrs={"itemprop": "price"})
+    price = data.find("span", attrs={"id": "price_akt"})
     if price:
         price = price.get("content")
     else:
         logger.warning("Тег с ценой не найден")
         price = None
 
-    article_number = data.find("input", attrs={"name": "id_product"})
+    article_number = data.find("meta", attrs={"itemprop": "sku"})
     if article_number:
-        article_number = article_number.get("value")
+        article_number = article_number.get("content")
 
     else:
         logger.warning("Тег с артикулом не найден")
@@ -43,17 +43,27 @@ def extract_product_data(data):
 
     availability = None
     # Флаг для отслеживания, был ли найден продукт
-    availability_tag = data.find("span", attrs={"id": "product-availability"})
+    availability_tag = data.find("link", attrs={"itemprop": "availability"})
     if availability_tag:
-        availability = availability_tag.find("i").decompose()
-        availability = availability_tag.text.replace("\n", "").strip()
-        availability = re.sub(r"\s+", " ", availability).strip()
+        availability = availability_tag.get("href")
+    schema_terms = r"(InStock|OutOfStock)"  # Шаблон для поиска
+    all_availability = {
+        "InStock": "Towar dostępny",
+        "OutOfStock": "Towar niedostępny",
+    }
+
+    # Поиск значений доступности
+    matches = re.findall(schema_terms, availability or "")
+    result_availability = None
+    if matches:
+        last_term = matches[-1]
+        result_availability = all_availability.get(last_term, None)
 
     all_data = {
         "title": title,
         "price": price,
         "article_number": article_number,
-        "availability": availability,
+        "availability": result_availability,
     }
     return all_data
 

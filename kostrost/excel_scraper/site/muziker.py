@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 from bs4 import BeautifulSoup
-from config.logger import logger
 
 # Получаем абсолютный путь к родительской директории
 BASE_DIR = Path(__file__).parent.parent
@@ -13,7 +12,7 @@ sys.path.append(str(BASE_DIR))
 # Теперь можно импортировать из родительской директории
 from config.logger import logger
 
-name_site = "abixmusic.pl"
+name_site = "www.muziker.pl"
 current_directory = Path.cwd()
 json_data_directory = BASE_DIR / "json_data"
 html_directory = BASE_DIR / "html_pages" / name_site
@@ -110,6 +109,9 @@ def pars_htmls():
                     main_product = extract_product_data(json_data)
                     if main_product:
                         main_product["availability"] = availability
+                        logger.info(
+                            json.dumps(main_product, ensure_ascii=False, indent=4)
+                        )
                         all_data.append(main_product)
 
                     break
