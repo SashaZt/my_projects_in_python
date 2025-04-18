@@ -14,7 +14,7 @@ from main_db import (
     save_parsed_orders_to_db,
 )
 from main_mail import get_send_email
-from main_tg import send_message
+from main_tg import send_message, send_message_review
 from main_token import get_token, load_product_data, save_json_data, validyty_token
 
 init_alert_client_sync()
@@ -403,6 +403,18 @@ https://youtu.be/6r9qPBOOzHk
     return message
 
 
+def get_message_tg_review(order_id) -> str:
+    message = f"""Якщо буде вільний час то залиште відгук будь ласка 💜
+Будемо вам дуже вдячні за це!
+
+Це займе декілька хвилин та допоможе нам покращити сервіс. 
+Перейдіть за посиланням, зайдіть під своїм логіном та паролем, залишіть оцінку або напишіть відгук
+
+"https://rozetka.com.ua/cabinet/shopreviews/{order_id}"
+"""
+    return message
+
+
 def get_roblox_message_email(product, code, mes, text_code) -> str:
     message = f"""Вітаємо 💚
 
@@ -523,14 +535,34 @@ if __name__ == "__main__":
                 logger.info(
                     f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
                 )
-                # Закрываем заказ после отправки всех уведомлений
-                if complete_order(order_id):
-                    logger.info(f"Заказ {order_id} обработан и завершен")
-                else:
-                    logger.error(
-                        f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
-                    )
+                try:
+                    # Закрываем заказ после отправки всех уведомлений
+                    if complete_order(order_id):
+                        logger.info(f"Заказ {order_id} обработан и завершен")
 
+                        # Отправляем запрос на отзыв с небольшой задержкой
+                        message_tg_review = get_message_tg_review(order_id)
+                        time.sleep(
+                            5
+                        )  # Небольшая пауза перед отправкой запроса на отзыв
+                        success = loop.run_until_complete(
+                            send_message_review(user_phone, message_tg_review)
+                        )
+
+                        if success:
+                            logger.info(
+                                f"Запрос на отзыв отправлен пользователю {user_phone}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Не удалось отправить запрос на отзыв пользователю {user_phone}"
+                            )
+                    else:
+                        logger.error(
+                            f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
+                        )
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке заказа {order_id}: {e}")
             else:
                 match = re.search(r"(\d+)\$", product)
                 amount_usd = match.group(1)
@@ -559,12 +591,33 @@ if __name__ == "__main__":
                 logger.info(
                     f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
                 )
-                if complete_order(order_id):
-                    logger.info(f"Заказ {order_id} обработан и завершен")
-                else:
-                    logger.error(
-                        f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
-                    )
+                try:
+                    # Закрываем заказ после отправки всех уведомлений
+                    if complete_order(order_id):
+                        logger.info(f"Заказ {order_id} обработан и завершен")
 
+                        # Отправляем запрос на отзыв с небольшой задержкой
+                        message_tg_review = get_message_tg_review(order_id)
+                        time.sleep(
+                            5
+                        )  # Небольшая пауза перед отправкой запроса на отзыв
+                        success = loop.run_until_complete(
+                            send_message_review(user_phone, message_tg_review)
+                        )
+
+                        if success:
+                            logger.info(
+                                f"Запрос на отзыв отправлен пользователю {user_phone}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Не удалось отправить запрос на отзыв пользователю {user_phone}"
+                            )
+                    else:
+                        logger.error(
+                            f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
+                        )
+                except Exception as e:
+                    logger.error(f"Ошибка при обработке заказа {order_id}: {e}")
         logger.info("Пауза 10 мин")
         time.sleep(600)
