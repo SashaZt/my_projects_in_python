@@ -598,9 +598,7 @@ if __name__ == "__main__":
 
                         # Отправляем запрос на отзыв с небольшой задержкой
                         message_tg_review = get_message_tg_review(order_id)
-                        time.sleep(
-                            5
-                        )  # Небольшая пауза перед отправкой запроса на отзыв
+                        time.sleep(5)
                         success = loop.run_until_complete(
                             send_message_review(user_phone, message_tg_review)
                         )

@@ -146,7 +146,7 @@ async def send_message_review(user_phone, message):
         users = result.users
         if users:
             logger.info(f"Пользователь найден: {users[0].id}")
-            await asyncio.sleep(1)  # Небольшая задержка
+            await asyncio.sleep(1)
 
             # Отправляем сообщение
             await client.send_message(users[0], message)
