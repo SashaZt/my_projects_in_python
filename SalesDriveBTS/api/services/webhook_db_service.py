@@ -61,10 +61,13 @@ async def save_webhook_to_db(json_data, db):
         
         if receiverDelivery:
             receiverDelivery = 1
-            receiverAddress = next(
+            receiverAddress = data.get("data", {}).get("shipping_address")
+            naselennyjPunkt = next(
                 (option["text"] for option in data["meta"]["fields"]["naselennyjPunkt"]["options"]
                  if option["value"] == data["data"]["naselennyjPunkt"]), None
             )
+            receiver_city_id= int(parse_location_city(naselennyjPunkt))
+            logger.info(f"receiverCityId: {receiver_city_id}")
         else:
             receiverDelivery = 0
             receiverAddress = next(
@@ -72,7 +75,7 @@ async def save_webhook_to_db(json_data, db):
                  if option["value"] == data["data"]["naselennyjPunkt"]), None
             )
             # Используем функцию parse_location из этого же модуля
-            branch_id_value = str(parse_location(receiverAddress))
+            branch_id_value = str(parse_location_branch(receiverAddress))
             logger.info(f"branch_id_value: {branch_id_value}")
             logger.info(type(branch_id_value))
             # Получаем данные о филиале по ID из БД
@@ -214,11 +217,27 @@ async def get_branch_by_id(branch_id, db):
         logger.error(f"Ошибка при получении филиала по ID {branch_id}: {e}")
         return None
 
-def parse_location(location_str):
+def parse_location_branch(location_str):
     # Регулярное выражение:
     # id_(\d+) - захватывает id_ и число
     # _([^_]+) - захватывает текст после id_ до следующего _ или конца строки
-    pattern = r'id_(\d+)_([^_]+)'
+    # pattern = r'id_(\d+)_([^_]+)'
+    pattern = r'bts_(\d+)_([^_]+)'
+    match = re.match(pattern, location_str)
+    
+    if match:
+        id_branche = match.group(1)
+        return id_branche
+    else:
+        id_branche = None
+        return id_branche
+
+def parse_location_city(location_str):
+    # Регулярное выражение:
+    # id_(\d+) - захватывает id_ и число
+    # _([^_]+) - захватывает текст после id_ до следующего _ или конца строки
+    # pattern = r'id_(\d+)_([^_]+)'
+    pattern = r'city_(\d+)_([^_]+)'
     match = re.match(pattern, location_str)
     
     if match:

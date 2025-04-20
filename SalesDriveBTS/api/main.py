@@ -3,20 +3,29 @@ import sys
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Depends
 
 # Импорт настроек и компонентов
 from core.config import settings
-from core.database import engine, create_tables
+from core.database import engine, create_tables,get_db
 from core.logger import logger
-
+# Импорт сервиса импорта данных
+from services.data_import_service import import_all_data
+from services.export_branches import export_branches_to_file, export_cities_to_file
 # Импорт эндпоинтов
 from endpoints.webhook import router as webhook_router
 from endpoints import bts_webhook
 
+
+
+async def import_data_on_startup():
+    db = Depends(get_db)
+    await import_all_data(db)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,6 +40,13 @@ async def lifespan(app: FastAPI):
             # Если мы в режиме разработки, создаем таблицы
             if settings.ENVIRONMENT == "development":
                 await create_tables()
+            
+            # Создаем новую сессию базы данных для импорта
+            async with AsyncSession(engine) as session:
+                await import_all_data(session)
+                # Экспортируем филиалы в текстовый файл
+                await export_branches_to_file(session)
+                await export_cities_to_file(session)
                 
         logger.info("Приложение запущено успешно")
         yield
@@ -38,7 +54,6 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Ошибка при запуске приложения: {e}")
         raise
-
 
 app = FastAPI(
     title="CRM-BTS Middleware",
