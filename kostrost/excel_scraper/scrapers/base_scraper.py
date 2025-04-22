@@ -1,10 +1,13 @@
 import base64
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 import settings
 from config.logger import logger
+
+DOMAIN = "allegro.pl"
 
 
 class BaseScraper:
@@ -163,13 +166,23 @@ class BaseScraper:
 
         for attempt in range(max_retries):
             try:
+                parsed_url = urlparse(url)
+                if parsed_url.netloc == DOMAIN:
+                    json_data = {
+                        "apiKey": self.api_key,
+                        "apiParams": {},
+                        "url": url,
+                    }
+                    json_data["apiParams"]["premium"] = True
+                else:
+                    json_data = {
+                        "apiKey": self.api_key,
+                        "url": url,
+                    }
                 # Используем асинхронный API
                 response = requests.post(
                     url="https://async.scraperapi.com/jobs",
-                    json={
-                        "apiKey": self.api_key,
-                        "url": url,
-                    },
+                    json=json_data,
                     timeout=settings.REQUEST_TIMEOUT,
                 )
 

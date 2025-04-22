@@ -16,8 +16,7 @@ import requests
 from bs4 import BeautifulSoup  # Импорт BeautifulSoup
 from configuration.logger_setup import logger
 from dotenv import load_dotenv
-from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
-                      wait_fixed)
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -46,26 +45,26 @@ xlsx_result = data_directory / "result.xlsx"
 file_proxy = configuration_directory / "roman.txt"
 
 cookies = {
-    'PHPSESSID': 'c95e174e4800458653c20b9dc207596e',
-    'stats-mode': '',
+    "PHPSESSID": "ccf951766344e467fda99a2b57b0818b",
+    "finance-indicators-mode": "percent",
 }
 
 headers = {
-    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    'accept-language': 'ru,en;q=0.9,uk;q=0.8',
-    'cache-control': 'no-cache',
-    'dnt': '1',
-    'pragma': 'no-cache',
-    'priority': 'u=0, i',
-    'sec-ch-ua': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'sec-fetch-dest': 'document',
-    'sec-fetch-mode': 'navigate',
-    'sec-fetch-site': 'none',
-    'sec-fetch-user': '?1',
-    'upgrade-insecure-requests': '1',
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    "cache-control": "no-cache",
+    "dnt": "1",
+    "pragma": "no-cache",
+    "priority": "u=0, i",
+    "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "none",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
 }
 
 # 1. Скачать основной файл sitemap-index.xml
@@ -84,23 +83,23 @@ def load_proxies() -> List[str]:
         logger.warning("Файл с прокси не найден. Работаем без прокси.")
         return []  # Возвращаем пустой список, если файла нет
 
+
 # Загрузка списка URL из CSV файла
 
 
 def load_urls(file_path: Path) -> List[str]:
     """Загружает список URL из CSV файла."""
     df = pd.read_csv(file_path)
-    if 'url' not in df.columns:
+    if "url" not in df.columns:
         raise ValueError("CSV файл должен содержать колонку 'url'.")
-    return df['url'].tolist()
+    return df["url"].tolist()
 
 
 def parse_sitemap_index(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
     namespace = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-    sitemap_links = [loc.text for loc in root.findall(
-        "ns:sitemap/ns:loc", namespace)]
+    sitemap_links = [loc.text for loc in root.findall("ns:sitemap/ns:loc", namespace)]
     return sitemap_links
 
 
@@ -143,6 +142,7 @@ def write_csv(file_path, data):
     df.to_csv(file_path, index=False)
     logger.info(f"Записано {len(data)} ссылок в {file_path}")
 
+
 # 3. Скачивание всех .xml.gz файлов в многопоточном режиме
 
 
@@ -152,7 +152,9 @@ def write_csv(file_path, data):
     retry=retry_if_exception_type(requests.RequestException),
 )
 # Скачивание всех .xml.gz файлов
-def download_gz_files(links: List[str], output_dir: Path, proxies: Optional[List[str]], max_workers: int) -> None:
+def download_gz_files(
+    links: List[str], output_dir: Path, proxies: Optional[List[str]], max_workers: int
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     def download_link(link: str) -> None:
@@ -164,6 +166,7 @@ def download_gz_files(links: List[str], output_dir: Path, proxies: Optional[List
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         executor.map(download_link, links)
+
 
 # 4. Распаковка .xml.gz файлов
 
@@ -185,8 +188,7 @@ def process_xml_files(input_dir: Path, output_csv: Path) -> None:
     product_urls = set()  # Используем set для уникальных URL
 
     for xml_file in input_dir.glob("*.xml"):
-        product_urls.update(parse_product_urls(xml_file)
-                            )  # Добавляем уникальные URL
+        product_urls.update(parse_product_urls(xml_file))  # Добавляем уникальные URL
 
     # Преобразуем в список перед записью
     write_csv(output_csv, list(product_urls))
@@ -196,12 +198,13 @@ def parse_product_urls(xml_file):
     tree = ET.parse(xml_file)
     root = tree.getroot()
     namespace = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-    product_urls = [loc.text for loc in root.findall(
-        "ns:url/ns:loc", namespace)]
+    product_urls = [loc.text for loc in root.findall("ns:url/ns:loc", namespace)]
     return product_urls
 
 
-def extract_and_save_specific_urls(input_csv: Path, output_csv: Path, substring: str) -> None:
+def extract_and_save_specific_urls(
+    input_csv: Path, output_csv: Path, substring: str
+) -> None:
     """
     Извлекает URL-адреса из input_csv, которые содержат заданную подстроку, и сохраняет их в output_csv.
 
@@ -213,11 +216,11 @@ def extract_and_save_specific_urls(input_csv: Path, output_csv: Path, substring:
     df = pd.read_csv(input_csv)
 
     # Проверяем, что файл содержит колонку с URL, например, 'url'
-    if 'url' not in df.columns:
+    if "url" not in df.columns:
         raise ValueError("CSV файл должен содержать колонку 'url'.")
 
     # Фильтруем URL-адреса, содержащие подстроку
-    filtered_df = df[df['url'].str.contains(substring, na=False)]
+    filtered_df = df[df["url"].str.contains(substring, na=False)]
 
     # Сохраняем отфильтрованные URL в новый CSV файл
     filtered_df.to_csv(output_csv, index=False)
@@ -228,7 +231,8 @@ def extract_and_save_specific_urls(input_csv: Path, output_csv: Path, substring:
 def split_urls_across_workers(urls: List[str], num_workers: int) -> List[List[str]]:
     """Разделяет список URL на группы для каждого потока."""
     chunk_size = len(urls) // num_workers
-    return [urls[i * chunk_size: (i + 1) * chunk_size] for i in range(num_workers)]
+    return [urls[i * chunk_size : (i + 1) * chunk_size] for i in range(num_workers)]
+
 
 # Сохранение HTML содержимого в файл
 
@@ -241,23 +245,28 @@ async def save_html_file(html_content: str, output_dir: Path, url: str) -> None:
         await file.write(html_content)
     logger.info(f"HTML файл сохранен: {filename}")
 
+
 # Асинхронная функция для скачивания HTML с использованием прокси или без него
 
 
-async def download_html(session: aiohttp.ClientSession, url: str, proxy: Optional[str] = None) -> Optional[str]:
+async def download_html(
+    session: aiohttp.ClientSession, url: str, proxy: Optional[str] = None
+) -> Optional[str]:
     """Асинхронно скачивает HTML по заданному URL с использованием прокси или локально, если прокси отсутствуют."""
-    
+
     try:
         async with session.get(url, proxy=proxy, timeout=30) as response:
             if response.status == 200:
                 # Используем BeautifulSoup для проверки содержимого
                 content = await response.text()
-                soup = BeautifulSoup(content, 'html.parser')
-                h1_element = soup.find('h1')
+                soup = BeautifulSoup(content, "lxml")
+                h1_element = soup.find("h1")
                 # Проверяем наличие <h1> с текстом "Шановний користувачу!"
                 if h1_element and h1_element.text.strip() == "Шановний користувачу!":
-                    logger.info(f"Пропуск сохранения для URL {
-                                url}: обнаружен текст 'Шановний користувачу!'")
+                    logger.info(
+                        f"Пропуск сохранения для URL {
+                                url}: обнаружен текст 'Шановний користувачу!'"
+                    )
                     return None  # Пропускаем, если обнаружен данный текст
                 return content
             else:
@@ -267,10 +276,13 @@ async def download_html(session: aiohttp.ClientSession, url: str, proxy: Optiona
         logger.error(f"Ошибка запроса для URL {url}: {e}")
         return None
 
+
 # Асинхронная функция для пакетной загрузки HTML с очередью
 
 
-async def async_download_html_with_proxies(urls: List[str], proxies: List[str], output_dir: Path, max_workers: int) -> None:
+async def async_download_html_with_proxies(
+    urls: List[str], proxies: List[str], output_dir: Path, max_workers: int
+) -> None:
     queue = asyncio.Queue()
     for url in urls:
         await queue.put(url)  # Помещаем каждый URL в очередь
@@ -281,8 +293,7 @@ async def async_download_html_with_proxies(urls: List[str], proxies: List[str], 
                 # Извлекаем URL из очереди
                 url = await queue.get()
                 # Проверяем, существует ли файл для этого URL
-                filename = output_dir / \
-                    f"{urlparse(url).path.replace('/', '_')}.html"
+                filename = output_dir / f"{urlparse(url).path.replace('/', '_')}.html"
                 if filename.exists():
                     # logger.info(
                     #     f"Файл {filename} уже существует, пропуск загрузки для URL {url}")
@@ -305,29 +316,30 @@ async def async_download_html_with_proxies(urls: List[str], proxies: List[str], 
 
 def main():
     proxies = load_proxies()  # Загружаем прокси один раз в начале
-    urls = load_urls(csv_all_edrs_products)
+    # urls = load_urls(csv_all_edrs_products)
     max_workers = 50
-    # substring = "https://clarity-project.info/edr/"  # Здесь задается фильтр
+    substring = "https://clarity-project.info/edr/"  # Здесь задается фильтр
     # Шаг 1: Скачать основной файл sitemap-index.xml
-    # download_file(SITEMAP_INDEX_URL, xml_sitemap, proxies)
+    download_file(SITEMAP_INDEX_URL, xml_sitemap, proxies)
     # logger.info("Скачали основной файл sitemap")
 
-    # # Шаг 2: Парсинг и запись ссылок в CSV
-    # sitemap_links = parse_sitemap_index(xml_sitemap)
-    # write_csv(csv_url_site_maps, sitemap_links)
-    # logger.info("Собрали ссылки для скачивания всех архивов gz")
-    # # Шаг 3: Скачивание .xml.gz файлов
-    # download_gz_files(sitemap_links, gz_directory, proxies, max_workers)
-    # logger.info("Все архивы gz скачаны")
-    # # Шаг 4: Распаковка .gz файлов
-    # extract_gz_files(gz_directory, xml_directory)
-    # logger.info("Все архивы gz распакованы")  # Исправлено
+    # Шаг 2: Парсинг и запись ссылок в CSV
+    sitemap_links = parse_sitemap_index(xml_sitemap)
+    write_csv(csv_url_site_maps, sitemap_links)
+    logger.info("Собрали ссылки для скачивания всех архивов gz")
+    # Шаг 3: Скачивание .xml.gz файлов
+    download_gz_files(sitemap_links, gz_directory, proxies, max_workers)
+    logger.info("Все архивы gz скачаны")
+    # Шаг 4: Распаковка .gz файлов
+    extract_gz_files(gz_directory, xml_directory)
+    logger.info("Все архивы gz распакованы")  # Исправлено
 
-    # # Шаг 5: Парсинг URL продуктов из XML файлов
-    # process_xml_files(xml_directory, csv_all_urls_products)
-    # logger.info("Получили все ссылки на товары")
-    # extract_and_save_specific_urls(
-    #     csv_all_urls_products, csv_all_edrs_products, substring)
+    # Шаг 5: Парсинг URL продуктов из XML файлов
+    process_xml_files(xml_directory, csv_all_urls_products)
+    logger.info("Получили все ссылки на товары")
+    extract_and_save_specific_urls(
+        csv_all_urls_products, csv_all_edrs_products, substring
+    )
     # скачивание данных
     # Запуск асинхронной очереди
     asyncio.run(async_download_html_with_proxies(

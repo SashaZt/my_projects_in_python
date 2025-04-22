@@ -199,7 +199,6 @@ def pars_htmls():
             result["availability"] = availability.text.strip()
         else:
             logger.warning(f"Не удалось найти статус доступности для {html_file.name}.")
-            exit()
 
         # Добавляем результат в общий список, если словарь не пустой
         if result:

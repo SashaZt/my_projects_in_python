@@ -209,10 +209,12 @@ class JobManager:
                 return True
 
         elif status == "failed" and job_completed:
+            delete_job_file(json_file)
+            logger.info(f"Задание {job_id} завершилось с ошибкой и удалено")
             # Обновляем статус задания
-            job_info["status"] = "failed"
-            save_job_info(self.json_dir, job_id, job_info)
-            logger.info(f"Статус задания {job_id} обновлен на 'failed'")
+            # job_info["status"] = "failed"
+            # save_job_info(self.json_dir, job_id, job_info)
+            # logger.info(f"Статус задания {job_id} обновлен на 'failed'")
             return True
 
         return False
