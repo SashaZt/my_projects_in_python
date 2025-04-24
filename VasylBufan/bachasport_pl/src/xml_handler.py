@@ -1,3 +1,4 @@
+# /src/xml_handler.py
 import csv
 import json
 import os
@@ -387,6 +388,92 @@ def process_all_xml_files(directory: Optional[Path] = None) -> List[Dict[str, An
         return all_products
     except Exception as e:
         logger.error(f"Ошибка при обработке XML файлов: {e}")
+        return all_products
+
+
+def extract_simplified_product_data(
+    xml_file_path: Union[str, Path],
+) -> Optional[Dict[str, Any]]:
+    """
+    Извлекает из XML файла только основные данные (код товара и цену).
+
+    Args:
+        xml_file_path (Union[str, Path]): Путь к XML файлу продукта.
+
+    Returns:
+        Optional[Dict[str, Any]]: Словарь с основными данными или None в случае ошибки.
+    """
+    try:
+        xml_path = (
+            Path(xml_file_path) if isinstance(xml_file_path, str) else xml_file_path
+        )
+
+        if not xml_path.exists():
+            logger.error(f"XML файл не найден: {xml_path}")
+            return None
+
+        # Пытаемся открыть файл как текст
+        with open(xml_path, "r", encoding="utf-8") as f:
+            xml_content = f.read()
+
+        # Поиск символа и цены с помощью регулярных выражений
+        symbol_match = re.search(r"<Symbol>([^<]+)</Symbol>", xml_content)
+        price_match = re.search(
+            r"<Cena>.*?<Netto>([^<]+)</Netto>", xml_content, re.DOTALL
+        )
+
+        if symbol_match and price_match:
+            symbol = symbol_match.group(1).strip()
+            price = price_match.group(1).strip()
+
+            # Преобразуем цену в число
+            try:
+                price = float(price.replace(",", "."))
+            except ValueError:
+                logger.warning(
+                    f"Не удалось преобразовать цену '{price}' в число для продукта {xml_path.name}"
+                )
+
+            return {"Symbol": symbol, "Cena": price}
+        else:
+            logger.warning(f"Не удалось найти Symbol или Cena в файле {xml_path.name}")
+            return None
+
+    except Exception as e:
+        logger.error(f"Ошибка при извлечении данных из XML файла {xml_path}: {e}")
+        return None
+
+
+def process_all_xml_files_simplified(
+    directory: Optional[Path] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Обрабатывает все XML файлы в указанной директории и извлекает только основные данные.
+
+    Args:
+        directory (Optional[Path]): Директория с XML файлами. Если None, используется директория по умолчанию.
+
+    Returns:
+        List[Dict[str, Any]]: Список словарей с основными данными продуктов.
+    """
+    directory = directory or xml_directory
+    all_products = []
+
+    try:
+        xml_files = list(directory.glob("*.xml"))
+        logger.info(f"Найдено {len(xml_files)} XML файлов для обработки")
+
+        for xml_file in xml_files:
+            product_data = extract_simplified_product_data(xml_file)
+            if product_data:
+                all_products.append(product_data)
+
+        logger.info(
+            f"Успешно обработано {len(all_products)} XML файлов в упрощенном режиме"
+        )
+        return all_products
+    except Exception as e:
+        logger.error(f"Ошибка при обработке XML файлов в упрощенном режиме: {e}")
         return all_products
 
 

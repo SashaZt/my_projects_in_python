@@ -1,3 +1,4 @@
+# /src/pagination.py
 from typing import Dict, List, Optional
 
 import requests
@@ -83,14 +84,43 @@ def extract_product_urls_from_page(soup: BeautifulSoup) -> List[str]:
         rows = table_div.find_all("tr")
 
         for row in rows:
-            # Ищем ссылки в строке
-            td_tags = row.find_all("td")
-            for td_tag in td_tags:
-                href = td_tag.get("href")
-                # Добавляем только уникальные URL
-                if href not in product_urls:
-                    product_urls.append(href)
+            # Проверяем наличие ячеек с данными
+            cells = row.find_all("td")
+            if not cells:
+                continue  # Пропускаем заголовок таблицы или пустые строки
 
+            # Ищем ссылки во всех ячейках строки
+            # a_tags = row.find_all("a")
+
+            for a_tag in cells:
+                href = a_tag.get("href")
+                if href and "product-details" in href:
+                    # Убедимся, что URL абсолютный
+                    if not href.startswith("http"):
+                        href = f"https://panel.bachasport.pl{href}"
+
+                    # Добавляем только уникальные URL
+                    if href not in product_urls:
+                        product_urls.append(href)
+
+        # Если не нашли ни одной ссылки, возможно структура страницы другая
+        if not product_urls:
+            logger.warning(
+                "Не найдены ссылки на продукты в таблице. Пробуем альтернативный метод."
+            )
+            # Ищем все ссылки, содержащие "product-details"
+            for a_tag in soup.find_all("a", href=True):
+                href = a_tag.get("href")
+                if href and "product-details" in href:
+                    # Убедимся, что URL абсолютный
+                    if not href.startswith("http"):
+                        href = f"https://panel.bachasport.pl{href}"
+
+                    # Добавляем только уникальные URL
+                    if href not in product_urls:
+                        product_urls.append(href)
+
+        logger.info(f"Найдено {len(product_urls)} ссылок на продукты")
         return product_urls
     except Exception as e:
         logger.error(f"Ошибка при извлечении URL продуктов: {e}")

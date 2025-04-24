@@ -1,4 +1,5 @@
 # app/services/webhook_service.py
+import asyncio
 import time
 from typing import Any, Dict, List, Optional
 
@@ -102,6 +103,26 @@ class WebhookService:
     ) -> List[Dict[str, Any]]:
         """Get reservations that need webhook delivery for a specific organization."""
         try:
+            logger.info(
+                f"Ищем бронирования для organizationId={organization_id} с status_webhook=False"
+            )
+
+            # Проверка, что организация существует
+            org_query = select(OrganizationWebhook).where(
+                OrganizationWebhook.organization_id == organization_id
+            )
+            org_result = await db.execute(org_query)
+            org = org_result.scalars().first()
+            logger.info(f"Найдена организация: {org is not None}")
+
+            # Проверяем все бронирования для организации, независимо от status_webhook
+            all_query = select(Reservation).where(
+                Reservation.organizationId == organization_id
+            )
+            all_result = await db.execute(all_query)
+            all_reservations = all_result.scalars().all()
+            logger.info(f"Всего бронирований для организации: {len(all_reservations)}")
+
             # Получаем бронирования, для которых еще не отправлены webhook-уведомления
             query = (
                 select(Reservation)
@@ -114,6 +135,7 @@ class WebhookService:
 
             result = await db.execute(query)
             reservations = result.scalars().all()
+            logger.info(f"Из них с status_webhook=False: {len(reservations)}")
 
             # Формируем данные для отправки
             reservation_list = []
@@ -126,7 +148,6 @@ class WebhookService:
                 )
                 if reservation_data:
                     reservation_list.append(reservation_data)
-
             logger.info(
                 f"Found {len(reservation_list)} pending webhooks for organization ID: {organization_id}"
             )
@@ -147,9 +168,28 @@ class WebhookService:
     ) -> bool:
         """Send webhook for a reservation."""
         try:
+            # Преобразуем данные в нужный формат (если payload получен через get_reservation)
+            # Текущий payload может содержать данные в виде ReservationResponse
+            # Преобразуем их в формат, показанный в примере
+            formatted_payload = [
+                {
+                    "id": payload["id"],
+                    "organizationId": payload["organizationId"],
+                    "customer": payload["customer"],
+                    "rooms": payload["rooms"],
+                    "status": payload["status"],
+                    "services": payload["services"],
+                    "bookedAt": payload["bookedAt"],
+                    "modifiedAt": payload["modifiedAt"],
+                    "source": payload["source"],
+                    "responsibleUserId": payload["responsibleUserId"],
+                }
+            ]
             # Отправляем webhook
             async with aiohttp.ClientSession() as session:
-                async with session.post(webhook_url, json=payload) as response:
+                async with session.post(
+                    webhook_url, json=formatted_payload
+                ) as response:
                     success = response.status in (200, 201)
 
                     if success:
@@ -179,7 +219,7 @@ class WebhookService:
 
     @staticmethod
     async def process_pending_webhooks(
-        db: AsyncSession, organization_id: int
+        db: AsyncSession, organization_id: int, limit: int = 10
     ) -> Dict[str, Any]:
         """Process all pending webhooks for an organization."""
         try:
@@ -201,7 +241,7 @@ class WebhookService:
 
             # Получаем все ожидающие отправки бронирования
             pending_reservations = await WebhookService.get_pending_webhooks(
-                db, organization_id
+                db, organization_id, limit
             )
 
             if not pending_reservations:
@@ -232,7 +272,7 @@ class WebhookService:
                     processed += 1
                 else:
                     failed += 1
-
+            await asyncio.sleep(3)
             return {
                 "success": failed == 0,
                 "message": f"Processed {processed} webhooks, failed {failed}",

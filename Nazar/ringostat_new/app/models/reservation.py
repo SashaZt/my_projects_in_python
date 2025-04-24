@@ -1,3 +1,4 @@
+# /app/models/reservation.py
 # Обновленная модель Reservation
 import time
 

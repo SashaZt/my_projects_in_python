@@ -104,7 +104,11 @@ async def process_webhooks(
 
 @router.post("/process-sync/{organization_id}", response_model=WebhookProcessingResult)
 async def process_webhooks_sync(
-    organization_id: int, db: AsyncSession = Depends(get_db)
+    organization_id: int,
+    limit: int = Query(
+        10, description="Максимальное количество обрабатываемых бронирований"
+    ),
+    db: AsyncSession = Depends(get_db),
 ):
     """Синхронная обработка webhook для организации"""
     try:
@@ -119,7 +123,9 @@ async def process_webhooks_sync(
             )
 
         # Обрабатываем webhook синхронно
-        result = await WebhookService.process_pending_webhooks(db, organization_id)
+        result = await WebhookService.process_pending_webhooks(
+            db, organization_id, limit
+        )
         return result
     except HTTPException:
         raise

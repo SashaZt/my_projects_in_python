@@ -1,6 +1,7 @@
+# /src/product.py
 import re
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 import requests
 from bs4 import BeautifulSoup
@@ -44,7 +45,7 @@ def extract_product_id(product_url: str) -> Optional[str]:
 
 def get_product_details(
     session: requests.Session, product_url: str
-) -> Tuple[Optional[str], Optional[str]]:
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Получает детали продукта и его XML.
 
@@ -53,25 +54,32 @@ def get_product_details(
         product_url (str): URL страницы продукта.
 
     Returns:
-        Tuple[Optional[str], Optional[str]]: Кортеж (ID продукта, путь к XML файлу) или (None, None) в случае ошибки.
+        Tuple[Optional[str], Optional[str], Optional[str]]: Кортеж (ID продукта, путь к XML файлу, доступность) или (None, None, None) в случае ошибки.
     """
     try:
         # Получаем HTML страницы продукта
         html = fetch_html(session, product_url)
         if not html:
             logger.error(f"Не удалось получить HTML страницы продукта: {product_url}")
-            return None, None
+            return None, None, None
 
         # Извлекаем ID продукта
         product_id_from_url = extract_product_id(product_url)
 
         # Находим ID продукта на странице (более надежный способ)
         soup = get_soup(html)
-        product_id = extract_product_id_from_page(soup, product_id_from_url)
+        result = extract_product_id_from_page(soup, product_id_from_url)
+
+        # Распаковываем результат с проверкой
+        if isinstance(result, tuple) and len(result) == 2:
+            product_id, availability = result
+        else:
+            product_id = result
+            availability = None
 
         if not product_id:
             logger.error(f"Не удалось определить ID продукта: {product_url}")
-            return None, None
+            return None, None, None
 
         logger.info(f"Извлечен ID продукта: {product_id}")
 
@@ -79,46 +87,82 @@ def get_product_details(
         csrf_token = extract_csrf_token(html)
         if not csrf_token:
             logger.error(f"Не удалось извлечь CSRF токен для продукта: {product_id}")
-            return product_id, None
+            return product_id, None, availability
 
         # Скачиваем XML продукта
         xml_path = download_product_xml(session, product_id, csrf_token)
 
-        return product_id, xml_path
+        return product_id, xml_path, availability
     except Exception as e:
         logger.error(f"Ошибка при получении деталей продукта {product_url}: {e}")
-        return None, None
+        return None, None, None
 
 
 def extract_product_id_from_page(
     soup: BeautifulSoup, fallback_id: Optional[str] = None
-) -> Optional[str]:
+) -> Union[str, Tuple[str, str]]:
     """
-    Извлекает ID продукта из страницы продукта.
+    Извлекает ID продукта и информацию о доступности из страницы продукта.
 
     Args:
         soup (BeautifulSoup): Объект BeautifulSoup с HTML-кодом страницы.
         fallback_id (Optional[str]): Резервный ID продукта, если не удается найти на странице.
 
     Returns:
-        Optional[str]: ID продукта или fallback_id, если не удалось найти.
+        Union[str, Tuple[str, str]]: ID продукта или кортеж (ID продукта, доступность)
     """
     try:
         # Поиск по скрытым полям формы
         product_id_input = soup.find("input", {"name": "product_id"})
+        product_id = None
+
         if product_id_input and product_id_input.get("value"):
-            return product_id_input.get("value")
+            product_id = product_id_input.get("value")
 
-        # Поиск по URL ссылок на странице
-        for a_tag in soup.find_all("a", href=True):
-            href = a_tag.get("href", "")
-            if "product" in href and "/b/" in href:
-                match = re.search(r"/product/(\d+)/b/", href)
-                if match:
-                    return match.group(1)
+        # Проверяем наличие таблицы с информацией о продукте
+        availability_text = None
+        try:
+            table = soup.find("table", {"class": "table table-striped"})
+            if table:
+                # Сначала ищем строку с заголовком "Dostępność"
+                availability_row = None
+                for tr in table.find_all("tr"):
+                    th = tr.find("th")
+                    if th and "Dostępność" in th.text:
+                        availability_row = tr
+                        break
 
-        # Если не удалось найти, используем резервный ID
-        return fallback_id
+                # Если нашли нужную строку, извлекаем значение из ячейки
+                if availability_row:
+                    td = availability_row.find("td")
+                    if td:
+                        availability_tag = td.find("span", {"class": "label"})
+                        if availability_tag:
+                            availability_text = availability_tag.get_text(strip=True)
+        except Exception as e:
+            logger.warning(f"Ошибка при извлечении информации о доступности: {e}")
+
+        # Если ID не найден через скрытые поля, ищем по URL
+        if not product_id:
+            for a_tag in soup.find_all("a", href=True):
+                href = a_tag.get("href", "")
+                if "product" in href and "/b/" in href:
+                    match = re.search(r"/product/(\d+)/b/", href)
+                    if match:
+                        product_id = match.group(1)
+                        break
+
+        # Если ID все еще не найден, используем резервный ID
+        if not product_id:
+            product_id = fallback_id
+
+        # Возвращаем кортеж с ID и доступностью, если есть информация о доступности
+        if availability_text:
+            return product_id, availability_text
+
+        # Иначе возвращаем только ID
+        return product_id
+
     except Exception as e:
         logger.error(f"Ошибка при извлечении ID продукта из страницы: {e}")
         return fallback_id

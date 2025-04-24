@@ -1,3 +1,4 @@
+# /scr/category.py
 from typing import List
 
 import requests
@@ -7,7 +8,7 @@ from src.utils import fetch_html, get_soup
 
 
 def get_category_urls(
-    session: requests.Session, url: str = "https://panel.bachasport.pl"
+    session: requests.Session, url: str = "https://panel.bachasport.pl/group/153l"
 ) -> List[str]:
     """
     Получает HTML стартовой страницы и извлекает из неё ссылки категорий для дальнейшего скрапинга.
@@ -43,16 +44,14 @@ def extract_category_urls(soup: BeautifulSoup) -> List[str]:
     urls = []
     try:
         # Находим нужное меню боковой панели
-        urls_tag = soup.find("ul", attrs={"class": "sidebar-menu sidebar-last"})
+        urls_tag = soup.find("ul", attrs={"class": "treeview-menu menu-open"})
         if urls_tag:
             # Извлекаем все ссылки из меню
             for li in urls_tag.find_all("li"):
                 a_tag = li.find("a")
                 if a_tag and a_tag.get("href"):
                     url = a_tag.get("href")
-                    # Добавляем домен к относительному URL, если это необходимо
-                    if not url.startswith("http"):
-                        url = f"https://panel.bachasport.pl/{url}"
+                    url = f"https://panel.bachasport.pl/{url}"
                     urls.append(url)
 
             logger.info(f"Найдено {len(urls)} ссылок категорий")

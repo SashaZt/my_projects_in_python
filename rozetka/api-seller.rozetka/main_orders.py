@@ -266,6 +266,72 @@ def complete_order(order_id):
         return False
 
 
+# def process_orders():
+#     """Обработка заказов и выборка нужной информации"""
+#     # Запускаем проверку валидности токена
+#     validyty_token()
+
+#     # Получаем заказы
+#     orders_data = get_orders()
+#     # orders_data = load_product_data(orders_json_file)["content"]["orders"]
+#     if not orders_data:
+#         logger.error("Нет данных о заказах для обработки")
+#         return []
+#     # Загружаем список товаров
+#     products_data = load_product_data(roblox_products_json_file)
+#     if not products_data:
+#         logger.error("Не удалось загрузить данные о товарах")
+#         return []
+
+#     # Создаем список только имен товаров для удобства проверки
+#     product_names = [product["name"] for product in products_data]
+
+#     result = []
+#     logger.info(f"Обработка {len(orders_data)} заказов")
+#     # logger.info(orders_data)
+#     for order in orders_data:
+#         # обработке заказа {order.get('id')}: {e}")
+
+#         try:
+
+#             item_name = order["items_photos"][0]["item_name"]
+#             logger.info(f"Товар: {item_name}")
+
+#             # Проверяем, что товар есть в нашем списке
+#             if item_name in product_names:
+#                 order_id = order["id"]
+#                 logger.info(f"Обработка заказа #{order_id} - {item_name}")
+
+#                 # Получаем статус платежа
+#                 payment_status_raw = get_status_payment(order_id)
+#                 email = get_order_details(order_id)["delivery"]["email"]
+#                 payment_status = payment_status_raw.get("status_payment_id", None)
+#                 if payment_status == 7:
+#                     payment_status_title = payment_status_raw["title"]
+#                     user_phone = order["user_phone"]
+
+#                     # Формируем данные заказа
+#                     all_data = {
+#                         "order_id": order_id,
+#                         "product": item_name,
+#                         "user_phone": user_phone,
+#                         "email": email,
+#                         "status_payment": payment_status_title,
+#                         "created": order["created"],
+#                         "amount": order["amount"],
+#                         "full_name": order["user_title"].get("full_name", ""),
+#                     }
+#                     result.append(all_data)
+
+#         except Exception as e:
+#             logger.error(f"Ошибка при обработке заказа {order.get('id')}: {e}")
+
+
+#     # Сохраняем результат обработки
+#     result_file = data_directory / "parsed_orders.json"
+#     save_json_data(result, result_file)
+#     save_parsed_orders_to_db(result)
+#     logger.info(f"Обработано {len(result)} заказов")
 def process_orders():
     """Обработка заказов и выборка нужной информации"""
     # Запускаем проверку валидности токена
@@ -273,10 +339,10 @@ def process_orders():
 
     # Получаем заказы
     orders_data = get_orders()
-    # orders_data = load_product_data(orders_json_file)["content"]["orders"]
     if not orders_data:
         logger.error("Нет данных о заказах для обработки")
         return []
+
     # Загружаем список товаров
     products_data = load_product_data(roblox_products_json_file)
     if not products_data:
@@ -288,12 +354,9 @@ def process_orders():
 
     result = []
     logger.info(f"Обработка {len(orders_data)} заказов")
-    # logger.info(orders_data)
+
     for order in orders_data:
-        # обработке заказа {order.get('id')}: {e}")
-
         try:
-
             item_name = order["items_photos"][0]["item_name"]
             logger.info(f"Товар: {item_name}")
 
@@ -304,13 +367,31 @@ def process_orders():
 
                 # Получаем статус платежа
                 payment_status_raw = get_status_payment(order_id)
-                email = get_order_details(order_id)["delivery"]["email"]
+                if not payment_status_raw:
+                    logger.error(
+                        f"Не удалось получить статус платежа для заказа {order_id}"
+                    )
+                    continue
+
+                # Получаем детальную информацию о заказе
+                order_details = get_order_details(order_id)
+                if not order_details:
+                    logger.error(f"Не удалось получить детали заказа {order_id}")
+                    continue
+
+                email = order_details["delivery"]["email"]
+                total_quantity = order_details.get("total_quantity", 1)
+
+                logger.info(
+                    f"Заказ #{order_id} содержит {total_quantity} единиц товара"
+                )
+
                 payment_status = payment_status_raw.get("status_payment_id", None)
-                if payment_status == 7:
+                if payment_status == 7:  # Оплаченный заказ
                     payment_status_title = payment_status_raw["title"]
                     user_phone = order["user_phone"]
 
-                    # Формируем данные заказа
+                    # Формируем данные заказа с учетом количества
                     all_data = {
                         "order_id": order_id,
                         "product": item_name,
@@ -320,6 +401,7 @@ def process_orders():
                         "created": order["created"],
                         "amount": order["amount"],
                         "full_name": order["user_title"].get("full_name", ""),
+                        "total_quantity": total_quantity,  # Добавляем количество товара
                     }
                     result.append(all_data)
 
@@ -331,6 +413,7 @@ def process_orders():
     save_json_data(result, result_file)
     save_parsed_orders_to_db(result)
     logger.info(f"Обработано {len(result)} заказов")
+    return result
 
 
 def get_available_payments(order_id):
@@ -459,35 +542,197 @@ Whatsapp: wa.me/+380683845703
     return message
 
 
+# if __name__ == "__main__":
+#     while True:
+
+#         import_keys_from_files()
+#         process_orders()
+
+#         result_order = get_next_available_key_for_orders()
+#         for i, order in enumerate(result_order):
+
+#             if "error" in order:
+#                 # Если есть ошибка (например, недостаточно ключей)
+#                 message_alert = order["error"]
+#                 send_alert_sync(message_alert)
+#                 logger.info(f"Отправлено уведомление: {message_alert}")
+#                 continue
+#             # Добавляем задержку между обработкой заказов
+#             if i > 0:
+#                 logger.info("Пауза 30 секунд между заказами...")
+#                 time.sleep(30)
+#             key_ids = order["key_ids"]
+#             order_id = order["order_id"]
+#             user_phone = order["user_phone"]
+#             # user_phone = "+380635623555"
+#             email = order["email"]
+#             # email = "a.zinchyk83@gmail.com"
+#             product = order["product"]
+#             keys_product = order["keys"]
+#             logger.info(f"Ключі: {keys_product}")
+#             logger.info(f"Ключі: {product}")  # Список ключей
+#             code = ", ".join(keys_product)
+#             text_code_product = "Ваш код:"
+
+#             if len(keys_product) > 1:
+#                 text_code_product = "Ваші коди:"
+#                 # Захватываем только цифры перед $
+#                 match = re.search(r"(\d+)\$", product)
+
+#                 # Общая сумма
+#                 amount_usd = match.group(1)  # Извлекаем только число
+
+#                 #  Номинал карты
+#                 number_cards = int(int(amount_usd) / len(keys_product))
+
+#                 # Количество карт
+#                 denomination_cards = int(int(amount_usd) / number_cards)
+#                 if denomination_cards == 2:
+#                     denomination_cards = "дві"
+#                 elif denomination_cards == 3:
+#                     denomination_cards = "три"
+
+#                 mes = f"Це {denomination_cards} картки кожна по ${number_cards} після активації карток на балансі буде ${amount_usd} ви їх потім обміняєте на робукси."
+
+#                 message_tg = get_roblox_message_tg(
+#                     product,
+#                     code,
+#                     mes,
+#                     text_code_product,
+#                 )
+#                 loop = asyncio.new_event_loop()
+#                 asyncio.set_event_loop(loop)
+#                 loop.run_until_complete(
+#                     send_message(user_phone, message_tg, key_ids, order_id, code)
+#                 )
+#                 # Добавляем задержку перед отправкой email
+#                 time.sleep(5)
+
+#                 message_email = get_roblox_message_email(
+#                     product, code, mes, text_code_product
+#                 )
+#                 get_send_email(email, message_email)
+#                 logger.info(f"Заказ {order_id} обработан")
+
+#                 mark_keys_as_sent(order_id, key_ids)
+#                 logger.info(
+#                     f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
+#                 )
+#                 try:
+#                     # Закрываем заказ после отправки всех уведомлений
+#                     if complete_order(order_id):
+#                         logger.info(f"Заказ {order_id} обработан и завершен")
+
+#                         # Отправляем запрос на отзыв с небольшой задержкой
+#                         message_tg_review = get_message_tg_review(order_id)
+#                         time.sleep(
+#                             5
+#                         )  # Небольшая пауза перед отправкой запроса на отзыв
+#                         success = loop.run_until_complete(
+#                             send_message_review(user_phone, message_tg_review)
+#                         )
+
+#                         if success:
+#                             logger.info(
+#                                 f"Запрос на отзыв отправлен пользователю {user_phone}"
+#                             )
+#                         else:
+#                             logger.warning(
+#                                 f"Не удалось отправить запрос на отзыв пользователю {user_phone}"
+#                             )
+#                     else:
+#                         logger.error(
+#                             f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
+#                         )
+#                 except Exception as e:
+#                     logger.error(f"Ошибка при обработке заказа {order_id}: {e}")
+#             else:
+#                 match = re.search(r"(\d+)\$", product)
+#                 amount_usd = match.group(1)
+
+#                 mes = f"Це картка на ${amount_usd} після активації карток на балансі буде ${amount_usd} ви їх потім обміняєте на робукси."
+
+#                 message_tg = get_roblox_message_tg(
+#                     product, code, mes, text_code_product
+#                 )
+#                 loop = asyncio.new_event_loop()
+#                 asyncio.set_event_loop(loop)
+#                 loop.run_until_complete(
+#                     send_message(user_phone, message_tg, key_ids, order_id, code)
+#                 )
+#                 # Добавляем задержку перед отправкой email
+#                 time.sleep(5)
+
+#                 message_email = get_roblox_message_email(
+#                     product, code, mes, text_code_product
+#                 )
+
+#                 get_send_email(email, message_email)
+#                 logger.info(f"Заказ {order_id} обработан")
+#                 # Закрываем заказ после отправки всех уведомлений
+#                 mark_keys_as_sent(order_id, key_ids)
+#                 logger.info(
+#                     f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
+#                 )
+#                 try:
+#                     # Закрываем заказ после отправки всех уведомлений
+#                     if complete_order(order_id):
+#                         logger.info(f"Заказ {order_id} обработан и завершен")
+
+#                         # Отправляем запрос на отзыв с небольшой задержкой
+#                         message_tg_review = get_message_tg_review(order_id)
+#                         time.sleep(5)
+#                         success = loop.run_until_complete(
+#                             send_message_review(user_phone, message_tg_review)
+#                         )
+
+#                         if success:
+#                             logger.info(
+#                                 f"Запрос на отзыв отправлен пользователю {user_phone}"
+#                             )
+#                         else:
+#                             logger.warning(
+#                                 f"Не удалось отправить запрос на отзыв пользователю {user_phone}"
+#                             )
+#                     else:
+#                         logger.error(
+#                             f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
+#                         )
+#                 except Exception as e:
+#                     logger.error(f"Ошибка при обработке заказа {order_id}: {e}")
+#         logger.info("Пауза 10 мин")
+#         time.sleep(600)
 if __name__ == "__main__":
     while True:
-
         import_keys_from_files()
         process_orders()
 
         result_order = get_next_available_key_for_orders()
         for i, order in enumerate(result_order):
-
             if "error" in order:
                 # Если есть ошибка (например, недостаточно ключей)
                 message_alert = order["error"]
                 send_alert_sync(message_alert)
                 logger.info(f"Отправлено уведомление: {message_alert}")
                 continue
+
             # Добавляем задержку между обработкой заказов
             if i > 0:
                 logger.info("Пауза 30 секунд между заказами...")
                 time.sleep(30)
+
             key_ids = order["key_ids"]
             order_id = order["order_id"]
             user_phone = order["user_phone"]
-            # user_phone = "+380635623555"
             email = order["email"]
-            # email = "a.zinchyk83@gmail.com"
             product = order["product"]
             keys_product = order["keys"]
-            logger.info(f"Ключі: {keys_product}")
-            logger.info(f"Ключі: {product}")  # Список ключей
+            total_quantity = order.get("total_quantity", 1)
+
+            logger.info(f"Заказ #{order_id}: {product} x{total_quantity}")
+            logger.info(f"Ключи для заказа: {keys_product}")
+
+            # Объединяем все ключи в строку, разделенную запятыми
             code = ", ".join(keys_product)
             text_code_product = "Ваш код:"
 
@@ -496,126 +741,102 @@ if __name__ == "__main__":
                 # Захватываем только цифры перед $
                 match = re.search(r"(\d+)\$", product)
 
-                # Общая сумма
-                amount_usd = match.group(1)  # Извлекаем только число
+                if match:
+                    # Извлекаем сумму и учитываем total_quantity
+                    amount_usd = int(match.group(1))
 
-                #  Номинал карты
-                number_cards = int(int(amount_usd) / len(keys_product))
+                    # Учитываем total_quantity при расчете общей суммы
+                    total_amount_usd = amount_usd * total_quantity
 
-                # Количество карт
-                denomination_cards = int(int(amount_usd) / number_cards)
-                if denomination_cards == 2:
-                    denomination_cards = "дві"
-                elif denomination_cards == 3:
-                    denomination_cards = "три"
+                    # Номинал карты
+                    number_cards = amount_usd / len(keys_product)
 
-                mes = f"Це {denomination_cards} картки кожна по ${number_cards} після активації карток на балансі буде ${amount_usd} ви їх потім обміняєте на робукси."
+                    # Количество карт (учитываем total_quantity)
+                    total_cards = len(keys_product) * total_quantity
+                    denomination_cards = len(keys_product)
 
-                message_tg = get_roblox_message_tg(
-                    product,
-                    code,
-                    mes,
-                    text_code_product,
-                )
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(
-                    send_message(user_phone, message_tg, key_ids, order_id, code)
-                )
-                # Добавляем задержку перед отправкой email
-                time.sleep(5)
-
-                message_email = get_roblox_message_email(
-                    product, code, mes, text_code_product
-                )
-                get_send_email(email, message_email)
-                logger.info(f"Заказ {order_id} обработан")
-
-                mark_keys_as_sent(order_id, key_ids)
-                logger.info(
-                    f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
-                )
-                try:
-                    # Закрываем заказ после отправки всех уведомлений
-                    if complete_order(order_id):
-                        logger.info(f"Заказ {order_id} обработан и завершен")
-
-                        # Отправляем запрос на отзыв с небольшой задержкой
-                        message_tg_review = get_message_tg_review(order_id)
-                        time.sleep(
-                            5
-                        )  # Небольшая пауза перед отправкой запроса на отзыв
-                        success = loop.run_until_complete(
-                            send_message_review(user_phone, message_tg_review)
-                        )
-
-                        if success:
-                            logger.info(
-                                f"Запрос на отзыв отправлен пользователю {user_phone}"
-                            )
-                        else:
-                            logger.warning(
-                                f"Не удалось отправить запрос на отзыв пользователю {user_phone}"
-                            )
+                    # Формируем сообщение с учетом количества
+                    if denomination_cards == 2:
+                        cards_text = "дві"
+                    elif denomination_cards == 3:
+                        cards_text = "три"
+                    elif denomination_cards == 4:
+                        cards_text = "чотири"
                     else:
-                        logger.error(
-                            f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
-                        )
-                except Exception as e:
-                    logger.error(f"Ошибка при обработке заказа {order_id}: {e}")
+                        cards_text = str(denomination_cards)
+
+                    # Если total_quantity > 1, добавляем информацию об этом
+                    if total_quantity > 1:
+                        mes = f"Це {cards_text} картки (у кількості {total_quantity} набори) кожна по ${amount_usd}. Після активації всіх карток на балансі буде ${total_amount_usd}, які ви потім обміняєте на робукси."
+                    else:
+                        mes = f"Це {cards_text} картки кожна по ${amount_usd}. Після активації карток на балансі буде ${amount_usd}, які ви потім обміняєте на робукси."
+                else:
+                    mes = f"Після активації всіх карток ви зможете обміняти баланс на робукси."
             else:
+                # Если только один ключ
                 match = re.search(r"(\d+)\$", product)
-                amount_usd = match.group(1)
+                if match:
+                    # Учитываем total_quantity
+                    amount_usd = int(match.group(1))
+                    total_amount_usd = amount_usd * total_quantity
 
-                mes = f"Це картка на ${amount_usd} після активації карток на балансі буде ${amount_usd} ви їх потім обміняєте на робукси."
-
-                message_tg = get_roblox_message_tg(
-                    product, code, mes, text_code_product
-                )
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(
-                    send_message(user_phone, message_tg, key_ids, order_id, code)
-                )
-                # Добавляем задержку перед отправкой email
-                time.sleep(5)
-
-                message_email = get_roblox_message_email(
-                    product, code, mes, text_code_product
-                )
-
-                get_send_email(email, message_email)
-                logger.info(f"Заказ {order_id} обработан")
-                # Закрываем заказ после отправки всех уведомлений
-                mark_keys_as_sent(order_id, key_ids)
-                logger.info(
-                    f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
-                )
-                try:
-                    # Закрываем заказ после отправки всех уведомлений
-                    if complete_order(order_id):
-                        logger.info(f"Заказ {order_id} обработан и завершен")
-
-                        # Отправляем запрос на отзыв с небольшой задержкой
-                        message_tg_review = get_message_tg_review(order_id)
-                        time.sleep(5)
-                        success = loop.run_until_complete(
-                            send_message_review(user_phone, message_tg_review)
-                        )
-
-                        if success:
-                            logger.info(
-                                f"Запрос на отзыв отправлен пользователю {user_phone}"
-                            )
-                        else:
-                            logger.warning(
-                                f"Не удалось отправить запрос на отзыв пользователю {user_phone}"
-                            )
+                    if total_quantity > 1:
+                        mes = f"Це {total_quantity} картки кожна на ${amount_usd}. Після активації всіх карток на балансі буде ${total_amount_usd}, які ви потім обміняєте на робукси."
                     else:
-                        logger.error(
-                            f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
-                        )
-                except Exception as e:
-                    logger.error(f"Ошибка при обработке заказа {order_id}: {e}")
+                        mes = f"Це картка на ${amount_usd}. Після активації картки на балансі буде ${amount_usd}, які ви потім обміняєте на робукси."
+                else:
+                    mes = (
+                        "Після активації картки ви зможете обміняти баланс на робукси."
+                    )
+
+            # Создаем сообщения и отправляем
+            message_tg = get_roblox_message_tg(
+                product,
+                code,
+                mes,
+                text_code_product,
+            )
+
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(
+                send_message(user_phone, message_tg, key_ids, order_id, code)
+            )
+
+            # Добавляем задержку перед отправкой email
+            time.sleep(5)
+
+            message_email = get_roblox_message_email(
+                product, code, mes, text_code_product
+            )
+
+            get_send_email(email, message_email)
+            logger.info(f"Заказ {order_id} обработан")
+
+            # Помечаем ключи как отправленные
+            mark_keys_as_sent(order_id, key_ids)
+            logger.info(
+                f"Ключи {key_ids} помечены в бд как отправленные для заказа {order_id}"
+            )
+
+            try:
+                # Закрываем заказ после отправки всех уведомлений
+                if complete_order(order_id):
+                    logger.info(f"Заказ {order_id} обработан и завершен")
+
+                    # Отправляем запрос на отзыв с небольшой задержкой
+                    message_tg_review = get_message_tg_review(order_id)
+                    time.sleep(5)
+                    loop.run_until_complete(
+                        send_message_review(user_phone, message_tg_review)
+                    )
+                    logger.info(f"Запрос на отзыв отправлен пользователю {user_phone}")
+                else:
+                    logger.error(
+                        f"Заказ {order_id} обработан, но не удалось установить статус 'Выполнено'"
+                    )
+            except Exception as e:
+                logger.error(f"Ошибка при обработке заказа {order_id}: {e}")
+
         logger.info("Пауза 10 мин")
         time.sleep(600)
