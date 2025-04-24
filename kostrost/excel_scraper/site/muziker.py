@@ -63,7 +63,7 @@ def extract_product_data(product_json):
 
 
 def pars_htmls():
-    logger.info(f"Обрабатываем директорию: {html_directory}")
+    # logger.info(f"Обрабатываем директорию: {html_directory}")
     all_data = []
 
     # Проверяем наличие HTML-файлов
@@ -109,16 +109,14 @@ def pars_htmls():
                     main_product = extract_product_data(json_data)
                     if main_product:
                         main_product["availability"] = availability
-                        logger.info(
-                            json.dumps(main_product, ensure_ascii=False, indent=4)
-                        )
+                        # logger.info(
+                        #     json.dumps(main_product, ensure_ascii=False, indent=4)
+                        # )
                         all_data.append(main_product)
 
                     break
             except json.JSONDecodeError as e:
                 logger.error(f"Ошибка парсинга JSON: {e}")
-                # Или можно использовать print:
-                logger.info(f"Ошибка парсинга JSON: {e}")
         else:
             logger.error("Product JSON не найден.")
 
@@ -127,11 +125,11 @@ def pars_htmls():
 
         with output_file.open("w", encoding="utf-8") as f:
             json.dump(all_data, f, ensure_ascii=False, indent=4)
-        logger.info(f"Данные сохранены в {output_file}")
+        # logger.info(f"Данные сохранены в {output_file}")
 
     return all_data
 
 
 if __name__ == "__main__":
     parsed_data = pars_htmls()
-    logger.info(f"Обработано файлов: {len(parsed_data)}")
+    # logger.info(f"Обработано файлов: {len(parsed_data)}")

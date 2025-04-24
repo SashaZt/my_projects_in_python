@@ -1,7 +1,7 @@
+# Выгрузка в ексель
 import json
 
 # Настраиваем базовое логирование
-import logging
 import os
 import sys
 import time
@@ -10,6 +10,9 @@ from pathlib import Path
 import pandas as pd
 from config.logger import logger
 from openpyxl import load_workbook
+
+excel_file = "thomann.xlsx"  # Путь к Excel файлу по умолчанию
+json_dir = "json_data"  # Путь к директории с JSON файлами по умолчанию
 
 
 def process_single_json(excel_file, json_file):
@@ -233,7 +236,7 @@ def process_single_json(excel_file, json_file):
         return False
 
 
-def process_all_json_files(excel_file, json_dir):
+def process_all_json_files():
     """
     Обрабатывает все JSON файлы в директории по очереди.
 
@@ -277,25 +280,22 @@ def process_all_json_files(excel_file, json_dir):
             time.sleep(0.5)  # Полсекунды между файлами
 
 
-if __name__ == "__main__":
-    excel_file = "thomann.xlsx"  # Путь к Excel файлу по умолчанию
-    json_dir = "json_data"  # Путь к директории с JSON файлами по умолчанию
+# if __name__ == "__main__":
+#     process_all_json_files()
+#     # # Обработка аргументов командной строки (если они есть)
+# if len(sys.argv) > 1:
+#     excel_file = sys.argv[1]
+# if len(sys.argv) > 2:
+#     json_dir = sys.argv[2]
 
-    # Обработка аргументов командной строки (если они есть)
-    if len(sys.argv) > 1:
-        excel_file = sys.argv[1]
-    if len(sys.argv) > 2:
-        json_dir = sys.argv[2]
-
-    # Выбор режима обработки
-    if len(sys.argv) > 3 and sys.argv[3] == "single":
-        # Обработка только одного проблемного файла
-        target_json = os.path.join(json_dir, "sklepmuzyczny.pl.json")
-        if os.path.exists(target_json):
-            logger.info(f"Обработка только проблемного файла: {target_json}")
-            process_single_json(excel_file, target_json)
-        else:
-            logger.error(f"Файл {target_json} не найден")
-    else:
-        # Обработка всех файлов
-        process_all_json_files(excel_file, json_dir)
+# # Выбор режима обработки
+# if len(sys.argv) > 3 and sys.argv[3] == "single":
+#     # Обработка только одного проблемного файла
+#     target_json = os.path.join(json_dir, "sklepmuzyczny.pl.json")
+#     if os.path.exists(target_json):
+#         logger.info(f"Обработка только проблемного файла: {target_json}")
+#         process_single_json(excel_file, target_json)
+#     else:
+#         logger.error(f"Файл {target_json} не найден")
+# else:
+#     # Обработка всех файлов

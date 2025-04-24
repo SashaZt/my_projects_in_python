@@ -26,30 +26,25 @@ def extract_product_data(data):
     article_number = None
     availability = None
 
-    product_title = data.find("div", class_="fx-content-product__main")
+    product_title = data.find("div", attrs={"class": "fx-content-product__main"})
     if product_title:
-        h1 = product_title.find("h1", itemprop="name")
+        h1 = product_title.find("h1")
         if h1:
             title = re.sub(r"\s+", " ", h1.text).strip()
-    price_wrapper = data.find("div", class_="price-wrapper")
+
+    price_wrapper = data.find("div", attrs={"class": "price-wrapper"})
     if price_wrapper:
-        price_div = price_wrapper.find("div", class_="price")
+        price_div = price_wrapper.find("meta", attrs={"itemprop": "price"})
         if price_div:
-            price = price_div.text.strip().replace(" zł", "")
-    labels = data.find_all("span", class_="keyfeature__label")
-    for label in labels:
+            price = price_div.get("content")
 
-        if label.text.strip() == "Numer artykułu":
-            # Ищем следующий span с классом fx-text--bold
-            article_number_tag = label.find_next("span", class_="fx-text--bold")
-            if article_number_tag:
-                article_number = article_number.text.strip()
-                break  # Прерываем цикл, если нашли нужный артикул
+    article_number_tag = data.find("meta", attrs={"itemprop": "sku"})
+    if article_number_tag:
+        article_number = article_number_tag.get("content")
 
-    availability = data.find("span", class_=lambda x: x and "fx-availability" in x)
-    if availability:
-        availability = availability.text.strip()
-
+    availability_tag = data.find("span", attrs={"class": "fx-availability"})
+    if availability_tag:
+        availability = re.sub(r"\s+", " ", availability_tag.text).strip()
     all_data = {
         "title": title,
         "price": price,
@@ -60,7 +55,7 @@ def extract_product_data(data):
 
 
 def pars_htmls():
-    logger.info(f"Обрабатываем директорию: {html_directory}")
+    # logger.info(f"Обрабатываем директорию: {html_directory}")
     all_data = []
 
     # Проверяем наличие HTML-файлов
@@ -77,7 +72,7 @@ def pars_htmls():
             result = extract_product_data(soup)
 
             if result:
-                logger.info(json.dumps(result, ensure_ascii=False, indent=4))
+                # logger.info(json.dumps(result, ensure_ascii=False, indent=4))
                 all_data.append(result)
             else:
                 logger.warning(f"Не удалось извлечь данные из {html_file.name}")
@@ -92,11 +87,11 @@ def pars_htmls():
 
         with output_file.open("w", encoding="utf-8") as f:
             json.dump(all_data, f, ensure_ascii=False, indent=4)
-        logger.info(f"Данные сохранены в {output_file}")
+        # logger.info(f"Данные сохранены в {output_file}")
 
     return all_data
 
 
 if __name__ == "__main__":
     parsed_data = pars_htmls()
-    logger.info(f"Обработано файлов: {len(parsed_data)}")
+    # logger.info(f"Обработано файлов: {len(parsed_data)}")

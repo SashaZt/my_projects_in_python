@@ -142,15 +142,15 @@ def run_all_parsers(parsers):
         # Сохраняем результат
         stats["results"][parser_file] = result
 
-        # Небольшая пауза между запусками (1 секунда)
-        if idx < len(parsers):
-            logger.info("Ожидание 1 секунду перед запуском следующего парсера...")
-            time.sleep(1)
+        # # Небольшая пауза между запусками (1 секунда)
+        # if idx < len(parsers):
+        #     logger.info("Ожидание 1 секунду перед запуском следующего парсера...")
+        #     time.sleep(1)
 
     return stats
 
 
-def main():
+def main_all():
     """
     Основная функция для последовательного запуска всех парсеров
     """
@@ -185,5 +185,5 @@ def main():
         logger.info(f"{status} {parser}: {result['elapsed_time']:.2f} сек")
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

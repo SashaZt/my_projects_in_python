@@ -82,7 +82,7 @@ def extract_product_data(product_json):
 
 
 def pars_htmls():
-    logger.info(f"Обрабатываем директорию: {html_directory}")
+    # logger.info(f"Обрабатываем директорию: {html_directory}")
     all_data = []
 
     # Проверяем наличие HTML-файлов
@@ -112,7 +112,7 @@ def pars_htmls():
 
                 if main_product:
                     main_product["availability"] = availability
-                    logger.info(json.dumps(main_product, ensure_ascii=False, indent=4))
+                    # logger.info(json.dumps(main_product, ensure_ascii=False, indent=4))
 
                     all_data.append(main_product)
 
@@ -129,11 +129,11 @@ def pars_htmls():
 
         with output_file.open("w", encoding="utf-8") as f:
             json.dump(all_data, f, ensure_ascii=False, indent=4)
-        logger.info(f"Данные сохранены в {output_file}")
+        # logger.info(f"Данные сохранены в {output_file}")
 
     return all_data
 
 
 if __name__ == "__main__":
     parsed_data = pars_htmls()
-    logger.info(f"Обработано файлов: {len(parsed_data)}")
+    # logger.info(f"Обработано файлов: {len(parsed_data)}")
