@@ -19,9 +19,200 @@ output_html_file = html_directory / "mediamarkt.html"
 
 
 def get_html():
+    # import pandas as pd
 
+    # # Read the CSV file
+    # df = pd.read_csv("all_edrs.csv", header=None, names=["edr"])
+
+    # # Add the URL prefix to each EDR value
+    # df["edr"] = "https://clarity-project.info/edr/" + df["edr"].astype(str)
+
+    # # Save the updated DataFrame back to CSV
+    # df.to_csv("all_edrs_with_urls.csv", index=False, header=False)
+    # exit()
+    # import requests
+
+    # cookies = {
+    #     "__uzma": "97357116-b531-48ea-a787-9a1cdbc0d2a3",
+    #     "__uzmb": "1737571173",
+    #     "__uzme": "0889",
+    #     "__ssds": "2",
+    #     "__ssuzjsr2": "a9be0cd8e",
+    #     "__uzmaj2": "f52997a6-1322-426e-8b54-c2c2eac61cf7",
+    #     "__uzmbj2": "1737571182",
+    #     "cid": "Qwjcj8NLrZa4OA91%23169442320",
+    #     "shs": "BAQAAAZRXz2gmAAaAAVUAD2mwKzcyMjQyMjM4Mjg5MDAzLDLKGm6oHxSYJNWSOKNvMcNNo6deng**",
+    #     "shui-messages-KYC_ALERT-viewsLeft": "999993",
+    #     "ebaysid": "BAQAAAZRXz2gmAAaAA/oDQWuVKtBleUpyWlhraU9pSnphWFJsTG1saFppNXphV2R1WVhSMWNtVXVhMlY1Y0dGcGNpSXNJblpsY2lJNk1UTXNJbUZzWnlJNklsSlROVEV5SW4wLmV5SnBjM01pT2lKSlFVWlRUMEZKUkVWT1ZDSXNJbk4xWWlJNklqUm5aWGszYjNwdmRHVnRJaXdpWlhod0lqb3hOelF4T0RZMk9ETTJMQ0p1WW1ZaU9qRTNOREU0TmpVNU16WXNJbWxoZENJNk1UYzBNVGcyTlRrek5pd2lhblJwSWpvaU16azNaams1WXpFdE5HTTRZaTAwWWpKaExUa3daakV0TVRNelpHSTFNak0wWlRKbUlpd2ljMlZ6YzJsdmJsUnZhMlZ1VW1WbVpYSmxibU5sSWpvaWRsNHhMakVqYVY0eEkzQmVNeU55WGpFalpsNHdJMGxlTXlOMFhsVnNOSGhOUmpneFQydEdRMUZVVWtKTmFrSkNVbFJOZUU1RVJrZFNSVmt4VDBSb1ExSnFhekpSYTFKRFRWUnJNVkpVVVhsWWVrWm1UVk5PUmxocVNUSk5RVDA5SWl3aWMyVnpjMmx2Ymtsa0lqb2lPR0ZrTVdZeVlXUXhPVEl3WVdFM01qZzRZelprTnpnMlptWmpaV1UzT1RZaWZRLlB6WWtiNGJZWndOalJMbW81TXprVFBLWUNER1A0UllmSmE3a3BackFyUHhxX0h5TWpjUGtsWmFaZlExVjlEc3RjRUJEVTZPbUFTRzMwcTZoMVpDa3U0SEZOaTVNLU1OSTdhYmxtMkRBdDdnRGZ1VW5BMy1PckVEaUFqLTZmeTRXRjV3N1Q3eHNmbTZQYUJCUWFFTXRZZmRuYk5iZ1VnTk0yYTJ6OHpWNm05VjF0cURXeGY2QkpHX3paOTJaMnRsYl9NWS1ZMkZjVHZhdjI4Wk4zUTRmeGRWUDBRbUloUEdHZS1fMy1GVGNBM1JtUlFUQ3ByV09yNjFJS3c3cFplaFNGQksxODRTTXdjYWFqbWpvanBJZ0VQUjE0dGFCclFUeTlHdkRXblp2YU1RZW45cXN2ZFNTTHUwNUlwREdtdjE4ZFZUbVZtRENJRzBMUG5NdUNHbVdrd8QyyucYciLIbBojCo8LK3++Sy8x",
+    #     "__uzmlj2": "G9FAAxnDuMKptEcAzxYkJIGvwaFLJ25rRkt6/3IP/jM=",
+    #     "cpt": "%5Ecpt_prvd%3Dhcaptcha%5E",
+    #     "__deba": "Wed3akqZJHwtM1z8M732L6ii3bqHZuzpiBZB3tGbaQbTPrlh8SVw389_7KVXBGqwXR8UW1J2_XMwSXzXGqPFGBpfL_bTa09RToxbD82BSPFB4sx0wK9nLHnUrJtlsixT0HRcCVsfcKIPRCZzSv4Rgw==",
+    #     "__uzmcj2": "541718282825",
+    #     "__uzmdj2": "1745310345",
+    #     "__uzmfj2": "7f600038e61fac-f753-483f-8618-80f320552cd617375711825237739162974-e2ffbe8e527097c082",
+    #     "ds1": "ats/1745310956857",
+    #     "ns1": "BAQAAAZZay1gcAAaAAKUADGnoiG0xMzQ0MDY3NjMvMDvpPZJlkVUgx4l3N2CqNEQAeekN5Q**",
+    #     "ak_bmsc": "0D27BDCF56202C71300D2ACDC87B7224~000000000000000000000000000000~YAAQbEx1aAC3RSSWAQAAwiQ4YhtBuDUKZpDl/p96xpBT4Sy87BKiBry7HXH6pGBF7PmkXp7+AaPs0+Xr7mM6PDBXpiCEPbzK/Yb0y3Ts57FRSu6yRfw44FqKOtjQ0VqRLxNc+5ZchDZUZhq8hzW716eB9/2Db8laIzH68Lh50r8lNhaCS3tNsOLNvIUVioHzpr3LjVJeoV3kU/ikm+WOCSqQBHjpcMYI8CGhTFsJ9GWBNmPTcT1iBTPBJNdvyNlNopnzZIPIR5H1WUvffT2B/n+7Rekg+6nHdbzXYKDxMgsKdoIf2aRtpjBW75l8PuFB4fDRgTMX7aDwjZ8F7VzuG6Waja3ZiKY8rtj0zFlTI6XwAK+89g4EhiPX285pwj6b+7UMq1rW2Wc=",
+    #     "s": "CgADuAEpoChQ8MTQGaHR0cHM6Ly93d3cuZWJheS5jb20vYi9DYXItVHJ1Y2stRUNVcy1Db21wdXRlci1Nb2R1bGVzLzMzNTk2L2JuXzU4NDMxNAcA+AAgaAoUGDVjYTNjMzVlMTk2MGFkNTk4OGQyMWFlNGZmN2Y3NGIwiLN+rA**",
+    #     "ebay": "%5Ejs%3D1%5EsfLMD%3D0%5Esin%3Din%5Esbf%3D%2300000004%5E",
+    #     "__uzmc": "1089531333920",
+    #     "__uzmd": "1745404604",
+    #     "__uzmf": "7f600038e61fac-f753-483f-8618-80f320552cd617375711736317833430498-055a2ce001a2b54c313",
+    #     "bm_sv": "E8E1AA3AEECFBDC1EAAEF1BD88A13E36~YAAQF0x1aO972j6WAQAAaP1hYhvY8Oz2QBw30kmLk65otw5Beae40X8mHaCJTdUmgn6TPG0kKlMhIQHxX9S5wwy3vWW20IHg/fNJM6EvZkDadKF6I5hMsCqDAPqXr59mQqWPPPkY74oS8Yp7VCU8GBlKNCx0MKkjsIOxc3d/tcwSTY/A8tLekeyg7V+DO4m3ZvZybmG80Jw2Wg7vSup6LmQNt6dAUfyqg1P8Lry0mMD+d6d2njMOKvFD8v0A6NY=~1",
+    #     "dp1": "bu1p/dGVzdHVzZXJfcmVzdGVxMQ**6bcb3f25^kms/in6bcb3f25^pbf/%230000e400e0000000800000000069ea0ba5^u1f/Bohdan6bcb3f25^bl/DEen-US6bcb3f25^",
+    #     "nonsession": "CgADKACBryz8lNWNhM2MzNWUxOTYwYWQ1OTg4ZDIxYWU0ZmY3Zjc0YjAAywABaAjfLTIAanfM",
+    #     "totp": "1745410087830.H6swJ5A968LLtwauX/XcJIFKXY0xBYpHsPHhmTRA589lDRLvr7M3FEjxVpq9zMU/9e0rpcsMcG6bfNLRB+/rlQ==.rT765YSD8240_-ElUr6mQTVlLWGQPBQxu6oJx1gJKDg",
+    # }
+
+    # headers = {
+    #     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    #     "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    #     "cache-control": "no-cache",
+    #     "dnt": "1",
+    #     "pragma": "no-cache",
+    #     "priority": "u=0, i",
+    #     "referer": "https://www.ebay.com/b/Car-Truck-ECUs-Computer-Modules/33596/bn_584314",
+    #     "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+    #     "sec-ch-ua-full-version": '"135.0.7049.96"',
+    #     "sec-ch-ua-mobile": "?0",
+    #     "sec-ch-ua-model": '""',
+    #     "sec-ch-ua-platform": '"Windows"',
+    #     "sec-ch-ua-platform-version": '"19.0.0"',
+    #     "sec-fetch-dest": "document",
+    #     "sec-fetch-mode": "navigate",
+    #     "sec-fetch-site": "cross-site",
+    #     "sec-fetch-user": "?1",
+    #     "upgrade-insecure-requests": "1",
+    #     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    # }
+
+    # response = requests.get(
+    #     "https://www.ebay.com/b/Car-Truck-ECUs-Computer-Modules/33596/bn_584314",
+    #     cookies=cookies,
+    #     headers=headers,
+    #     timeout=10,
+    # )
+
+    # # Проверка кода ответа
+    # if response.status_code == 200:
+
+    #     # Сохранение HTML-страницы целиком
+    #     with open(output_html_file, "w", encoding="utf-8") as file:
+    #         file.write(response.text)
+    #     logger.info(f"Successfully saved {output_html_file}")
+    # else:
+    #     logger.error(f"Failed to get HTML. Status code: {response.status_code}")
+    # # ПАГИНАЦИЯ ebay
+    # import pandas as pd
+    # import requests
+    # from bs4 import BeautifulSoup
+    # import time
+
+    # # Заголовки из curl-запроса
+    # headers = {
+    #     'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    #     'accept-language': 'ru,en;q=0.9,uk;q=0.8',
+    #     'dnt': '1',
+    #     'priority': 'u=0, i',
+    #     'sec-ch-ua': '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+    #     'sec-ch-ua-full-version': '"135.0.7049.96"',
+    #     'sec-ch-ua-mobile': '?0',
+    #     'sec-ch-ua-model': '""',
+    #     'sec-ch-ua-platform': '"Windows"',
+    #     'sec-ch-ua-platform-version': '"19.0.0"',
+    #     'sec-fetch-dest': 'document',
+    #     'sec-fetch-mode': 'navigate',
+    #     'sec-fetch-site': 'same-origin',
+    #     'sec-fetch-user': '?1',
+    #     'upgrade-insecure-requests': '1',
+    #     'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
+    # }
+
+    # # Куки из curl-запроса (упрощённые, возможно, потребуется их обновить)
+    # cookies = {
+    #     '__uzma': '97357116-b531-48ea-a787-9a1cdbc0d2a3',
+    #     '__uzmb': '1737571173',
+    #     '__uzme': '0889',
+    #     '__ssds': '2',
+    #     '__ssuzjsr2': 'a9be0cd8e',
+    #     '__uzmaj2': 'f52997a6-1322-426e-8b54-c2c2eac61cf7',
+    #     '__uzmbj2': '1737571182',
+    # }
+
+    # # Базовый URL
+    # base_url = 'https://www.ebay.com/b/Car-Truck-Additional-ABS-Parts/33560/bn_583684?Items%2520Included=ABS%2520Accumulator&mag=1&rt=nc'
+
+    # # Список для хранения всех href
+    # all_hrefs = []
+
+    # def scrape_page(url):
+    #     try:
+    #         response = requests.get(url, headers=headers, cookies=cookies)
+    #         response.raise_for_status()
+    #         soup = BeautifulSoup(response.text, 'html.parser')
+
+    #         # Находим все ссылки на товары
+    #         items = soup.select('li.brwrvr__item-card.brwrvr__item-card--list a.bsig__title__wrapper')
+    #         hrefs = [item['href'] for item in items if 'href' in item.attrs]
+
+    #         # Добавляем href в общий список
+    #         all_hrefs.extend(hrefs)
+
+    #         # Проверяем наличие следующей страницы
+    #         next_button = soup.select_one('a.pagination__next')
+    #         if next_button and 'href' in next_button.attrs and not soup.select_one('button.pagination__next[aria-disabled="true"]'):
+    #             return next_button['href']
+    #         return None
+    #     except Exception as e:
+    #         print(f"Ошибка при обработке {url}: {str(e)}")
+    #         return None
+
+    # # Начинаем с первой страницы
+    # current_url = base_url
+    # page_count = 1
+
+    # while current_url:
+    #     print(f"Обработка страницы {page_count}...")
+    #     next_url = scrape_page(current_url)
+    #     current_url = next_url
+    #     page_count += 1
+    #     time.sleep(2)  # Пауза, чтобы не перегружать сервер
+
+    # # Сохраняем в CSV с помощью pandas
+    # df = pd.DataFrame(all_hrefs, columns=['href'])
+    # df.to_csv('all_urls.csv', index=False)
+
+    # print(f"Собрано {len(all_hrefs)} ссылок и сохранено в all_urls.csv")
+    # Скачивание каждого HTML файла из CSV
+    import re
+    import time
+
+    import pandas as pd
     import requests
 
+    # Заголовки из curl-запроса
+    headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "cache-control": "no-cache",
+        "dnt": "1",
+        "pragma": "no-cache",
+        "priority": "u=0, i",
+        "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+        "sec-ch-ua-full-version": '"135.0.7049.96"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-model": '""',
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-ch-ua-platform-version": '"19.0.0"',
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    }
+
+    # Куки из curl-запроса
     cookies = {
         "__uzma": "97357116-b531-48ea-a787-9a1cdbc0d2a3",
         "__uzmb": "1737571173",
@@ -33,7 +224,7 @@ def get_html():
         "cid": "Qwjcj8NLrZa4OA91%23169442320",
         "shs": "BAQAAAZRXz2gmAAaAAVUAD2mwKzcyMjQyMjM4Mjg5MDAzLDLKGm6oHxSYJNWSOKNvMcNNo6deng**",
         "shui-messages-KYC_ALERT-viewsLeft": "999993",
-        "ebaysid": "BAQAAAZRXz2gmAAaAA/oDQWuVKtBleUpyWlhraU9pSnphWFJsTG1saFppNXphV2R1WVhSMWNtVXVhMlY1Y0dGcGNpSXNJblpsY2lJNk1UTXNJbUZzWnlJNklsSlROVEV5SW4wLmV5SnBjM01pT2lKSlFVWlRUMEZKUkVWT1ZDSXNJbk4xWWlJNklqUm5aWGszYjNwdmRHVnRJaXdpWlhod0lqb3hOelF4T0RZMk9ETTJMQ0p1WW1ZaU9qRTNOREU0TmpVNU16WXNJbWxoZENJNk1UYzBNVGcyTlRrek5pd2lhblJwSWpvaU16azNaams1WXpFdE5HTTRZaTAwWWpKaExUa3daakV0TVRNelpHSTFNak0wWlRKbUlpd2ljMlZ6YzJsdmJsUnZhMlZ1VW1WbVpYSmxibU5sSWpvaWRsNHhMakVqYVY0eEkzQmVNeU55WGpFalpsNHdJMGxlTXlOMFhsVnNOSGhOUmpneFQydEdRMUZVVWtKTmFrSkNVbFJOZUU1RVJrZFNSVmt4VDBSb1ExSnFhekpSYTFKRFRWUnJNVkpVVVhsWWVrWm1UVk5PUmxocVNUSk5RVDA5SWl3aWMyVnpjMmx2Ymtsa0lqb2lPR0ZrTVdZeVlXUXhPVEl3WVdFM01qZzRZelprTnpnMlptWmpaV1UzT1RZaWZRLlB6WWtiNGJZWndOalJMbW81TXprVFBLWUNER1A0UllmSmE3a3BackFyUHhxX0h5TWpjUGtsWmFaZlExVjlEc3RjRUJEVTZPbUFTRzMwcTZoMVpDa3U0SEZOaTVNLU1OSTdhYmxtMkRBdDdnRGZ1VW5BMy1PckVEaUFqLTZmeTRXRjV3N1Q3eHNmbTZQYUJCUWFFTXRZZmRuYk5iZ1VnTk0yYTJ6OHpWNm05VjF0cURXeGY2QkpHX3paOTJaMnRsYl9NWS1ZMkZjVHZhdjI4Wk4zUTRmeGRWUDBRbUloUEdHZS1fMy1GVGNBM1JtUlFUQ3ByV09yNjFJS3c3cFplaFNGQksxODRTTXdjYWFqbWpvanBJZ0VQUjE0dGFCclFUeTlHdkRXblp2YU1RZW45cXN2ZFNTTHUwNUlwREdtdjE4ZFZUbVZtRENJRzBMUG5NdUNHbVdrd8QyyucYciLIbBojCo8LK3++Sy8x",
+        "ebaysid": "BAQAAAZRXz2gmAAaAA/oDQWuVKtBleUpyWlhraU9pSnphWFJsTG1saFppNXphV2R1WVhSMWNtVXVhMlY1Y0dGcGNpSXNJblpsY2lJNk1UTXNJbUZzWnlJNklsSlROVEV5SW4wLmV5SnBjM01pT2lKSlFVWlRUMEZKUkVWT1ZDSXNJbk4xWWlJNklqUm5aWGszYjNwdmRHVnRJaXdpWlhod0lqb3hOelF4T0RZMk9ETTJMQ0p1WW1ZaU9qRTNOREU0TmpVNU16WXNJbWxoZENJNk1UYzBNVGcyTlRrek5pd2lhblJwSWpvaU16azNaams1WXpFdE5HTTRZaTAwWWpKaExUa3daakV0TVRNelpHSTFNak0wWlRKbUlpd2ljMlZ6YzJsdmJsUnZhMlZ1VW1WbVpYSmxibU5sSWpvaWRsNHhMakVqYVY0eEkzQmVNeU55WGpFalpsNHdJMGxlTXlOMFhsVnNOSGhOUmpneFQydEdRMUZVVWtKTmFrSkNVbFJOZUU1RVJrZFNSVmt4VDBSb1ExSnFhekpSYTFKRFRWUnJNVkpVVVhsWWVrWm1UVk5PUmxocVNUSk5RVDA5SWl3aWMyVnpjMmx2Ymtsa0lqb2lPR0ZrTVdZeVlXUXhPVEl3WVdFM01qZzRZelprTnpnMlptWmpaV1UzT1RZaWZRLlB6WWtiNGJZWndOalJMbW81TXprVFBLWUNER1A0UllmSmE3a3BackFyUHhxX0h5TWpjUGtsWmFaZlExVjlEc3RjRUJEVTZPbUFTRzMwcTZoMVpDa3U0SEZOaTVNLU1OSTdhYmxtMkRBdDdnRGZ1VW5BMy1PckVEaUFqLTZmeTRXRjV3N1Q3eHNmbTZQYUJCUWFFTXRZZmRuYk5iZ1VnTk0yYTJ6OHpWNm05VjF0cURXeGY2QkpHX3paOTJaMnRsYl9NWS1ZMkFjVHZhdjI4Wk4zUTRmeGRWUDBRbUloUEdHZS1fMy1GVGNBM1JtUlFUQ3ByV09yNjFJS3c3cFplaFNGQksxODRTTXdjYWFqbWpvanBJZ0VQUjE0dGFCclFUeTlHdkRXblp2YU1RZW45cXN2ZFNTTHUwNUlwREdtdjE4ZFZUbVZtRENJRzBMUG5NdUNHbVdrd8QyyucYciLIbBojCo8LK3++Sy8x",
         "__uzmlj2": "G9FAAxnDuMKptEcAzxYkJIGvwaFLJ25rRkt6/3IP/jM=",
         "cpt": "%5Ecpt_prvd%3Dhcaptcha%5E",
         "__deba": "Wed3akqZJHwtM1z8M732L6ii3bqHZuzpiBZB3tGbaQbTPrlh8SVw389_7KVXBGqwXR8UW1J2_XMwSXzXGqPFGBpfL_bTa09RToxbD82BSPFB4sx0wK9nLHnUrJtlsixT0HRcCVsfcKIPRCZzSv4Rgw==",
@@ -42,56 +233,59 @@ def get_html():
         "__uzmfj2": "7f600038e61fac-f753-483f-8618-80f320552cd617375711825237739162974-e2ffbe8e527097c082",
         "ds1": "ats/1745310956857",
         "ns1": "BAQAAAZZay1gcAAaAAKUADGnoiG0xMzQ0MDY3NjMvMDvpPZJlkVUgx4l3N2CqNEQAeekN5Q**",
-        "ak_bmsc": "0D27BDCF56202C71300D2ACDC87B7224~000000000000000000000000000000~YAAQbEx1aAC3RSSWAQAAwiQ4YhtBuDUKZpDl/p96xpBT4Sy87BKiBry7HXH6pGBF7PmkXp7+AaPs0+Xr7mM6PDBXpiCEPbzK/Yb0y3Ts57FRSu6yRfw44FqKOtjQ0VqRLxNc+5ZchDZUZhq8hzW716eB9/2Db8laIzH68Lh50r8lNhaCS3tNsOLNvIUVioHzpr3LjVJeoV3kU/ikm+WOCSqQBHjpcMYI8CGhTFsJ9GWBNmPTcT1iBTPBJNdvyNlNopnzZIPIR5H1WUvffT2B/n+7Rekg+6nHdbzXYKDxMgsKdoIf2aRtpjBW75l8PuFB4fDRgTMX7aDwjZ8F7VzuG6Waja3ZiKY8rtj0zFlTI6XwAK+89g4EhiPX285pwj6b+7UMq1rW2Wc=",
-        "s": "CgADuAEpoChQ8MTQGaHR0cHM6Ly93d3cuZWJheS5jb20vYi9DYXItVHJ1Y2stRUNVcy1Db21wdXRlci1Nb2R1bGVzLzMzNTk2L2JuXzU4NDMxNAcA+AAgaAoUGDVjYTNjMzVlMTk2MGFkNTk4OGQyMWFlNGZmN2Y3NGIwiLN+rA**",
+        "s": "CgAD4ACBoC2jPNWNhM2MzNWUxOTYwYWQ1OTg4ZDIxYWU0ZmY3Zjc0YjBnFkGC",
+        "ak_bmsc": "C2ECD7D77F71821EE513B7B3B2480630~000000000000000000000000000000~YAAQBUx1aAAKEUuWAQAAESyGaRuW9aZ0ekXKkZzsI0kyGf0qouioE7XHR+OXUAPSznIfHKImsFIMTBd1xIIGTho9s7UgT7KXQygQKmt6oHMjS3pL/FXkRYlr/5qxj5EJt/CM+OcIPGzOAeIz1BXiGPHNcFZ6XGQUwqYWxnagmoJh0bBIa4TKOycl13Y/dVv6DBCJlir3eHy7QQ+8Jo69/OA0OxJalZM7spn8e6pULNEe8Gre4sgu4n3e+/+KgLpEnhyfUQCx9iidyooUaFtpa0ERpQ+x4f4UF6wDVNztzEDUr64Foj36k6m6sKnRnfz3h5AYThYMhrpiWz4emz8h+S9cfMEbahTLbtU+A48vbBotjWRN1ecJ/YhsaODxD+06Qw/Ppy2ivJo=",
         "ebay": "%5Ejs%3D1%5EsfLMD%3D0%5Esin%3Din%5Esbf%3D%2300000004%5E",
-        "__uzmc": "1089531333920",
-        "__uzmd": "1745404604",
-        "__uzmf": "7f600038e61fac-f753-483f-8618-80f320552cd617375711736317833430498-055a2ce001a2b54c313",
-        "bm_sv": "E8E1AA3AEECFBDC1EAAEF1BD88A13E36~YAAQF0x1aO972j6WAQAAaP1hYhvY8Oz2QBw30kmLk65otw5Beae40X8mHaCJTdUmgn6TPG0kKlMhIQHxX9S5wwy3vWW20IHg/fNJM6EvZkDadKF6I5hMsCqDAPqXr59mQqWPPPkY74oS8Yp7VCU8GBlKNCx0MKkjsIOxc3d/tcwSTY/A8tLekeyg7V+DO4m3ZvZybmG80Jw2Wg7vSup6LmQNt6dAUfyqg1P8Lry0mMD+d6d2njMOKvFD8v0A6NY=~1",
-        "dp1": "bu1p/dGVzdHVzZXJfcmVzdGVxMQ**6bcb3f25^kms/in6bcb3f25^pbf/%230000e400e0000000800000000069ea0ba5^u1f/Bohdan6bcb3f25^bl/DEen-US6bcb3f25^",
-        "nonsession": "CgADKACBryz8lNWNhM2MzNWUxOTYwYWQ1OTg4ZDIxYWU0ZmY3Zjc0YjAAywABaAjfLTIAanfM",
-        "totp": "1745410087830.H6swJ5A968LLtwauX/XcJIFKXY0xBYpHsPHhmTRA589lDRLvr7M3FEjxVpq9zMU/9e0rpcsMcG6bfNLRB+/rlQ==.rT765YSD8240_-ElUr6mQTVlLWGQPBQxu6oJx1gJKDg",
+        "__uzmc": "2378932286496",
+        "__uzmd": "1745530440",
+        "__uzmf": "7f600038e61fac-f753-483f-8618-80f320552cd617375711736317959267058-150c914f21eedb01322",
+        "totp": "1745530442106.iKVpBvoQ4A9rdCj5AxmsfGvdDoUrnJ5aeWFfjbtTpUSYsoJQpHWP+cj1En6KNPh8xOWRTXWVSdbYGvdqABqRqA==.rT765YSD8240_-ElUr6mQTVlLWGQPBQxu6oJx1gJKDg",
+        "dp1": "bu1p/dGVzdHVzZXJfcmVzdGVxMQ**6bcd154b^kms/in6bcd154b^pbf/%230000e400e0000000800000000069ebe1cb^u1f/Bohdan6bcd154b^bl/DEen-US6bcd154b^",
+        "nonsession": "CgADKACBrzRVLNWNhM2MzNWUxOTYwYWQ1OTg4ZDIxYWU0ZmY3Zjc0YjAAywABaAq1UzQMPWZF",
+        "bm_sv": "4412198FB9F945B4A1004A4BC7D99614~YAAQFkx1aIUHxyOWAQAAete4aRuU5vduaJOn4pgjq6EVDHga/DIIqDYbJ7gNTlr+NaByhQco0ZV3ZhO5oZDWMV6jpT7D5uoukWumggLYbu+8RCXeVYVvHjaoNLiBNG/WxbQZAG5sijqhc9Ap9T5/GmoqVNIpSe2bQNnhHWyZBUlkXPYsikwka2eNCt1ux7nG1B8wMY4/gOlEquX3YvTY4bCOg+VDpsLkJa4o0pduncsGr+8X/kWXxSgZRr2wgIs=~1",
     }
 
-    headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "referer": "https://www.ebay.com/b/Car-Truck-ECUs-Computer-Modules/33596/bn_584314",
-        "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-        "sec-ch-ua-full-version": '"135.0.7049.96"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-ch-ua-platform-version": '"19.0.0"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "cross-site",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-    }
+    def extract_ids(url):
+        # Извлекаем product_id и iid из URL
+        product_id = re.search(r"/p/(\d+)", url)
+        iid = re.search(r"iid=(\d+)", url)
+        if product_id and iid:
+            return product_id.group(1), iid.group(1)
+        return None, None
 
-    response = requests.get(
-        "https://www.ebay.com/b/Car-Truck-ECUs-Computer-Modules/33596/bn_584314",
-        cookies=cookies,
-        headers=headers,
-        timeout=10,
-    )
+    # Читаем CSV-файл
+    try:
+        df = pd.read_csv("all_urls.csv")
+    except FileNotFoundError:
+        print("Файл all_urls.csv не найден!")
+        exit(1)
 
-    # Проверка кода ответа
-    if response.status_code == 200:
+    # Проходим по каждой ссылке
+    for url in df["href"]:
+        product_id, iid = extract_ids(url)
+        if not product_id or not iid:
+            print(f"Не удалось извлечь product_id или iid из {url}")
+            continue
 
-        # Сохранение HTML-страницы целиком
-        with open(output_html_file, "w", encoding="utf-8") as file:
-            file.write(response.text)
-        logger.info(f"Successfully saved {output_html_file}")
-    else:
-        logger.error(f"Failed to get HTML. Status code: {response.status_code}")
+        filename = f"{product_id}_{iid}.html"
+        print(f"Загружаем {url} в {filename}...")
+
+        try:
+            # Выполняем запрос
+            response = requests.get(url, headers=headers, cookies=cookies)
+            response.raise_for_status()
+
+            # Сохраняем HTML в файл
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(response.text)
+
+            print(f"Сохранено в {filename}")
+        except Exception as e:
+            print(f"Ошибка при загрузке {url}: {str(e)}")
+
+        time.sleep(2)  # Пауза, чтобы не перегружать сервер
+
+    print("Загрузка завершена!")
 
 
 def remove_at_type(data):
@@ -240,101 +434,166 @@ def parse_address(address):
 
 
 def scrap_html():
-    with open("Page_01.html", "r", encoding="utf-8") as file:
-        content = file.read()
-    soup = BeautifulSoup(content, "lxml")
 
-    # Парсим данные
-    company_name = parse_company_name(soup)  # Извлекаем название предприятия
-    phone_numbers = parse_phone_numbers(soup)
-    emails = parse_emails(soup)
-    additional_info = parse_additional_info(soup)
+    # Список для хранения данных
+    data = []
+    # Множество для хранения всех уникальных ключей характеристик
+    spec_keys = set()
 
-    # Добавляем название предприятия в additional_info
-    additional_info["company_name"] = company_name
+    # Проходим по всем HTML-файлам в папке
+    for html_file in html_directory.glob("*.html"):
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
 
-    # Объединяем все в одну структуру
-    combined_data = {
-        "contacts": {"phone_numbers": phone_numbers, "emails": emails},
-        "organization": additional_info,
-    }
+            try:
+                soup = BeautifulSoup(content, "lxml")
 
-    # Преобразуем в красивый JSON с отступами и поддержкой UTF-8
-    pretty_json = json.dumps(combined_data, indent=4, ensure_ascii=False)
-    logger.info(pretty_json)
+                # Инициализируем словарь для данных
+                product_data = {"filename": html_file.name}
 
-    # Сохраняем в JSON
-    with open("parsed_data.json", "w", encoding="utf-8") as f:
-        json.dump(combined_data, f, indent=4, ensure_ascii=False)
+                # 1. Извлекаем URL из <meta property="og:url">
+                url_meta = soup.find("meta", {"property": "og:url"})
+                product_data["url"] = url_meta.get("content", "") if url_meta else ""
 
-    # Подготовка данных для Excel
-    # Создаем словарь для одной строки
-    excel_row = {}
+                title_tag = soup.find("div", {"data-testid": "x-item-title"})
+                product_data["title"] = (
+                    title_tag.find("span").get_text(strip=True)
+                    if title_tag and title_tag.find("span")
+                    else ""
+                )
+                # 2. Извлекаем цену из <div class="x-price-primary">
+                price_div = soup.find("div", {"class": "x-price-primary"})
+                if price_div:
+                    price_text = price_div.find(
+                        "span", {"class": "ux-textspans"}
+                    ).get_text(strip=True)
+                    # Извлекаем числовое значение (например, "US $1,450.00" -> "1450.00")
+                    price = "".join(
+                        filter(lambda x: x.isdigit() or x == ".", price_text)
+                    )
+                    product_data["price"] = price
+                else:
+                    product_data["price"] = ""
 
-    # Заполняем основные поля из additional_info
-    excel_row["ЄДРПОУ"] = additional_info.get("edrpou", None)
-    excel_row["Назва підприємства"] = additional_info.get("company_name", None)
-    excel_row["Основний квед"] = additional_info.get("kved", None)
-    excel_row["Директор (ФИО)"] = additional_info.get("director", None)
+                # 3. Извлекаем изображения (до 3) из <div class="ux-image-carousel-item image-treatment image">
+                images = []
+                image_divs = soup.find_all(
+                    "div", {"class": "ux-image-carousel-item image-treatment image"}
+                )
+                for div in image_divs[:3]:  # Ограничиваем до 3 изображений
+                    img = div.find("img")
+                    if img:
+                        src = img.get("data-zoom-src")
+                        if src:
+                            images.append(src)
+                product_data["image_1"] = images[0] if len(images) > 0 else ""
+                product_data["image_2"] = images[1] if len(images) > 1 else ""
+                product_data["image_3"] = images[2] if len(images) > 2 else ""
 
-    # Разделяем ФИО директора
-    last_name, first_name, middle_name = split_full_name(
-        additional_info.get("director")
-    )
-    excel_row["Директор (прізвище)"] = last_name
-    excel_row["Директор (імʼя)"] = first_name
-    excel_row["Директор (по-батькові)"] = middle_name
+                # 4. Извлекаем состояние товара
+                condition_div = soup.find("div", {"class": "vim x-item-condition"})
+                if condition_div:
+                    condition_text = condition_div.find(
+                        "span", {"data-testid": "ux-textual-display"}
+                    )
+                    product_data["condition"] = (
+                        condition_text.get_text(strip=True) if condition_text else ""
+                    )
+                else:
+                    product_data["condition"] = ""
 
-    # Извлекаем адресные данные
-    address = additional_info.get("address")
-    region, district, locality = parse_address(address)
-    excel_row["Адреса (юридична)"] = address
-    excel_row["Область"] = region
-    excel_row["Район"] = district
-    excel_row["Місто / селище / село"] = locality
+                # 5. Извлекаем информацию о возврате
+                returns_div = soup.find("div", {"class": "vim x-returns-minview"})
+                if returns_div:
+                    returns_text = returns_div.find(
+                        "div", {"class": "ux-labels-values__values-content"}
+                    )
+                    if returns_text:
+                        # Собираем текст, включая текст внутри <a>
+                        returns_content = "".join(
+                            str(child) for child in returns_text.children
+                        )
+                        # Удаляем HTML-теги для чистого текста
+                        returns_soup = BeautifulSoup(returns_content, "html.parser")
+                        product_data["returns"] = returns_soup.get_text(strip=True)
+                    else:
+                        product_data["returns"] = ""
+                else:
+                    product_data["returns"] = ""
 
-    # Добавляем email (берем первый доступный)
-    excel_row["Емайл"] = emails[0]["email"] if emails else None
+                # 6. Извлекаем характеристики
+                specs_div = soup.find("div", {"class": "x-prp-product-details"})
+                specifications = {}
+                if specs_div:
+                    spec_rows = specs_div.find_all(
+                        "div", {"class": "x-prp-product-details_row"}
+                    )
+                    for row in spec_rows:
+                        cols = row.find_all(
+                            "div", {"class": "x-prp-product-details_col"}
+                        )
+                        for col in cols:
+                            name = col.find(
+                                "span", {"class": "x-prp-product-details_name"}
+                            )
+                            value = col.find(
+                                "span", {"class": "x-prp-product-details_value"}
+                            )
+                            if name and value:
+                                spec_name = name.get_text(strip=True)
+                                spec_value = value.get_text(strip=True)
+                                specifications[spec_name] = spec_value
+                                spec_keys.add(spec_name)  # Добавляем ключ в множество
 
-    # Добавляем телефоны (до 5 номеров)
-    for i in range(5):
-        if i < len(phone_numbers) and "phone_number" in phone_numbers[i]:
-            excel_row[f"Телефон {i+1}"] = phone_numbers[i]["phone_number"]
-        else:
-            excel_row[f"Телефон {i+1}"] = None
+                # Добавляем характеристики как отдельные поля в product_data
+                for key in specifications:
+                    product_data[key] = specifications[key]
 
-    # Создаем DataFrame
-    df = pd.DataFrame([excel_row])
+                # Добавляем данные в список
+                data.append(product_data)
 
-    # Определяем порядок столбцов
-    columns_order = [
-        "ЄДРПОУ",
-        "Назва підприємства",
-        "Основний квед",
-        "Директор (ФИО)",
-        "Директор (прізвище)",
-        "Директор (імʼя)",
-        "Директор (по-батькові)",
-        "Адреса (юридична)",
-        "Область",
-        "Район",
-        "Місто / селище / село",
-        "Емайл",
-        "Телефон 1",
-        "Телефон 2",
-        "Телефон 3",
-        "Телефон 4",
-        "Телефон 5",
-    ]
+            except Exception as e:
+                print(f"Ошибка при обработке {html_file.name}: {str(e)}")
+                data.append(
+                    {
+                        "filename": html_file.name,
+                        "title": "",
+                        "url": "",
+                        "price": "",
+                        "image_1": "",
+                        "image_2": "",
+                        "image_3": "",
+                        "condition": "",
+                        "returns": "",
+                    }
+                )
 
-    # Применяем порядок столбцов
-    df = df[columns_order]
+    # Создаем DataFrame с учетом всех возможных ключей характеристик
+    # Инициализируем все колонки характеристик пустыми строками
+    all_columns = [
+        "filename",
+        "title",
+        "url",
+        "price",
+        "image_1",
+        "image_2",
+        "image_3",
+        "condition",
+        "returns",
+    ] + sorted(
+        spec_keys
+    )  # Добавляем все уникальные ключи характеристик
 
-    # Записываем в Excel
-    with pd.ExcelWriter("parsed_data.xlsx", engine="xlsxwriter") as writer:
-        df.to_excel(writer, sheet_name="Data", index=False)
+    # Преобразуем данные в DataFrame, заполняя отсутствующие колонки пустыми строками
+    df_data = []
+    for item in data:
+        row = {col: item.get(col, "") for col in all_columns}
+        df_data.append(row)
 
-    logger.info("Данные успешно записаны в файл 'parsed_data.xlsx'")
+    df = pd.DataFrame(df_data, columns=all_columns)
+    df.to_csv("product_details.csv", index=False, encoding="utf-8", sep=";")
+
+    print(f"Обработано {len(data)} файлов, данные сохранены в product_details.csv")
 
 
 async def main():
@@ -396,7 +655,7 @@ async def main():
 
 
 if __name__ == "__main__":
-    # scrap_html()
+    scrap_html()
     # main_realoem()
-    get_html()
+    # get_html()
     # asyncio.run(main())

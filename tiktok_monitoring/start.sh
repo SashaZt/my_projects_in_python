@@ -42,10 +42,10 @@ if [ ! -f "postgres/init-scripts/02-init.sql" ]; then
     exit 1
 fi
 
-if [ ! -f "postgres/init-scripts/03-schema.sql" ]; then
-    echo "Ошибка: файл postgres/init-scripts/03-schema.sql не найден!"
-    exit 1
-fi
+# if [ ! -f "postgres/init-scripts/03-schema.sql" ]; then
+#     echo "Ошибка: файл postgres/init-scripts/03-schema.sql не найден!"
+#     exit 1
+# fi
 
 # Проверяем наличие директории данных
 if [ ! -d "$PG_DATA_DIR" ]; then

@@ -744,6 +744,12 @@ if __name__ == "__main__":
                 if match:
                     # Извлекаем сумму и учитываем total_quantity
                     amount_usd = int(match.group(1))
+                    if amount_usd == 10:
+                        amount_usd = 10
+                    elif amount_usd == 20:
+                        amount_usd = 10
+                    elif amount_usd == 30:
+                        amount_usd = 10
 
                     # Учитываем total_quantity при расчете общей суммы
                     total_amount_usd = amount_usd * total_quantity
@@ -754,7 +760,7 @@ if __name__ == "__main__":
                     # Количество карт (учитываем total_quantity)
                     total_cards = len(keys_product) * total_quantity
                     denomination_cards = len(keys_product)
-
+                    summa_usdt = denomination_cards * amount_usd
                     # Формируем сообщение с учетом количества
                     if denomination_cards == 2:
                         cards_text = "дві"
@@ -767,7 +773,7 @@ if __name__ == "__main__":
 
                     # Если total_quantity > 1, добавляем информацию об этом
                     if total_quantity > 1:
-                        mes = f"Це {cards_text} картки (у кількості {total_quantity} набори) кожна по ${amount_usd}. Після активації всіх карток на балансі буде ${total_amount_usd}, які ви потім обміняєте на робукси."
+                        mes = f"Це {cards_text} картки (у кількості {total_quantity} набори) кожна по ${amount_usd}. Після активації всіх карток на балансі буде ${summa_usdt}, які ви потім обміняєте на робукси."
                     else:
                         mes = f"Це {cards_text} картки кожна по ${amount_usd}. Після активації карток на балансі буде ${amount_usd}, які ви потім обміняєте на робукси."
                 else:
@@ -781,7 +787,7 @@ if __name__ == "__main__":
                     total_amount_usd = amount_usd * total_quantity
 
                     if total_quantity > 1:
-                        mes = f"Це {total_quantity} картки кожна на ${amount_usd}. Після активації всіх карток на балансі буде ${total_amount_usd}, які ви потім обміняєте на робукси."
+                        mes = f"Це {total_quantity} картки кожна на ${amount_usd}. Після активації всіх карток на балансі буде ${summa_usdt}, які ви потім обміняєте на робукси."
                     else:
                         mes = f"Це картка на ${amount_usd}. Після активації картки на балансі буде ${amount_usd}, які ви потім обміняєте на робукси."
                 else:
@@ -796,6 +802,8 @@ if __name__ == "__main__":
                 mes,
                 text_code_product,
             )
+            # logger.info(message_tg)
+            # exit()
 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)

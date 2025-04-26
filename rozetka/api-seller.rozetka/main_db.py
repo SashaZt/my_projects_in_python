@@ -874,18 +874,16 @@ def import_keys_from_files():
                     """,
                         (product_id, key_value),
                     )
-
+                    logger.info(f"Ключ добавлен {key_value}")
                     keys_added += 1
 
-            logger.info(
-                f"Для продукта '{product_name}' добавлено {keys_added} ключей, пропущено {keys_skipped} ключей (уже существуют)"
-            )
             total_keys_added += keys_added
 
             # Также обновляем JSON-файл с продуктами
             update_product_keys_in_json(product_name, key_value)
 
         conn.commit()
+        logger.info(f"Всего добавлено {total_keys_added} ключей")
         logger.info(f"Всего добавлено {total_keys_added} ключей")
 
     except Exception as e:
