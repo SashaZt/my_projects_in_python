@@ -1,6 +1,6 @@
-import base64
 import csv
 import json
+import time
 import urllib.parse
 import webbrowser
 from datetime import datetime, timedelta
@@ -402,6 +402,272 @@ class EbayTradingAPI:
         </{root_tag}>"""
         return xml
 
+    def get_category_specifics(self, category_id):
+        """Получение обязательных и рекомендуемых ItemSpecifics для категории."""
+        # Проверка токена
+        if not self.token:
+            logger.error("Токен отсутствует или недействителен")
+            raise ValueError("Токен отсутствует")
+
+        # Формируем заголовки без IAF токена
+        headers = {
+            "Content-Type": "text/xml; charset=utf-8",
+            "X-EBAY-API-COMPATIBILITY-LEVEL": "967",
+            "X-EBAY-API-CALL-NAME": "GetCategorySpecifics",
+            "X-EBAY-API-SITEID": "77",  # Германия
+        }
+
+        # В XML включаем токен, как показано в примере документации
+        xml_request = f"""<?xml version="1.0" encoding="utf-8"?>
+        <GetCategorySpecificsRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+            <RequesterCredentials>
+                <eBayAuthToken>{self.token}</eBayAuthToken>
+            </RequesterCredentials>
+            <CategorySpecific>
+                <CategoryID>{category_id}</CategoryID>
+            </CategorySpecific>
+        </GetCategorySpecificsRequest>"""
+
+        max_retries = 5
+        retry_delay = 5
+        timeout = 60
+
+        for attempt in range(max_retries):
+            try:
+                logger.info(
+                    f"Отправка запроса GetCategorySpecifics для CategoryID: {category_id}, попытка {attempt + 1}/{max_retries}"
+                )
+                # Безопасное логирование запроса (скрываем токен)
+                safe_xml = xml_request.replace(self.token, "TOKEN_HIDDEN")
+                logger.debug(f"Заголовки запроса: {headers}")
+                logger.debug(f"XML запрос: {safe_xml}")
+
+                # Отправка запроса
+                response = requests.post(
+                    API_ENDPOINT, headers=headers, data=xml_request, timeout=timeout
+                )
+
+                # Проверяем код ответа
+                response.raise_for_status()
+
+                # Логируем ответ сервера
+                logger.info(
+                    f"Получен ответ сервера GetCategorySpecifics (статус {response.status_code})"
+                )
+
+                # Проверка кода ответа и обработка XML
+                if response.status_code == 200:
+                    root = ET.fromstring(response.text)
+
+                    # Проверка на наличие Errors в ответе
+                    errors = root.findall(".//Errors")
+                    if errors:
+                        error_messages = []
+                        for error in errors:
+                            error_code = error.find("ErrorCode")
+                            error_message = error.find("ShortMessage")
+                            if error_code is not None and error_message is not None:
+                                error_messages.append(
+                                    f"Код ошибки: {error_code.text}, Сообщение: {error_message.text}"
+                                )
+
+                        error_text = "; ".join(error_messages)
+                        logger.error(f"Ошибка в ответе API: {error_text}")
+
+                        # Проверка на конкретные ошибки
+                        if any(
+                            "token" in msg.lower() or "auth" in msg.lower()
+                            for msg in error_messages
+                        ):
+                            logger.error(
+                                "Ошибка авторизации. Необходимо обновить токен."
+                            )
+                            return None
+
+                        if attempt < max_retries - 1:
+                            delay = retry_delay * (attempt + 1)
+                            logger.info(f"Повторная попытка через {delay} секунд...")
+                            time.sleep(delay)
+                            continue
+
+                    # Проверка успешного ответа
+                    ack = root.find(".//Ack")
+                    if (
+                        ack is not None
+                        and ack.text != "Success"
+                        and ack.text != "Warning"
+                    ):
+                        logger.error(f"Неуспешный ответ API: {ack.text}")
+                        if attempt < max_retries - 1:
+                            delay = retry_delay * (attempt + 1)
+                            logger.info(f"Повторная попытка через {delay} секунд...")
+                            time.sleep(delay)
+                            continue
+                        return None
+
+                    # Парсинг данных с правильными namespace
+                    namespaces = {"ns": "urn:ebay:apis:eBLBaseComponents"}
+                    recommendations = root.findall(
+                        ".//ns:NameRecommendation", namespaces
+                    )
+
+                    if not recommendations:
+                        # Попробуем без namespace
+                        recommendations = root.findall(".//NameRecommendation")
+
+                    if not recommendations:
+                        logger.warning(
+                            f"В ответе не найдены рекомендации для категории {category_id}"
+                        )
+                        # Логирование части ответа для отладки
+                        logger.debug(f"Часть ответа: {response.text[:500]}...")
+                        return []
+
+                    specifics = []
+                    for rec in recommendations:
+                        try:
+                            # Поиск Name элемента
+                            name_elem = rec.find("ns:Name", namespaces) or rec.find(
+                                "Name"
+                            )
+                            if name_elem is None:
+                                continue
+
+                            name = name_elem.text
+
+                            # Поиск правил валидации
+                            validation = rec.find(
+                                "ns:ValidationRules", namespaces
+                            ) or rec.find("ValidationRules")
+
+                            # Определение MinValues
+                            min_values = 0
+                            if validation is not None:
+                                min_values_elem = validation.find(
+                                    "ns:MinValues", namespaces
+                                ) or validation.find("MinValues")
+                                if (
+                                    min_values_elem is not None
+                                    and min_values_elem.text is not None
+                                ):
+                                    try:
+                                        min_values = int(min_values_elem.text)
+                                    except ValueError:
+                                        pass
+
+                            # Определение SelectionMode
+                            selection_mode = "FreeText"
+                            if validation is not None:
+                                selection_mode_elem = validation.find(
+                                    "ns:SelectionMode", namespaces
+                                ) or validation.find("SelectionMode")
+                                if (
+                                    selection_mode_elem is not None
+                                    and selection_mode_elem.text is not None
+                                ):
+                                    selection_mode = selection_mode_elem.text
+
+                            # Поиск рекомендованных значений
+                            values = []
+                            value_recs = rec.findall(
+                                ".//ns:ValueRecommendation/ns:Value", namespaces
+                            ) or rec.findall(".//ValueRecommendation/Value")
+                            for v in value_recs:
+                                if v.text is not None:
+                                    values.append(v.text)
+
+                            specifics.append(
+                                {
+                                    "Name": name,
+                                    "Required": min_values > 0,
+                                    "SelectionMode": selection_mode,
+                                    "Values": values,
+                                }
+                            )
+                        except Exception as e:
+                            logger.error(f"Ошибка при обработке рекомендации: {str(e)}")
+                            continue
+
+                    logger.info(
+                        f"Получены ItemSpecifics для CategoryID {category_id}: {len(specifics)} специфик"
+                    )
+                    return specifics
+
+                else:
+                    logger.error(f"Неожиданный код ответа: {response.status_code}")
+                    if attempt < max_retries - 1:
+                        delay = retry_delay * (attempt + 1)
+                        logger.info(f"Повторная попытка через {delay} секунд...")
+                        time.sleep(delay)
+                        continue
+                    return None
+
+            except requests.exceptions.ConnectionError as e:
+                logger.error(
+                    f"Ошибка соединения при получении ItemSpecifics (попытка {attempt + 1}/{max_retries}): {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    delay = retry_delay * (attempt + 1)
+                    logger.info(f"Повторная попытка через {delay} секунд...")
+                    time.sleep(delay)
+                    continue
+                logger.error("Все попытки соединения исчерпаны")
+                return None
+
+            except requests.exceptions.Timeout as e:
+                logger.error(
+                    f"Тайм-аут при получении ItemSpecifics (попытка {attempt + 1}/{max_retries}): {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    delay = retry_delay * (attempt + 1)
+                    logger.info(f"Повторная попытка через {delay} секунд...")
+                    time.sleep(delay)
+                    continue
+                return None
+
+            except requests.exceptions.HTTPError as e:
+                logger.error(f"HTTP ошибка при получении ItemSpecifics: {str(e)}")
+                if hasattr(e, "response") and e.response is not None:
+                    logger.error(f"Ответ сервера: {e.response.text}")
+                if attempt < max_retries - 1:
+                    delay = retry_delay * (attempt + 1)
+                    logger.info(f"Повторная попытка через {delay} секунд...")
+                    time.sleep(delay)
+                    continue
+                return None
+
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Ошибка запроса GetCategorySpecifics: {str(e)}")
+                if hasattr(e, "response") and e.response is not None:
+                    logger.error(f"Ответ сервера: {e.response.text}")
+                if attempt < max_retries - 1:
+                    delay = retry_delay * (attempt + 1)
+                    logger.info(f"Повторная попытка через {delay} секунд...")
+                    time.sleep(delay)
+                    continue
+                return None
+
+            except ET.ParseError as e:
+                logger.error(f"Ошибка парсинга XML ответа: {str(e)}")
+                logger.error(f"Полученный ответ: {response.text[:1000]}...")
+                if attempt < max_retries - 1:
+                    delay = retry_delay * (attempt + 1)
+                    logger.info(f"Повторная попытка через {delay} секунд...")
+                    time.sleep(delay)
+                    continue
+                return None
+
+            except Exception as e:
+                logger.error(
+                    f"Необработанное исключение при получении ItemSpecifics: {str(e)}"
+                )
+                if attempt < max_retries - 1:
+                    delay = retry_delay * (attempt + 1)
+                    logger.info(f"Повторная попытка через {delay} секунд...")
+                    time.sleep(delay)
+                    continue
+                return None
+
 
 def load_items_from_json(file_path):
     """Чтение данных товаров из JSON."""
@@ -477,9 +743,11 @@ def save_item_ids_to_csv(items, item_ids, output_file="output_items.csv"):
 def main():
     try:
         trading_api = EbayTradingAPI()
+        time.sleep(1)
         print("=== eBay Listing Manager ===")
         print("1. Создать новые листинги из items.json")
         print("2. Обновить существующие листинги из output_items.json")
+        print("3. Получить данные категории")
         choice = input("Выберите действие (1 или 2): ").strip()
 
         if choice == "1":
@@ -509,6 +777,9 @@ def main():
         elif choice == "2":
             # Обновляем листинги из JSON
             update_items_from_json(trading_api)
+        elif choice == "3":
+            # Обновляем листинги из JSON
+            trading_api.get_category_specifics("169291")
         else:
             print("Неверный выбор. Пожалуйста, выберите 1 или 2.")
             logger.error(f"Неверный выбор действия: {choice}")
