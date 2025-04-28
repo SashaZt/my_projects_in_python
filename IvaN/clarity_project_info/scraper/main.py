@@ -50,7 +50,8 @@ def main():
         # write_csv(CSV_URL_SITE_MAPS, sitemap_links)
 
         # # Шаг 3: Скачивание .xml.gz файлов
-        # logger.info(f"Шаг 3: Скачивание {len(sitemap_links)} архивов")
+        # logger.info(f"Шаг 3: Скачивание архивов")
+        # sitemap_links = load_urls(CSV_URL_SITE_MAPS)
         # download_gz_files(sitemap_links, GZ_DIR, proxies, MAX_WORKERS)
 
         # # Шаг 4: Распаковка .gz файлов
@@ -69,10 +70,42 @@ def main():
 
         # Шаг 7: Скачивание HTML страниц
         logger.info("Шаг 7: Скачивание HTML страниц")
-        urls = load_urls(CSV_ALL_EDRS_PRODUCTS)
-        asyncio.run(
-            async_download_html_with_proxies(urls, proxies, HTML_FILES_DIR, MAX_WORKERS)
-        )
+
+        # Предварительная фильтрация URL - проверяем, какие HTML файлы уже существуют
+        logger.info("Выполняем предварительную фильтрацию URL...")
+        all_urls = load_urls(CSV_ALL_EDRS_PRODUCTS)
+
+        # Фильтруем URL, для которых ещё нет HTML файлов
+        from pathlib import Path
+        from urllib.parse import urlparse
+
+        missing_urls = []
+        total_urls = len(all_urls)
+        existing_count = 0
+
+        logger.info(f"Проверка существующих файлов для {total_urls} URL...")
+
+        for i, url in enumerate(all_urls):
+            if i > 0 and i % 1000 == 0:
+                logger.info(f"Проверено {i}/{total_urls} URL...")
+
+            filename = HTML_FILES_DIR / f"{urlparse(url).path.replace('/', '_')}.html"
+            if filename.exists():
+                existing_count += 1
+            else:
+                missing_urls.append(url)
+
+        logger.info(f"Найдено {existing_count} уже скачанных HTML файлов")
+        logger.info(f"Осталось скачать {len(missing_urls)} HTML файлов")
+
+        if not missing_urls:
+            logger.info("Все файлы уже скачаны. Процесс завершен.")
+        else:
+            asyncio.run(
+                async_download_html_with_proxies(
+                    missing_urls, proxies, HTML_FILES_DIR, MAX_WORKERS
+                )
+            )
 
         logger.info("Работа завершена успешно!")
 

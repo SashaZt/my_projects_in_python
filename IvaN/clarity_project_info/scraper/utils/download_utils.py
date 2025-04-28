@@ -178,6 +178,7 @@ async def async_download_html_with_proxies(
     urls: List[str], proxies: List[str], output_dir: Path, max_workers: int
 ) -> None:
     """Асинхронная пакетная загрузка HTML с очередью и отслеживанием прогресса."""
+    # Создаём очередь URL для обработки
     queue = asyncio.Queue()
     for url in urls:
         await queue.put(url)
@@ -187,13 +188,9 @@ async def async_download_html_with_proxies(
     async def worker() -> None:
         while not queue.empty():
             url = await queue.get()
-            filename = output_dir / f"{urlparse(url).path.replace('/', '_')}.html"
 
-            if filename.exists():
-                queue.task_done()
-                await progress.async_update(True)
-                continue
-
+            # Здесь мы не проверяем существование файла,
+            # так как теперь список URL уже предварительно отфильтрован
             html_content = await download_html_direct(url, proxies)
 
             if html_content:
