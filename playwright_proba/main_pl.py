@@ -427,10 +427,10 @@
 #     # Ожидаем 5 секунд
 #     await asyncio.sleep(5)
 
-#     # Сохраняем содержимое страницы в HTML-файл
-#     html_content = await page.content()
-#     with open("page_content.html", "w", encoding="utf-8") as file:
-#         file.write(html_content)
+    # # Сохраняем содержимое страницы в HTML-файл
+    # html_content = await page.content()
+    # with open("page_content.html", "w", encoding="utf-8") as file:
+    #     file.write(html_content)
 
 #     # Закрываем браузер
 #     await browser.close()

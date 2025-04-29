@@ -2,10 +2,18 @@ import json
 import os
 import time
 
-import pyautogui
 import pyperclip
 import requests
 from logger import logger
+from pynput.keyboard import Controller as KeyboardController
+from pynput.keyboard import Key
+from pynput.mouse import Button
+from pynput.mouse import Controller as MouseController
+
+# Инициализация контроллеров мыши и клавиатуры
+keyboard = KeyboardController()
+mouse = MouseController()
+
 
 LOG_FILE = "log.txt"
 
@@ -40,31 +48,44 @@ def log_message(order_id):
 
 # Функція для відправки повідомлення через Viber
 def send_viber_message(phone, message, order_id):
-    # Створюємо посилання на Viber
+    # Создаем ссылку на Viber
     link = f"viber://chat?number={phone}"
 
-    # Відкриваємо чат
+    # Открываем чат
     os.startfile(link)
-    time.sleep(5)  # Чекаємо, поки відкриється Viber
+    time.sleep(5)  # Ждем, пока откроется Viber
 
-    # Клікаємо в текстове поле (координати треба налаштувати під себе)
-    pyautogui.click(1058, 1372)  # Заміни координати на правильні для свого екрану
+    # Кликаем в текстовое поле
+    mouse.position = (1058, 1372)  # Координаты текстового поля
     time.sleep(0.5)
+    mouse.click(Button.left)
+    time.sleep(1)
 
-    # Копіюємо повідомлення в буфер
+    # Копируем сообщение в буфер обмена
     pyperclip.copy(message)
+    # logger.info(f"Сообщение скопировано в буфер: \n{message}")
 
-    # Вставляємо текст
-    pyautogui.hotkey("ctrl", "v")
-    time.sleep(0.2)
+    # Вставляем текст с помощью pynput (более надежно)
+    with keyboard.pressed(Key.ctrl):
+        keyboard.press("v")
+        keyboard.release("v")
 
-    # Відправляємо повідомлення
-    pyautogui.press("enter")
+    time.sleep(1)  # Даем время для вставки
+
+    # Отправляем сообщение
+    # keyboard.press(Key.enter)
+    # keyboard.release(Key.enter)
+    mouse.position = (2522, 1372)  # Координаты текстового поля
+    time.sleep(0.5)
+    mouse.click(Button.left)
     logger.info(f"Повідомлення надіслано клієнту {phone}!")
 
-    # Логуємо повідомлення
+    # Логируем сообщение
     log_message(order_id)
-    pyautogui.click(2444, 11)  # Закрытие окна
+
+    # Закрываем окно
+    mouse.position = (2444, 11)
+    mouse.click(Button.left)
     time.sleep(0.5)
 
 
@@ -145,13 +166,12 @@ def main():
 
                     phone = order.get("phone")
                     name_product = order.get("name")
-
-                    # Формируем сообщение
-                    message = f"""Вітаємо✨
-Це інтернет-магазин “XGames_Store” 🎮
-Ви оформили замовлення на Промі
-{name_product}
-Вірно?"""
+                    name_product = name_product.encode("utf-8").decode("utf-8")
+                    message = (
+                        'Вітаємо✨\nЦе інтернет-магазин "XGames_Store" 🎮\nВи оформили замовлення на Промі\n'
+                        + name_product
+                        + ".\nВірно?"
+                    )
 
                     # Отправляем сообщение через Viber
                     send_viber_message(phone, message, order_id)
@@ -160,7 +180,7 @@ def main():
             logger.error(f"Помилка: {e}")
 
         logger.info("Чекаємо 10 хвилин перед наступною перевіркою...")
-        time.sleep(300)  # Ждем 10 минут
+        time.sleep(300)
 
 
 if __name__ == "__main__":

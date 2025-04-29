@@ -6,6 +6,7 @@ import time
 from datetime import datetime, timezone
 from queue import Queue
 
+import requests
 from logger import logger
 from TikTokLive import TikTokLiveClient
 from TikTokLive.client.web.web_settings import WebDefaults
@@ -95,13 +96,17 @@ class TikTokMonitor:
                 try:
                     # Пытаемся получить сырые данные
                     if hasattr(event, "raw_data"):
-                        with open(
-                            f"debug_{username}_{int(time.time())}.json", "w"
-                        ) as f:
-                            import json
+                        # Проверяем, что данные не пусты
+                        if event.raw_data:
+                            with open(
+                                f"debug_{username}_{int(time.time())}.json", "w"
+                            ) as f:
+                                import json
 
-                            json.dump(event.raw_data, f)
-                        logger.info(f"Successfully saved raw data for {username}")
+                                json.dump(event.raw_data, f)
+                            logger.info(f"Successfully saved raw data for {username}")
+                        else:
+                            logger.warning(f"Received empty raw_data for {username}")
                 except Exception as e:
                     logger.error(f"Error saving debug data: {e}")
 
@@ -364,8 +369,8 @@ class TikTokMonitor:
             except Exception as e:
                 logger.error(f"Error updating streamers list: {e}")
 
-            # Проверяем каждые 60 секунд
-            await asyncio.sleep(60)
+            # Проверяем каждые 120 секунд
+            await asyncio.sleep(120)
 
     async def _clean_gift_cache(self):
         """Периодическая очистка кэша подарков"""
@@ -506,7 +511,6 @@ class TikTokMonitor:
                     )
                     logger.debug(f"Connecting with unique_id: {connect_id}")
 
-                # Создаем клиент
                 client = TikTokLiveClient(
                     unique_id=connect_id,
                 )
@@ -751,7 +755,25 @@ class TikTokMonitor:
                 f"Информация о подарке: name={gift_name}, count={gift_count}, streakable={streakable}, "
                 + f"is_repeating={is_repeating}, repeat_end={repeat_end}, streaking={streaking}"
             )
-            # Для стрикабельных подарков учитываем только последний в серии
+            # Для стрикабельных подарков учитываем только последний в серии Был до этого рабочий.
+            # if streakable:
+            #     # Если подарок в стрике и это не конец стрика, пропускаем
+            #     if (is_repeating and not repeat_end) or (streaking):
+            #         logger.debug(
+            #             f"Skipping intermediate streaking gift: {gift_name} (count: {gift_count})"
+            #         )
+            #         return
+
+            #     # Формируем ключ для конечного подарка в серии с учетом количества
+            #     gift_key = (
+            #         f"{gift_id}_{diamond_count}_{user_id}_{unique_id}_{gift_count}"
+            #     )
+            # else:
+            #     # Для не-стрикабельных подарков используем время для уникальности
+            #     gift_key = (
+            #         f"{gift_id}_{diamond_count}_{user_id}_{unique_id}_{current_time}"
+            #     )
+            # Для стрикабельных подарков нужно всегда включать временную метку
             if streakable:
                 # Если подарок в стрике и это не конец стрика, пропускаем
                 if (is_repeating and not repeat_end) or (streaking):
@@ -760,10 +782,8 @@ class TikTokMonitor:
                     )
                     return
 
-                # Формируем ключ для конечного подарка в серии с учетом количества
-                gift_key = (
-                    f"{gift_id}_{diamond_count}_{user_id}_{unique_id}_{gift_count}"
-                )
+                # Формируем ключ для конечного подарка в серии с добавлением временной метки
+                gift_key = f"{gift_id}_{diamond_count}_{user_id}_{unique_id}_{gift_count}_{current_time}"
             else:
                 # Для не-стрикабельных подарков используем время для уникальности
                 gift_key = (
@@ -1282,9 +1302,9 @@ class TikTokMonitor:
             AND g.streamer_id IS NULL;
             """
             result4 = await self.db.execute(query4)
-            logger.info(
-                # f"Synchronized gifts with streamers by room_id mapping: {result4}"
-            )
+            # logger.info(
+            #     # f"Synchronized gifts with streamers by room_id mapping: {result4}"
+            # )
 
             # Исправляем автоматически сгенерированные имена
             query5 = """
@@ -1342,7 +1362,5 @@ class TikTokMonitor:
 
             return True
         except Exception as e:
-            logger.error(f"Error syncing TikTok IDs: {e}")
-            return False
             logger.error(f"Error syncing TikTok IDs: {e}")
             return False

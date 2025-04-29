@@ -157,14 +157,17 @@ from contextlib import asynccontextmanager
 
 import socketio
 import uvicorn
+from auth import ALGORITHM, SECRET_KEY, get_user_by_username
 from config import settings
 from database import db
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from jose import JWTError, jwt
 from logger import logger
-from routes import clusters, dashboard, gifts, streamers
+from routes import auth, clusters, dashboard, gifts, streamers
 from services.statistics import get_dashboard_statistics
 
 # Создаем экземпляр Socket.IO
@@ -255,6 +258,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="TikTok Dashboard", lifespan=lifespan)
 
+
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
@@ -263,6 +267,54 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    # Путь к статическим файлам и маршруты авторизации не требуют авторизации
+    exempt_paths = [
+        "/static",
+        "/login",
+        "/register",
+        "/logout",
+        "/favicon.ico",
+        "/socket.io",  # Разрешаем socket.io без авторизации
+    ]
+
+    if any(request.url.path.startswith(path) for path in exempt_paths):
+        return await call_next(request)
+
+    # Проверяем авторизацию
+    token = request.cookies.get("access_token")
+    if not token:
+        return RedirectResponse(url="/login")
+
+    # Проверяем токен
+    try:
+        # Декодируем с минимальными проверками для совместимости
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"verify_aud": False},  # Отключаем проверку аудитории
+        )
+        username = payload.get("sub")
+        if username is None:
+            return RedirectResponse(url="/login")
+
+        # Добавляем пользователя в state для доступа в шаблонах
+        user = await get_user_by_username(username)
+        request.state.user = user
+
+    except Exception as e:
+        # Для отладки
+        from logger import logger
+
+        logger.error(f"JWT Error: {str(e)}")
+        return RedirectResponse(url="/login")
+
+    return await call_next(request)
+
 
 # Монтируем Socket.IO под путём /socket.io
 app.mount("/socket.io", socket_app)
@@ -282,6 +334,8 @@ app.include_router(dashboard.router, tags=["dashboard"])
 app.include_router(streamers.router, prefix="/streamers", tags=["streamers"])
 app.include_router(clusters.router, prefix="/clusters", tags=["clusters"])
 app.include_router(gifts.router, prefix="/gifts", tags=["gifts"])
+app.include_router(auth.router, tags=["auth"])
+
 
 # Подключение обработчиков Socket.IO
 import socketio_handlers

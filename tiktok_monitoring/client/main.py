@@ -38,10 +38,10 @@ async def main():
     # Синхронизируем подарки со стримерами
     await monitor.sync_gift_streamers()
 
-    # Импортируем стримеров из JSON-файла, если он существует
-    if os.path.exists("tiktokers.json"):
-        logger.info("Found tiktokers.json. Importing streamers from JSON...")
-        await monitor.import_streamers_from_json("tiktokers.json")
+    # # Импортируем стримеров из JSON-файла, если он существует
+    # if os.path.exists("tiktokers.json"):
+    #     logger.info("Found tiktokers.json. Importing streamers from JSON...")
+    #     await monitor.import_streamers_from_json("tiktokers.json")
 
     # Настраиваем обработчик сигналов для graceful shutdown
     loop = asyncio.get_running_loop()
