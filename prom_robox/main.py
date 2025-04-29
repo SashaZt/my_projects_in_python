@@ -160,7 +160,7 @@ def main():
             logger.error(f"Помилка: {e}")
 
         logger.info("Чекаємо 10 хвилин перед наступною перевіркою...")
-        time.sleep(600)  # Ждем 10 минут
+        time.sleep(300)  # Ждем 10 минут
 
 
 if __name__ == "__main__":

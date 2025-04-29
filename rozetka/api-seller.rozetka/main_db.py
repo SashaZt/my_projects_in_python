@@ -109,8 +109,8 @@ def init_db():
                     # Вставляем товар в базу данных
                     cursor.execute(
                         """
-                    INSERT OR IGNORE INTO products 
-                    (name, card_value, card_count, robux_amount) 
+                    INSERT OR IGNORE INTO products
+                    (name, card_value, card_count, robux_amount)
                     VALUES (?, ?, ?, ?)
                     """,
                         (product_name, card_value, card_count, robux_amount),
@@ -126,26 +126,26 @@ def init_db():
                     )
                     product_id = cursor.fetchone()[0]
 
-                    # Добавляем ключи для этого продукта
-                    product_keys = product.get("product_keys", [])
-                    for key_value in product_keys:
-                        # Проверяем, существует ли уже такой ключ
-                        cursor.execute(
-                            "SELECT id FROM product_keys WHERE key_value = ?",
-                            (key_value,),
-                        )
-                        existing_key = cursor.fetchone()
+                    # # Добавляем ключи для этого продукта
+                    # product_keys = product.get("product_keys", [])
+                    # for key_value in product_keys:
+                    #     # Проверяем, существует ли уже такой ключ
+                    #     cursor.execute(
+                    #         "SELECT id FROM product_keys WHERE key_value = ?",
+                    #         (key_value,),
+                    #     )
+                    #     existing_key = cursor.fetchone()
 
-                        if not existing_key:
-                            # Добавляем новый ключ
-                            cursor.execute(
-                                """
-                                INSERT INTO product_keys (product_id, key_value, is_used)
-                                VALUES (?, ?, ?)
-                                """,
-                                (product_id, key_value, 0),
-                            )
-                            keys_added += 1
+                    #     if not existing_key:
+                    #         # Добавляем новый ключ
+                    #         cursor.execute(
+                    #             """
+                    #             INSERT INTO product_keys (product_id, key_value, is_used)
+                    #             VALUES (?, ?, ?)
+                    #             """,
+                    #             (product_id, key_value, 0),
+                    #         )
+                    #         keys_added += 1
 
                 conn.commit()
                 # logger.info(
@@ -190,130 +190,6 @@ def init_db():
 
 
 init_db()
-
-
-# # Сохранение заказов в базу данных
-# def save_parsed_orders_to_db(parsed_orders):
-#     """
-#     Сохраняет обработанные заказы из parsed_orders.json в базу данных
-#     """
-#     # Подключаемся к базе данных
-#     conn = sqlite3.connect(DB_NAME)
-#     cursor = conn.cursor()
-
-#     orders_updated = 0
-#     orders_inserted = 0
-
-#     for order in parsed_orders:
-#         # Получаем данные заказа
-#         order_id = order.get("order_id")
-#         item_name = order.get("product", "")
-#         user_phone = order.get("user_phone", "")
-#         email = order.get("email", "")
-#         created = order.get("created", "")
-#         amount = order.get("amount", "")
-#         full_name = order.get("full_name", "")
-#         status_payment = order.get("status_payment", "")
-
-#         # Определяем статус заказа на основе status_payment
-#         # Можно настроить соответствие между статусами
-#         status = 1  # Значение по умолчанию
-#         if status_payment == "Сума заблокована":
-#             status = 7  # Предположительно "оплачено"
-
-#         # Разбиваем полное имя на компоненты
-#         name_parts = full_name.split()
-#         first_name = name_parts[0] if len(name_parts) > 0 else ""
-#         last_name = name_parts[1] if len(name_parts) > 1 else ""
-#         second_name = name_parts[2] if len(name_parts) > 2 else ""
-
-#         # Проверяем, существует ли уже такой заказ
-#         cursor.execute("SELECT id, status FROM orders WHERE id = ?", (order_id,))
-#         existing_order = cursor.fetchone()
-
-#         if existing_order:
-#             # Проверяем, изменился ли статус заказа
-#             old_status = existing_order[1]
-#             status_changed = old_status != status
-
-#             # Обновляем существующий заказ
-#             cursor.execute(
-#                 """
-#             UPDATE orders SET
-#                 status = ?,
-#                 item_name = ?,
-#                 user_phone = ?,
-#                 email = ?,
-#                 first_name = ?,
-#                 last_name = ?,
-#                 second_name = ?,
-#                 full_name = ?,
-#                 created = ?,
-#                 amount = ?
-#             WHERE id = ?
-#             """,
-#                 (
-#                     status,
-#                     item_name,
-#                     user_phone,
-#                     email,
-#                     first_name,
-#                     last_name,
-#                     second_name,
-#                     full_name,
-#                     created,
-#                     amount,
-#                     order_id,
-#                 ),
-#             )
-
-#             orders_updated += 1
-
-#             # Если статус изменился на "оплачено", можно выполнить дополнительные действия
-#             if status_changed and status == 5:
-#                 logger.info(f"Статус заказа #{order_id} изменился на 'оплачено'")
-#                 # Здесь можно добавить логику для обработки оплаченных заказов
-#                 # Например, отправку уведомления, выделение ключа и т.д.
-#         else:
-#             # Добавляем новый заказ
-#             cursor.execute(
-#                 """
-#             INSERT INTO orders (
-#                 id, status, item_name, user_phone,email, first_name,
-#                 last_name, second_name, full_name, created, amount
-#             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
-#             """,
-#                 (
-#                     order_id,
-#                     status,
-#                     item_name,
-#                     user_phone,
-#                     email,
-#                     first_name,
-#                     last_name,
-#                     second_name,
-#                     full_name,
-#                     created,
-#                     amount,
-#                 ),
-#             )
-
-#             orders_inserted += 1
-
-#             # Если новый заказ уже оплачен, можно выполнить дополнительные действия
-#             if status == 5:
-#                 logger.info(f"Новый оплаченный заказ #{order_id}")
-#                 # Здесь можно добавить логику для обработки новых оплаченных заказов
-
-#     conn.commit()
-
-#     # Выводим статистику
-#     logger.info(f"Обработано заказов: {len(parsed_orders)}")
-#     logger.info(f"Добавлено новых заказов: {orders_inserted}")
-#     # logger.info(f"Обновлено существующих заказов: {orders_updated}")
-
-#     conn.close()
-#     return True
 
 
 def save_parsed_orders_to_db(orders_data):
@@ -390,194 +266,6 @@ def save_parsed_orders_to_db(orders_data):
             conn.close()
 
 
-# def get_next_available_key_for_orders():
-#     """
-#     Проверяет таблицу заказов на наличие заказов без отправленных ключей,
-#     выделяет для них ключи и отмечает их как использованные.
-#     """
-#     conn = sqlite3.connect(DB_NAME)
-#     # Включаем поддержку внешних ключей
-#     conn.execute("PRAGMA foreign_keys = ON")
-#     cursor = conn.cursor()
-
-#     try:
-#         # Получаем заказы, для которых еще не были отправлены ключи
-#         cursor.execute(
-#             """
-#         SELECT o.id, o.item_name, o.status, o.user_phone,o.email, o.full_name
-#         FROM orders o
-#         WHERE o.key_sent_at IS NULL AND o.status = 7  -- статус 7 обычно означает "оплачено"
-#         """
-#         )
-
-#         orders_without_keys = cursor.fetchall()
-
-#         if not orders_without_keys:
-#             logger.info("Нет заказов, требующих выделения ключей")
-#             return []
-
-#         result = []
-
-#         # Получаем информацию о доступных картах 10$ и 25$
-#         cursor.execute(
-#             """
-#         SELECT p.id, p.name
-#         FROM products p
-#         WHERE p.name = 'Карта поповнення Roblox Gift Card на 1000 ROBUX | 10$ (USD)'
-#         """
-#         )
-#         card_10_info = cursor.fetchone()
-
-#         cursor.execute(
-#             """
-#         SELECT p.id, p.name
-#         FROM products p
-#         WHERE p.name = 'Карта поповнення Roblox Gift Card на 2500 ROBUX | 25$ (USD)'
-#         """
-#         )
-#         card_25_info = cursor.fetchone()
-
-#         if not card_10_info:
-#             logger.error("Базовая карта 10$ не найдена в базе данных")
-#             return []
-
-#         if not card_25_info:
-#             logger.error("Базовая карта 25$ не найдена в базе данных")
-#             # Продолжаем работу, так как некоторые заказы могут требовать только карты 10$
-
-#         card_10_id = card_10_info[0]
-#         card_25_id = card_25_info[0] if card_25_info else None
-
-#         for order_data in orders_without_keys:
-#             order_id, item_name, status, user_phone, email, full_name = order_data
-
-#             # Получаем информацию о продукте по его имени
-#             cursor.execute(
-#                 """
-#             SELECT id, card_value, card_count
-#             FROM products
-#             WHERE name = ?
-#             """,
-#                 (item_name,),
-#             )
-
-#             product_info = cursor.fetchone()
-
-#             if not product_info:
-#                 logger.error(f"Продукт '{item_name}' не найден в базе данных")
-#                 continue
-
-#             product_id, card_value, card_count = product_info
-
-#             # Определяем, какой базовый продукт использовать
-#             base_product_id = None
-#             if card_value == 10:
-#                 base_product_id = card_10_id
-#             elif card_value == 25:
-#                 base_product_id = card_25_id
-#             else:
-#                 logger.error(f"Неизвестный номинал карты: {card_value}$")
-#                 continue
-
-#             # Проверяем наличие достаточного количества ключей
-#             cursor.execute(
-#                 """
-#             SELECT COUNT(id)
-#             FROM product_keys
-#             WHERE product_id = ? AND is_used = 0
-#             """,
-#                 (base_product_id,),
-#             )
-
-#             available_keys_count = cursor.fetchone()[0]
-
-#             if available_keys_count < card_count:
-#                 logger.error(
-#                     f"Недостаточно ключей для продукта '{item_name}'. Требуется: {card_count}, доступно: {available_keys_count}"
-#                 )
-#                 # Добавляем информацию о проблеме в результат
-#                 result.append(
-#                     {
-#                         "order_id": order_id,
-#                         "product": item_name,
-#                         "user_phone": user_phone,
-#                         "email": email,
-#                         "full_name": full_name,
-#                         "key_count": 0,
-#                         "keys": [],
-#                         "key_ids": [],
-#                         "error": f"Недостаточно ключей. Требуется: {card_count}, доступно: {available_keys_count}",
-#                     }
-#                 )
-#                 continue
-
-#             # Получаем необходимое количество ключей
-#             cursor.execute(
-#                 """
-#             SELECT id, key_value
-#             FROM product_keys
-#             WHERE product_id = ? AND is_used = 0
-#             LIMIT ?
-#             """,
-#                 (base_product_id, card_count),
-#             )
-
-#             keys = cursor.fetchall()
-
-#             # Формируем список ключей для этого заказа и отмечаем их как использованные
-#             keys_list = []
-#             key_ids = []
-#             for key_id, key_value in keys:
-#                 # Отмечаем ключ как использованный и привязываем его к заказу
-#                 cursor.execute(
-#                     """
-#                 UPDATE product_keys
-#                 SET is_used = 1, order_id = ?
-#                 WHERE id = ?
-#                 """,
-#                     (order_id, key_id),
-#                 )
-
-#                 keys_list.append(key_value)
-#                 key_ids.append(key_id)
-
-#             # Обновляем информацию о заказе, устанавливая первый ключ и время отправки
-#             if key_ids:
-#                 cursor.execute(
-#                     """
-#                 UPDATE orders
-#                 SET key_id = ?
-#                 WHERE id = ?
-#                 """,
-#                     (key_ids[0], order_id),
-#                 )
-
-#             # Добавляем информацию о заказе и найденных ключах в результат
-#             result.append(
-#                 {
-#                     "order_id": order_id,
-#                     "product": item_name,
-#                     "user_phone": user_phone,
-#                     "email": email,
-#                     "full_name": full_name,
-#                     "key_count": len(keys_list),
-#                     "keys": keys_list,
-#                     "key_ids": key_ids,
-#                 }
-#             )
-
-#         # Фиксируем изменения в базе данных
-#         conn.commit()
-
-#         return result
-
-
-#     except Exception as e:
-#         logger.error(f"Ошибка при выделении ключей: {e}")
-#         conn.rollback()  # Откатываем изменения в случае ошибки
-#         return []
-#     finally:
-#         conn.close()
 def get_next_available_key_for_orders():
     """
     Проверяет таблицу заказов на наличие заказов без отправленных ключей,
@@ -825,6 +513,9 @@ def import_keys_from_files():
         logger.error("Нет файлов для обработки")
         return
 
+    logger.info(files_to_process)
+    # Убрано exit() для продолжения выполнения функции
+
     # Подключаемся к базе данных
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -878,12 +569,11 @@ def import_keys_from_files():
                     keys_added += 1
 
             total_keys_added += keys_added
-
-            # Также обновляем JSON-файл с продуктами
-            update_product_keys_in_json(product_name, key_value)
+            logger.info(
+                f"Добавлено {keys_added} ключей для продукта '{product_name}', пропущено {keys_skipped} дубликатов"
+            )
 
         conn.commit()
-        logger.info(f"Всего добавлено {total_keys_added} ключей")
         logger.info(f"Всего добавлено {total_keys_added} ключей")
 
     except Exception as e:
