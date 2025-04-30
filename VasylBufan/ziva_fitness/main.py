@@ -5,13 +5,11 @@ import re
 from pathlib import Path
 
 import gspread
-import requests
 from bs4 import BeautifulSoup
 from google.oauth2.service_account import Credentials
 from logger import logger
 from playwright.async_api import async_playwright
 
-BASE_URL = "https://www.ziva-fitness.com/"
 current_directory = Path.cwd()
 config_directory = current_directory / "config"
 html_directory = current_directory / "html"
@@ -31,6 +29,10 @@ def get_config():
 config = get_config()
 SPREADSHEET = config["google"]["spreadsheet"]
 SHEET = config["google"]["sheet"]
+login_url = config["site"]["login_url"]
+username = config["site"]["username"]
+password = config["site"]["password"]
+BASE_URL = config["site"]["base_url"]
 
 
 def get_google_sheet():
@@ -68,14 +70,14 @@ def get_google_sheet():
 sheet = get_google_sheet()
 
 
-async def authorization(url: str, username: str, password: str):
+async def authorization():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
         context = await browser.new_context()
         page = await context.new_page()
 
         # Переходим на страницу логина
-        await page.goto(url)
+        await page.goto(login_url)
 
         # Заполняем поле логина
         await page.fill('//input[@name="login"]', username)
@@ -356,15 +358,9 @@ def update_sheet_with_data(sheet, data, total_rows=8000):
 
 
 async def main():
-    # Пример использования
-    login_url = "https://www.ziva-fitness.com/login/"  # Страница логина
-    username = "hdsport2006@gmail.com"  # Логин
-    password = "03CkAfC2"  # Пароль
-
-    # Захватываем и сохраняем POST-запрос
-    await authorization(login_url, username, password)
+    await authorization()
 
 
 if __name__ == "__main__":
-    # asyncio.run(main())
+    asyncio.run(main())
     parse_html_to_json()
