@@ -68,7 +68,7 @@ function updateStreamersTable(data) {
 
         // Формируем HTML строки
         tr.innerHTML = `
-            <td>${streamer.name}</td>
+            <td><a href="/streamers/profile/${streamer.id}">${streamer.name}</a></td>
             <td>${streamer.room_id || '-'}</td>
             <td>${streamer.cluster_name || '-'}</td>
             <td>
@@ -85,6 +85,7 @@ function updateStreamersTable(data) {
                 </button>
                 <button class="danger" onclick="deleteStreamer(${streamer.id})">Удалить</button>
             </td>
+            
         `;
 
         tbody.appendChild(tr);

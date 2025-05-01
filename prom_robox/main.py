@@ -158,23 +158,44 @@ def main():
                 logger.info("Нет новых заказов для обработки.")
             else:
                 for order in orders_data:
-                    order_id = order.get("order_id")
-                    # Проверяем, отправляли ли сообщение этому клиенту
-                    if is_order_processed(order_id):
-                        logger.error(f"Заказ {order_id} уже обработан.Пропускаем.")
-                        continue
+                    quantity = int(order.get("quantity"))
+                    if quantity > 1:
 
-                    phone = order.get("phone")
-                    name_product = order.get("name")
-                    name_product = name_product.encode("utf-8").decode("utf-8")
-                    message = (
-                        'Вітаємо✨\nЦе інтернет-магазин "XGames_Store" 🎮\nВи оформили замовлення на Промі\n'
-                        + name_product
-                        + ".\nВірно?"
-                    )
+                        order_id = order.get("order_id")
+                        # Проверяем, отправляли ли сообщение этому клиенту
+                        if is_order_processed(order_id):
+                            logger.error(f"Заказ {order_id} уже обработан.Пропускаем.")
+                            continue
 
-                    # Отправляем сообщение через Viber
-                    send_viber_message(phone, message, order_id)
+                        phone = order.get("phone")
+                        name_product = order.get("name")
+                        name_product = name_product.encode("utf-8").decode("utf-8")
+                        message = (
+                            'Вітаємо✨\nЦе інтернет-магазин "XGames_Store" 🎮\nВи оформили замовлення на Промі\n'
+                            + name_product
+                            + "в кількості "
+                            + quantity
+                            + ".\nВірно?"
+                        )
+                        # Отправляем сообщение через Viber
+                        send_viber_message(phone, message, order_id)
+                    else:
+                        order_id = order.get("order_id")
+                        # Проверяем, отправляли ли сообщение этому клиенту
+                        if is_order_processed(order_id):
+                            logger.error(f"Заказ {order_id} уже обработан.Пропускаем.")
+                            continue
+
+                        phone = order.get("phone")
+                        name_product = order.get("name")
+                        name_product = name_product.encode("utf-8").decode("utf-8")
+                        message = (
+                            'Вітаємо✨\nЦе інтернет-магазин "XGames_Store" 🎮\nВи оформили замовлення на Промі\n'
+                            + name_product
+                            + ".\nВірно?"
+                        )
+                        # Отправляем сообщение через Viber
+                        send_viber_message(phone, message, order_id)
 
         except Exception as e:
             logger.error(f"Помилка: {e}")

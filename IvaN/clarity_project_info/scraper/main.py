@@ -21,6 +21,7 @@ from utils.download_utils import (
 )
 from utils.file_utils import create_directories, extract_gz_files
 from utils.proxy_utils import load_proxies
+from utils.scrap_utils import parse_all_files_and_save_to_excel
 from utils.xml_utils import parse_sitemap_index, process_xml_files
 
 from config.config import MAX_WORKERS, PROXY_ENABLED, SITEMAP_INDEX_URL
@@ -69,45 +70,47 @@ def main():
         # )
 
         # Шаг 7: Скачивание HTML страниц
-        logger.info("Шаг 7: Скачивание HTML страниц")
+        # logger.info("Шаг 7: Скачивание HTML страниц")
 
-        # Предварительная фильтрация URL - проверяем, какие HTML файлы уже существуют
-        logger.info("Выполняем предварительную фильтрацию URL...")
-        all_urls = load_urls(CSV_ALL_EDRS_PRODUCTS)
+        # # Предварительная фильтрация URL - проверяем, какие HTML файлы уже существуют
+        # logger.info("Выполняем предварительную фильтрацию URL...")
+        # all_urls = load_urls(CSV_ALL_EDRS_PRODUCTS)
 
-        # Фильтруем URL, для которых ещё нет HTML файлов
-        from pathlib import Path
-        from urllib.parse import urlparse
+        # # Фильтруем URL, для которых ещё нет HTML файлов
+        # from pathlib import Path
+        # from urllib.parse import urlparse
 
-        missing_urls = []
-        total_urls = len(all_urls)
-        existing_count = 0
+        # missing_urls = []
+        # total_urls = len(all_urls)
+        # existing_count = 0
 
-        logger.info(f"Проверка существующих файлов для {total_urls} URL...")
+        # logger.info(f"Проверка существующих файлов для {total_urls} URL...")
 
-        for i, url in enumerate(all_urls):
-            if i > 0 and i % 1000 == 0:
-                logger.info(f"Проверено {i}/{total_urls} URL...")
+        # for i, url in enumerate(all_urls):
+        #     if i > 0 and i % 1000 == 0:
+        #         logger.info(f"Проверено {i}/{total_urls} URL...")
 
-            filename = HTML_FILES_DIR / f"{urlparse(url).path.replace('/', '_')}.html"
-            if filename.exists():
-                existing_count += 1
-            else:
-                missing_urls.append(url)
+        #     filename = HTML_FILES_DIR / f"{urlparse(url).path.replace('/', '_')}.html"
+        #     if filename.exists():
+        #         existing_count += 1
+        #     else:
+        #         missing_urls.append(url)
 
-        logger.info(f"Найдено {existing_count} уже скачанных HTML файлов")
-        logger.info(f"Осталось скачать {len(missing_urls)} HTML файлов")
+        # logger.info(f"Найдено {existing_count} уже скачанных HTML файлов")
+        # logger.info(f"Осталось скачать {len(missing_urls)} HTML файлов")
 
-        if not missing_urls:
-            logger.info("Все файлы уже скачаны. Процесс завершен.")
-        else:
-            asyncio.run(
-                async_download_html_with_proxies(
-                    missing_urls, proxies, HTML_FILES_DIR, MAX_WORKERS
-                )
-            )
+        # if not missing_urls:
+        #     logger.info("Все файлы уже скачаны. Процесс завершен.")
+        # else:
+        #     asyncio.run(
+        #         async_download_html_with_proxies(
+        #             missing_urls, proxies, HTML_FILES_DIR, MAX_WORKERS
+        #         )
+        #     )
 
-        logger.info("Работа завершена успешно!")
+        # logger.info("Работа завершена успешно!")
+        max_threads = 100
+        parse_all_files_and_save_to_excel(max_threads)
 
     except Exception as e:
         logger.error(f"Произошла ошибка: {e}")
@@ -115,4 +118,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # while True:
     main()

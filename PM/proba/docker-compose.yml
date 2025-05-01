@@ -1,0 +1,28 @@
+services:
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME:-tiktok-analytics}-postgres
+    user: "${USER_ID:-1000}:${GROUP_ID:-1000}"
+    restart: unless-stopped
+    environment:
+      # Основные параметры PostgreSQL
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: ${PGDATA}
+      # Параметры настройки производительности
+      PG_MAX_CONNECTIONS: ${PG_MAX_CONNECTIONS}
+      PG_SHARED_BUFFERS: ${PG_SHARED_BUFFERS}
+      # ... остальные переменные ...
+    volumes:
+      # Монтирование директории данных
+      - ${POSTGRES_DATA_DIR:-./pgdata}:${PGDATA:-/var/lib/postgresql/data/pgdata}
+    networks:
+      - app_network
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+networks:
+  app_network:
+    driver: bridge
