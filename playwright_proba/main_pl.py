@@ -427,10 +427,10 @@
 #     # Ожидаем 5 секунд
 #     await asyncio.sleep(5)
 
-    # # Сохраняем содержимое страницы в HTML-файл
-    # html_content = await page.content()
-    # with open("page_content.html", "w", encoding="utf-8") as file:
-    #     file.write(html_content)
+# # Сохраняем содержимое страницы в HTML-файл
+# html_content = await page.content()
+# with open("page_content.html", "w", encoding="utf-8") as file:
+#     file.write(html_content)
 
 #     # Закрываем браузер
 #     await browser.close()
@@ -837,9 +837,7 @@ async def run(playwright):
     page = await context.new_page()
 
     # Переходим на страницу логина
-    await page.goto(
-        "https://www.eneba.com/xbox-far-cry-new-dawn-xbox-one-xbox-live-key-europe"
-    )
+    await page.goto("https://easy.co.il/list/Maintenance-and-Management-Of-Buildings")
     await asyncio.sleep(100)  # Пауза 1 секунда
 
     # Закрываем браузер

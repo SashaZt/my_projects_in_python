@@ -13,6 +13,7 @@ from config.constants import (
     XML_SITEMAP,
 )
 from config.logger import logger
+from utils.creative_list_urls import generate_edr_urls_to_csv
 from utils.csv_utils import extract_and_save_specific_urls, load_urls, write_csv
 from utils.download_utils import (
     async_download_html_with_proxies,
@@ -69,7 +70,7 @@ def main():
         #     CSV_ALL_URLS_PRODUCTS, CSV_ALL_EDRS_PRODUCTS, substring
         # )
 
-        # Шаг 7: Скачивание HTML страниц
+        # # Шаг 7: Скачивание HTML страниц
         # logger.info("Шаг 7: Скачивание HTML страниц")
 
         # # Предварительная фильтрация URL - проверяем, какие HTML файлы уже существуют
@@ -109,9 +110,12 @@ def main():
         #     )
 
         # logger.info("Работа завершена успешно!")
+        # Парсинг данных
         max_threads = 100
         parse_all_files_and_save_to_excel(max_threads)
 
+        # # Создание из файлов htmlсписка url для следующего парсинга
+        # generate_edr_urls_to_csv()
     except Exception as e:
         logger.error(f"Произошла ошибка: {e}")
         raise

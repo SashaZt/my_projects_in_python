@@ -1,3 +1,4 @@
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Lock
@@ -10,6 +11,7 @@ from tqdm import tqdm
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
 html_files_directory = current_directory / "html_files"
+# html_files_directory = current_directory / "html_files_edrpo"
 data_directory = current_directory / "data"
 
 html_files_directory.mkdir(parents=True, exist_ok=True)
@@ -34,7 +36,9 @@ def parse_all_files_and_save_to_excel(max_threads):
 
     # Функция для обработки файлов в многопоточном режиме
     def process_file(file):
-        result = parse_html_file(file)
+        # Для каждой обработки выбираем свою функцию парсинга
+        # result = parse_html_file(file)
+        result = parse_html_file_edrpo(file)
 
         # Обновляем прогресс-бар
         with lock:
@@ -146,3 +150,128 @@ def parse_html_file(file_path):
                 )
 
     return results
+
+
+def parse_html_file_edrpo(file_path):
+    with open(file_path, encoding="utf-8") as file:
+        src = file.read()
+    soup = BeautifulSoup(src, "lxml")
+    data = {}
+
+    # Список полей для извлечения
+    fields = [
+        "ЄДРПОУ",
+        "Назва",
+        "Організаційна форма",
+        "Адреса",
+        "Стан",
+        "Дата реєстрації",
+        "Уповноважені особи",
+        "Види діяльності",
+        "Контакти",
+    ]
+
+    # Проходим по строкам таблицы
+    table = soup.find("table")
+    if not table:
+        return data  # Возвращаем пустой словарь, если таблица не найдена
+
+    for row in table.find_all("tr"):
+        cells = row.find_all("td")
+        if len(cells) == 2:
+            label = cells[0].text.strip().replace(":", "").strip()
+            if label in fields:
+                if label == "Види діяльності":
+                    # Проверяем наличие элемента
+                    activity_div = cells[1].find("div", class_="company-activity-list")
+                    if activity_div:
+                        activity_item = activity_div.find("div", class_="activity-item")
+                        if activity_item:
+                            activity = activity_item.text.strip()
+                            # Убираем лишние пробелы и добавляем пробел после кода
+                            activity = re.sub(r"\s+", " ", activity).strip()
+                            code = activity[:5]  # Код (например, 69.10)
+                            description = activity[5:]  # Описание
+                            data[label] = f"{code} {description}"
+                        else:
+                            data[label] = None
+                    else:
+                        data[label] = None
+                elif label == "Назва":
+                    # Извлекаем основной текст, если он есть
+                    main_name = (
+                        cells[1].contents[0].strip() if cells[1].contents else None
+                    )
+                    data[label] = main_name
+                    # Проверяем наличие сокращенной названия в <div class="small">
+                    small_title_tag = cells[1].find("div", class_="small")
+                    if small_title_tag:
+                        small_title = small_title_tag.text.strip()
+                        data["Коротка назва"] = small_title.replace("(", "").replace(
+                            ")", ""
+                        )
+                    else:
+                        data["Коротка назва"] = None
+                elif label == "Адреса":
+                    # Извлекаем основной адрес, если он есть
+                    main_address = (
+                        cells[1].contents[0].strip() if cells[1].contents else None
+                    )
+                    data[label] = main_address
+                elif label == "Уповноважені особи":
+                    # Проверяем наличие имени и должности
+                    person_link = cells[1].find("a")
+                    person_role = cells[1].find("span", class_="text-secondary")
+                    if person_link and person_role:
+                        person = (
+                            f"{person_link.text.strip()} - {person_role.text.strip()}"
+                        )
+                        data[label] = person
+                    else:
+                        data[label] = None
+                elif label == "Контакти":
+                    # Инициализируем списки для телефонов и email
+                    data["Телефони"] = []
+                    data["Email"] = []
+                    # Находим все div с классом mb-5
+                    contact_divs = cells[1].find_all("div", class_="mb-5")
+                    for div in contact_divs:
+                        # Проверяем наличие телефона
+                        phone_link = div.find("a", href=re.compile(r"^tel:"))
+                        if phone_link:
+                            phone = phone_link.text.strip()
+                            data["Телефони"].append(phone)
+                        # Проверяем наличие email
+                        email_link = div.find("a", href=re.compile(r"^mailto:"))
+                        if email_link:
+                            email = email_link.text.strip()
+                            data["Email"].append(email)
+                    # Если списки пустые, присваиваем None; если не пустые, преобразуем в строку
+                    data["Телефони"] = (
+                        ", ".join(data["Телефони"]) if data["Телефони"] else None
+                    )
+                    data["Email"] = ", ".join(data["Email"]) if data["Email"] else None
+
+                elif label == "Стан":
+                    # Проверяем наличие статуса
+                    status_div = cells[1].find(
+                        "div", class_=["text-primary", "text-danger"]
+                    )
+                    if status_div:
+                        # Извлекаем текст состояния, убирая иконки и лишние пробелы
+                        status_text = status_div.text.strip()
+                        # Удаляем возможные иконки или другие символы
+                        status_text = re.sub(r"[\n\t]+", " ", status_text).strip()
+                        data[label] = status_text
+                    else:
+                        data[label] = None
+                    # Проверяем наличие даты
+                    date_text = cells[1].text.strip()
+                    date_match = re.search(r"\d{2}\.\d{2}\.\d{4}", date_text)
+                    data["Дата стану"] = date_match.group(0) if date_match else None
+                else:
+                    # Для остальных полей извлекаем текст, если он есть
+                    text = cells[1].text.strip()
+                    data[label] = text.split("\n")[0].strip() if text else None
+
+    return data
