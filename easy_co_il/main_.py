@@ -169,7 +169,7 @@ async def main():
         for region in regions:
             # Переходим на страницу
             await page.goto(
-                f"https://easy.co.il/search/%D7%97%D7%91%D7%A8%D7%94%20%D7%90%D7%97%D7%96%D7%A7%D7%AA%20%D7%91%D7%99%D7%AA?region={region}",
+                f"https://easy.co.il/list/Condominium-Management?region={region}",
                 wait_until="networkidle",
             )
 
@@ -451,6 +451,6 @@ def parse_info_box():
 # Запускаем основную функцию
 if __name__ == "__main__":
     # asyncio.run(main())
-    # scrap_json()
+    scrap_json()
     save_pages_from_csv()
     parse_info_box()
