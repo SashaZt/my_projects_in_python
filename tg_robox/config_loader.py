@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-#./config_loader.py
+# ./config_loader.py
 """
 Скрипт для генерации переменных окружения из config.json для Docker Compose
 """
@@ -113,7 +113,7 @@ def generate_component_config(config_path="config.json", component="bot", output
     try:
         with open(config_path, "r") as f:
             config = json.load(f)
-        
+
         # Базовая конфигурация - общие настройки
         component_config = {
             "project_name": config.get("project_name", ""),
@@ -121,19 +121,22 @@ def generate_component_config(config_path="config.json", component="bot", output
             "environment": config.get("environment", ""),
             "timezone": config.get("timezone", "")
         }
-        
+
         # Добавление специфических настроек для компонента
         if component == "bot":
-            component_config.update({
-                "tg": config.get("tg", {}),
-                "postgres": {
-                    "host": config.get("postgres", {}).get("host", "postgres"),
-                    "port": config.get("postgres", {}).get("port", 5432),
-                    "user": config.get("postgres", {}).get("user", ""),
-                    "password": config.get("postgres", {}).get("password", ""),
-                    "db": config.get("postgres", {}).get("db", "")
+            component_config.update(
+                {
+                    "tg": config.get("tg", {}),
+                    "postgres": {
+                        "host": config.get("postgres", {}).get("host", "postgres"),
+                        "port": config.get("postgres", {}).get("port", 5432),
+                        "user": config.get("postgres", {}).get("user", ""),
+                        "password": config.get("postgres", {}).get("password", ""),
+                        "db": config.get("postgres", {}).get("db", ""),
+                    },
+                    "portmone": config.get("portmone", {}),
                 }
-            })
+            )
         elif component == "payment_service":
             component_config.update({
                 "portmone": config.get("portmone", {}),
@@ -149,16 +152,16 @@ def generate_component_config(config_path="config.json", component="bot", output
             component_config.update({
                 "postgres": config.get("postgres", {})
             })
-        
+
         # Определяем путь к директории компонента
         component_dir = f"./{component}"
-        
+
         # Проверяем существование директории
         if not os.path.exists(component_dir):
             print(f"Предупреждение: Директория {component_dir} не найдена!")
             # Можно создать директорию, но лучше предупредить
             # os.makedirs(component_dir, exist_ok=True)
-        
+
         # Вывод в нужный формат
         if output_format == "json":
             output_file = f"{component_dir}/{component}_config.json"
@@ -175,10 +178,10 @@ def generate_component_config(config_path="config.json", component="bot", output
                         if any(c in value for c in "[](){}*? \t\n;:$&|<>"):
                             value = f"'{value}'"
                     f.write(f"{key}={value}\n")
-        
+
         print(f"Успешно сгенерирована конфигурация для {component} в формате {output_format} в {output_file}")
         return True
-    
+
     except Exception as e:
         print(f"Ошибка при генерации конфигурации для {component}: {e}")
         return False

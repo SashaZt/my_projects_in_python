@@ -1,8 +1,11 @@
+# handlers/but.py
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
-
+from aiogram.types import LabeledPrice
+from pathlib import Path
+import sys
 from keyboards import reply as kb
 from keyboards import inline as ikb
 from utils.states import BuyCardStates
@@ -12,6 +15,16 @@ from sqlalchemy.future import select
 from db.models import RobloxProduct, Order, Payment, CardCode, User
 import uuid
 from datetime import datetime
+from utils.payment_logging import log_payment_event
+
+
+# Добавляем корневую директорию в PYTHONPATH
+ROOT_DIR = Path(__file__).parent.parent.absolute()
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from config.config import Config
+from config.logger import logger
 
 router = Router()
 
@@ -38,7 +51,7 @@ async def buy_card(message: Message, state: FSMContext, session: AsyncSession):
     # Создаем клавиатуру с доступными продуктами
     await message.answer(
         "🛍 <b>Виберіть картку Roblox:</b>\n\n"
-        "У нас є різні номінали карток Roblox з різною кількістю Robux:",
+        "Ось доступні Roblox-картки. Обери потрібний номінал: 💰",
         reply_markup=ikb.get_products_keyboard(products),
     )
     await state.set_state(BuyCardStates.select_product)
@@ -107,12 +120,30 @@ async def proceed_to_payment(
     product_id = int(product_id)
     price = float(price)
 
+    user_id = callback.from_user.id
+
+    # Логируем начало процесса оплаты
+    log_payment_event(
+        event_type="payment_started",
+        user_id=user_id,
+        payment_data={
+            "product_id": product_id,
+            "price": price,
+            "callback_data": callback.data,
+        },
+    )
+
     # Получаем информацию о продукте
     stmt = select(RobloxProduct).where(RobloxProduct.product_id == product_id)
     result = await session.execute(stmt)
     product = result.scalar_one_or_none()
 
     if not product:
+        log_payment_event(
+            event_type="product_unavailable",
+            user_id=user_id,
+            payment_data={"product_id": product_id},
+        )
         await callback.message.edit_text(
             "❌ Продукт більше не доступний. Будь ласка, почніть покупку спочатку.",
             reply_markup=ikb.get_back_to_menu_keyboard(),
@@ -128,25 +159,109 @@ async def proceed_to_payment(
         cards_required=product.card_count,
     )
 
-    # Генерируем URL для оплаты (здесь нужна интеграция с Portmone)
-    payment_url = generate_payment_url(order.order_id, price)
-
-    # Сохраняем URL в базе
-    payment = order.payment
-    payment.payment_url = payment_url
-    await session.commit()
-
-    # Сохраняем данные заказа в состоянии
-    await state.update_data(order_id=order.order_id)
-
-    await callback.message.edit_text(
-        f"💳 <b>Перехід до оплати</b>\n\n"
-        f"Ви будете перенаправлені на сторінку оплати Portmone.com\n"
-        f"Після успішної оплати ви отримаєте код картки в цьому чаті.\n\n"
-        f"<b>Номер замовлення:</b> #{order.order_id}",
-        reply_markup=ikb.get_payment_url_keyboard(payment_url),
+    log_payment_event(
+        event_type="order_created",
+        user_id=user_id,
+        order_id=order.order_id,
+        payment_data={
+            "product_id": product_id,
+            "price": price,
+            "card_count": product.card_count,
+        },
     )
-    await state.set_state(BuyCardStates.waiting_payment)
+
+    # Получаем платежный токен из конфигурации
+    config = Config.load()
+    provider_token = config.portmone.portmone_token
+
+    if not provider_token:
+        log_payment_event(
+            event_type="payment_token_missing", user_id=user_id, order_id=order.order_id
+        )
+        await callback.message.edit_text(
+            "❌ Платежі тимчасово недоступні. Будь ласка, спробуйте пізніше.",
+            reply_markup=ikb.get_back_to_menu_keyboard(),
+        )
+        return
+
+    try:
+        # Формируем цену в копейках (минимальная единица = 1 копейка)
+        price_in_kopecks = int(price * 100)
+
+        # Готовим данные для инвойса
+        invoice_id = str(uuid.uuid4())
+
+        # Сохраняем invoice_id в платеже
+        stmt = select(Payment).where(Payment.order_id == order.order_id)
+        result = await session.execute(stmt)
+        payment = result.scalar_one_or_none()
+
+        if payment:
+            payment.portmone_order_id = invoice_id
+            await session.commit()
+            log_payment_event(
+                event_type="invoice_id_saved",
+                user_id=user_id,
+                order_id=order.order_id,
+                payment_data={"invoice_id": invoice_id},
+            )
+
+        # Информируем пользователя о переходе к оплате
+        await callback.message.edit_text(
+            f"💳 <b>Перехід до оплати</b>\n\n"
+            f"Зараз вам буде відправлено платіжну форму.\n"
+            f"Після успішної оплати ви отримаєте код картки в цьому чаті.\n\n"
+            f"<b>Номер замовлення:</b> #{order.order_id}",
+        )
+
+        # Отправляем запрос на создание платежа
+        await callback.bot.send_invoice(
+            chat_id=callback.from_user.id,
+            title=f"Покупка {product.name}",
+            description=f"Замовлення #{order.order_id} - Roblox Gift Card на {product.robux_amount} ROBUX",
+            payload=f"order_{order.order_id}_{invoice_id}",
+            provider_token=provider_token,
+            currency="UAH",
+            prices=[LabeledPrice(label=product.name, amount=price_in_kopecks)],
+            start_parameter="buy_roblox_card",
+            need_name=False,
+            need_phone_number=False,
+            need_email=False,
+            need_shipping_address=False,
+            is_flexible=False,
+            protect_content=True,
+        )
+
+        log_payment_event(
+            event_type="invoice_sent",
+            user_id=user_id,
+            order_id=order.order_id,
+            payment_data={
+                "invoice_id": invoice_id,
+                "amount": price,
+                "amount_kopecks": price_in_kopecks,
+                "product_name": product.name,
+                "robux_amount": product.robux_amount,
+            },
+        )
+
+        # Устанавливаем состояние ожидания оплаты
+        await state.set_state(BuyCardStates.waiting_payment)
+        await callback.answer()
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Ошибка при создании платежа: {error_msg}")
+        log_payment_event(
+            event_type="payment_error",
+            user_id=user_id,
+            order_id=order.order_id if "order" in locals() else None,
+            payment_data={"error": error_msg, "error_type": type(e).__name__},
+        )
+        await callback.message.edit_text(
+            "❌ Сталася помилка при створенні платежу. Будь ласка, спробуйте пізніше.",
+            reply_markup=ikb.get_back_to_menu_keyboard(),
+        )
 
 
 @router.callback_query(F.data == "back_to_menu")
@@ -176,7 +291,7 @@ async def back_to_products(
 
     await callback.message.edit_text(
         "🛍 <b>Виберіть картку Roblox:</b>\n\n"
-        "У нас є різні номінали карток Roblox з різною кількістю Robux:",
+        "Ось доступні Roblox-картки. Обери потрібний номінал: 💰",
         reply_markup=ikb.get_products_keyboard(products),
     )
     await state.set_state(BuyCardStates.select_product)
@@ -288,7 +403,7 @@ async def create_order(
         total_price=price,
     )
     session.add(order)
-    await session.flush()
+    await session.flush()  # Используем flush для получения ID заказа
 
     # Создаем запись о платеже
     payment = Payment(
@@ -300,6 +415,7 @@ async def create_order(
     session.add(payment)
     await session.commit()
 
+    # Возвращаем заказ
     return order
 
 
