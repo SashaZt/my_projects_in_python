@@ -112,13 +112,14 @@ def main():
             )
 
         logger.info("Работа завершена успешно!")
+
         # Парсинг данных
         max_threads = 100
         parse_all_files_and_save_to_excel(max_threads)
 
-        # 8 Импорт в БД которая в контейнер
-        import_json_to_postgres()
-        import_finance_json_to_postgres()
+        # # 8 Импорт в БД которая в контейнер
+        # import_json_to_postgres()
+        # import_finance_json_to_postgres()
 
         # # Создание из файлов htmlсписка url для следующего парсинга
         # generate_edr_urls_to_csv()

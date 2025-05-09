@@ -13,7 +13,6 @@ from tqdm import tqdm
 current_directory = Path.cwd()
 html_files_financial = current_directory / "html_files_financial"
 html_files_edrpo = current_directory / "html_files_edrpo"
-# html_files_directory = current_directory / "html_files_edrpo"
 data_directory = current_directory / "data"
 
 html_files_financial.mkdir(parents=True, exist_ok=True)
@@ -27,7 +26,7 @@ def parse_all_files_and_save_to_excel(max_threads):
     all_results = []
 
     # Получаем все файлы в директории
-    files = list(html_files_financial.glob("*.html"))
+    files = list(html_files_edrpo.glob("*.html"))
 
     progress_bar = tqdm(
         total=len(files),
@@ -42,10 +41,10 @@ def parse_all_files_and_save_to_excel(max_threads):
         # Для каждой обработки выбираем свою функцию парсинга
 
         # Фин отчетность
-        result = parse_html_file_financial(file)
+        # result = parse_html_file_financial(file)
 
         # Контактные данные
-        # result = parse_html_file_edrpo(file)
+        result = parse_html_file_edrpo(file)
 
         # Обновляем прогресс-бар
         with lock:
@@ -60,13 +59,13 @@ def parse_all_files_and_save_to_excel(max_threads):
         all_results.extend(results)
 
     # Закрываем прогресс-бар
-    progress_bar.close()
+    # progress_bar.close()
 
-    output_json_file = "financial_data.json"
-    # output_json_file = "edrpo_data.json"
+    # output_json_file = "financial_data.json"
+    output_json_file = "edrpo_data.json"
     with open(output_json_file, "w", encoding="utf-8") as json_file:
         json.dump(all_results, json_file, ensure_ascii=False, indent=4)
-    logger.info(f"Данные успешно записаны в 'financial_data.xlsx'")
+    logger.info("Данные успешно записаны в 'edrpo_data.json'")
 
 
 # Функция для парсинга одного HTML файла
@@ -282,5 +281,4 @@ def parse_html_file_edrpo(file_path):
                     # Для остальных полей извлекаем текст, если он есть
                     text = cells[1].text.strip()
                     data[label] = text.split("\n")[0].strip() if text else None
-
     return data
