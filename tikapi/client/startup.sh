@@ -4,6 +4,7 @@
 echo "# TikTok API Client cron jobs" > /etc/cron.d/tiktok_cron
 echo "0 */4 * * * cd /app && /usr/local/bin/python /app/main_four_tik_tok.py >> /var/log/cron.log 2>&1" >> /etc/cron.d/tiktok_cron
 echo "0 0 * * * cd /app && /usr/local/bin/python /app/main_once_day_tik_tok.py >> /var/log/cron.log 2>&1" >> /etc/cron.d/tiktok_cron
+echo "0 1 * * * cd /app && /usr/local/bin/python /app/main_sheets.py >> /var/log/cron.log 2>&1" >> /etc/cron.d/tiktok_cron
 
 # Установка прав и обновление cron задач
 chmod 0644 /etc/cron.d/tiktok_cron
@@ -25,7 +26,7 @@ import json
 import os
 
 # Путь к файлу конфигурации
-config_file = 'config.py'
+config_file = 'config/config.py'
 
 # Формируем содержимое файла конфигурации
 config_content = f'''
@@ -36,7 +37,7 @@ import os
 from pathlib import Path
 
 # Базовые настройки API
-API_BASE_URL = '{os.environ.get(\"API_BASE_URL\", \"http://api:5000/api\")}'
+API_BASE_URL = '{os.environ.get(\"API_BASE_URL\", \"https://api:5000/api\")}'
 API_TIMEOUT = {os.environ.get(\"API_TIMEOUT\", \"30\")}
 API_MAX_RETRIES = {os.environ.get(\"API_MAX_RETRIES\", \"10\")}
 API_RETRY_DELAY = {os.environ.get(\"API_RETRY_DELAY\", \"5\")}
@@ -71,6 +72,7 @@ echo "Часовой пояс: ${TZ}"
 echo "API: ${API_BASE_URL}"
 echo "Cron задачи:"
 echo "- Ежедневно: запуск main_once_day_tik_tok.py в 00:00 UTC"
+echo "- Ежедневно: запуск main_sheets.py.py в 01:00 UTC"
 echo "- Каждые 4 часа: запуск main_four_tik_tok.py в 00:00, 04:00, 08:00, 12:00, 16:00, 20:00 UTC"
 echo "============================================"
 
@@ -79,6 +81,7 @@ if [ "${RUN_ON_START}" = "true" ]; then
   echo "Запускаем задачи при старте контейнера..."
   python /app/main_once_day_tik_tok.py &
   python /app/main_four_tik_tok.py &
+  python /app/main_sheets.py.py &
 fi
 
 # Чтобы контейнер не завершался

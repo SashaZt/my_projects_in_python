@@ -1,12 +1,12 @@
 # client/main.py
 import asyncio
-import logging
 import os
 import signal
 
 from client import TikTokMonitor
-from db import Database
 from logger import logger
+
+from db import Database
 
 # Настройки API ключа для TikTokLive
 TIKTOK_API_KEY = (

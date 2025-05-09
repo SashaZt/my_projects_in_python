@@ -1,6 +1,5 @@
 # client/db.py
 import os
-from datetime import datetime
 
 import asyncpg
 from logger import logger

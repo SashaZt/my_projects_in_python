@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from logger import logger
+from download_web_page.config.logger import logger
 from playwright.async_api import async_playwright
 
 current_directory = Path.cwd()
