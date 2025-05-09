@@ -22,6 +22,7 @@ from src.xml_handler import (
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
+xml_directory = data_directory / "xml"
 results_directory = data_directory / "results"
 config_directory = current_directory / "config"
 
@@ -29,93 +30,6 @@ data_directory.mkdir(parents=True, exist_ok=True)
 config_directory.mkdir(parents=True, exist_ok=True)
 config_file_path = config_directory / "config.json"
 service_account_file = config_directory / "credentials.json"
-
-# def main():
-#     """
-#     Основная функция для запуска скрапинга.
-#     """
-#     start_time = time.time()
-#     logger.info("Запуск скрапера...")
-
-#     try:
-#         # Получаем авторизованную сессию
-#         session = get_session()
-#         if not session:
-#             logger.critical("Не удалось получить сессию. Завершение программы.")
-#             return
-
-#         # Получаем ссылки категорий со стартовой страницы
-#         category_urls = get_category_urls(session)
-#         if not category_urls:
-#             logger.error("Не удалось получить ссылки категорий. Завершение программы.")
-#             return
-
-#         logger.info(f"Найдено {len(category_urls)} категорий")
-#         # Собираем URL продуктов из всех категорий
-#         all_product_urls = []
-#         for i, category_url in enumerate(category_urls):
-#             logger.info(
-#                 f"Обработка категории {i+1}/{len(category_urls)}: {category_url}"
-#             )
-
-#             # Получаем URL продуктов из категории, включая пагинацию
-#             product_urls = get_product_urls_from_category(session, category_url)
-#             all_product_urls.extend(product_urls)
-
-#             # Делаем паузу между обработкой разных категорий
-#             if i < len(category_urls) - 1:  # Не делаем паузу после последней категории
-#                 random_pause(3, 8)
-
-#         # Удаляем дубликаты URL продуктов
-#         unique_product_urls = list(set(all_product_urls))
-#         logger.info(f"Найдено {len(unique_product_urls)} уникальных продуктов")
-
-#         # Скачиваем XML каждого продукта
-#         success_count = 0
-#         all_data = []
-#         for i, product_url in enumerate(unique_product_urls):
-#             logger.info(
-#                 f"Обработка продукта {i+1}/{len(unique_product_urls)}: {product_url}"
-#             )
-
-#             # Получаем детали продукта и скачиваем XML
-#             product_id, xml_path, availability = get_product_details(
-#                 session, product_url
-#             )
-
-#             if product_id and xml_path:
-#                 result = {
-#                     "product_id": product_id,
-#                     "availability": availability,
-#                 }
-#                 logger.info(json.dumps(result, ensure_ascii=False, indent=4))
-#                 all_data.append(result)
-#                 success_count += 1
-#                 logger.info(f"Успешно скачан XML для продукта {product_id}")
-#             else:
-#                 logger.warning(f"Не удалось скачать XML для продукта {product_url}")
-
-#             # Делаем паузу между запросами к продуктам
-#             if (
-#                 i < len(unique_product_urls) - 1
-#             ):  # Не делаем паузу после последнего продукта
-#                 random_pause(1, 4)
-#         with open("output_json_file.json", "w", encoding="utf-8") as json_file:
-#             json.dump(all_data, json_file, ensure_ascii=False, indent=4)
-#         logger.info(
-#             f"Скачивание XML завершено. Успешно: {success_count}/{len(unique_product_urls)}"
-#         )
-
-#         simplified_products = process_all_xml_files_simplified()
-#         logger.info(simplified_products)
-
-#         logger.info(f"Создан упрощенный список из {len(simplified_products)} продуктов")
-#         elapsed_time = time.time() - start_time
-
-#     except KeyboardInterrupt:
-#         logger.info("Скрапинг прерван пользователем.")
-#     except Exception as e:
-#         logger.critical(f"Критическая ошибка в основной функции: {e}")
 
 
 def load_json_data(file_path):
@@ -175,6 +89,7 @@ def main():
     if os.path.exists(data_directory):
         shutil.rmtree(data_directory)
     data_directory.mkdir(parents=True, exist_ok=True)
+    xml_directory.mkdir(parents=True, exist_ok=True)
     try:
         # Получаем авторизованную сессию
         session = get_session()

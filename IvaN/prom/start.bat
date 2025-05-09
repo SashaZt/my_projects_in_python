@@ -27,4 +27,4 @@ if not exist "%PYTHON_EXE%" (
 )
 
 :: Запуск main.py
-"%PYTHON_EXE%" "%CURRENT_DIR%main_xlsx_json.py"
+"%PYTHON_EXE%" "%CURRENT_DIR%main_scrap_json.py"

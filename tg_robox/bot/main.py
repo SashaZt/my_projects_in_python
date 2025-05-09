@@ -12,13 +12,20 @@ from db.database import create_async_engine, get_session_maker, init_models
 from middlewares import setup_middlewares
 from aiogram.client.default import DefaultBotProperties
 from handlers import register_all_handlers
+import importlib
+import keyboards.inline
+from scheduled_tasks import publish_approved_reviews
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+# Перезагрузка модуля клавиатур
+importlib.reload(keyboards.inline)
 
 
 # Команды бота для меню
 async def set_commands(bot: Bot):
     commands = [
         BotCommand(command="start", description="Запустить бота"),
-        BotCommand(command="help", description="Підтримка"),
+        BotCommand(command="help", description="Підтримка / FAQ"),
         BotCommand(command="menu", description="Головне меню"),
     ]
     await bot.set_my_commands(commands)
@@ -46,6 +53,14 @@ async def main():
 
     # Инициализация моделей
     await init_models(engine)
+
+    # Инициализация планировщика
+    scheduler = AsyncIOScheduler()
+    # Добавление задачи по расписанию (например, каждый час)
+    scheduler.add_job(publish_approved_reviews, "interval", hours=1, args=[bot])
+
+    # Запуск планировщика
+    scheduler.start()
 
     # Настройка middlewares
     setup_middlewares(dp, session_maker, config)

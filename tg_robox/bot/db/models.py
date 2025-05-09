@@ -1,4 +1,17 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, BigInteger, ForeignKey, TIMESTAMP, Text, JSON
+# db/models.py
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    BigInteger,
+    ForeignKey,
+    TIMESTAMP,
+    Text,
+    JSON,
+)
+from sqlalchemy import CheckConstraint
+from datetime import datetime
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -6,7 +19,6 @@ from sqlalchemy import (
     Column,
     Integer,
     String,
-    Float,
     Boolean,
     BigInteger,
     ForeignKey,
@@ -14,8 +26,8 @@ from sqlalchemy import (
     Text,
     NUMERIC,
     JSON,
+    DateTime,
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -50,10 +62,10 @@ class RobloxProduct(Base):
 
     product_id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
-    card_value = Column(NUMERIC(10, 2), nullable=False)
+    card_value = Column(NUMERIC(10), nullable=False)
     card_count = Column(Integer, nullable=False, default=1)
     robux_amount = Column(Integer, nullable=False)
-    price_uah = Column(NUMERIC(10, 2), nullable=False)
+    price_uah = Column(NUMERIC(10), nullable=False)
     is_available = Column(Boolean, default=True)
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, onupdate=func.now())
@@ -138,24 +150,24 @@ class Payment(Base):
         return f"<Payment(id={self.payment_id}, order_id={self.order_id}, status={self.status})>"
 
 
-class Review(Base):
-    """Модель для хранения отзывов пользователей"""
+# class Review(Base):
+#     """Модель для хранения отзывов пользователей"""
 
-    __tablename__ = "reviews"
+#     __tablename__ = "reviews"
 
-    review_id = Column(Integer, primary_key=True)
-    order_id = Column(Integer, ForeignKey("orders.order_id"))
-    user_id = Column(BigInteger, ForeignKey("users.user_id"))
-    rating = Column(Integer)  # Оценка от 1 до 5
-    comment = Column(Text, nullable=True)
-    created_at = Column(TIMESTAMP, server_default=func.now())
+#     review_id = Column(Integer, primary_key=True)
+#     order_id = Column(Integer, ForeignKey("orders.order_id"))
+#     user_id = Column(BigInteger, ForeignKey("users.user_id"))
+#     rating = Column(Integer)  # Оценка от 1 до 5
+#     comment = Column(Text, nullable=True)
+#     created_at = Column(TIMESTAMP, server_default=func.now())
 
-    # Отношения с другими таблицами
-    order = relationship("Order", back_populates="reviews")
-    user = relationship("User", back_populates="reviews")
+#     # Отношения с другими таблицами
+#     order = relationship("Order", back_populates="reviews")
+#     user = relationship("User", back_populates="reviews")
 
-    def __repr__(self):
-        return f"<Review(id={self.review_id}, user_id={self.user_id}, rating={self.rating})>"
+#     def __repr__(self):
+#         return f"<Review(id={self.review_id}, user_id={self.user_id}, rating={self.rating})>"
 
 
 class Statistic(Base):
@@ -174,3 +186,22 @@ class Statistic(Base):
 
     def __repr__(self):
         return f"<Statistic(id={self.stat_id}, date={self.date}, revenue={self.total_revenue})>"
+
+
+class Review(Base):
+    """Модель отзыва пользователя"""
+
+    __tablename__ = "reviews"
+
+    review_id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("orders.order_id"))
+    user_id = Column(BigInteger, ForeignKey("users.user_id"))
+    rating = Column(Integer, CheckConstraint("rating BETWEEN 1 AND 5"))
+    comment = Column(Text)
+    created_at = Column(DateTime, default=datetime.now)
+    is_approved = Column(Boolean, default=False)
+    is_published = Column(Boolean, default=False)
+
+    # Отношения
+    order = relationship("Order", back_populates="reviews")
+    user = relationship("User", back_populates="reviews")

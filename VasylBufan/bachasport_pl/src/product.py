@@ -13,6 +13,7 @@ current_directory = Path.cwd()
 data_directory = current_directory / "data"
 xml_directory = data_directory / "xml"
 xml_directory.mkdir(parents=True, exist_ok=True)
+data_directory.mkdir(parents=True, exist_ok=True)
 
 
 def extract_product_id(product_url: str) -> Optional[str]:
@@ -139,6 +140,10 @@ def extract_product_id_from_page(
                         availability_tag = td.find("span", {"class": "label"})
                         if availability_tag:
                             availability_text = availability_tag.get_text(strip=True)
+                            if availability_text == "Dostępny":
+                                availability_text = "Dostępny"
+                            else:
+                                availability_text = "Niedostępny"
         except Exception as e:
             logger.warning(f"Ошибка при извлечении информации о доступности: {e}")
 
@@ -155,7 +160,7 @@ def extract_product_id_from_page(
         # Если ID все еще не найден, используем резервный ID
         if not product_id:
             product_id = fallback_id
-
+        logger.info(availability_text)
         # Возвращаем кортеж с ID и доступностью, если есть информация о доступности
         if availability_text:
             return product_id, availability_text

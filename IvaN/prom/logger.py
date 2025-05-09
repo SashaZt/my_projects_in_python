@@ -1,5 +1,4 @@
-# config/logger.py
-# Размещать в папке config
+# logger.py
 import sys
 from pathlib import Path
 
@@ -8,15 +7,8 @@ from loguru import logger
 
 def setup_logging():
     """Настройка логирования для всего приложения"""
-    # Находим директорию, где находится файл logger.py
-    current_file_path = Path(__file__)
-
-    # Перемещаемся на уровень выше относительно родительской директории (config)
-    # Сначала получаем родительскую директорию (config), затем ее родителя (корень проекта)
-    project_root = current_file_path.parent.parent
-
-    # Создаем директорию для логов на уровне корня проекта
-    log_directory = project_root / "log"
+    current_directory = Path.cwd()
+    log_directory = current_directory / "log"
     log_directory.mkdir(parents=True, exist_ok=True)
     log_file_path = log_directory / "log_message.log"
 

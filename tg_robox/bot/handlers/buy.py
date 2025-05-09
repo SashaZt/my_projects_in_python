@@ -16,7 +16,8 @@ from db.models import RobloxProduct, Order, Payment, CardCode, User
 import uuid
 from datetime import datetime
 from utils.payment_logging import log_payment_event
-
+import os
+from aiogram.types import FSInputFile
 
 # Добавляем корневую директорию в PYTHONPATH
 ROOT_DIR = Path(__file__).parent.parent.absolute()
@@ -40,7 +41,6 @@ async def buy_card(message: Message, state: FSMContext, session: AsyncSession):
     )
     result = await session.execute(stmt)
     products = result.scalars().all()
-
     if not products:
         await message.answer(
             "❌ На жаль, зараз немає доступних карток для покупки. Будь ласка, спробуйте пізніше.",
@@ -51,10 +51,16 @@ async def buy_card(message: Message, state: FSMContext, session: AsyncSession):
     # Создаем клавиатуру с доступными продуктами
     await message.answer(
         "🛍 <b>Виберіть картку Roblox:</b>\n\n"
-        "Ось доступні Roblox-картки. Обери потрібний номінал: 💰",
+        "Ось доступні Roblox-картки\n"
+        "Обери потрібний номінал: 👾\n"
+        "Після оплати ти отримаєш код або кілька кодів, які поповнять твій баланс.",
         reply_markup=ikb.get_products_keyboard(products),
     )
     await state.set_state(BuyCardStates.select_product)
+
+
+import os
+from aiogram.types import FSInputFile
 
 
 @router.callback_query(BuyCardStates.select_product, F.data.startswith("product_"))
@@ -83,7 +89,7 @@ async def product_selected(
     # Проверяем наличие свободных кодов
     stmt = (
         select(CardCode)
-        .where(CardCode.card_value == product.card_value, CardCode.is_used == False)
+        .where(CardCode.card_value == 10, CardCode.is_used == False)
         .limit(product.card_count)
     )
     result = await session.execute(stmt)
@@ -97,16 +103,54 @@ async def product_selected(
         )
         return
 
-    # Формируем детали заказа
-    await callback.message.edit_text(
+    # Формируем детали заказа и отправляем как подпись к фото
+    caption = (
         f"📄 <b>Деталі замовлення:</b>\n\n"
         f"🎮 {product.name}\n"
         f"💰 Кількість Robux: {product.robux_amount}\n"
         f"💵 Номінал: ${product.card_value} (кількість карток: {product.card_count})\n"
         f"💳 До оплати: {product.price_uah}₴\n\n"
-        f"Для продовження натисніть кнопку 'Оплатити'",
-        reply_markup=ikb.get_payment_keyboard(product_id, product.price_uah),
+        f"⚠️ Придбані ігрові картки є цифровими товарами.\n"
+        f"Повернення коштів не передбачене після покупки.\n"
+        f"Оплачуючи, ви погоджуєтеся з умовами покупки."
+        f"Для продовження натисніть кнопку 'Оплатити'"
     )
+
+    # Удаляем предыдущее сообщение
+    await callback.message.delete()
+
+    # Определяем путь к изображению
+    photo_path = f"assets/images/{product.product_id}.jpg"
+
+    try:
+        # Проверяем существование файла
+        if os.path.exists(photo_path):
+            # Отправляем фото с подписью и клавиатурой
+            photo = FSInputFile(photo_path)
+            await callback.bot.send_photo(
+                chat_id=callback.message.chat.id,
+                photo=photo,
+                caption=caption,
+                reply_markup=ikb.get_payment_keyboard(product_id, product.price_uah),
+            )
+        else:
+            # Если фото не найдено, отправляем только текст
+            logger.warning(f"Изображение не найдено: {photo_path}")
+            await callback.bot.send_message(
+                chat_id=callback.message.chat.id,
+                text=caption,
+                reply_markup=ikb.get_payment_keyboard(product_id, product.price_uah),
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка при отправке изображения: {e}")
+        # В случае ошибки отправляем только текст
+        await callback.bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=caption,
+            reply_markup=ikb.get_payment_keyboard(product_id, product.price_uah),
+        )
+
     await state.set_state(BuyCardStates.confirm_payment)
 
 
@@ -144,10 +188,22 @@ async def proceed_to_payment(
             user_id=user_id,
             payment_data={"product_id": product_id},
         )
-        await callback.message.edit_text(
-            "❌ Продукт більше не доступний. Будь ласка, почніть покупку спочатку.",
-            reply_markup=ikb.get_back_to_menu_keyboard(),
-        )
+        # Удаляем предыдущее сообщение и отправляем новое
+        try:
+            await callback.message.delete()
+            await callback.bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="❌ Продукт більше не доступний. Будь ласка, почніть покупку спочатку.",
+                reply_markup=ikb.get_back_to_menu_keyboard(),
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+            # Пробуем просто отправить новое сообщение без удаления
+            await callback.bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="❌ Продукт більше не доступний. Будь ласка, почніть покупку спочатку.",
+                reply_markup=ikb.get_back_to_menu_keyboard(),
+            )
         return
 
     # Создаем новый заказ
@@ -178,10 +234,21 @@ async def proceed_to_payment(
         log_payment_event(
             event_type="payment_token_missing", user_id=user_id, order_id=order.order_id
         )
-        await callback.message.edit_text(
-            "❌ Платежі тимчасово недоступні. Будь ласка, спробуйте пізніше.",
-            reply_markup=ikb.get_back_to_menu_keyboard(),
-        )
+        # Удаляем предыдущее сообщение и отправляем новое
+        try:
+            await callback.message.delete()
+            await callback.bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="❌ Платежі тимчасово недоступні. Будь ласка, спробуйте пізніше.",
+                reply_markup=ikb.get_back_to_menu_keyboard(),
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+            await callback.bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="❌ Платежі тимчасово недоступні. Будь ласка, спробуйте пізніше.",
+                reply_markup=ikb.get_back_to_menu_keyboard(),
+            )
         return
 
     try:
@@ -206,9 +273,16 @@ async def proceed_to_payment(
                 payment_data={"invoice_id": invoice_id},
             )
 
+        # Удаляем предыдущее сообщение и отправляем новое
+        try:
+            await callback.message.delete()
+        except Exception as e:
+            logger.error(f"Ошибка при удалении сообщения: {e}")
+
         # Информируем пользователя о переходе к оплате
-        await callback.message.edit_text(
-            f"💳 <b>Перехід до оплати</b>\n\n"
+        await callback.bot.send_message(
+            chat_id=callback.message.chat.id,
+            text=f"💳 <b>Перехід до оплати</b>\n\n"
             f"Зараз вам буде відправлено платіжну форму.\n"
             f"Після успішної оплати ви отримаєте код картки в цьому чаті.\n\n"
             f"<b>Номер замовлення:</b> #{order.order_id}",
@@ -217,7 +291,7 @@ async def proceed_to_payment(
         # Отправляем запрос на создание платежа
         await callback.bot.send_invoice(
             chat_id=callback.from_user.id,
-            title=f"Покупка {product.name}",
+            title=f"Купівля {product.name}",
             description=f"Замовлення #{order.order_id} - Roblox Gift Card на {product.robux_amount} ROBUX",
             payload=f"order_{order.order_id}_{invoice_id}",
             provider_token=provider_token,
@@ -258,10 +332,27 @@ async def proceed_to_payment(
             order_id=order.order_id if "order" in locals() else None,
             payment_data={"error": error_msg, "error_type": type(e).__name__},
         )
-        await callback.message.edit_text(
-            "❌ Сталася помилка при створенні платежу. Будь ласка, спробуйте пізніше.",
-            reply_markup=ikb.get_back_to_menu_keyboard(),
-        )
+
+        # Обработка ошибки - отправка сообщения пользователю
+        try:
+            # Пробуем удалить предыдущее сообщение
+            await callback.message.delete()
+        except Exception:
+            pass
+
+        # Отправляем сообщение об ошибке
+        try:
+            await callback.bot.send_message(
+                chat_id=callback.message.chat.id,
+                text="❌ Сталася помилка при створенні платежу. Будь ласка, спробуйте пізніше.",
+                reply_markup=ikb.get_back_to_menu_keyboard(),
+            )
+        except Exception:
+            # В крайнем случае, просто показываем всплывающее уведомление
+            await callback.answer(
+                "Сталася помилка при створенні платежу. Будь ласка, спробуйте пізніше.",
+                show_alert=True,
+            )
 
 
 @router.callback_query(F.data == "back_to_menu")
@@ -289,11 +380,31 @@ async def back_to_products(
     result = await session.execute(stmt)
     products = result.scalars().all()
 
-    await callback.message.edit_text(
-        "🛍 <b>Виберіть картку Roblox:</b>\n\n"
-        "Ось доступні Roblox-картки. Обери потрібний номінал: 💰",
-        reply_markup=ikb.get_products_keyboard(products),
-    )
+    try:
+        # Удаляем текущее сообщение (которое может быть фото)
+        await callback.message.delete()
+
+        # Отправляем новое сообщение
+        await callback.bot.send_message(
+            chat_id=callback.message.chat.id,
+            text="🛍 <b>Виберіть картку Roblox:</b>\n\n"
+            "Ось доступні Roblox-картки.\n"
+            "Обери потрібний номінал: 👾\n"
+            "Після оплати ти отримаєш код або кілька кодів, які поповнять твій баланс.",
+            reply_markup=ikb.get_products_keyboard(products),
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при возврате к выбору продуктов: {e}")
+        # Альтернативный вариант - отправить новое сообщение без удаления старого
+        await callback.bot.send_message(
+            chat_id=callback.message.chat.id,
+            text="🛍 <b>Виберіть картку Roblox:</b>\n\n"
+            "Ось доступні Roblox-картки.\n"
+            "Обери потрібний номінал: 👾\n"
+            "Після оплати ти отримаєш код або кілька кодів, які поповнять твій баланс.",
+            reply_markup=ikb.get_products_keyboard(products),
+        )
+
     await state.set_state(BuyCardStates.select_product)
 
 
@@ -358,24 +469,61 @@ async def simulate_payment(message: Message, session: AsyncSession):
             order.completed_at = datetime.now()
 
         await session.commit()
+        if "premium" not in product.name.lower():
+            logger.info(product.name.lower())
+            # Отправляем коды пользователю
+            await message.bot.send_message(
+                order.user_id,
+                f"✅ Оплата успішно завершена!\n\n"
+                f"🎮 {product.name}\n"
+                f"💰 Кількість Robux: {product.robux_amount}\n"
+                f"💵 Номінал: ${product.card_value} (кількість карток: {product.card_count})\n\n"
+                f"<b>Ваші коди карток:</b>\n"
+                + "\n".join(f"🔑 {code}" for code in codes_text.splitlines())
+                + "\n\n"
+                "Ось відео інструкція як активувати код.\n\n"
+                "https://youtu.be/6r9qPBOOzHk\n\n"
+                "1. Перейдіть на офіційний сайт гри http://roblox.com/redeem\n"
+                "2. Увійдіть до акаунту на якому бажаєте активувати код.\n"
+                "3. Уведіть код.\n"
+                "4. Підтвердіть активацію.\n"
+                "5. Обміняйте баланс на пакет Робуксів в магазині❗️\n\n"
+                "Щоб обміняти баланс на Робукси 💰\n"
+                'Активуйте код та натисніть на кнопку "Get Robux"\n\n'
+                "Код обов'язково потрібно активувати через сайт http://roblox.com/redeem ❗️❗️❗️",
+                reply_markup=kb.get_main_menu_keyboard(),
+            )
 
-        # Отправляем коды пользователю
-        await message.bot.send_message(
-            order.user_id,
-            f"✅ <b>Оплата успішно завершена!</b>\n\n"
-            f"🎮 {product.name}\n"
-            f"💰 Кількість Robux: {product.robux_amount}\n"
-            f"💵 Номінал: ${product.card_value} (кількість карток: {product.card_count})\n\n"
-            f"<b>Ваші коди карток:</b>\n"
-            f"{codes_text}\n"
-            f"Для активації перейдіть на сайт <a href='https://www.roblox.com/redeem'>roblox.com/redeem</a>\n\n"
-            f"Дякуємо за покупку! Будемо раді бачити вас знову.",
-            reply_markup=kb.get_main_menu_keyboard(),
-        )
-
-        await message.answer(
-            f"✅ Платіж за замовленням #{order_id} оброблений успішно!"
-        )
+            await message.answer(
+                f"✅ Платіж за замовленням #{order_id} оброблений успішно!"
+            )
+        else:
+            await message.bot.send_message(
+                order.user_id,
+                f"✅ Оплата успішно завершена!\n\n"
+                f"🎮 {product.name}\n"
+                f"💰 Кількість Robux: {product.robux_amount}\n"
+                f"💵 Номінал: ${product.card_value} (кількість карток: {product.card_count})\n\n"
+                f"<b>Ваші коди карток:</b>\n"
+                + "\n".join(f"🔑 {code}" for code in codes_text.splitlines())
+                + "\n\n"
+                "ПЕРЕД АКТИВАЦІЄЮ УВАЖНО ПОДИВІТЬСЯ ІНСТРУКЦІЮ ❗️❗️❗️\n\n"
+                "Ось відео інструкція як активувати код:\n\n"
+                "https://youtu.be/BtiaZTegCSI\n\n"
+                "1. Перейдіть на офіційний сайт гри http://roblox.com/redeem\n"
+                "2. Увійдіть до акаунту на якому бажаєте активувати код та підписку.\n"
+                "3. Потім перейдіть за посиланням\n"
+                "https://www.roblox.com/upgrades/redeem?ap=481&pm=redeemCard&selectedUpsellProductId=0\n"
+                '4. Вставте наданий код в поле для вводу та натисніть **"Redeem"**"\n'
+                "5. Підтвердіть покупку натиснувши **Subscribe!**\n"
+                "6. Перейдіть сюди https://www.roblox.com/my/account#!/subscriptions\n"
+                "7. Натисніть на вашу підписку\n"
+                "8. Натисніть Cancel Renewal ❗❗❗",
+                reply_markup=kb.get_main_menu_keyboard(),
+            )
+            await message.answer(
+                f"✅ Платіж за замовленням #{order_id} оброблений успішно!"
+            )
 
     except (ValueError, IndexError):
         await message.answer(

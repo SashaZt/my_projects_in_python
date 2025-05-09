@@ -1,3 +1,4 @@
+import json
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -10,11 +11,13 @@ from tqdm import tqdm
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
-html_files_directory = current_directory / "html_files"
+html_files_financial = current_directory / "html_files_financial"
+html_files_edrpo = current_directory / "html_files_edrpo"
 # html_files_directory = current_directory / "html_files_edrpo"
 data_directory = current_directory / "data"
 
-html_files_directory.mkdir(parents=True, exist_ok=True)
+html_files_financial.mkdir(parents=True, exist_ok=True)
+html_files_edrpo.mkdir(parents=True, exist_ok=True)
 data_directory.mkdir(parents=True, exist_ok=True)
 
 
@@ -24,7 +27,7 @@ def parse_all_files_and_save_to_excel(max_threads):
     all_results = []
 
     # Получаем все файлы в директории
-    files = list(html_files_directory.glob("*.html"))
+    files = list(html_files_financial.glob("*.html"))
 
     progress_bar = tqdm(
         total=len(files),
@@ -37,8 +40,12 @@ def parse_all_files_and_save_to_excel(max_threads):
     # Функция для обработки файлов в многопоточном режиме
     def process_file(file):
         # Для каждой обработки выбираем свою функцию парсинга
-        # result = parse_html_file(file)
-        result = parse_html_file_edrpo(file)
+
+        # Фин отчетность
+        result = parse_html_file_financial(file)
+
+        # Контактные данные
+        # result = parse_html_file_edrpo(file)
 
         # Обновляем прогресс-бар
         with lock:
@@ -55,14 +62,15 @@ def parse_all_files_and_save_to_excel(max_threads):
     # Закрываем прогресс-бар
     progress_bar.close()
 
-    # Запись всех данных в Excel через pandas
-    df = pd.DataFrame(all_results)
-    df.to_excel("financial_data.xlsx", index=False, engine="openpyxl")
+    output_json_file = "financial_data.json"
+    # output_json_file = "edrpo_data.json"
+    with open(output_json_file, "w", encoding="utf-8") as json_file:
+        json.dump(all_results, json_file, ensure_ascii=False, indent=4)
     logger.info(f"Данные успешно записаны в 'financial_data.xlsx'")
 
 
 # Функция для парсинга одного HTML файла
-def parse_html_file(file_path):
+def parse_html_file_financial(file_path):
     with open(file_path, encoding="utf-8") as file:
         src = file.read()
     soup = BeautifulSoup(src, "lxml")
@@ -82,18 +90,19 @@ def parse_html_file(file_path):
         "2285",
         "2505",
         "2510",
-    ]
-    codes = [
         "2355",
         "2465",
     ]
+
     # Получаем заголовок страницы
     page_title = None
     page_title_label = soup.select_one(
         "body > div.entity-page-wrap > div.entity-content-wrap > div.entity-header.px-10 > div:nth-child(3) > a"
     )
     if page_title_label:
-        page_title = page_title_label.text.replace("#", "")
+        page_title = (
+            page_title_label.text.replace("#", "").replace("\n", "").replace("\t", "")
+        )
 
     # Ищем количество работников
     number_of_employees = None
@@ -109,7 +118,7 @@ def parse_html_file(file_path):
 
     # Словарь для текущей единицы данных
     results = {
-        "page_title": page_title,
+        "edrpou": page_title,
         "number_of_employees": number_of_employees,
         "katottg": katottg,
     }
@@ -120,13 +129,13 @@ def parse_html_file(file_path):
         "body > div.entity-page-wrap > div.entity-content-wrap > div.entity-content > table:nth-child(6) > thead > tr > th:nth-child(3) > span"
     )
     if nobr_start_el:
-        nobr_start = nobr_start_el.text.strip()
+        nobr_start = nobr_start_el.text.strip().replace(" ", "")
 
     nobr_end_el = soup.select_one(
         "body > div.entity-page-wrap > div.entity-content-wrap > div.entity-content > table:nth-child(6) > thead > tr > th:nth-child(4) > span"
     )
     if nobr_end_el:
-        nobr_end = nobr_end_el.text.strip()
+        nobr_end = nobr_end_el.text.strip().replace(" ", "")
 
     # Проходим по каждой строке таблицы и извлекаем значения для кодов
     for row in soup.select("tbody tr"):

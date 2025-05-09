@@ -43,10 +43,10 @@ async def add_products_from_json():
             for product_data in products_data:
                 product = RobloxProduct(
                     name=product_data["name"],
-                    card_value=float(product_data["card_value"]),
+                    card_value=int(product_data["card_value"]),
                     card_count=product_data["card_count"],
                     robux_amount=product_data["robux_amount"],
-                    price_uah=float(product_data["price_uah"]),
+                    price_uah=int(product_data["price_uah"]),
                     is_available=product_data["is_available"],
                 )
                 session.add(product)
