@@ -1,21 +1,21 @@
 import json
 from pathlib import Path
 
-from logger import logger
+from IvaN.prom.config.logger import logger
 
 # Настройка директорий
 current_directory = Path.cwd()
-json_directory = current_directory / "json"
+json_id_directory = current_directory / "json_id"
 config_directory = current_directory / "config"
 config_directory.mkdir(parents=True, exist_ok=True)
-json_directory.mkdir(parents=True, exist_ok=True)
+json_id_directory.mkdir(parents=True, exist_ok=True)
 
 
 def scrap_json():
     all_data = []
-    files = list(json_directory.glob("*.json"))
+    files = list(json_id_directory.glob("*.json"))
     # Пройтись по каждому HTML файлу в папке
-    for json_file in files[:10]:
+    for json_file in files:
         with open(json_file, "r", encoding="utf-8") as file:
             input_data = json.load(file)
         logger.info(json_file)
@@ -37,6 +37,7 @@ def scrap_json():
                 return {}
 
             # Извлекаем необходимые поля с безопасной обработкой
+
             result = {
                 # Проверка 3: Извлечение 'id'
                 "companyId": company_data.get("id"),

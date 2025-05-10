@@ -8,16 +8,16 @@ from pathlib import Path
 from threading import Lock
 
 import requests
-from logger import logger
+from IvaN.prom.config.logger import logger
 from requests.exceptions import HTTPError, RequestException
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 # Настройка директорий
 current_directory = Path.cwd()
-json_directory = current_directory / "json"
+json_id_directory = current_directory / "json_id"
 config_directory = current_directory / "config"
 config_directory.mkdir(parents=True, exist_ok=True)
-json_directory.mkdir(parents=True, exist_ok=True)
+json_id_directory.mkdir(parents=True, exist_ok=True)
 proxy_file = config_directory / "proxy.json"
 
 # Файл для сохранения прогресса обработки
@@ -153,7 +153,7 @@ def save_batch_progress(ids_batch):
         (HTTPError, RequestException)
     ),  # Повторять при ошибках
 )
-def get_json(company_id):
+def get_json_id(company_id):
     """
     Запрос данных компании по её ID с использованием случайного прокси
     """
@@ -162,7 +162,7 @@ def get_json(company_id):
         return None
 
     # Проверяем, существует ли уже файл для этой компании
-    file_name = json_directory / f"company_id_{company_id}.json"
+    file_name = json_id_directory / f"company_id_{company_id}.json"
     if file_name.exists():
         return company_id  # Возвращаем ID как обработанный
 
@@ -232,7 +232,7 @@ def process_range(start_id, end_id, thread_id):
     for company_id in range(start_id, end_id + 1):
         try:
             # Обрабатываем запрос и получаем ID, если он был успешно обработан
-            processed_id = get_json(company_id)
+            processed_id = get_json_id(company_id)
 
             if processed_id:
                 batch.append(processed_id)
@@ -258,6 +258,14 @@ def process_range(start_id, end_id, thread_id):
 
     # logger.info(f"Поток {thread_id} завершил обработку диапазона {start_id}-{end_id}")
 
+
+@retry(
+    stop=stop_after_attempt(5),  # Максимум 5 попыток
+    wait=wait_fixed(5),  # Задержка 5 секунд между попытками
+    retry=retry_if_exception_type(
+        (HTTPError, RequestException)
+    ),  # Повторять при ошибках
+)
 
 def main():
     """
