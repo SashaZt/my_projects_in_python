@@ -209,6 +209,35 @@ def make_request(url):
     """
     # Получаем случайный прокси
     proxies = get_random_proxy()
+    proxies = {
+        "http": "http://5.79.73.131:13010",
+        "https": "http://5.79.73.131:13010",
+    }
+    response = requests.get(
+        url,
+        proxies=proxies,
+        headers=headers,
+        timeout=10,
+    )
+    response.raise_for_status()  # Вызывает HTTPError, если статус не 200
+
+    return response.text
+
+
+# Декоратор для повторных попыток
+@retry(
+    stop=stop_after_attempt(10),  # Максимум 10 попыток
+    wait=wait_fixed(10),  # Задержка 10 секунд между попытками
+    retry=retry_if_exception_type(HTTPError),  # Повторять при HTTPError
+)
+def make_request_one_html(url):
+    """
+    Выполняет HTTP-запрос с автоматическими повторными попытками при ошибках.
+    """
+    proxies = {
+        "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+        "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+    }
     response = requests.get(
         url,
         proxies=proxies,
@@ -874,7 +903,7 @@ def get_product_th(urls, threads=10):
                 return True  # URL уже обработан
 
             # Выполняем запрос
-            src = make_request(url)
+            src = make_request_one_html(url)
             # Сохраняем HTML в файл
             output_html_file.write_text(src, encoding="utf-8")
 

@@ -809,8 +809,10 @@ def get_scrapi():
 
     # Настройка прокси с параметром ultra_premium=true
     proxies = {
-        "http": f"http://scraperapi.ultra_premium=true:{API_KEY}@proxy-server.scraperapi.com:8001",
-        "https": f"http://scraperapi.ultra_premium=true:{API_KEY}@proxy-server.scraperapi.com:8001",
+        "http": f"http://scraperapi:{API_KEY}@proxy-server.scraperapi.com:8001",
+        "https": f"http://scraperapi:{API_KEY}@proxy-server.scraperapi.com:8001",
+        # "http": f"http://scraperapi.ultra_premium=true:{API_KEY}@proxy-server.scraperapi.com:8001",
+        # "https": f"http://scraperapi.ultra_premium=true:{API_KEY}@proxy-server.scraperapi.com:8001",
     }
     # proxies = {
     #     "http": "http://5.79.73.131:13010",
@@ -818,7 +820,7 @@ def get_scrapi():
     # }
 
     # Целевой URL, который ты хочешь скрапить
-    target_url = "https://allegro.pl/kategoria/hamulce-tarczowe-zestawy-tarcze-klocki-zaciski-250407?producent-czesci=Delphi&pasuje-do-marka=Honda&pasuje-do-model=ACCORD%20VII%20(CL%2C%20CN)%20(2003.01%20-%202012.09)"  # Замени на нужный URL
+    target_url = "https://www.ebay.com/b/Car-Truck-Additional-ABS-Parts/33560/bn_583684?Brand=Suburban&Items%2520Included=ABS%2520Pump&LH_ItemCondition=3000&mag=1&rt=nc"  # Замени на нужный URL
     count = 1
     while True:
         try:
@@ -844,8 +846,8 @@ def get_scrapi():
 if __name__ == "__main__":
     # get_html()
     # scrap_htmls()
-    # scrap_html()
-    scrap_json()
+    scrap_html()
+    # scrap_json()
     get_scrapi()
     # main_realoem()
     # get_html()

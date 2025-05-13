@@ -1,0 +1,41 @@
+services:
+  webhook-server:
+    build:
+      context: .
+    restart: always
+    volumes:
+      - ./data/webhook:/data
+    networks:
+      - web-network
+
+  nginx:
+    image: nginx:1.25
+    restart: always
+    volumes:
+      - ./config/nginx:/etc/nginx/conf.d
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - webhook-server
+    networks:
+      - web-network
+    command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+
+  certbot:
+    image: certbot/certbot
+    restart: always
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    depends_on:
+      - nginx
+    networks:
+      - web-network
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+networks:
+  web-network:
+    driver: bridge
