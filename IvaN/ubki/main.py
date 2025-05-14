@@ -44,51 +44,27 @@ logger.add(
 
 def get_json(dr_common_data):
 
-    cookies = {
-        "_csrf": "c1e6328d4d1a00430f580954cd699bfcb582e349d7cdb35b0fc25fc69f79504fa%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%22sPIghgsE62pvjuIdspysobQGcw1EBt3j%22%3B%7D",
-        "device-referrer": "https://edrpou.ubki.ua/ua/FO12726884",
-        "LNG": "UA",
-        "device-source": "https://edrpou.ubki.ua/ua?dr_common_data=03760243",
-    }
-
     headers = {
         "accept": "*/*",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "accept-language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
         "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
-        # 'cookie': '_csrf=c1e6328d4d1a00430f580954cd699bfcb582e349d7cdb35b0fc25fc69f79504fa%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%22sPIghgsE62pvjuIdspysobQGcw1EBt3j%22%3B%7D; device-referrer=https://edrpou.ubki.ua/ua/FO12726884; LNG=UA; device-source=https://edrpou.ubki.ua/ua/00015332',
-        "dnt": "1",
         "origin": "https://edrpou.ubki.ua",
         "priority": "u=1, i",
-        "referer": "https://edrpou.ubki.ua/ua?dr_common_data=00015332&dr_search_type=1",
-        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "referer": "https://edrpou.ubki.ua/ua?dr_common_data=13498562",
+        "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-origin",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        "x-csrf-token": "BEMaSJfpN0uLPi7PFQPBt0o2IY-W41p5D9iHU05qQY93E1Mv_45EDr0MXrl_dojTOUZY_PmBCz5sr7YWDB5y5Q==",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        "x-csrf-token": "WpavMfeCR5hfcJhzqZdq43BJObkLaJLDTdOG4FodKjBo7-1ive0R3BdH2RLn7i2TCgBz0FI_3aAunuq0BXcYVQ==",
         "x-requested-with": "XMLHttpRequest",
+        "Cookie": "_ga=GA1.1.1041931148.1741212566; device-referrer=; _csrf=6c1bc4a29faf4f5a1141fd9929a8de249272ed447723fb08e1a64b768e4f34fba%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%222yBSJoVDH7AaNyGpzIJiYWOccMlT_j2e%22%3B%7D; device-source=https://edrpou.ubki.ua/ua/36422974; LNG=UA; _ga_3YCXQ6T6Q8=GS2.1.s1747207929$o4$g1$t1747208023$j0$l0$h0; _ga_F6HFCJ1TNT=GS2.1.s1747207929$o4$g1$t1747208023$j0$l0$h0; LNG=UA",
     }
+    url = f"https://edrpou.ubki.ua/srchopenitems?dr_common_data={dr_common_data}&signature=6f532b24fde73cb4aaaf4cc9c5c35aa0414d68ee&scheme=cki&reqid="
+    payload = f"tp=1&page=1&dr_common_data={dr_common_data}&dr_regions=&dr_edrstate=&dr_kvedcode=&dr_search_just=false&dr_search_type=1"
 
-    params = {
-        "dr_common_data": dr_common_data,
-        "dr_search_type": "1",
-        "signature": "25402fae5ebef254d9441c23ad8792283c3f73d1",
-        "scheme": "cki",
-        "reqid": "",
-    }
-
-    data = {
-        "tp": "1",
-        "page": "1",
-        "dr_common_data": dr_common_data,
-        "dr_regions": "",
-        "dr_edrstate": "",
-        "dr_kvedcode": "",
-        "dr_search_just": "false",
-        "dr_search_type": "1",
-    }
     json_files = json_directory / f"{dr_common_data}.json"
 
     if json_files.exists():
@@ -98,15 +74,12 @@ def get_json(dr_common_data):
         return json_data["clients"][0]["taxNumber"]
 
     response = requests.post(
-        "https://edrpou.ubki.ua/srchopenitems",
-        params=params,
-        cookies=cookies,
+        url,
+        data=payload,
         headers=headers,
-        data=data,
         timeout=30,
     )
     if response.status_code == 200:
-        # logger.info(f"{response.status_code} для {dr_common_data}")
         json_data = response.json()
 
         if json_data.get("clients") and len(json_data["clients"]) > 0:
@@ -130,32 +103,22 @@ def get_html(taxNumber):
     if taxNumber is None:
         logger.error("Не удалось получить номер налогоплательщика.")
         return
-    cookies = {
-        "LNG": "UA",
-        "_csrf": "c1e6328d4d1a00430f580954cd699bfcb582e349d7cdb35b0fc25fc69f79504fa%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%22sPIghgsE62pvjuIdspysobQGcw1EBt3j%22%3B%7D",
-        "device-referrer": "https://edrpou.ubki.ua/ua/FO12726884",
-        "LNG": "UA",
-        "device-source": "https://edrpou.ubki.ua/ua/03760243",
-    }
-
     headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "accept-language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
         "cache-control": "no-cache",
-        # 'cookie': 'LNG=UA; LNG=UA; _csrf=c1e6328d4d1a00430f580954cd699bfcb582e349d7cdb35b0fc25fc69f79504fa%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%22sPIghgsE62pvjuIdspysobQGcw1EBt3j%22%3B%7D; device-referrer=https://edrpou.ubki.ua/ua/FO12726884; device-source=https://edrpou.ubki.ua/ua/FO14352035',
-        "dnt": "1",
         "pragma": "no-cache",
         "priority": "u=0, i",
-        "referer": "https://edrpou.ubki.ua/ua",
-        "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
+        "sec-fetch-site": "none",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+        "Cookie": "LNG=UA; _ga=GA1.1.1041931148.1741212566; device-referrer=; _csrf=6c1bc4a29faf4f5a1141fd9929a8de249272ed447723fb08e1a64b768e4f34fba%3A2%3A%7Bi%3A0%3Bs%3A5%3A%22_csrf%22%3Bi%3A1%3Bs%3A32%3A%222yBSJoVDH7AaNyGpzIJiYWOccMlT_j2e%22%3B%7D; _ga_3YCXQ6T6Q8=GS2.1.s1747207929$o4$g0$t1747207929$j0$l0$h0; _ga_F6HFCJ1TNT=GS2.1.s1747207929$o4$g0$t1747207929$j0$l0$h0; device-source=https://edrpou.ubki.ua/ua/36422974; LNG=UA",
     }
     html_files = html_directory / f"{taxNumber}.html"
 
@@ -164,7 +127,6 @@ def get_html(taxNumber):
 
     response = requests.get(
         f"https://edrpou.ubki.ua/ua/{taxNumber}",
-        cookies=cookies,
         headers=headers,
         timeout=30,
     )

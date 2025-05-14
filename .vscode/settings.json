@@ -65,7 +65,7 @@
     },
     // XML settings - Настройки XML
     "[xml]": {
-        "editor.defaultFormatter": "fabianlauer.vs-code-xml-format"
+        "editor.defaultFormatter": "redhat.vscode-xml"
     },
     // Miscellaneous settings - Прочие настройки
     "files.autoSave": "afterDelay",
