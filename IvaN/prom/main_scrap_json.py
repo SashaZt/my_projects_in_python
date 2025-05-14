@@ -183,6 +183,7 @@ def scrap_json_review():
 def scrap_review(file_list, companyid):
     result = {
         "companyid": companyid,
+        "rating_company": 0,
         "review_2023": 0,
         "review_2024": 0,
         "review_2025": 0,
@@ -208,7 +209,11 @@ def scrap_review(file_list, companyid):
             if not isinstance(data, dict):
                 logger.error(f"Ошибка: 'data' не является словарем в файле {json_file}")
                 continue
-
+            company_data = data.get("company", {})
+            opinionStats = company_data.get("opinionStats", {})
+            rating_company = opinionStats.get("opinionPositivePercent", 0)
+            if rating_company is not None:
+                rating_company = f"{rating_company}%"
             opinion_listing = data.get("opinionListing", {})
             if not isinstance(opinion_listing, dict):
                 logger.error(
@@ -251,6 +256,7 @@ def scrap_review(file_list, companyid):
             continue
 
     # Заполняем результат
+    result["rating_company"] = rating_company
     result["review_2023"] = reviews_by_year.get(2023, 0)
     result["review_2024"] = reviews_by_year.get(2024, 0)
     result["review_2025"] = reviews_by_year.get(2025, 0)
