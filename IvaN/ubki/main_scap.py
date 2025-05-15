@@ -1,10 +1,11 @@
 import concurrent.futures
 import json
-import os
+import re
 from pathlib import Path
 
 import pandas as pd
 from bs4 import BeautifulSoup
+from config.logger import logger
 
 # Установка директорий для логов и данных
 current_directory = Path.cwd()
@@ -13,16 +14,14 @@ html_directory.mkdir(parents=True, exist_ok=True)
 
 
 def find_title(soup):
-    selectors = [
-        "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(8) > div > div:nth-child(1) > div > div:nth-child(1) > div.dr_value_title",
-        "#edrpou_main_conatiner > div.dr_main_content.dr_showokpo_c > div:nth-child(9) > div > div:nth-child(1) > div > div:nth-child(1) > div.dr_value_title",
-    ]
 
-    for selector in selectors:
-        title_div = soup.select_one(selector)
-        if title_div:
-            return title_div.text.strip()
+    title_div = soup.find("h1", attrs={"class": "dr_title_3 dr_padding_1"})
+    if title_div:
+        cleaned_text = re.sub(r"\s+", " ", title_div.text.strip())
+        result = re.sub(r'ЄДРПОУ.*$', '', cleaned_text).strip()
 
+        return result
+        #
     return None
     # return title_div.text.strip() if title_div else None
 
@@ -95,7 +94,7 @@ def find_wage_arrears(soup):
                 # Извлекаем текст, убирая возможные пробелы и переносы строк
                 status_text = dr_value_div.get_text(strip=True, separator=" ")
                 # Ищем число, которое может быть суммой долга
-                import re
+
 
                 match = re.search(
                     r"\b(\d+(?:\.\d+)?)\s*(?:грн|грн\.|гривень)\b", status_text
@@ -220,12 +219,14 @@ def process_html_file(file_path, combined_data):
             edrpo = edrpo_new
         if title is None:
             return None
+        data_registr = find_data_registr(soup)
+        record_number = find_record_number(soup)
         all_data = {
             "title": title,
             "title_mini": title_mini,
             "registration": registration,
-            "data_registr": find_data_registr(soup),
-            "record_number": find_record_number(soup),
+            "data_registr": data_registr,
+            "record_number": record_number,
             "tax_debt_date": tax_debt_date,
             "tax_debt_status": tax_debt_status,
             "arrears_date": arrears_date,
@@ -247,9 +248,10 @@ def process_html_file(file_path, combined_data):
             "income": income,
             "inn": inn,
         }
+
         return all_data
     except Exception as e:
-        print(f"Ошибка при обработке файла {file_path}: {e}")
+        logger.error(f"Ошибка при обработке файла {file_path}: {e}")
         return None
 
 
@@ -337,7 +339,7 @@ def get_financial_info(soup):
         return year, assets, liabilities, employees, profit, income
 
     except Exception as e:
-        print(f"Ошибка при извлечении финансовой информации: {e}")
+        logger.error(f"Ошибка при извлечении финансовой информации: {e}")
         return None, None, None, None, None, None
 
 
@@ -406,7 +408,7 @@ def save_to_excel(results):
 
     # Сохраняем DataFrame в Excel файл
     df.to_excel(excel_file, index=False)
-    print(f"Сохранено {len(results)} записей в файл {excel_file}")
+    logger.info(f"Сохранено {len(results)} записей в файл {excel_file}")
 
 
 def main():
@@ -418,7 +420,7 @@ def main():
     # Получаем список всех HTML файлов
     all_html_files = list(html_directory.glob("*.html"))
     total_files = len(all_html_files)
-    print(f"Найдено {total_files} HTML файлов для обработки")
+    logger.info(f"Найдено {total_files} HTML файлов для обработки")
 
     results = []
     processed_count = 0
@@ -437,6 +439,7 @@ def main():
             file = future_to_file[future]
             try:
                 data = future.result()
+                # print(data)
                 processed_count += 1
 
                 # Показываем прогресс каждые 100 файлов
@@ -450,13 +453,13 @@ def main():
             except Exception as e:
                 print(f"Ошибка при обработке файла {file}: {e}")
 
-    print(
+    logger.info(
         f"Обработка завершена. Получено {len(results)} результатов из {total_files} файлов"
     )
 
     # Сохраняем результаты в Excel
     save_to_excel(results)
-    print("Работа программы завершена")
+    logger.info("Работа программы завершена")
 
 
 if __name__ == "__main__":
