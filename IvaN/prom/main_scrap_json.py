@@ -183,7 +183,7 @@ def scrap_json_review():
 def scrap_review(file_list, companyid):
     result = {
         "companyid": companyid,
-        "rating_company": 0,
+        "rating_company": None,
         "review_2023": 0,
         "review_2024": 0,
         "review_2025": 0,
@@ -191,6 +191,7 @@ def scrap_review(file_list, companyid):
 
     # Счетчик для отзывов по годам
     reviews_by_year = defaultdict(int)
+    rating_company = None  # Инициализируем переменную заранее
 
     # Проходим по каждому файлу
     for json_file in file_list:
@@ -209,11 +210,17 @@ def scrap_review(file_list, companyid):
             if not isinstance(data, dict):
                 logger.error(f"Ошибка: 'data' не является словарем в файле {json_file}")
                 continue
+
+            # Безопасное извлечение данных о компании
             company_data = data.get("company", {})
-            opinionStats = company_data.get("opinionStats", {})
-            rating_company = opinionStats.get("opinionPositivePercent", 0)
-            if rating_company is not None:
-                rating_company = f"{rating_company}%"
+            if company_data is not None and isinstance(company_data, dict):
+                opinionStats = company_data.get("opinionStats", {})
+                if opinionStats is not None and isinstance(opinionStats, dict):
+                    temp_rating = opinionStats.get("opinionPositivePercent")
+                    if temp_rating is not None:
+                        rating_company = f"{temp_rating}%"
+
+            # Безопасное извлечение данных о списке отзывов
             opinion_listing = data.get("opinionListing", {})
             if not isinstance(opinion_listing, dict):
                 logger.error(
@@ -256,7 +263,9 @@ def scrap_review(file_list, companyid):
             continue
 
     # Заполняем результат
-    result["rating_company"] = rating_company
+    if rating_company is not None:
+        result["rating_company"] = rating_company
+    # Остальные поля заполняем, как и раньше
     result["review_2023"] = reviews_by_year.get(2023, 0)
     result["review_2024"] = reviews_by_year.get(2024, 0)
     result["review_2025"] = reviews_by_year.get(2025, 0)

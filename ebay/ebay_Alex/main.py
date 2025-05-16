@@ -718,16 +718,7 @@ def scrap_html():
                     product_data["price"] = ""
 
                 # 3. Извлекаем изображения (до 3) из <div class="ux-image-carousel-item image-treatment image">
-                images = []
-                image_divs = soup.find_all(
-                    "div", {"class": "ux-image-carousel-item image-treatment image"}
-                )
-                for div in image_divs[:3]:  # Ограничиваем до 3 изображений
-                    img = div.find("img")
-                    if img:
-                        src = img.get("data-zoom-src")
-                        if src:
-                            images.append(src)
+                images = extract_image_urls(soup)
                 product_data["image_1"] = images[0] if len(images) > 0 else ""
                 product_data["image_2"] = images[1] if len(images) > 1 else ""
                 product_data["image_3"] = images[2] if len(images) > 2 else ""
@@ -1124,6 +1115,142 @@ def scrap_html():
     logger.info(
         f"Обработано {len(data)} файлов, данные сохранены в product_details.csv"
     )
+
+
+def extract_image_urls(soup):
+    """
+    Извлекает до 3 URL изображений из HTML-страницы eBay товара.
+
+    Args:
+        soup: BeautifulSoup объект с HTML страницы
+
+    Returns:
+        list: Список URL изображений (до 3 шт.)
+    """
+    images = []
+
+    # Метод 1: Обработка всех изображений на странице по приоритету атрибутов
+    all_imgs = soup.select("img.img-scale-down")
+    seen_urls = set()  # Для отслеживания уникальных URL
+
+    for img in all_imgs:
+        # Приоритет источников: data-zoom-src (высокое разрешение) > data-src > src
+        src = None
+
+        # Проверяем data-zoom-src (высокое разрешение)
+        zoom_src = img.get("data-zoom-src")
+        if zoom_src and zoom_src.strip():
+            src = zoom_src
+
+        # Если нет zoom_src, проверяем data-src
+        if not src or not src.strip():
+            data_src = img.get("data-src")
+            if data_src and data_src.strip():
+                src = data_src
+
+        # Если нет data-src, проверяем src
+        if not src or not src.strip():
+            regular_src = img.get("src")
+            if regular_src and regular_src.strip():
+                src = regular_src
+
+        # Проверяем на дубликаты и добавляем в список
+        if src and src.strip() and src not in seen_urls:
+            # Для eBay мы можем использовать версию с наивысшим разрешением, заменив
+            # s-l500.webp на s-l1600.webp или s-l2000.webp
+            if "s-l" in src:
+                # Пробуем получить версию с наивысшим разрешением
+                high_res_src = (
+                    src.replace("s-l140.webp", "s-l1600.webp")
+                    .replace("s-l500.webp", "s-l1600.webp")
+                    .replace("s-l960.webp", "s-l1600.webp")
+                )
+                src = high_res_src
+
+            seen_urls.add(src)
+            images.append(src)
+
+            # Ограничиваем до 3 изображений
+            if len(images) >= 3:
+                break
+
+    # Если первый метод не сработал, пробуем альтернативный подход
+    if not images:
+        logger.debug("Пробуем альтернативный метод извлечения изображений")
+
+        # Метод 2: Ищем именно carousel-item
+        image_divs = soup.find_all("div", {"class": "ux-image-carousel-item"})
+
+        for div in image_divs[:3]:  # Ограничиваем до 3 изображений
+            img = div.find("img")
+            if img:
+                src = None
+                for attr in ["data-zoom-src", "data-src", "src"]:
+                    src_value = img.get(attr)
+                    if src_value and src_value.strip():
+                        # Пытаемся получить версию с высоким разрешением
+                        if "s-l" in src_value:
+                            src = (
+                                src_value.replace("s-l140.webp", "s-l1600.webp")
+                                .replace("s-l500.webp", "s-l1600.webp")
+                                .replace("s-l960.webp", "s-l1600.webp")
+                            )
+                        else:
+                            src = src_value
+                        break
+
+                if src and src not in seen_urls:
+                    seen_urls.add(src)
+                    images.append(src)
+
+    # Метод 3: Просто ищем все img теги с data-srcset
+    if not images:
+        logger.debug("Пробуем третий метод извлечения изображений")
+        all_img_tags = soup.find_all("img")
+
+        for img in all_img_tags[:5]:  # Проверяем первые 5 тегов img
+            srcset = img.get("data-srcset") or img.get("srcset")
+            if srcset:
+                # Из srcset берем URL с самым высоким разрешением
+                srcset_parts = srcset.split(",")
+                for part in srcset_parts:
+                    if (
+                        "960w" in part
+                    ):  # Самое высокое разрешение в предоставленном HTML
+                        url = part.split()[0].strip()
+                        if url and url not in seen_urls:
+                            # Повышаем разрешение, если возможно
+                            url = url.replace("s-l960.webp", "s-l1600.webp")
+                            seen_urls.add(url)
+                            images.append(url)
+                            break
+
+            if len(images) >= 3:
+                break
+
+    # Метод 4: Извлекаем URL непосредственно из data-src и src
+    if len(images) < 3:
+        logger.debug("Добираем изображения прямым методом")
+        # Прямой поиск всех тегов img с классом img-scale-down
+        img_tags = soup.select("img.img-scale-down")
+        for img in img_tags:
+            src = img.get("data-src") or img.get("src")
+            if src and src.strip() and src not in seen_urls:
+                # Повышаем разрешение, если возможно
+                if "s-l" in src:
+                    src = (
+                        src.replace("s-l140.webp", "s-l1600.webp")
+                        .replace("s-l500.webp", "s-l1600.webp")
+                        .replace("s-l960.webp", "s-l1600.webp")
+                    )
+                seen_urls.add(src)
+                images.append(src)
+
+                if len(images) >= 3:
+                    break
+
+    logger.debug(f"Найдено {len(images)} изображений: {images}")
+    return images[:3]  # Возвращаем до 3 изображений
 
 
 if __name__ == "__main__":

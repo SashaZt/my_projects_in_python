@@ -133,6 +133,10 @@ def process_html_file(html_file):
             src = img.get("data-zoom-src")
             if src:
                 images.append(src)
+            else:
+                src = img.get("src")
+                if src:
+                    images.append(src)
 
         product_data["image_1"] = images[0] if len(images) > 0 else ""
         product_data["image_2"] = images[1] if len(images) > 1 else ""

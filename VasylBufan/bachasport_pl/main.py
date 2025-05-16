@@ -13,6 +13,11 @@ from src.auth import get_session
 from src.category import get_category_urls
 from src.pagination import get_product_urls_from_category
 from src.product import get_product_details
+from src.site import (
+    crawl_bachasport,
+    merge_product_data_files,
+    parse_html_files_to_json,
+)
 from src.utils import random_pause
 from src.xml_handler import (
     extract_simplified_product_data,
@@ -21,12 +26,12 @@ from src.xml_handler import (
 )
 
 current_directory = Path.cwd()
-data_directory = current_directory / "data"
-xml_directory = data_directory / "xml"
-results_directory = data_directory / "results"
+temp_directory = current_directory / "temp"
+xml_directory = temp_directory / "xml"
+results_directory = temp_directory / "results"
 config_directory = current_directory / "config"
 
-data_directory.mkdir(parents=True, exist_ok=True)
+temp_directory.mkdir(parents=True, exist_ok=True)
 config_directory.mkdir(parents=True, exist_ok=True)
 config_file_path = config_directory / "config.json"
 service_account_file = config_directory / "credentials.json"
@@ -86,9 +91,9 @@ def main():
     Основная функция для запуска скрапинга.
     """
     logger.info("Запуск скрапера...")
-    if os.path.exists(data_directory):
-        shutil.rmtree(data_directory)
-    data_directory.mkdir(parents=True, exist_ok=True)
+    if os.path.exists(temp_directory):
+        shutil.rmtree(temp_directory)
+    temp_directory.mkdir(parents=True, exist_ok=True)
     xml_directory.mkdir(parents=True, exist_ok=True)
     try:
         # Получаем авторизованную сессию
@@ -164,22 +169,18 @@ def main():
             ):  # Не делаем паузу после последнего продукта
                 random_pause(1, 4)
 
-        results_directory.mkdir(exist_ok=True, parents=True)
-        file_name = results_directory / "complete_products_data.json"
+        file_name = temp_directory / "complete_products_data.json"
         with open(file_name, "w", encoding="utf-8") as json_file:
             json.dump(products_data, json_file, ensure_ascii=False, indent=4)
 
-        products_data = load_json_data(file_name)
-        result = [
-            {
-                "Symbol": item["Symbol"],
-                "Netto": item["Cena"],
-                "Dostępność": item["availability"],
-            }
-            for item in products_data
-        ]
+        crawl_bachasport()
+        parse_html_files_to_json()
+        merge_product_data_files()
 
-        update_sheet_with_data(sheet, result)
+        result_file = temp_directory / "result.json"
+        with open(result_file, "r", encoding="utf-8") as f:
+            complete_data = json.load(f)
+        update_sheet_with_data(sheet, complete_data)
 
     except KeyboardInterrupt:
         logger.info("Скрапинг прерван пользователем.")
