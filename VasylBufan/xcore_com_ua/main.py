@@ -127,26 +127,42 @@ def update_sheet_with_data(sheet, data, total_rows=10000):
     if not data:
         raise ValueError("Данные для обновления отсутствуют.")
 
+    # Очистка листа перед записью
+    sheet.clear()
+
     # Заголовки из ключей словаря
     headers = list(data[0].keys())
 
-    # Запись заголовков в первую строку
-    sheet.update(values=[headers], range_name="A1", value_input_option="RAW")
-
     # Формирование строк для записи
-    rows = [[entry.get(header, "") for header in headers] for entry in data]
+    rows = []
+    rows.append(headers)  # Добавляем заголовки как первую строку
+
+    # Добавляем данные без дополнительного форматирования
+    for entry in data:
+        row = [str(entry.get(header, "")) for header in headers]
+        rows.append(row)
 
     # Добавление пустых строк до общего количества total_rows
-    if len(rows) < total_rows:
+    if len(rows) < total_rows + 1:
         empty_row = [""] * len(headers)
-        rows.extend([empty_row] * (total_rows - len(rows)))
+        rows.extend([empty_row] * (total_rows + 1 - len(rows)))
 
-    # Определение диапазона для записи данных
-    end_col = chr(65 + len(headers) - 1)  # Преобразование индекса в букву (A, B, C...)
-    range_name = f"A2:{end_col}{total_rows + 1}"
+    # Запись всех данных
+    end_col = chr(65 + len(headers) - 1)
+    range_name = f"A1:{end_col}{total_rows + 1}"
 
-    # Запись данных в лист
-    sheet.update(values=rows, range_name=range_name, value_input_option="USER_ENTERED")
+    # Запись данных
+    sheet.update(values=rows, range_name=range_name, value_input_option="RAW")
+
+    # После записи данных, устанавливаем текстовый формат для столбца с артикулами
+    if "Артикул" in headers:
+        column_index = headers.index("Артикул")
+        column_letter = chr(65 + column_index)
+        column_range = f"{column_letter}2:{column_letter}{len(data) + 1}"
+
+        # Устанавливаем формат ячеек как текстовый
+        sheet.format(column_range, {"numberFormat": {"type": "TEXT"}})
+
     logger.info(f"Обновлено {len(data)} строк в Google Sheets")
 
 
@@ -413,7 +429,7 @@ def extract_product_data(product_json):
             data_json_01 = {
                 "Назва": product_name,
                 "Код товару": model,
-                "Артику": sku,
+                "Артикул": sku,
                 "Ціна": offer_price,
                 "Наявність": result_availability,
             }
@@ -421,7 +437,7 @@ def extract_product_data(product_json):
             data_json_all = {
                 "Назва": product_name,
                 "Код товару": model,
-                "Артику": sku,
+                "Артикул": sku,
                 "Ціна": offer_price,
                 "Наявність": result_availability,
             }
@@ -515,11 +531,13 @@ def pars_htmls():
                 if json_data.get("@type") == "Product":
                     sklad_all, sklad_01 = extract_product_data(json_data)
                     if sklad_all:
+                        # sklad_all["url"] = html_file.name
                         list_all.append(sklad_all)
                         all_product.append(sklad_all)
                         html_count -= 1
                         print(f"Осталось обработать: {html_count} файлов", end="\r")
                     if sklad_01:
+                        # sklad_01["url"] = html_file.name
                         list_01.append(sklad_01)
                         all_product.append(sklad_01)
                         html_count -= 1
@@ -537,7 +555,9 @@ def pars_htmls():
     # shutil.copy2(source_path, destination_path)
     # logger.info(f"Файл {destination_path} перемещен ")
     # Получение листа Google Sheets
+
     if list_all:
+
         sheet = get_google_sheet(SHEET_ALL)
         update_sheet_with_data(sheet, list_all)
     if list_01:

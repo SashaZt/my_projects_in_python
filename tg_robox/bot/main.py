@@ -1,21 +1,20 @@
 import asyncio
+import importlib
+
+import keyboards.inline
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
-from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
-from config.config import Config
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config.logger import logger
 from db.database import create_async_engine, get_session_maker, init_models
-from middlewares import setup_middlewares
-from aiogram.client.default import DefaultBotProperties
 from handlers import register_all_handlers
-import importlib
-import keyboards.inline
+from middlewares import setup_middlewares
 from scheduled_tasks import publish_approved_reviews
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+from config.config import Config
 
 # Перезагрузка модуля клавиатур
 importlib.reload(keyboards.inline)
@@ -54,13 +53,13 @@ async def main():
     # Инициализация моделей
     await init_models(engine)
 
-    # Инициализация планировщика
-    scheduler = AsyncIOScheduler()
-    # Добавление задачи по расписанию (например, каждый час)
-    scheduler.add_job(publish_approved_reviews, "interval", hours=1, args=[bot])
+    # # Инициализация планировщика
+    # scheduler = AsyncIOScheduler()
+    # # Добавление задачи по расписанию (например, каждый час)
+    # scheduler.add_job(publish_approved_reviews, "interval", hours=1, args=[bot])
 
-    # Запуск планировщика
-    scheduler.start()
+    # # Запуск планировщика
+    # scheduler.start()
 
     # Настройка middlewares
     setup_middlewares(dp, session_maker, config)
@@ -72,6 +71,35 @@ async def main():
 
     # Запуск бота
     try:
+        if config.monobank.webhook_url:
+            # Настройка веб-сервера для приема вебхуков
+            from aiohttp import web
+            from handlers.webhook import monobank_webhook_handler
+
+            # Создаем приложение aiohttp
+            app = web.Application()
+
+            # Добавляем маршрут для вебхука Monobank
+            # Предположим, что webhook_url имеет вид https://yourdomain.com/webhooks/monobank
+            # В этом случае путь будет "/webhooks/monobank"
+            webhook_path = config.monobank.webhook_url.split("/")[-1]
+            app.router.add_post(f"/{webhook_path}", monobank_webhook_handler)
+
+            # Запускаем веб-сервер в отдельном таске
+            runner = web.AppRunner(app)
+            await runner.setup()
+
+            # Извлекаем порт из конфигурации или используем порт по умолчанию
+            webhook_port = (
+                config.monobank.webhook_port
+                if hasattr(config.monobank, "webhook_port")
+                else 8080
+            )
+            site = web.TCPSite(runner, "0.0.0.0", webhook_port)
+
+            # Запускаем сайт
+            await site.start()
+            logger.info(f"Веб-сервер для вебхуков запущен на порту {webhook_port}")
         logger.info(
             f"Бот запущен (Проект: {config.project_name}, "
             f"Версия: {config.version}, Окружение: {config.environment})"

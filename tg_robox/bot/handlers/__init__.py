@@ -1,9 +1,7 @@
 # handlers / __init__.py
 from aiogram import Dispatcher
-from . import start, buy, support, user_purchases, info
-from . import payments
-from . import admin
-from . import reviews
+
+from . import admin, buy, info, payments, reviews, start, support, user_purchases
 
 
 def register_all_handlers(dp: Dispatcher, config):

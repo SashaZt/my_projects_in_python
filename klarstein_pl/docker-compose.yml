@@ -1,0 +1,44 @@
+services:
+  # PostgreSQL сервис
+  db:
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    container_name: ${PROJECT_NAME}_db
+    # container_name: ${PROJECT_NAME:-tiktok-analytics}-postgres
+    restart: unless-stopped
+    environment:
+      # Основные параметры PostgreSQL
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: ${PGDATA}
+      # Параметры настройки производительности
+      PG_MAX_CONNECTIONS: ${PG_MAX_CONNECTIONS}
+      PG_SHARED_BUFFERS: ${PG_SHARED_BUFFERS}
+      PG_EFFECTIVE_CACHE_SIZE: ${PG_EFFECTIVE_CACHE_SIZE}
+      PG_MAINTENANCE_WORK_MEM: ${PG_MAINTENANCE_WORK_MEM}
+      PG_CHECKPOINT_COMPLETION_TARGET: ${PG_CHECKPOINT_COMPLETION_TARGET}
+      PG_WAL_BUFFERS: ${PG_WAL_BUFFERS}
+      PG_DEFAULT_STATISTICS_TARGET: ${PG_DEFAULT_STATISTICS_TARGET}
+      PG_RANDOM_PAGE_COST: ${PG_RANDOM_PAGE_COST}
+      PG_EFFECTIVE_IO_CONCURRENCY: ${PG_EFFECTIVE_IO_CONCURRENCY}
+      PG_WORK_MEM: ${PG_WORK_MEM}
+      PG_MIN_WAL_SIZE: ${PG_MIN_WAL_SIZE}
+      PG_MAX_WAL_SIZE: ${PG_MAX_WAL_SIZE}
+    volumes:
+      # Монтирование директории данных
+      - ${POSTGRES_DATA_DIR:-./pgdata}:${PGDATA:-/var/lib/postgresql/data/pgdata}
+    networks:
+      - app_network
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-crm_bts}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  app_network:
+    driver: bridge

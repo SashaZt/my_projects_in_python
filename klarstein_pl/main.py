@@ -137,6 +137,7 @@ def read_json_file(file_path):
 
 def create_xml(data, output_file):
     # Создание корневого элемента
+    
     root = ET.Element("yml_catalog")
     root.set("date", "2025-05-13 12:00")
 
@@ -169,7 +170,8 @@ def create_xml(data, output_file):
 
     # Название товара
     name = ET.SubElement(offer, "name")
-    name.text = data["product"]["name"]
+
+    name.text = data["product"]["name_pl"]
 
     # Цена
     price = ET.SubElement(offer, "price")
@@ -189,7 +191,7 @@ def create_xml(data, output_file):
 
     # Модель
     model = ET.SubElement(offer, "model")
-    model.text = data["product"]["name"]
+    model.text = data["product"]["name_pl"]
 
     # Категория
     categoryId = ET.SubElement(offer, "categoryId")
@@ -202,23 +204,23 @@ def create_xml(data, output_file):
 
     # Описание: включаем все аккордеоны и вставляем изображения между ними
     description_text = ""
-    for i, accordion in enumerate(data["description"]):
+    for i, accordion in enumerate(data["description_pl"]):
         # Добавляем заголовок и содержимое
         description_text += (
-            f"<h2>{accordion['title']}</h2>\n{accordion['description']}\n"
+            f"<h2>{accordion['title_pl']}</h2>\n{accordion['description_pl']}\n"
         )
 
         # После каждого блока, кроме последнего, добавляем фото
-        if i < len(data["product"]["images"]) and i < len(data["description"]) - 1:
+        if i < len(data["product"]["images"]) and i < len(data["description_pl"]) - 1:
             description_text += f'<p><img src="{data["product"]["images"][i]}" alt="Product image"></p>\n'
 
-    description = ET.SubElement(offer, "description")
+    description = ET.SubElement(offer, "description_pl")
     description.text = "DESCRIPTION_PLACEHOLDER"
 
     # Обработка размеров и веса из технического блока
-    for accordion in data["description"]:
-        if accordion["title"] == "Wymiary i szczegóły techniczne":
-            tech_desc = accordion["description"]
+    for accordion in data["description_pl"]:
+        if accordion["title_pl"] == "Wymiary i szczegóły techniczne":
+            tech_desc = accordion["description_pl"]
 
             # Извлечение габаритов и веса
             width = None

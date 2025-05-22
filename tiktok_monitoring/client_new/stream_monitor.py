@@ -4,7 +4,9 @@ import time
 
 from logger import logger
 from TikTokLive import TikTokLiveClient
+from TikTokLive.client.client import TikTokLiveClient
 from TikTokLive.events import ConnectEvent, DisconnectEvent, GiftEvent
+from websockets.exceptions import ConnectionClosedError
 
 
 class StreamMonitor:
@@ -14,333 +16,367 @@ class StreamMonitor:
         self.shared_state = shared_state
         self.streamer_manager = streamer_manager
 
-    async def _monitor_streamer(self, streamer_info):
-        consecutive_errors = 0
-        max_consecutive_errors = 5
-
+    async def start_monitoring(self, streamer_info):
+        """Запуск мониторинга стрима - ответственность StreamMonitor"""
         unique_id = streamer_info["unique_id"]
-        cluster = streamer_info["cluster"]
-        check_online = streamer_info["check_online"]
-        streamer_id = streamer_info["id"]
-        tik_tok_user_id = streamer_info.get("tik_tok_user_id")
-        room_id = streamer_info.get("room_id")
 
-        logger.info(f"Starting monitoring for {unique_id} (Cluster: {cluster})")
-
-        # Переменные для отслеживания состояния
-        connected = False
-        last_conn_attempt = 0
-        max_offline_attempts = 5
-        offline_attempts = 0
-        last_activity_check = time.time()
-        activity_check_interval = 300  # 5 минут
-
-        # Безопасные ошибки, которые можно игнорировать
-        safe_error_messages = [
-            "property 'type' of 'CompetitionEvent' object has no setter",
-            "is offline",
-            "No Message Provided",
-        ]
-
-        # Получаем больше информации о стримере
         try:
-            streamer_data = await self.db.fetchrow(
-                """
-                    SELECT s.tik_tok_user_id, ttu.name, ttu.user_id, ttu.tiktok_id
-                    FROM streamers s
-                    JOIN tik_tok_users ttu ON s.tik_tok_user_id = ttu.id
-                    WHERE s.id = $1
-                    """,
-                streamer_id,
-            )
+            # Проверяем, не запущен ли уже мониторинг
+            if unique_id in self.shared_state.monitored_streams:
+                logger.info(f"Мониторинг {unique_id} уже запущен")
+                return True
 
-            if streamer_data:
-                name = streamer_data["name"]
-                user_id = streamer_data["user_id"]
-                tiktok_id = streamer_data["tiktok_id"]
-            else:
-                name = unique_id
-                user_id = None
-                tiktok_id = None
-            logger.info("=" * 50)
-            logger.info(
-                f"Streamer info: name={name}, user_id={user_id}, tiktok_id={tiktok_id}"
-            )
+            # Запускаем задачу мониторинга
+            task = asyncio.create_task(self._monitor_streamer(streamer_info))
+            self.shared_state.monitored_streams[unique_id] = task
+
+            logger.info(f"Запущен мониторинг для {unique_id}")
+            return True
+
         except Exception as e:
-            logger.error(f"Error fetching streamer data: {e}")
-            name = unique_id
-            user_id = None
-            tiktok_id = None
+            logger.error(f"Ошибка запуска мониторинга {unique_id}: {e}", exc_info=True)
+            return False
 
-        while not self.shared_state.shutdown_event.is_set():
-            client = None
-            current_time = time.time()
+    async def stop_monitoring(self, unique_id, room_id=None):
+        """Остановка мониторинга - ответственность StreamMonitor"""
+        try:
+            # Останавливаем задачу мониторинга
+            if unique_id in self.shared_state.monitored_streams:
+                task = self.shared_state.monitored_streams.pop(unique_id)
+                if task and not task.done():
+                    task.cancel()
 
-            # Если подключены, проверяем активность
-            if connected:
-                if current_time - last_activity_check > activity_check_interval:
-                    last_activity_check = current_time
-                    logger.info(f"Checking activity for {unique_id}")
+                logger.info(f"Остановлен мониторинг для {unique_id}")
 
-                    # Обновляем данные в базе
-                    try:
-                        await self.db.execute(
-                            """
-                                UPDATE streamers 
-                                SET last_activity = NOW(), last_check = NOW(), is_live = TRUE 
-                                WHERE id = $1
-                                """,
-                            streamer_id,
-                        )
-
-                        if tik_tok_user_id:
-                            await self.db.execute(
-                                "UPDATE tik_tok_users SET last_seen = NOW() WHERE id = $1",
-                                tik_tok_user_id,
-                            )
-                    except Exception as e:
-                        logger.error(f"Error updating activity data: {e}")
-
-                # Продолжаем мониторинг
-                await asyncio.sleep(1)
-                continue
-
-            # Если с момента последней попытки прошло меньше check_online секунд, ждем
-            if current_time - last_conn_attempt < check_online:
-                await asyncio.sleep(1)
-                continue
-
-            # Обновляем время последней попытки
-            last_conn_attempt = current_time
-
-            try:
-                # Выбираем правильный идентификатор для подключения
-                # Приоритет: name (если это @username) > tiktok_id > user_id > unique_id
-                connect_id = None
-
-                if name and name.startswith("@") and not name.startswith("@user_"):
-                    connect_id = name
-                    # logger.debug(
-                    #     f"Connecting with username: {connect_id} (original unique_id: {unique_id})"
-                    # )
-                elif tiktok_id:
-                    connect_id = (
-                        f"@{tiktok_id}" if not tiktok_id.startswith("@") else tiktok_id
-                    )
-                    logger.debug(
-                        f"Connecting with tiktok_id: {connect_id} (original unique_id: {unique_id})"
-                    )
-                elif user_id:
-                    # Некоторые версии TikTokLive могут поддерживать подключение по user_id
-                    connect_id = f"@{user_id}"
-                    logger.debug(
-                        f"Connecting with user_id: {connect_id} (original unique_id: {unique_id})"
-                    )
-                else:
-                    connect_id = (
-                        unique_id if unique_id.startswith("@") else f"@{unique_id}"
-                    )
-                    logger.debug(f"Connecting with unique_id: {connect_id}")
-
-                client = TikTokLiveClient(
-                    unique_id=connect_id,
+                # Обновляем статус в БД
+                user_name = (
+                    f"@{unique_id}" if not unique_id.startswith("@") else unique_id
                 )
 
-                # Флаг для отслеживания успешного подключения
-                connection_established = False
+                streamer = await self.db.fetchrow(
+                    """
+                    SELECT s.id
+                    FROM streamers s
+                    JOIN tik_tok_users ttu ON s.tik_tok_user_id = ttu.id
+                    WHERE ttu.name = $1 OR ttu.tiktok_id = $2
+                    """,
+                    user_name,
+                    unique_id.lstrip("@"),
+                )
 
-                # Обработчик события подключения
-                @client.on(ConnectEvent)
-                async def on_connect(event: ConnectEvent):
-                    nonlocal connected, connection_established, last_activity_check
-                    try:
-                        # Отмечаем, что подключение установлено
-                        connected = True
-                        connection_established = True
-                        offline_attempts = 0  # Сбрасываем счетчик попыток
-                        last_activity_check = time.time()
+                if streamer:
+                    # Обновляем статус стримера
+                    await self.db.execute(
+                        "UPDATE streamers SET is_live = FALSE, last_activity = NOW() WHERE id = $1",
+                        streamer["id"],
+                    )
 
-                        # Безопасно извлекаем ID и данные
-                        event_room_id = getattr(
-                            event, "room_id", getattr(client, "room_id", None)
-                        )
-                        event_tiktok_id = getattr(
-                            event, "unique_id", getattr(client, "unique_id", None)
-                        )
-                        numeric_id = getattr(event, "user_id", None)
+                    # Закрываем стрим
+                    await self.db.execute(
+                        """
+                        UPDATE streams
+                        SET end_time = NOW(),
+                            duration = EXTRACT(EPOCH FROM (NOW() - start_time))::INTEGER,
+                            updated_at = NOW()
+                        WHERE streamer_id = $1 AND end_time IS NULL
+                        """,
+                        streamer["id"],
+                    )
 
-                        # Сохраняем текущее значение уникального идентификатора
-                        current_unique_id = unique_id
+                # Если не нашли по имени, ищем по room_id
+                elif room_id:
+                    room_id_int = int(room_id) if room_id else None
 
-                        logger.info(
-                            f"Connected to {current_unique_id} (Room ID: {event_room_id}, TikTok ID: {event_tiktok_id}, User ID: {numeric_id})"
-                        )
-
-                        # Проверяем и обновляем имя пользователя
-                        if numeric_id and current_unique_id.startswith("@user_"):
-                            # Логика обновления имени пользователя - без изменений
-                            # ... [сохраняем существующий код]
-                            pass
-
-                        # Используем room_id как user_id при необходимости
-                        user_id = None
-                        if event_room_id:
-                            user_id = str(event_room_id)
-
-                        # Обновляем данные стримера в базе
-                        await self.streamer_manager.update_streamer(
-                            streamer_id,
-                            event_room_id or room_id,
-                            user_id,
-                            event_tiktok_id,
+                    if room_id_int:
+                        stream = await self.db.fetchrow(
+                            "SELECT id, streamer_id FROM streams WHERE room_id = $1 AND end_time IS NULL",
+                            room_id_int,
                         )
 
-                        # Создаем запись в таблице streams
-                        try:
-                            # Проверяем существующие стримы
-                            existing_stream = await self.db.fetchrow(
+                        if stream:
+                            await self.db.execute(
                                 """
-                                    SELECT id FROM streams 
-                                    WHERE streamer_id = $1 AND end_time IS NULL
-                                    """,
-                                streamer_id,
-                            )
-
-                            if not existing_stream:
-                                # Создаем новую запись о стриме
-                                stream_id = await self.db.fetchval(
-                                    """
-                                        INSERT INTO streams 
-                                        (streamer_id, tik_tok_user_id, room_id, start_time) 
-                                        VALUES ($1, $2, $3, NOW())
-                                        RETURNING id
-                                        """,
-                                    streamer_id,
-                                    tik_tok_user_id,
-                                    event_room_id or room_id,
-                                )
-                                logger.info(
-                                    f"Created new stream record with ID {stream_id}"
-                                )
-                            else:
-                                # Обновляем существующий стрим
-                                await self.db.execute(
-                                    """
-                                        UPDATE streams
-                                        SET max_viewers = max_viewers + 1
-                                        WHERE id = $1
-                                        """,
-                                    existing_stream["id"],
-                                )
-                                logger.info(
-                                    f"Updated existing stream record with ID {existing_stream['id']}"
-                                )
-                        except Exception as e:
-                            logger.error(f"Error creating/updating stream record: {e}")
-
-                    except Exception as e:
-                        logger.error(f"Error in on_connect: {e}")
-
-                # Обработчик для GiftEvent
-                @client.on(GiftEvent)
-                async def on_gift(event: GiftEvent):
-                    nonlocal connected, last_activity_check
-                    connected = True
-                    last_activity_check = time.time()
-                    await self.gift_processor._process_gift(event, unique_id, cluster)
-
-                @client.on(DisconnectEvent)
-                async def on_disconnect(event: DisconnectEvent):
-                    nonlocal connected
-                    logger.info(f"Disconnected from {unique_id}")
-                    connected = False
-
-                    # Закрываем запись о стриме
-                    try:
-                        await self.db.execute(
-                            "UPDATE streamers SET is_live = FALSE WHERE id = $1",
-                            streamer_id,
-                        )
-
-                        await self.db.execute(
-                            """
                                 UPDATE streams
                                 SET end_time = NOW(),
-                                    duration = EXTRACT(EPOCH FROM (NOW() - start_time))::INTEGER
-                                WHERE streamer_id = $1 AND end_time IS NULL
+                                    duration = EXTRACT(EPOCH FROM (NOW() - start_time))::INTEGER,
+                                    updated_at = NOW()
+                                WHERE id = $1
                                 """,
-                            streamer_id,
-                        )
-                    except Exception as e:
-                        logger.error(f"Error updating stream end data: {e}")
+                                stream["id"],
+                            )
 
-                # Запускаем клиент с дополнительной обработкой ошибок
+                            await self.db.execute(
+                                "UPDATE streamers SET is_live = FALSE WHERE id = $1",
+                                stream["streamer_id"],
+                            )
+
+                return True
+            else:
+                logger.info(f"Мониторинг для {unique_id} не был запущен")
+                return True
+
+        except Exception as e:
+            logger.error(
+                f"Ошибка остановки мониторинга {unique_id}: {e}", exc_info=True
+            )
+            return False
+
+    async def _monitor_streamer(self, streamer_info):
+        """Упрощенный мониторинг стрима"""
+        # Извлекаем только нужные данные
+        unique_id = streamer_info["unique_id"]
+        room_id = streamer_info.get("room_id")
+        numeric_uid = streamer_info.get("numeric_uid")
+
+        logger.info(f"Стартуем мониторинг для {unique_id} (room_id: {room_id})")
+
+        # Переменные для контроля состояния
+        connected = False
+        last_attempt = 0
+
+        while not self.shared_state.shutdown_event.is_set():
+            try:
+                # Проверяем нужно ли подключаться
+                current_time = time.time()
+
+                # Если уже подключены, просто ждем
+                if connected:
+                    await asyncio.sleep(1)
+                    continue
+
+                # Ограничиваем частоту попыток подключения
+                if current_time - last_attempt < 15:  # Не чаще, чем раз в 15 секунд
+                    await asyncio.sleep(1)
+                    continue
+
+                last_attempt = current_time
+
+                # Создаем ID для подключения - простой подход
+                connect_id = unique_id if unique_id.startswith("@") else f"@{unique_id}"
+
+                # Создаем клиент TikTok
+                client = TikTokLiveClient(unique_id=connect_id)
+
+                # Обработчик подключения
+                @client.on(ConnectEvent)
+                async def on_connect(event):
+                    nonlocal connected
+                    connected = True
+
+                    # Получаем room_id из клиента
+                    client_room_id = getattr(client, "room_id", room_id)
+
+                    logger.info(f"Подключено к {unique_id} (Room ID: {client_room_id})")
+
+                    # Обновляем данные в БД
+                    await self.db.execute(
+                        "UPDATE streamers SET is_live = TRUE, last_activity = NOW() WHERE id = $1",
+                        streamer_info["id"],
+                    )
+
+                # Обработчик подарков - самое важное
+                @client.on(GiftEvent)
+                async def on_gift(event):
+                    # Важно - добавляем room_id к событию
+                    if not hasattr(event, "room_id"):
+                        # Приоритет: room_id из клиента > room_id из streamer_info
+                        client_room_id = getattr(client, "room_id", room_id)
+                        if client_room_id:
+                            setattr(event, "room_id", client_room_id)
+
+                    # Обработка подарка
+                    await self.gift_processor._process_gift(
+                        event, unique_id, streamer_info.get("cluster", "AGENCY")
+                    )
+
+                # Обработчик отключения
+                @client.on(DisconnectEvent)
+                async def on_disconnect(event):
+                    nonlocal connected
+                    connected = False
+                    logger.info(f"Отключено от {unique_id}")
+
+                # Запускаем клиент с таймаутом
                 try:
-                    # logger.info(f"Starting client for {connect_id}")
-                    await client.start()
+                    await asyncio.wait_for(client.start(), timeout=60)
                 except asyncio.TimeoutError:
-                    logger.warning(f"Connection to {connect_id} timed out")
+                    logger.warning(f"Таймаут подключения к {unique_id}")
                     connected = False
                 except Exception as e:
-                    error_message = str(e)
-                    # logger.error(
-                    #     f"Error starting client for {connect_id}: {error_message}"
-                    # )
+                    logger.warning(f"Ошибка подключения к {unique_id}: {str(e)}")
                     connected = False
+                    await asyncio.sleep(30)  # При ошибке ждем дольше
 
-                    # Попробуем выполнить отладочное подключение при серьезных ошибках
-                    if "Expecting value" in error_message:
-                        logger.info(f"Attempting debug connection for {connect_id}...")
-                        await self.streamer_manager.debug_tiktok_connection(connect_id)
-
-                # Если дошли до этой точки, значит клиент завершил работу сам
+                # Если дошли сюда, значит клиент завершился
                 connected = False
 
-            except asyncio.TimeoutError:
-                logger.warning(f"Connection to {unique_id} timed out")
-                connected = False
             except Exception as e:
-                error_message = str(e)
+                logger.error(f"Ошибка мониторинга {unique_id}: {e}", exc_info=True)
                 connected = False
-
-                # Проверяем, является ли это известной безопасной ошибкой
-                if any(safe_msg in error_message for safe_msg in safe_error_messages):
-                    if "is offline" in error_message:
-                        offline_attempts += 1
-                        if offline_attempts >= max_offline_attempts:
-                            wait_time = check_online * 2
-                            logger.info(
-                                f"{unique_id} is offline after {offline_attempts} attempts. Will retry in {wait_time} seconds"
-                            )
-                            await asyncio.sleep(wait_time)
-                            offline_attempts = 0
-                        else:
-                            # Короткая пауза между попытками
-                            await asyncio.sleep(5)
-                    else:
-                        # Другая известная ошибка
-                        logger.warning(f"Known error for {unique_id}: {error_message}")
-                        await asyncio.sleep(5)
-                else:
-                    logger.error(f"Error in monitoring {unique_id}: {error_message}")
-                    # Более длинная пауза при неизвестной ошибке
-                    await asyncio.sleep(30)
+                await asyncio.sleep(30)
             finally:
-                # Освобождаем ресурсы клиента
+                # Очищаем ресурсы
                 try:
-                    if client:
+                    if "client" in locals() and client:
                         await client.stop()
                 except:
                     pass
 
-                if not connection_established:
-                    connected = False
+                # Небольшая пауза перед повторной попыткой
+                await asyncio.sleep(5)
 
-            # Проверяем, не остановлен ли мониторинг
-            if self.shared_state.shutdown_event.is_set():
-                break
+        logger.info(f"Мониторинг для {unique_id} завершен")
 
-            # Ждем перед повторным подключением
-            if not connected:
-                retry_interval = min(check_online, 10)
-                await asyncio.sleep(retry_interval)
+    # Тестовый метод, проеврить
+    # async def _monitor_streamer(self, streamer_info):
+    #     """Упрощенный мониторинг стрима с обработкой разрывов соединения"""
+    #     # Извлекаем только нужные данные
+    #     unique_id = streamer_info["unique_id"]
+    #     room_id = streamer_info.get("room_id")
+    #     numeric_uid = streamer_info.get("numeric_uid")
+
+    #     logger.info(f"Стартуем мониторинг для {unique_id} (room_id: {room_id})")
+
+    #     # Переменные для контроля состояния
+    #     connected = False
+    #     last_attempt = 0
+    #     retry_count = 0
+    #     max_retries = (
+    #         5  # Максимальное количество быстрых повторных попыток при ошибке соединения
+    #     )
+    #     reconnect_delay = 5  # Начальная задержка для переподключения в секундах
+
+    #     while not self.shared_state.shutdown_event.is_set():
+    #         try:
+    #             # Проверяем нужно ли подключаться
+    #             current_time = time.time()
+
+    #             # Если уже подключены, просто ждем
+    #             if connected:
+    #                 await asyncio.sleep(1)
+    #                 continue
+
+    #             # Ограничиваем частоту попыток подключения
+    #             if current_time - last_attempt < 15:  # Не чаще, чем раз в 15 секунд
+    #                 await asyncio.sleep(1)
+    #                 continue
+
+    #             last_attempt = current_time
+
+    #             # Создаем ID для подключения - простой подход
+    #             connect_id = unique_id if unique_id.startswith("@") else f"@{unique_id}"
+
+    #             # Создаем клиент TikTok с увеличенным таймаутом
+    #             client = TikTokLiveClient(
+    #                 unique_id=connect_id,
+    #                 timeout_ms=30000,  # Увеличенный таймаут для стабильности
+    #             )
+
+    #             # Обработчик подключения
+    #             @client.on(ConnectEvent)
+    #             async def on_connect(event):
+    #                 nonlocal connected, retry_count, reconnect_delay
+    #                 connected = True
+    #                 # Сбрасываем счетчики при успешном подключении
+    #                 retry_count = 0
+    #                 reconnect_delay = 5
+
+    #                 # Получаем room_id из клиента
+    #                 client_room_id = getattr(client, "room_id", room_id)
+
+    #                 logger.info(f"Подключено к {unique_id} (Room ID: {client_room_id})")
+
+    #                 # Обновляем данные в БД
+    #                 await self.db.execute(
+    #                     "UPDATE streamers SET is_live = TRUE, last_activity = NOW() WHERE id = $1",
+    #                     streamer_info["id"],
+    #                 )
+
+    #             # Обработчик подарков - самое важное
+    #             @client.on(GiftEvent)
+    #             async def on_gift(event):
+    #                 # Важно - добавляем room_id к событию
+    #                 if not hasattr(event, "room_id"):
+    #                     # Приоритет: room_id из клиента > room_id из streamer_info
+    #                     client_room_id = getattr(client, "room_id", room_id)
+    #                     if client_room_id:
+    #                         setattr(event, "room_id", client_room_id)
+
+    #                 # Обработка подарка
+    #                 await self.gift_processor._process_gift(
+    #                     event, unique_id, streamer_info.get("cluster", "AGENCY")
+    #                 )
+
+    #             # Обработчик отключения
+    #             @client.on(DisconnectEvent)
+    #             async def on_disconnect(event):
+    #                 nonlocal connected
+    #                 connected = False
+    #                 logger.info(f"Отключено от {unique_id}")
+
+    #             # Запускаем клиент с таймаутом
+    #             try:
+    #                 await asyncio.wait_for(client.start(), timeout=60)
+    #             except asyncio.TimeoutError:
+    #                 logger.warning(f"Таймаут подключения к {unique_id}")
+    #                 connected = False
+    #             except ConnectionClosedError as e:
+    #                 # Специальная обработка для этого типа ошибки
+    #                 logger.warning(f"Соединение закрыто для {unique_id}: {str(e)}")
+    #                 connected = False
+
+    #                 # Увеличиваем счетчик повторных попыток
+    #                 retry_count += 1
+
+    #                 if retry_count > max_retries:
+    #                     # Если превышено количество быстрых повторных попыток,
+    #                     # увеличиваем задержку и сбрасываем счетчик
+    #                     reconnect_delay = min(
+    #                         60, reconnect_delay * 1.5
+    #                     )  # Максимум 60 секунд
+    #                     retry_count = 0
+    #                     logger.info(
+    #                         f"Превышено количество быстрых повторных попыток для {unique_id}. Ожидание {reconnect_delay} секунд."
+    #                     )
+
+    #                 # Ждем перед повторной попыткой
+    #                 await asyncio.sleep(reconnect_delay)
+    #             except Exception as e:
+    #                 logger.warning(f"Ошибка подключения к {unique_id}: {str(e)}")
+    #                 connected = False
+    #                 await asyncio.sleep(30)  # При ошибке ждем дольше
+
+    #             # Если дошли сюда, значит клиент завершился
+    #             connected = False
+
+    #         except ConnectionClosedError as e:
+    #             # Дополнительная обработка на случай, если ошибка произойдет вне блока try/except выше
+    #             logger.error(f"ConnectionClosedError в основном цикле для {unique_id}: {e}")
+    #             connected = False
+
+    #             # Увеличиваем счетчик повторных попыток
+    #             retry_count += 1
+
+    #             if retry_count > max_retries:
+    #                 # Экспоненциальная задержка
+    #                 reconnect_delay = min(60, reconnect_delay * 1.5)
+    #                 retry_count = 0
+
+    #             await asyncio.sleep(reconnect_delay)
+
+    #         except Exception as e:
+    #             logger.error(f"Ошибка мониторинга {unique_id}: {e}", exc_info=True)
+    #             connected = False
+    #             await asyncio.sleep(30)
+    #         finally:
+    #             # Очищаем ресурсы
+    #             try:
+    #                 if "client" in locals() and client:
+    #                     await client.stop()
+    #             except Exception as e:
+    #                 logger.warning(f"Ошибка при остановке клиента для {unique_id}: {e}")
+
+    #             # Небольшая пауза перед повторной попыткой
+    #             await asyncio.sleep(5)
+
+    #     logger.info(f"Мониторинг для {unique_id} завершен")

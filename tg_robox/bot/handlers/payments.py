@@ -1,15 +1,22 @@
-from aiogram import Router, F
-from aiogram.types import PreCheckoutQuery, Message, LabeledPrice, SuccessfulPayment
+from datetime import datetime
+
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
+from aiogram.types import (
+    CallbackQuery,
+    LabeledPrice,
+    Message,
+    PreCheckoutQuery,
+    SuccessfulPayment,
+)
+from config.logger import logger
+from db.models import CardCode, Order, Payment, RobloxProduct, User
+from keyboards import inline as ikb
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from db.models import Order, Payment, RobloxProduct, CardCode, User
-from config.logger import logger
+from utils.monobank import MonobankPayment
 from utils.payment_logging import log_payment_event
-from datetime import datetime
-from keyboards import inline as ikb
-
 
 router = Router()
 
@@ -387,3 +394,123 @@ async def cancel_payment(message: Message, state: FSMContext, session: AsyncSess
             payment_data={"error": error_msg, "error_type": type(e).__name__},
         )
         await message.answer("❌ Сталася помилка при скасуванні замовлення.")
+
+
+# Добавить новую функцию для создания счета Monobank
+async def create_monobank_payment(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+):
+    """Обработчик кнопки оплаты через Monobank"""
+    # Получаем данные из состояния
+    data = await state.get_data()
+    order_id = data.get("order_id")
+    user_id = callback.from_user.id
+
+    # Логируем начало процесса оплаты
+    log_payment_event(
+        event_type="monobank_payment_started",
+        user_id=user_id,
+        order_id=order_id,
+    )
+
+    # Получаем информацию о заказе
+    stmt = select(Order).where(Order.order_id == order_id)
+    result = await session.execute(stmt)
+    order = result.scalar_one_or_none()
+
+    if not order:
+        await callback.answer("Заказ не найден!", show_alert=True)
+        return
+
+    # Проверяем статус заказа
+    if order.status != "created":
+        await callback.answer(
+            "Этот заказ уже обрабатывается или выполнен.", show_alert=True
+        )
+        return
+
+    # Получаем информацию о продукте
+    stmt = select(RobloxProduct).where(RobloxProduct.product_id == order.product_id)
+    result = await session.execute(stmt)
+    product = result.scalar_one_or_none()
+
+    config = Config.load()
+    bot_username = (await callback.bot.get_me()).username
+
+    # Создаем объект для работы с Monobank API
+    monobank = MonobankPayment()
+
+    # Формируем URL для возврата пользователя после оплаты
+    redirect_url = f"https://t.me/{bot_username}?start=order_{order.order_id}"
+
+    # Создаем счет в Monobank (сумма в копейках)
+    amount_kopecks = int(order.total_price * 100)
+    description = f"Покупка {product.name} ({product.robux_amount} Robux)"
+
+    # URL для вебхуков, если настроен
+    webhook_url = config.monobank.webhook_url if hasattr(config, "monobank") else None
+
+    # Создаем счет
+    invoice_result = await monobank.create_invoice(
+        amount=amount_kopecks,
+        order_id=order.order_id,
+        redirect_url=redirect_url,
+        webhook_url=webhook_url,
+        description=description,
+    )
+
+    if not invoice_result:
+        log_payment_event(
+            event_type="monobank_invoice_failed",
+            user_id=user_id,
+            order_id=order.order_id,
+        )
+        await callback.message.edit_text(
+            "❌ Ошибка при создании счета. Пожалуйста, попробуйте позже или выберите другой способ оплаты.",
+            reply_markup=ikb.get_back_to_products_keyboard(),
+        )
+        return
+
+    # Сохраняем информацию о платеже
+    invoice_id = invoice_result.get("invoiceId")
+    payment_url = invoice_result.get("pageUrl")
+
+    # Обновляем запись о платеже
+    stmt = select(Payment).where(Payment.order_id == order.order_id)
+    result = await session.execute(stmt)
+    payment = result.scalar_one_or_none()
+
+    if payment:
+        payment.portmone_order_id = (
+            invoice_id  # Используем то же поле или добавьте новое
+        )
+        payment.payment_url = payment_url
+        payment.payment_data = invoice_result
+        await session.commit()
+
+    log_payment_event(
+        event_type="monobank_invoice_created",
+        user_id=user_id,
+        order_id=order.order_id,
+        payment_data={"invoice_id": invoice_id, "payment_url": payment_url},
+    )
+
+    # Формируем клавиатуру с кнопкой для перехода к оплате
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Перейти к оплате", url=payment_url)],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products")],
+        ]
+    )
+
+    # Отправляем сообщение с ссылкой на оплату
+    await callback.message.edit_text(
+        f"💳 <b>Оплата через Monobank</b>\n\n"
+        f"Заказ: #{order.order_id}\n"
+        f"Сумма: {order.total_price} грн\n\n"
+        f"Для оплаты нажмите кнопку ниже. После успешной оплаты вы получите свой код.",
+        reply_markup=keyboard,
+    )
+
+    # Устанавливаем состояние ожидания оплаты
+    await state.set_state(BuyCardStates.waiting_payment)

@@ -12,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 from logger import logger
 from requests.exceptions import HTTPError
+from scrap import scrap_online
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 # Инициализация директорий
@@ -20,10 +21,15 @@ data_directory = current_directory / "data"
 config_directory = current_directory / "config"
 html_directory = current_directory / "html"
 progress_directory = current_directory / "progress"
+temp_directory = current_directory / "temp"
+json_directory = temp_directory / "json"
+html_directory = temp_directory / "html"
+config_directory = current_directory / "config"
+temp_directory.mkdir(parents=True, exist_ok=True)
+json_directory.mkdir(parents=True, exist_ok=True)
+config_directory.mkdir(parents=True, exist_ok=True)
+html_directory.mkdir(parents=True, exist_ok=True)
 
-# Создаем директории, если они не существуют
-for directory in [data_directory, config_directory, html_directory, progress_directory]:
-    directory.mkdir(parents=True, exist_ok=True)
 
 config_file = config_directory / "config.json"
 
@@ -209,15 +215,16 @@ def make_request(url):
     """
     # Получаем случайный прокси
     proxies = get_random_proxy()
-    proxies = {
-        "http": "http://5.79.73.131:13010",
-        "https": "http://5.79.73.131:13010",
-    }
+    # proxies = {
+    #     "http": "http://5.79.73.131:13010",
+    #     "https": "http://5.79.73.131:13010",
+    # }
     response = requests.get(
         url,
         proxies=proxies,
         headers=headers,
         timeout=10,
+        verify=False,
     )
     response.raise_for_status()  # Вызывает HTTPError, если статус не 200
 
@@ -238,11 +245,13 @@ def make_request_one_html(url):
         "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
         "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
     }
+    proxies = get_random_proxy()
     response = requests.get(
         url,
         proxies=proxies,
         headers=headers,
         timeout=10,
+        verify=False,
     )
     response.raise_for_status()  # Вызывает HTTPError, если статус не 200
 
@@ -458,7 +467,7 @@ def run_scraper(max_pages=None, threads=20, resume=True):
     )
 
     # Базовый URL (без параметров)
-    base_url = "https://www.ebay.com/b/Car-Truck-Additional-ABS-Parts/33560/bn_583684"
+    base_url = "https://www.ebay.com/b/Car-Truck-Additional-ABS-Parts/33560/bn_583684?rt=nc&mag=1&Items%2520Included=ABS%2520Accumulator"
 
     # Список брендов (сокращен для примера, используйте полный список)
     all_brands = [
@@ -886,6 +895,7 @@ def get_product_th(urls, threads=10):
     # Определяем функцию для обработки одного URL
     def process_url(url):
         try:
+
             # Создаем MD5-хеш URL
             url_hash = hashlib.md5(url.encode()).hexdigest()
             filename = f"{url_hash}.html"
@@ -904,27 +914,29 @@ def get_product_th(urls, threads=10):
 
             # Выполняем запрос
             src = make_request_one_html(url)
+            logger.info(f"файл {output_html_file}")
             # Сохраняем HTML в файл
             output_html_file.write_text(src, encoding="utf-8")
+            result = scrap_online(src)
+            if result:
+                with log_lock:
+                    logger.info(f"Сохранено в {filename}")
 
-            with log_lock:
-                logger.info(f"Сохранено в {filename}")
+                # Увеличиваем счетчик обработанных URL
+                with counter_lock:
+                    processed_counter["count"] += 1
+                    count = processed_counter["count"]
 
-            # Увеличиваем счетчик обработанных URL
-            with counter_lock:
-                processed_counter["count"] += 1
-                count = processed_counter["count"]
+                    # Периодически сохраняем маппинг
+                    if count % 100 == 0:
+                        with mapping_lock:
+                            mapping_df = pd.DataFrame(url_mapping)
+                            mapping_df.to_csv(mapping_file, index=False)
+                        logger.info(
+                            f"Промежуточное сохранение маппинга: {count}/{total_urls}"
+                        )
 
-                # Периодически сохраняем маппинг
-                if count % 100 == 0:
-                    with mapping_lock:
-                        mapping_df = pd.DataFrame(url_mapping)
-                        mapping_df.to_csv(mapping_file, index=False)
-                    logger.info(
-                        f"Промежуточное сохранение маппинга: {count}/{total_urls}"
-                    )
-
-            return True
+                return True
 
         except Exception as e:
             with log_lock:
@@ -965,20 +977,20 @@ def main(max_pages=None, threads=20, resume=True):
     logger.info("=== Шаг 1: Сбор URL товаров ===")
     all_urls = run_scraper(max_pages=max_pages, resume=resume)
 
-    # Шаг 2: Если URL не собраны, пытаемся объединить существующие файлы
-    if not all_urls:
-        logger.info("URL не были собраны, объединяем существующие файлы")
-        df = merge_collected_urls()
-        if not df.empty:
-            all_urls = df["href"].tolist()
+    # # Шаг 2: Если URL не собраны, пытаемся объединить существующие файлы
+    # if not all_urls:
+    #     logger.info("URL не были собраны, объединяем существующие файлы")
+    #     df = merge_collected_urls()
+    #     if not df.empty:
+    #         all_urls = df["href"].tolist()
 
-    # Шаг 3: Скачиваем страницы товаров в многопоточном режиме
-    if all_urls:
-        logger.info(f"=== Шаг 2: Скачивание {len(all_urls)} страниц товаров .===")
-        success_count = get_product_th(all_urls, threads=threads)
-        logger.info(f"Скачивание завершено: {success_count}/{len(all_urls)} успешно")
-    else:
-        logger.warning("Нет URL для скачивания")
+    # # Шаг 3: Скачиваем страницы товаров в многопоточном режиме
+    # if all_urls:
+    #     logger.info(f"=== Шаг 2: Скачивание {len(all_urls)} страниц товаров .===")
+    #     success_count = get_product_th(all_urls, threads=threads)
+    #     logger.info(f"Скачивание завершено: {success_count}/{len(all_urls)} успешно")
+    # else:
+    #     logger.warning("Нет URL для скачивания")
 
 
 if __name__ == "__main__":

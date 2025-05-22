@@ -1,4 +1,3 @@
-import argparse
 import os
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -31,7 +30,7 @@ def process_folder(folder_path, current_depth, max_depth, indent, results):
     return [entry for entry in folder_path.iterdir() if entry.is_dir()]
 
 
-def display_folder_tree(folder_path, max_depth, workers=4):
+def display_folder_tree(folder_path, max_depth, workers=8):
     """
     Параллельно обрабатывает дерево папок с заданной глубиной.
     """
@@ -85,33 +84,30 @@ def save_to_excel(results, output_file="output.xlsx"):
 
 
 if __name__ == "__main__":
-    # Настраиваем парсер аргументов
-    parser = argparse.ArgumentParser(
-        description="Display folder sizes exceeding 10 MB."
-    )
-    parser.add_argument("directory", type=str, help="Path to the directory to analyze.")
-    parser.add_argument(
-        "--depth",
-        type=int,
-        default=1,
-        help="Maximum depth of folder tree to analyze (default: 1).",
-    )
-    parser.add_argument(
-        "--output",
-        type=str,
-        default="output.xlsx",
-        help="Output Excel file name (default: output.xlsx).",
-    )
+    # Запрашиваем директорию у пользователя
+    directory = input("Введите путь к директории для анализа: ")
+    max_depth = int(input("Введите максимальную глубину анализа (0 - не ограничено): "))
+    # Проверяем существование директории
+    while not os.path.isdir(directory):
+        print("Указанная директория не существует. Попробуйте снова.")
+        directory = input("Введите путь к директории для анализа: ")
 
-    args = parser.parse_args()
+    # # Устанавливаем максимально возможную глубину
+    # max_depth = 1  # Практически неограниченная глубина для SSD
 
-    # Получаем параметры из аргументов
-    directory = args.directory
-    depth = args.depth
-    output_file = args.output
+    # Увеличиваем количество workers для SSD
+    workers = 8  # Увеличено для быстрой работы с SSD
+
+    output_file = "output.xlsx"
 
     logger.info("Анализируем папки больше 10Мб")
-    results = display_folder_tree(directory, max_depth=depth, workers=4)
+    logger.info(f"Директория: {directory}")
+    logger.info(f"Максимальная глубина: {max_depth}")
+    logger.info(f"Количество параллельных потоков (workers): {workers}")
+
+    results = display_folder_tree(directory, max_depth=max_depth, workers=workers)
 
     # Сохранение результатов в Excel
     save_to_excel(results, output_file)
+
+    print(f"Анализ завершен. Результаты сохранены в файл {output_file}")

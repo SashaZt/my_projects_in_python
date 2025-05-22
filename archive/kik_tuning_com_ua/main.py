@@ -64,8 +64,8 @@ def get_xml():
 
     # Ссылки на файлы Sitemap
     sitemaps = [
-        "https://kik-tuning.com.ua/product-sitemap2.xml",
-        "https://kik-tuning.com.ua/product-sitemap.xml",
+        "https://kik-tuning.com.ua/wp-sitemap-posts-product-1.xml",
+        "https://kik-tuning.com.ua/wp-sitemap-posts-product-2.xml",
     ]
 
     # Список для хранения URL

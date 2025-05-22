@@ -12,181 +12,136 @@ class GiftProcessor:
     def __init__(self, db, shared_state):
         self.db = db
         self.gift_queue = Queue(maxsize=5000)
-        self.processed_gift_ids = set()
-        self.shared_state = shared_state  # Добавить shared_state
+        self.shared_state = shared_state
         self.active_streamers = {}  # словарь {tik_tok_user_id: latest_room_id}
-        self.last_streamers_check = time.time()
-        self.streamers_check_interval = 300  # 5 минут
-        self.recent_gifts = {}
-        self.streamer_gifts = {}
+        # Упрощаем структуру - убираем ненужные кэши
+        self.room_id_cache = (
+            {}
+        )  # Для быстрого поиска по room_id: {room_id: tik_tok_user_id}
 
     async def start(self):
         """Запускает обработчик подарков"""
-        # Обновляем кэш активных стримеров при старте
-        await self._update_active_streamers()
+        # Инициализируем кэш room_id при старте
+        await self._init_room_id_cache()
 
-        # Запускаем задачи
+        # Запускаем только основную задачу обработки подарков
         gift_queue_task = asyncio.create_task(self._process_gift_queue())
-        gift_cache_task = asyncio.create_task(self._clean_gift_cache())
-        gifts_caches_task = asyncio.create_task(self._clean_gifts_caches())
-        streamers_check_task = asyncio.create_task(self._periodic_streamers_check())
 
-        return [
-            gift_queue_task,
-            gift_cache_task,
-            gifts_caches_task,
-            streamers_check_task,
-        ]
+        # Задача обновления кэша (с меньшей частотой)
+        cache_update_task = asyncio.create_task(self._periodic_cache_update())
 
-    async def _periodic_streamers_check(self):
-        """Периодически проверяет и обновляет статус стримеров и сессий"""
-        while not self.shared_state.shutdown_event.is_set():
-            await self._update_active_streamers()
-            await asyncio.sleep(self.streamers_check_interval)
+        return [gift_queue_task, cache_update_task]
 
-    async def _clean_gifts_caches(self):
-        """Периодически очищает кэши подарков"""
-        while not self.shared_state.shutdown_event.is_set():
-            try:
-                now = time.time()
-
-                # Очистка кэша недавних подарков
-                if hasattr(self, "recent_gifts"):
-                    keys_to_remove = []
-                    for key, (timestamp, _) in self.recent_gifts.items():
-                        if now - timestamp > 60:  # Удаляем записи старше 1 минуты
-                            keys_to_remove.append(key)
-
-                    for key in keys_to_remove:
-                        self.recent_gifts.pop(key, None)
-
-                    logger.debug(
-                        f"Cleaned recent_gifts cache, removed {len(keys_to_remove)} entries, remaining: {len(self.recent_gifts)}"
-                    )
-
-                # Очистка кэша подарков по стримеру
-                if hasattr(self, "streamer_gifts"):
-                    keys_to_remove = []
-                    for key, (timestamp, _) in self.streamer_gifts.items():
-                        if now - timestamp > 60:  # Удаляем записи старше 1 минуты
-                            keys_to_remove.append(key)
-
-                    for key in keys_to_remove:
-                        self.streamer_gifts.pop(key, None)
-
-                    logger.debug(
-                        f"Cleaned streamer_gifts cache, removed {len(keys_to_remove)} entries, remaining: {len(self.streamer_gifts)}"
-                    )
-
-                await asyncio.sleep(30)  # Проверяем каждые 30 секунд
-            except Exception as e:
-                logger.error(f"Error cleaning gifts caches: {e}")
-                await asyncio.sleep(60)  # При ошибке проверяем реже
-
-    # Добавьте этот метод для обновления активных стримеров
-
-    async def _update_active_streamers(self):
-        """Обновляет кэш активных стримеров, предпочитая последние сессии"""
+    async def _init_room_id_cache(self):
+        """Инициализирует кэш room_id -> tik_tok_user_id"""
         try:
-            # Получаем список активных комнат
-            active_rooms = await self.db.fetch(
+            # Получаем активные маппинги комнат
+            mappings = await self.db.fetch(
                 """
-                SELECT rm.tik_tok_user_id, rm.room_id, rm.last_updated
-                FROM room_id_mapping rm
-                JOIN streamers s ON rm.tik_tok_user_id = s.tik_tok_user_id
-                ORDER BY rm.last_updated DESC
-            """
+                SELECT room_id, tik_tok_user_id 
+                FROM room_id_mapping
+                ORDER BY last_updated DESC
+                """
             )
 
-            # Обновляем словарь активных стримеров
-            new_active_streamers = {}
-            seen_streamers = set()
+            # Собираем кэш
+            for mapping in mappings:
+                room_id = mapping["room_id"]
+                tik_tok_user_id = mapping["tik_tok_user_id"]
+                self.room_id_cache[room_id] = tik_tok_user_id
 
-            for room in active_rooms:
-                streamer_id = room["tik_tok_user_id"]
-                # Берем только самую новую комнату для каждого стримера
-                if streamer_id not in seen_streamers:
-                    new_active_streamers[streamer_id] = room["room_id"]
-                    seen_streamers.add(streamer_id)
-
-            self.active_streamers = new_active_streamers
             logger.info(
-                f"Updated active streamers cache: {len(self.active_streamers)} active streamers"
-            )
-            # Закрываем старые сессии стримов
-            current_time = datetime.now(timezone.utc)
-            cutoff_time = current_time - timedelta(hours=6)
-            # Найти и закрыть старые стримы
-            closed_streams = await self.db.execute(
-                """
-                UPDATE streams
-                SET end_time = $1
-                WHERE end_time IS NULL 
-                AND start_time < $2
-                RETURNING id
-            """,
-                current_time,
-                cutoff_time,
+                f"Initialized room ID cache with {len(self.room_id_cache)} entries"
             )
 
-            if closed_streams:
-                logger.info(f"Closed {len(closed_streams)} old stream sessions")
+            # Собираем также активных стримеров
+            active_streamers = await self.db.fetch(
+                """
+                SELECT s.tik_tok_user_id, s.room_id
+                FROM streamers s 
+                WHERE s.is_live = TRUE AND s.room_id IS NOT NULL
+                """
+            )
+
+            for streamer in active_streamers:
+                tik_tok_user_id = streamer["tik_tok_user_id"]
+                room_id = streamer["room_id"]
+                self.active_streamers[tik_tok_user_id] = room_id
+
+            logger.info(
+                f"Initialized active streamers cache with {len(self.active_streamers)} entries"
+            )
 
         except Exception as e:
-            logger.error(f"Error updating active streamers: {e}")
+            logger.error(f"Error initializing room ID cache: {e}")
+
+    async def _periodic_cache_update(self):
+        """Периодически обновляет кэши (с низкой частотой)"""
+        while not self.shared_state.shutdown_event.is_set():
+            try:
+                # Обновляем кэш раз в час вместо каждых 5 минут
+                await asyncio.sleep(3600)  # 1 час
+
+                # Обновляем кэш room_id
+                await self._init_room_id_cache()
+
+                # Закрываем только стримы, которые очень старые (больше суток)
+                # Это просто страховка на случай пропущенных вебхуков
+                current_time = datetime.now(timezone.utc)
+                one_day_ago = current_time - timedelta(days=1)
+
+                closed_streams = await self.db.execute(
+                    """
+                    UPDATE streams
+                    SET end_time = $1
+                    WHERE end_time IS NULL 
+                    AND start_time < $2
+                    RETURNING id
+                    """,
+                    current_time,
+                    one_day_ago,
+                )
+
+                if closed_streams:
+                    logger.info(
+                        f"Closed {len(closed_streams)} orphaned stream sessions (older than 1 day)"
+                    )
+
+            except Exception as e:
+                logger.error(f"Error updating caches: {e}")
+                await asyncio.sleep(300)  # При ошибке ждем 5 минут
 
     async def _process_gift(self, event, unique_id, cluster):
-        """Обработка подарка с улучшенной идентификацией получателя и дедупликацией"""
+        """Обработка подарка с упрощенной логикой"""
         try:
-            # Базовая обработка атрибутов подарка
-            current_time = int(time.time() * 1000)
-            current_timestamp = int(time.time())  # Секунды в Unix timestamp
+            # Получаем room_id из события - это ключевой параметр
+            client_room_id = getattr(event, "room_id", None)
+
+            # Базовая обработка подарка
             gift = getattr(event, "gift", None)
             user = getattr(event, "user", getattr(event, "from_user", None))
 
             if not gift or not user:
-                logger.warning(
-                    "Недопустимое событие подарка: отсутствует подарок или данные пользователя"
-                )
+                logger.warning(f"Недопустимые данные подарка для {unique_id}")
                 return
 
-            # Более детальное логирование для анализа
-            # logger.debug(f"Event type: {type(event)}, Gift type: {type(gift)}")
+            # Извлекаем основные данные подарка
             if isinstance(gift, dict):
-                logger.debug(f"Gift keys: {gift.keys()}")
-            gift_type_id = None
-            send_timestamp = None
-
-            # Извлекаем базовые атрибуты
-            if isinstance(gift, dict):
-                gift_id = gift.get("id", current_time)
-                gift_type_id = gift.get("gift_id") or gift.get("id")
-                send_timestamp = gift.get("send_gift_req_start_ms")
-
+                gift_id = gift.get("id")
                 diamond_count = gift.get("diamond_count", 0)
                 gift_name = gift.get("name", "Unknown Gift")
-                combo_count = gift.get("combo_count", 1)
-                repeat_count = gift.get("repeat_count", 1)
-            else:
-                gift_id = getattr(gift, "id", current_time)
-                gift_type_id = getattr(gift, "gift_id", None) or getattr(
-                    gift, "id", None
+                gift_count = max(
+                    1, gift.get("combo_count", 1), gift.get("repeat_count", 1)
                 )
-                send_timestamp = int(time.time() * 1000)
+            else:
+                gift_id = getattr(gift, "id", None)
                 diamond_count = getattr(gift, "diamond_count", 0)
                 gift_name = getattr(gift, "name", "Unknown Gift")
-                combo_count = getattr(gift, "combo_count", 1)
-                repeat_count = getattr(gift, "repeat_count", 1)
+                gift_count = max(
+                    1, getattr(gift, "combo_count", 1), getattr(gift, "repeat_count", 1)
+                )
 
-            # Используем максимальное значение для количества
-            gift_count = max(
-                1,
-                combo_count,
-                repeat_count,
-                getattr(event, "repeat_count", 1) if not isinstance(event, dict) else 1,
-            )
-
-            # Данные о пользователе
+            # Данные пользователя
             if isinstance(user, dict):
                 user_id = user.get("id", "0")
                 user_unique_id = user.get("unique_id", f"user_{user_id}")
@@ -194,540 +149,148 @@ class GiftProcessor:
                 user_id = getattr(user, "id", "0")
                 user_unique_id = getattr(user, "unique_id", f"user_{user_id}")
 
-            # Получаем информацию о типе подарка
-            gift_info = {}
-            if isinstance(gift, dict) and "info" in gift:
-                gift_info = gift.get("info", {})
-            elif hasattr(gift, "info"):
-                gift_info = gift.info if isinstance(gift.info, dict) else {}
-
-            gift_type = None
-            if gift_info:
-                gift_type = gift_info.get("type")
-            elif isinstance(gift, dict):
-                gift_type = gift.get("type")
-            else:
-                gift_type = getattr(gift, "type", None)
-
-            # Определение стрикабельности
-            streakable = False
-
-            # Проверяем все возможные источники информации о стриках
-            if isinstance(gift, dict):
-                streakable = gift.get("streakable", False)
-                if not streakable and gift_info:
-                    streakable = gift_info.get("type", 0) == 1
-                if not streakable:
-                    streakable = gift.get("type", 0) == 1
-            else:
-                streakable = getattr(gift, "streakable", False)
-                if (
-                    not streakable
-                    and hasattr(gift, "info")
-                    and hasattr(gift.info, "type")
-                ):
-                    streakable = gift.info.type == 1
-                elif not streakable and hasattr(gift, "type"):
-                    streakable = gift.type == 1
-
-            # Дополнительная проверка gift_type
-            streakable = streakable or (gift_type == 1)
-
-            # Статус стрика
-            if isinstance(gift, dict):
-                is_repeating = gift.get("is_repeating", 0) == 1
-            else:
-                is_repeating = getattr(gift, "is_repeating", 0) == 1
-
-            repeat_end = getattr(event, "repeat_end", 0) == 1
-            streaking = getattr(event, "streaking", False)
-
-            # Подробное логирование для отладки
-            logger.info("+" * 100)
-            logger.debug(
-                f"Информация о подарке: name={gift_name}, count={gift_count}, streakable={streakable}, "
-                + f"is_repeating={is_repeating}, repeat_end={repeat_end}, streaking={streaking}, "
-                + f"combo_count={combo_count}, repeat_count={repeat_count}, gift_type={gift_type}"
+            # Показываем базовую информацию
+            logger.info(
+                f"Подарок: {gift_name} x{gift_count} ({diamond_count} diamonds) от {user_unique_id} для {unique_id}"
             )
 
-            # Пропускаем промежуточные подарки в стрике
-            if streakable:
-                # Улучшенное условие для определения промежуточных подарков
-                if (streaking or is_repeating) and not repeat_end:
-                    logger.debug(
-                        f"Skipping intermediate streaking gift: {gift_name} (count: {gift_count})"
-                    )
-                    return
+            # Находим стримера - ПРЯМОЙ ПОДХОД через room_id
+            streamer_data = None
 
-            # Получаем ID получателя из события
-            raw_receiver_id = getattr(event, "to_member_id", unique_id.replace("@", ""))
+            if client_room_id:
+                # Сначала пробуем из кэша для максимальной скорости
+                if client_room_id in self.room_id_cache:
+                    tik_tok_user_id = self.room_id_cache[client_room_id]
 
-            # Получаем room_id из события или клиента
-            client_room_id = getattr(
-                event,
-                "room_id",
-                getattr(getattr(event, "client", None), "room_id", None),
-            )
-
-            # Создаем ключ для временного окна дедупликации (10 секунд)
-            dedup_window_seconds = 10  # Окно дедупликации в секундах
-            now = time.time()
-            time_bucket = int(now) // 10  # Округляем до 10-секундных интервалов
-
-            # Используем текущее время в секундах для большей точности
-            current_timestamp = int(time.time())
-            time_bucket = current_timestamp // 10  # 10-секундные интервалы
-
-            # Получаем более точные идентификаторы подарка
-            gift_id = None
-            if isinstance(gift, dict):
-                gift_id = gift.get("id") or gift.get("gift_id")
-            else:
-                gift_id = getattr(gift, "id", None) or getattr(gift, "gift_id", None)
-
-            # Если у нас нет ID подарка, используем временную метку в качестве резервной опции
-            if not gift_id:
-                gift_id = current_timestamp
-            time_bucket = (
-                send_timestamp // 10000
-            )
-
-            # Создаем уникальный ключ для дедупликации, используя все доступные данные
-            # Обратите внимание, что мы используем gift_id в начале ключа
-            dedup_key = f"{gift_type_id}_{user_id}_{gift_name}_{diamond_count}_{gift_count}_{raw_receiver_id}_{time_bucket}"
-
-            # Проверяем, был ли такой подарок в этом временном интервале
-            if hasattr(self, "recent_gifts") and dedup_key in self.recent_gifts:
-                logger.info(
-                    f"Временная дедупликация: пропускаем подарок {gift_name} с ID {gift_id} от {user_unique_id} для {raw_receiver_id}"
-                )
-                return
-
-            # Инициализируем словарь недавних подарков, если его еще нет
-            if not hasattr(self, "recent_gifts"):
-                self.recent_gifts = {}
-
-            # Сохраняем информацию о текущем подарке с подробным логированием
-            gift_unique_id = str(uuid.uuid4())
-            self.recent_gifts[dedup_key] = (current_timestamp, gift_unique_id)
-            logger.debug(f"Зарегистрирован новый подарок с ключом: {dedup_key}")
-
-            # Очищаем старые записи из словаря недавних подарков
-            keys_to_remove = []
-            for key, (timestamp, _) in self.recent_gifts.items():
-                if (
-                    now - timestamp > dedup_window_seconds * 3
-                ):  # Удаляем записи старше 3*окно
-                    keys_to_remove.append(key)
-
-            for key in keys_to_remove:
-                self.recent_gifts.pop(key, None)
-
-            # Генерируем уникальный идентификатор для дедупликации в памяти и БД
-            # gift_key = f"{gift_id}_{diamond_count}_{user_id}_{unique_id}_{gift_count}_{current_time}_{gift_unique_id[:8]}"
-            # time_bucket = int(time.time()) // 10
-            time_bucket = (
-                send_timestamp // 10000
-            )  # 10-секундный интервал в миллисекундах
-            gift_key = f"{gift_type_id}_{gift_id}_{diamond_count}_{user_id}_{unique_id}_{gift_count}_{time_bucket}_{gift_unique_id[:8]}"
-            logger.info("*" * 100)
-            logger.info(gift_key)
-            # Проверяем, не обрабатывали ли мы уже такой подарок в памяти
-            if gift_key in self.processed_gift_ids:
-                logger.debug(f"Пропускаем дубликат подарка в памяти: {gift_key}")
-                return
-
-            self.processed_gift_ids.add(gift_key)
-            # Обрезаем набор, если он стал слишком большим
-            if len(self.processed_gift_ids) > 50000:
-                self.processed_gift_ids.difference_update(
-                    list(self.processed_gift_ids)[:10000]
-                )
-
-            # Информация о роли пользователя
-            follow_role = 0
-            if isinstance(user, dict):
-                if user.get("is_friend", False):
-                    follow_role = 2
-                elif user.get("is_subscriber", False):
-                    follow_role = 1
-            else:
-                if hasattr(user, "is_friend") and user.is_friend:
-                    follow_role = 2
-                elif hasattr(user, "is_subscriber") and user.is_subscriber:
-                    follow_role = 1
-
-            # Первый подарок от пользователя
-            is_new_gifter = getattr(event, "is_first_send_gift", False)
-
-            # Ранг пользователя-донатера
-            if isinstance(user, dict):
-                top_gifter_rank = user.get("gifter_level")
-            else:
-                top_gifter_rank = getattr(user, "gifter_level", None)
-
-            # Поиск стримера с идентификацией через room_id_mapping
-            try:
-                streamer_data = None
-                actual_user_id = None
-
-                # Проверяем, является ли unique_id числовым (room_id)
-                numeric_id = None
-                if isinstance(unique_id, str) and unique_id.isdigit():
-                    numeric_id = int(unique_id)
-                elif isinstance(unique_id, int):
-                    numeric_id = unique_id
-
-                # 1. Поиск через room_id_mapping по numeric_id, если он есть
-                if numeric_id:
-                    mapping_data = await self.db.fetchrow(
-                        """
-                            SELECT rm.tik_tok_user_id, ttu.user_id, ttu.name
-                            FROM room_id_mapping rm
-                            JOIN tik_tok_users ttu ON rm.tik_tok_user_id = ttu.id
-                            WHERE rm.room_id = $1
-                            """,
-                        numeric_id,
+                    # Получаем streamer_id
+                    streamer = await self.db.fetchrow(
+                        "SELECT id FROM streamers WHERE tik_tok_user_id = $1",
+                        tik_tok_user_id,
                     )
 
-                    if mapping_data:
-                        # Нашли правильную связь через маппинг
-                        streamer_data = await self.db.fetchrow(
-                            """
-                                SELECT s.id, s.tik_tok_user_id
-                                FROM streamers s
-                                WHERE s.tik_tok_user_id = $1
-                                """,
-                            mapping_data["tik_tok_user_id"],
-                        )
+                    if streamer:
+                        streamer_data = {
+                            "id": streamer["id"],
+                            "tik_tok_user_id": tik_tok_user_id,
+                        }
+                        # logger.info(
+                        #     f"Найден стример через кэш room_id: {client_room_id}"
+                        # )
 
-                        # Устанавливаем правильный user_id
-                        actual_user_id = mapping_data["user_id"]
-                        logger.info(
-                            f"Found user_id {actual_user_id} through room_id_mapping for room_id {numeric_id} ({mapping_data['name']})"
-                        )
-
-                # 2. Поиск через client_room_id, если не нашли через numeric_id
-                if not streamer_data and client_room_id:
-                    # Ищем через room_id_mapping
-                    mapping_data = await self.db.fetchrow(
+                # Если не нашли в кэше, делаем прямой запрос
+                if not streamer_data:
+                    mapping = await self.db.fetchrow(
                         """
-                            SELECT rm.tik_tok_user_id, ttu.user_id, ttu.name
-                            FROM room_id_mapping rm
-                            JOIN tik_tok_users ttu ON rm.tik_tok_user_id = ttu.id
-                            WHERE rm.room_id = $1
-                            """,
+                        SELECT rm.tik_tok_user_id, s.id as streamer_id
+                        FROM room_id_mapping rm
+                        JOIN streamers s ON s.tik_tok_user_id = rm.tik_tok_user_id
+                        WHERE rm.room_id = $1
+                        """,
                         client_room_id,
                     )
 
-                    if mapping_data:
-                        # Нашли правильную связь
-                        streamer_data = await self.db.fetchrow(
-                            """
-                                SELECT s.id, s.tik_tok_user_id
-                                FROM streamers s
-                                WHERE s.tik_tok_user_id = $1
-                                """,
-                            mapping_data["tik_tok_user_id"],
-                        )
+                    if mapping:
+                        # Сохраняем в кэш для будущих запросов
+                        self.room_id_cache[client_room_id] = mapping["tik_tok_user_id"]
 
-                        # Устанавливаем правильный user_id
-                        actual_user_id = mapping_data["user_id"]
+                        streamer_data = {
+                            "id": mapping["streamer_id"],
+                            "tik_tok_user_id": mapping["tik_tok_user_id"],
+                        }
                         logger.info(
-                            f"Found user_id {actual_user_id} for client_room_id {client_room_id} (@{mapping_data['name']})"
-                        )
-                    else:
-                        # Прямой поиск по room_id в streamers
-                        streamer_data = await self.db.fetchrow(
-                            """
-                                SELECT s.id, s.tik_tok_user_id, ttu.user_id
-                                FROM streamers s
-                                JOIN tik_tok_users ttu ON s.tik_tok_user_id = ttu.id
-                                WHERE s.room_id = $1
-                                """,
-                            client_room_id,
+                            f"Найден стример через БД по room_id: {client_room_id}"
                         )
 
-                        if streamer_data:
-                            actual_user_id = streamer_data["user_id"]
-                            logger.info(
-                                f"Found streamer by client_room_id={client_room_id}"
-                            )
-
-                # 3. Прямой поиск по room_id в streamers (для numeric_id)
-                if not streamer_data and numeric_id:
-                    streamer_data = await self.db.fetchrow(
-                        """
-                            SELECT s.id, s.tik_tok_user_id, ttu.user_id
-                            FROM streamers s
-                            JOIN tik_tok_users ttu ON s.tik_tok_user_id = ttu.id
-                            WHERE s.room_id = $1
-                            """,
-                        numeric_id,
-                    )
-
-                    if streamer_data:
-                        actual_user_id = streamer_data["user_id"]
-                        logger.info(f"Found streamer by numeric room_id={numeric_id}")
-
-                # 4. Поиск по username
-                if (
-                    not streamer_data
-                    and isinstance(unique_id, str)
-                    and unique_id.startswith("@")
-                ):
-                    streamer_data = await self.db.fetchrow(
-                        """
-                            SELECT s.id, s.tik_tok_user_id, ttu.user_id
-                            FROM streamers s
-                            JOIN tik_tok_users ttu ON s.tik_tok_user_id = ttu.id
-                            WHERE ttu.name = $1
-                            """,
-                        unique_id,
-                    )
-
-                    if streamer_data:
-                        actual_user_id = streamer_data["user_id"]
-                        logger.info(f"Found streamer by username={unique_id}")
-
-                # 5. Поиск по raw_receiver_id
-                if not streamer_data and raw_receiver_id:
-                    streamer_data = await self.db.fetchrow(
-                        """
-                            SELECT s.id, s.tik_tok_user_id, ttu.user_id
-                            FROM streamers s
-                            JOIN tik_tok_users ttu ON s.tik_tok_user_id = ttu.id
-                            WHERE ttu.user_id = $1
-                            """,
-                        raw_receiver_id,
-                    )
-
-                    if streamer_data:
-                        actual_user_id = streamer_data["user_id"]
-                        logger.info(
-                            f"Found streamer by raw_receiver_id={raw_receiver_id}"
-                        )
-
-                # 6. Если все еще не нашли, пробуем через активные стримы
-                if not streamer_data:
-                    room_id_to_search = numeric_id if numeric_id else client_room_id
-                    if room_id_to_search:
-                        stream_data = await self.db.fetchrow(
-                            """
-                                SELECT streamer_id
-                                FROM streams
-                                WHERE room_id = $1 AND end_time IS NULL
-                                ORDER BY start_time DESC
-                                LIMIT 1
-                                """,
-                            room_id_to_search,
-                        )
-
-                        if stream_data:
-                            streamer_data = await self.db.fetchrow(
-                                """
-                                    SELECT s.id, s.tik_tok_user_id, ttu.user_id
-                                    FROM streamers s
-                                    JOIN tik_tok_users ttu ON s.tik_tok_user_id = ttu.id
-                                    WHERE s.id = $1
-                                    """,
-                                stream_data["streamer_id"],
-                            )
-
-                            if streamer_data:
-                                actual_user_id = streamer_data["user_id"]
-                                logger.info(
-                                    f"Found streamer through active stream with room_id={room_id_to_search}"
-                                )
-
-                # Определяем значение для receiver_unique_id
-                receiver_unique_id = (
-                    actual_user_id if actual_user_id else raw_receiver_id
+            # Только если не нашли по room_id, ищем по имени
+            if not streamer_data:
+                user_name = (
+                    f"@{unique_id}" if not unique_id.startswith("@") else unique_id
                 )
 
-                # Дополнительная проверка на дубликаты с использованием streamer_id, если найден
-                if streamer_data:
-                    streamer_id = streamer_data["id"]
+                streamer = await self.db.fetchrow(
+                    """
+                    SELECT s.id, s.tik_tok_user_id
+                    FROM streamers s
+                    JOIN tik_tok_users ttu ON s.tik_tok_user_id = ttu.id
+                    WHERE ttu.name = $1 OR ttu.tiktok_id = $2
+                    """,
+                    user_name,
+                    unique_id.lstrip("@"),
+                )
 
-                    # Используем gift_id для более точной идентификации
-                    streamer_dedup_key = f"{gift_type_id}_{user_id}_{gift_count}_{streamer_id}_{time_bucket}"
-                    logger.info("*" * 100)
-                    logger.info(streamer_dedup_key)
-                    if (
-                        hasattr(self, "streamer_gifts")
-                        and streamer_dedup_key in self.streamer_gifts
-                    ):
-                        logger.info(
-                            f"Дедупликация по стримеру: подарок {gift_name} с ID {gift_id} от {user_unique_id} уже получен стримером {streamer_id}"
-                        )
-                        return
+                if streamer:
+                    streamer_data = {
+                        "id": streamer["id"],
+                        "tik_tok_user_id": streamer["tik_tok_user_id"],
+                    }
+                    logger.info(f"Найден стример по имени: {unique_id}")
 
-                    # Инициализируем кэш подарков по стримерам
-                    if not hasattr(self, "streamer_gifts"):
-                        self.streamer_gifts = {}
+            # Формируем данные о подарке
+            gift_unique_id = str(uuid.uuid4())
+            gift_data = {
+                "user_id": str(user_id),
+                "unique_id": str(user_unique_id),
+                "follow_role": 0,
+                "is_new_gifter": False,
+                "top_gifter_rank": None,
+                "diamond_count": int(diamond_count),
+                "gift_name": str(gift_name),
+                "gift_count": int(gift_count),
+                "receiver_unique_id": unique_id,
+                "receiver_user_id": "",  # Будет установлено, если найдем стримера
+                "cluster": str(cluster),
+                "event_time": datetime.now(timezone.utc),
+                "gift_unique_id": gift_unique_id,
+            }
 
-                    # Сохраняем информацию
-                    self.streamer_gifts[streamer_dedup_key] = (
-                        current_timestamp,
-                        gift_unique_id,
-                    )
-                    logger.debug(
-                        f"Зарегистрирован подарок для стримера с ключом: {streamer_dedup_key}"
-                    )
+            # Добавляем данные стримера, если найдены
+            if streamer_data:
+                gift_data["streamer_id"] = streamer_data["id"]
+                gift_data["receiver_tik_tok_user_id"] = streamer_data["tik_tok_user_id"]
 
-                    # Очищаем старые записи - сохраняем эту логику для автоматической очистки
-                    keys_to_remove = []
-                    for key, (timestamp, _) in self.streamer_gifts.items():
-                        if now - timestamp > dedup_window_seconds * 3:
-                            keys_to_remove.append(key)
+                # Также получаем user_id стримера для лучшей связанности
+                receiver_user = await self.db.fetchrow(
+                    "SELECT user_id FROM tik_tok_users WHERE id = $1",
+                    streamer_data["tik_tok_user_id"],
+                )
 
-                    for key in keys_to_remove:
-                        self.streamer_gifts.pop(key, None)
-                # if streamer_data:
-                #     streamer_id = streamer_data["id"]
-                #     # Обновляем ключ дедупликации с учетом информации о стримере
-                #     # streamer_dedup_key = f"{user_id}_{gift_name}_{diamond_count}_{gift_count}_{streamer_id}"
-                #     streamer_dedup_key = f"{user_id}_{gift_name}_{diamond_count}_{gift_count}_{streamer_id}_{current_timestamp // 10}"
+                if receiver_user and receiver_user["user_id"]:
+                    gift_data["receiver_user_id"] = receiver_user["user_id"]
+            else:
+                logger.warning(
+                    f"Не найден стример для подарка {unique_id} (room_id: {client_room_id})"
+                )
 
-                #     if (
-                #         hasattr(self, "streamer_gifts")
-                #         and streamer_dedup_key in self.streamer_gifts
-                #     ):
-                #         last_time, last_gift_id = self.streamer_gifts.get(
-                #             streamer_dedup_key, (0, None)
-                #         )
-                #         if now - last_time < dedup_window_seconds:
-                #             logger.info(
-                #                 f"Дедупликация по стримеру: пропускаем похожий подарок для streamer_id={streamer_id}, "
-                #                 f"{gift_name} от {user_unique_id} в окне {dedup_window_seconds}с"
-                #             )
-                #             return
-
-                #     # Инициализируем словарь подарков по стримеру, если его еще нет
-                #     if not hasattr(self, "streamer_gifts"):
-                #         self.streamer_gifts = {}
-
-                #     # Сохраняем информацию о текущем подарке по стримеру
-                #     self.streamer_gifts[streamer_dedup_key] = (now, gift_unique_id)
-
-                #     # Очищаем старые записи
-                #     keys_to_remove = []
-                #     for key, (timestamp, _) in self.streamer_gifts.items():
-                #         if now - timestamp > dedup_window_seconds * 3:
-                #             keys_to_remove.append(key)
-
-                #     for key in keys_to_remove:
-                #         self.streamer_gifts.pop(key, None)
-
-                # Формируем данные о подарке
-                gift_data = {
-                    "user_id": str(user_id),
-                    "unique_id": str(user_unique_id),
-                    "follow_role": int(follow_role),
-                    "is_new_gifter": bool(is_new_gifter),
-                    "top_gifter_rank": (
-                        None if top_gifter_rank is None else int(top_gifter_rank)
-                    ),
-                    "diamond_count": int(diamond_count),
-                    "gift_name": str(gift_name),
-                    "gift_count": int(gift_count),
-                    "receiver_user_id": str(raw_receiver_id),
-                    "receiver_unique_id": str(receiver_unique_id),
-                    "cluster": str(cluster),
-                    "event_time": datetime.now(timezone.utc),
-                    "gift_unique_id": gift_unique_id,
-                }
-
-                # Добавляем данные стримера к подарку
-                if streamer_data:
-                    gift_data["streamer_id"] = streamer_data["id"]
-                    gift_data["receiver_tik_tok_user_id"] = streamer_data[
-                        "tik_tok_user_id"
-                    ]
-
-                    log_info = []
-                    if client_room_id:
-                        log_info.append(f"room_id: {client_room_id}")
-                    if numeric_id and numeric_id != client_room_id:
-                        log_info.append(f"numeric_id: {numeric_id}")
-                    if receiver_unique_id != raw_receiver_id:
-                        log_info.append(f"mapped user_id: {receiver_unique_id}")
-                    log_str = f" ({', '.join(log_info)})" if log_info else ""
-
-                    logger.info(
-                        f"Found streamer ID {streamer_data['id']} for gift to {unique_id}{log_str}"
-                    )
-                else:
-                    logger.info("!" * 100)
-                    logger.warning(
-                        f"No streamer found for gift to {unique_id} (user_id: {raw_receiver_id}, room_id: {client_room_id})"
-                    )
-
-            except Exception as e:
-                logger.warning(f"Error finding streamer for gift: {e}")
-                # Создаем данные о подарке с базовой информацией
-                gift_data = {
-                    "user_id": str(user_id),
-                    "unique_id": str(user_unique_id),
-                    "follow_role": int(follow_role),
-                    "is_new_gifter": bool(is_new_gifter),
-                    "top_gifter_rank": (
-                        None if top_gifter_rank is None else int(top_gifter_rank)
-                    ),
-                    "diamond_count": int(diamond_count),
-                    "gift_name": str(gift_name),
-                    "gift_count": int(gift_count),
-                    "receiver_user_id": str(raw_receiver_id),
-                    "receiver_unique_id": str(unique_id),
-                    "cluster": str(cluster),
-                    "event_time": datetime.now(timezone.utc),
-                    "gift_unique_id": gift_unique_id,
-                }
-            logger.info("=" * 50)
-            # Добавляем подарок в очередь
-            logger.debug(
-                f"Processing gift: {gift_name} x{gift_count} ({diamond_count} diamonds) from {user_unique_id}"
-            )
-
+            # Добавляем в очередь для сохранения
             if not self.gift_queue.full():
                 self.gift_queue.put(gift_data)
             else:
-                logger.warning("Gift queue is full, skipping gift")
+                logger.warning("Очередь подарков переполнена")
 
         except Exception as e:
-            logger.error(f"Error processing gift: {e}", exc_info=True)
+            logger.error(f"Ошибка обработки подарка: {e}", exc_info=True)
 
     async def _process_gift_queue(self):
-        """
-        Обрабатывает очередь подарков и сохраняет их в базу данных.
-        Реализует пакетную обработку для оптимизации производительности
-        и обработку дубликатов.
-        """
+        """Обработка очереди подарков (без изменений)"""
+        # Этот метод оставляем без изменений, так как он хорошо оптимизирован
         gifts_batch = []
         last_flush_time = time.time()
         stats = {"total_received": 0, "total_saved": 0, "duplicates": 0, "errors": 0}
 
         while not self.shared_state.shutdown_event.is_set():
             try:
-                # Пытаемся получить подарок из очереди, не блокируя поток
+                # Пытаемся получить подарок из очереди
                 try:
                     gift = self.gift_queue.get_nowait()
                     stats["total_received"] += 1
-
-                    # Добавляем в пакет и отмечаем задачу как выполненную
                     gifts_batch.append(gift)
                     self.gift_queue.task_done()
-
-                    # Периодически логируем статистику
-                    if stats["total_received"] % 1000 == 0:
-                        logger.info(f"Статистика обработки подарков: {stats}")
                 except:
-                    # Если очередь пуста, продолжаем
                     pass
 
                 current_time = time.time()
 
-                # Сохраняем пакет подарков, если накопилось достаточно или прошло достаточно времени
+                # Сохраняем пакет если набралось достаточно или прошло время
                 if len(gifts_batch) >= 100 or (
                     current_time - last_flush_time > 3 and gifts_batch
                 ):
@@ -812,9 +375,9 @@ class GiftProcessor:
                                     await conn.executemany(query, values)
                                     batch_size = len(safe_gifts_batch)
                                     stats["total_saved"] += batch_size
-                                    logger.info(
-                                        f"Сохранено {batch_size} подарков в базу данных"
-                                    )
+                                    # logger.info(
+                                    #     f"Сохранено {batch_size} подарков в базу данных"
+                                    # )
                                 except Exception as e:
                                     # Обработка дубликатов
                                     if "duplicate key" in str(e):
@@ -876,13 +439,181 @@ class GiftProcessor:
                 gifts_batch = []
                 await asyncio.sleep(1)
 
-    async def _clean_gift_cache(self):
-        """Периодическая очистка кэша подарков"""
-        while not self.shared_state.shutdown_event.is_set():
-            # Очищаем кэш каждые 6 часов
-            await asyncio.sleep(6 * 60 * 60)
-            logger.info(
-                f"Cleaning gift cache, size before: {len(self.processed_gift_ids)}"
-            )
-            self.processed_gift_ids.clear()
-            logger.info("Gift cache cleared")
+    # # Добавил streakable
+    # async def _process_gift(self, event, unique_id, cluster):
+    #     """Обработка одиночного события подарка"""
+    #     try:
+    #         # Извлекаем данные из события
+    #         gift = getattr(event, "gift", event)
+
+    #         # Основные данные подарка
+    #         gift_id = getattr(gift, "id", 0)
+    #         gift_name = getattr(gift, "name", "Unknown")
+    #         gift_cost = getattr(gift, "diamond_count", 0)
+    #         gift_count = getattr(gift, "count", 1)
+    #         gift_type = getattr(gift, "type", 0)
+
+    #         # Дополнительная информация
+    #         gift_info = getattr(gift, "info", None)
+    #         combo_count = getattr(gift, "combo_count", 0) or getattr(gift, "repeat_count", 0)
+    #         repeat_count = getattr(gift, "repeat_count", 0) or getattr(gift, "combo_count", 0)
+
+    #         # Данные о пользователе
+    #         sender = getattr(event, "user", None)
+    #         user_id = getattr(sender, "user_id", "0") if sender else "0"
+    #         nickname = getattr(sender, "nickname", "Unknown") if sender else "Unknown"
+    #         unique_sender_id = getattr(sender, "uniqueId", "") if sender else ""
+
+    #         # Данные для отслеживания подписчиков
+    #         follow_info = getattr(sender, "follow_info", None) if sender else None
+    #         follow_role = getattr(follow_info, "follow_role", 0) if follow_info else 0
+
+    #         # Данные стримера и комнаты
+    #         room_id = getattr(event, "room_id", None)
+    #         receiver_user_id = getattr(event, "receiver_user_id", None) or getattr(event, "roomId", None) or room_id
+    #         receiver_unique_id = unique_id
+
+    #         # Определение стрикабельности
+    #         streakable = False
+
+    #         # Проверяем все возможные источники информации о стриках
+    #         if isinstance(gift, dict):
+    #             streakable = gift.get("streakable", False)
+    #             if not streakable and gift_info:
+    #                 streakable = gift_info.get("type", 0) == 1
+    #             if not streakable:
+    #                 streakable = gift.get("type", 0) == 1
+    #         else:
+    #             streakable = getattr(gift, "streakable", False)
+    #             if not streakable and hasattr(gift, "info") and hasattr(gift.info, "type"):
+    #                 streakable = gift.info.type == 1
+    #             elif not streakable and hasattr(gift, "type"):
+    #                 streakable = gift.type == 1
+
+    #         # Дополнительная проверка gift_type
+    #         streakable = streakable or (gift_type == 1)
+
+    #         # Статус стрика
+    #         if isinstance(gift, dict):
+    #             is_repeating = gift.get("is_repeating", 0) == 1
+    #         else:
+    #             is_repeating = getattr(gift, "is_repeating", 0) == 1
+
+    #         repeat_end = getattr(event, "repeat_end", 0) == 1
+    #         streaking = getattr(event, "streaking", False)
+
+    #         # Подробное логирование для отладки
+    #         if self.shared_state.debug:
+    #             logger.debug(
+    #                 f"Информация о подарке: name={gift_name}, count={gift_count}, streakable={streakable}, "
+    #                 + f"is_repeating={is_repeating}, repeat_end={repeat_end}, streaking={streaking}, "
+    #                 + f"combo_count={combo_count}, repeat_count={repeat_count}, gift_type={gift_type}"
+    #             )
+
+    #         # Пропускаем промежуточные подарки в стрике
+    #         if streakable:
+    #             # Улучшенное условие для определения промежуточных подарков
+    #             if (streaking or is_repeating) and not repeat_end:
+    #                 if self.shared_state.debug:
+    #                     logger.debug(f"Пропускаем промежуточный подарок в стрике: {gift_name} (count: {gift_count})")
+    #                 return
+
+    #         # Получаем дополнительные данные
+    #         is_new_gifter = getattr(sender, "is_first_gift", False) if sender else False
+    #         top_gifter_rank = getattr(sender, "top_gifter_rank", None) if sender else None
+
+    #         # Формируем уникальный идентификатор подарка
+    #         event_time = int(time.time())
+    #         gift_unique_id = str(uuid.uuid4())  # Генерируем уникальный UUID для этого подарка
+
+    #         # Получаем ID стримера, если возможно
+    #         streamer_id = None
+    #         receiver_tik_tok_user_id = None
+
+    #         if room_id:
+    #             # Преобразуем room_id в int, если возможно
+    #             try:
+    #                 room_id_int = int(room_id)
+    #                 # Пытаемся найти стримера по room_id
+    #                 mapping = await self.db.fetchrow(
+    #                     "SELECT tik_tok_user_id FROM room_id_mapping WHERE room_id = $1",
+    #                     room_id_int
+    #                 )
+
+    #                 if mapping:
+    #                     receiver_tik_tok_user_id = mapping["tik_tok_user_id"]
+    #                     # Получаем ID стримера
+    #                     streamer = await self.db.fetchrow(
+    #                         "SELECT id FROM streamers WHERE tik_tok_user_id = $1",
+    #                         receiver_tik_tok_user_id
+    #                     )
+
+    #                     if streamer:
+    #                         streamer_id = streamer["id"]
+    #             except (ValueError, TypeError):
+    #                 pass
+
+    #         # Если не нашли по room_id, ищем по уникальному ID
+    #         if not streamer_id and receiver_unique_id:
+    #             try:
+    #                 # Форматируем имя пользователя
+    #                 user_name = f"@{receiver_unique_id}" if not receiver_unique_id.startswith("@") else receiver_unique_id
+
+    #                 # Ищем tik_tok_user_id
+    #                 tik_tok_user = await self.db.fetchrow(
+    #                     "SELECT id FROM tik_tok_users WHERE name = $1 OR tiktok_id = $2",
+    #                     user_name,
+    #                     receiver_unique_id.lstrip("@")
+    #                 )
+
+    #                 if tik_tok_user:
+    #                     receiver_tik_tok_user_id = tik_tok_user["id"]
+
+    #                     # Получаем ID стримера
+    #                     streamer = await self.db.fetchrow(
+    #                         "SELECT id FROM streamers WHERE tik_tok_user_id = $1",
+    #                         receiver_tik_tok_user_id
+    #                     )
+
+    #                     if streamer:
+    #                         streamer_id = streamer["id"]
+    #             except Exception as e:
+    #                 logger.warning(f"Ошибка при поиске стримера по unique_id: {e}")
+
+    #         # Формируем данные для сохранения
+    #         gift_data = {
+    #             "event_time": event_time,
+    #             "user_id": user_id,
+    #             "unique_id": unique_sender_id or nickname,
+    #             "follow_role": follow_role,
+    #             "is_new_gifter": is_new_gifter,
+    #             "top_gifter_rank": top_gifter_rank,
+    #             "diamond_count": gift_cost * gift_count,  # Учитываем количество подарков
+    #             "gift_name": gift_name,
+    #             "gift_count": gift_count,
+    #             "receiver_user_id": receiver_user_id,
+    #             "receiver_unique_id": receiver_unique_id,
+    #             "streamer_id": streamer_id,
+    #             "receiver_tik_tok_user_id": receiver_tik_tok_user_id,
+    #             "gift_unique_id": gift_unique_id,
+    #             "cluster": cluster,
+    #         }
+
+    #         # Добавляем в очередь обработки
+    #         await self.gift_queue.put(gift_data)
+
+    #         # Увеличиваем счетчик подарков для статистики
+    #         self.shared_state.stats["gifts_received"] += 1
+
+    #     except Exception as e:
+    #         logger.error(f"Ошибка обработки подарка: {e}", exc_info=True)
+    # async def _clean_gift_cache(self):
+    #     """Периодическая очистка кэша подарков"""
+    #     while not self.shared_state.shutdown_event.is_set():
+    #         # Очищаем кэш каждые 6 часов
+    #         await asyncio.sleep(6 * 60 * 60)
+    #         logger.info(
+    #             f"Cleaning gift cache, size before: {len(self.processed_gift_ids)}"
+    #         )
+    #         self.processed_gift_ids.clear()
+    #         logger.info("Gift cache cleared")

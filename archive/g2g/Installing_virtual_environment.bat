@@ -1,46 +1,50 @@
-@echo off
-chcp 65001 >nul
-setlocal
-:: Определение текущей директории
-set "CURRENT_DIR=%~dp0"
+#!/bin/bash
 
-:: Установка виртуального окружения в текущей директории
-echo Установка виртуального окружения...
-python -m venv "%CURRENT_DIR%venv"
+# Установка кодировки UTF-8
+export LANG=en_US.UTF-8
 
-:: Проверка существования виртуального окружения
-if exist "%CURRENT_DIR%venv\Scripts\activate" (
-    echo Виртуальное окружение создано успешно.
-) else (
-    echo Ошибка при создании виртуального окружения.
-    exit /b 1
-)
+# Получение директории, где находится скрипт
+CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-:: Активация виртуального окружения
-echo Активация виртуального окружения...
-call "%CURRENT_DIR%venv\Scripts\activate"
+# Путь к виртуальному окружению
+VENV_DIR="$CURRENT_DIR/venv"
 
-:: Обновление pip
-echo Обновление pip...
-python.exe -m pip install --upgrade pip
+# Создание виртуального окружения
+echo "Создание виртуального окружения..."
+python3 -m venv "$VENV_DIR"
 
-:: Проверка наличия файла requirements.txt
-if not exist "%CURRENT_DIR%requirements.txt" (
-    echo Файл requirements.txt не найден. Установка остановлена.
-    exit /b 1
-)
+# Проверка успешности создания виртуального окружения
+if [ -d "$VENV_DIR" ] && [ -f "$VENV_DIR/bin/activate" ]; then
+    echo "Виртуальное окружение создано успешно."
+else
+    echo "Ошибка: Не удалось создать виртуальное окружение."
+    exit 1
+fi
 
-:: Установка модулей из requirements.txt
-echo Установка модулей из requirements.txt...
-pip install -r "%CURRENT_DIR%requirements.txt"
+# Активация виртуального окружения
+echo "Активация виртуального окружения..."
+source "$VENV_DIR/bin/activate"
 
-:: Проверка наличия playwright в requirements.txt
-findstr /i "playwright" "%CURRENT_DIR%requirements.txt" >nul
-if %errorlevel% equ 0 (
-    echo Установка Chromium для Playwright...
-    python -m playwright install chromium
-) else (
-    echo Playwright не найден в requirements.txt, пропускаем установку Chromium.
-)
+# Обновление pip
+echo "Обновление pip..."
+python3 -m pip install --upgrade pip
 
-echo Установка завершена.
+# Проверка наличия requirements.txt
+if [ ! -f "$CURRENT_DIR/requirements.txt" ]; then
+    echo "Ошибка: Файл requirements.txt не найден. Установка остановлена."
+    exit 1
+fi
+
+# Установка зависимостей из requirements.txt
+echo "Установка зависимостей из requirements.txt..."
+pip install -r "$CURRENT_DIR/requirements.txt"
+
+# Проверка наличия playwright в requirements.txt
+if grep -i "playwright" "$CURRENT_DIR/requirements.txt" > /dev/null; then
+    echo "Установка Chromium для Playwright..."
+    python3 -m playwright install chromium
+else
+    echo "Playwright не найден в requirements.txt, пропускаем установку Chromium."
+fi
+
+echo "Установка завершена."

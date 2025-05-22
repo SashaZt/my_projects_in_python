@@ -1,20 +1,19 @@
 # /handles/start.py
-from aiogram import Router, F
+import sys
+from datetime import datetime
+from pathlib import Path
+
+from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from handlers.admin import is_admin, AdminStates
-from sqlalchemy import func
-from aiogram.types import Message, CallbackQuery
-import sys
-from pathlib import Path
+from aiogram.types import CallbackQuery, Message
+from db.models import CardCode, Order, User
+from handlers.admin import AdminStates, is_admin
 from keyboards import inline as ikb
-from db.models import User
 from keyboards import reply as kb
-from sqlalchemy.future import select
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import datetime
-from db.models import Order, CardCode
-
+from sqlalchemy.future import select
 
 router = Router()
 
@@ -23,14 +22,51 @@ ROOT_DIR = Path(__file__).parent.parent.absolute()
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from config.config import Config
 from config.logger import logger
+
+from config.config import Config
 
 
 @router.message(Command("start"))
 async def cmd_start(message: Message, state: FSMContext, session: AsyncSession):
     """Обработчик команды /start"""
     # Проверяем, является ли пользователь администратором
+    # Проверяем параметры запуска
+    args = message.text.split()
+    if len(args) > 1:
+        start_param = args[1]
+
+        # Проверяем, содержит ли параметр информацию о заказе (для возврата после оплаты)
+        if start_param.startswith("order_"):
+            try:
+                order_id = int(start_param.split("_")[1])
+
+                # Получаем информацию о заказе
+                stmt = select(Order).where(Order.order_id == order_id)
+                result = await session.execute(stmt)
+                order = result.scalar_one_or_none()
+
+                if order and order.user_id == message.from_user.id:
+                    # Проверяем статус заказа
+                    if order.status in ["paid", "completed"]:
+                        await message.answer(
+                            f"✅ Спасибо за оплату заказа #{order_id}!\n\n"
+                            "Ваш код уже был отправлен в чат. Если вы не получили код, пожалуйста, обратитесь в поддержку."
+                        )
+                    elif order.status == "created":
+                        await message.answer(
+                            f"⏳ Ваш заказ #{order_id} еще в обработке.\n\n"
+                            "Пожалуйста, подождите некоторое время. Если оплата не подтвердится автоматически, "
+                            "обратитесь в поддержку."
+                        )
+                    else:
+                        await message.answer(
+                            f"❌ Ваш заказ #{order_id} был отменен или не оплачен.\n\n"
+                            "Вы можете создать новый заказ в любое время."
+                        )
+            except (ValueError, IndexError):
+                pass  # Игнорируем некорректные параметры
+
     config = Config.load()
     is_admin = message.from_user.id in config.bot.admin_ids
 

@@ -1,8 +1,9 @@
 # keyboards/inline.py
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from db.models import RobloxProduct
 from typing import List
+
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from db.models import RobloxProduct
 
 
 def get_products_keyboard(products: List[RobloxProduct]) -> InlineKeyboardMarkup:
@@ -195,13 +196,33 @@ def get_review_keyboard(order_id: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
+# def get_rating_keyboard() -> InlineKeyboardMarkup:
+#     """Инлайн-клавиатура для оценки сервиса"""
+#     builder = InlineKeyboardBuilder()
+
+#     # Кнопки от 1 до 5 звезд
+#     for rating in range(1, 6):
+#         stars = "⭐" * rating
+#         builder.add(InlineKeyboardButton(text=stars, callback_data=f"rating_{rating}"))
+
+#     # Размещаем кнопки в ряд
+#     builder.adjust(5)
+
+#     # Кнопка отмены
+#     builder.row(
+#         InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_review")
+#     )
+
+
+#     return builder.as_markup()
 def get_rating_keyboard() -> InlineKeyboardMarkup:
     """Инлайн-клавиатура для оценки сервиса"""
     builder = InlineKeyboardBuilder()
 
-    # Кнопки от 1 до 5 звезд
+    # Кнопки от 1 до 5 звезд с числами
     for rating in range(1, 6):
-        stars = "⭐" * rating
+        # Используем формат "1⭐" вместо "⭐"
+        stars = f"{rating}⭐"
         builder.add(InlineKeyboardButton(text=stars, callback_data=f"rating_{rating}"))
 
     # Размещаем кнопки в ряд
@@ -211,5 +232,30 @@ def get_rating_keyboard() -> InlineKeyboardMarkup:
     builder.row(
         InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_review")
     )
+
+    return builder.as_markup()
+
+
+# keyboards/inline.py
+def get_payment_method_keyboard(product_id: int, price: float) -> InlineKeyboardMarkup:
+    """Инлайн-клавиатура для выбора способа оплаты"""
+    builder = InlineKeyboardBuilder()
+
+    # Кнопки способов оплаты
+    builder.row(
+        InlineKeyboardButton(
+            text="💳 Оплатить через Telegram", callback_data=f"pay_{product_id}_{price}"
+        )
+    )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="💳 Оплатить через Monobank",
+            callback_data=f"pay_mono_{product_id}_{price}",
+        )
+    )
+
+    # Кнопка "Назад"
+    builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products"))
 
     return builder.as_markup()

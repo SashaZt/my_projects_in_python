@@ -1,21 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
-import aiofiles
+import asyncio
+import csv
+import glob
+import json
+import math
 import os
-import pandas as pd
+import re
 import shutil
 import sys
-from openpyxl import Workbook
+from asyncio import sleep
 from glob import glob
-import asyncio
-from time import sleep
-from playwright.async_api import async_playwright
+from asyncio import sleep 
+
+import aiofiles
 import aiohttp
-import math
-import re
-import csv
-import json
-import os
-import glob
+import pandas as pd
+from openpyxl import Workbook
+from playwright.async_api import async_playwright
 from selectolax.parser import HTMLParser
 
 
@@ -68,17 +69,15 @@ async def process_hrefs(all_hrefs, session, type_pars):
 
 
 # Основаная функция
-async def run_json(url_start, type_pars):
-    timeout = 20000
+async def run(url_start, type_pars):
+    timeout = 200000
     current_directory = os.getcwd()
     temp_path = os.path.join(current_directory, "temp")
     path_json_GamePal = os.path.join(temp_path, "json_GamePal")
     path_json_item = os.path.join(temp_path, "json_Item")
     if os.path.exists(temp_path) and os.path.isdir(temp_path):
         shutil.rmtree(temp_path)
-    browsers_path = os.path.join(current_directory, "pw-browsers")
-    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
-    # Убедитесь, что папки существуют или создайте их
+
     await create_directories_async(
         [
             temp_path,
@@ -92,8 +91,8 @@ async def run_json(url_start, type_pars):
         page = await context.new_page()
 
         await page.goto(url_start)
-        await sleep(5)
-        xpath_about_results = '//div[@class="text-secondary"]'
+        await asyncio.sleep(5)
+        xpath_about_results = '//div[@class="text-font-2nd"]'
         await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
         text_about_results = await page.text_content(xpath_about_results)
         count_url = int(
@@ -103,7 +102,7 @@ async def run_json(url_start, type_pars):
         url_in_page = 48
         list_pages = math.ceil(count_url / url_in_page)
 
-        xpath_about_results = '//div[@class="text-secondary"]'
+        xpath_about_results = '//div[@class="text-font-2nd"]'
         await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
 
         # Items
@@ -263,7 +262,7 @@ async def run_html(url_start, type_pars):
 
         await page.goto(url_start)
         await sleep(5)
-        xpath_about_results = '//div[@class="text-secondary"]'
+        xpath_about_results = '//div[@class="text-font-2nd"]'
         await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
         text_about_results = await page.text_content(xpath_about_results)
         count_url = int(
@@ -273,7 +272,7 @@ async def run_html(url_start, type_pars):
         url_in_page = 48
         list_pages = math.ceil(count_url / url_in_page)
 
-        xpath_about_results = '//div[@class="text-secondary"]'
+        xpath_about_results = '//div[@class="text-font-2nd"]'
         await page.wait_for_selector(f"xpath={xpath_about_results}", timeout=timeout)
 
         # Items
@@ -681,15 +680,15 @@ if __name__ == "__main__":
 
     while True:
         print("Вставьте ссылку (или введите 'exit' для выхода):")
-        url_start = input()
-        # url_start = "https://www.g2g.com/categories/fallout-76-items?seller=FO76STORE"
+        # url_start = input()
+        url_start = "https://www.g2g.com/categories/the-division-2-boosting-service?seller=AMELIBOOST"
         if url_start.lower() == "exit":
             print("Программа завершена.")
             break
 
         print("Название файла:")
-        file_name_csv = input()
-        # file_name_csv = "1"
+        # file_name_csv = input()
+        file_name_csv = "1"
 
         while True:
             print(
@@ -721,7 +720,7 @@ if __name__ == "__main__":
                 type_pars = 1  # GamePal
 
             if user_input == "1":
-                asyncio.run(run_json(url_start, type_pars))
+                asyncio.run(run(url_start, type_pars))
             elif user_input == "3":
                 asyncio.run(run_html(url_start, type_pars))
                 asyncio.run(main_html(type_pars))
