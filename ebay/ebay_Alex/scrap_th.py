@@ -487,13 +487,13 @@ def get_specifications(soup):
 #     data = []
 #     # Множество для хранения всех уникальных ключей характеристик
 
-#     files = list(html_directory.glob("*.html"))
+    # files = list(html_directory.glob("*.html"))
 #     # Проходим по всем HTML-файлам в папке
 #     logger.info(f"Обработка {len(files)} HTML-файлов...")
 #     count = 0
 #     for html_file in files:
-#         with html_file.open(encoding="utf-8") as file:
-#             content = file.read()
+        # with html_file.open(encoding="utf-8") as file:
+        #     content = file.read()
 
 #             try:
 #                 soup = BeautifulSoup(content, "lxml")

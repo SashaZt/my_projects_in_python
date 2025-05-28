@@ -4,8 +4,10 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
 import openpyxl
 import pandas as pd
@@ -18,7 +20,6 @@ from PIL import Image
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
 page_path = os.path.join(temp_path, "page")
-html_path = os.path.join(temp_path, "html")
 json_path = os.path.join(temp_path, "json")
 img_path = os.path.join(temp_path, "img")
 
@@ -26,38 +27,141 @@ img_path = os.path.join(temp_path, "img")
 # Создание директории, если она не существует
 os.makedirs(temp_path, exist_ok=True)
 os.makedirs(page_path, exist_ok=True)
-os.makedirs(html_path, exist_ok=True)
 os.makedirs(json_path, exist_ok=True)
 os.makedirs(img_path, exist_ok=True)
+
+
 cookies = {
     "sbjs_migrations": "1418474375998%3D1",
-    "sbjs_current_add": "fd%3D2025-01-26%2007%3A21%3A41%7C%7C%7Cep%3Dhttps%3A%2F%2Fkik-tuning.com.ua%2F%7C%7C%7Crf%3D%28none%29",
-    "sbjs_first_add": "fd%3D2025-01-26%2007%3A21%3A41%7C%7C%7Cep%3Dhttps%3A%2F%2Fkik-tuning.com.ua%2F%7C%7C%7Crf%3D%28none%29",
+    "sbjs_current_add": "fd%3D2025-05-20%2014%3A19%3A41%7C%7C%7Cep%3Dhttps%3A%2F%2Fkik-tuning.com.ua%2Fproduct-category%2Faudi%2Fa4-b9%2Fvsi-tovary-audi-a4-b9%2F%7C%7C%7Crf%3D%28none%29",
+    "sbjs_first_add": "fd%3D2025-05-20%2014%3A19%3A41%7C%7C%7Cep%3Dhttps%3A%2F%2Fkik-tuning.com.ua%2Fproduct-category%2Faudi%2Fa4-b9%2Fvsi-tovary-audi-a4-b9%2F%7C%7C%7Crf%3D%28none%29",
     "sbjs_current": "typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29",
     "sbjs_first": "typ%3Dtypein%7C%7C%7Csrc%3D%28direct%29%7C%7C%7Cmdm%3D%28none%29%7C%7C%7Ccmp%3D%28none%29%7C%7C%7Ccnt%3D%28none%29%7C%7C%7Ctrm%3D%28none%29%7C%7C%7Cid%3D%28none%29%7C%7C%7Cplt%3D%28none%29%7C%7C%7Cfmt%3D%28none%29%7C%7C%7Ctct%3D%28none%29",
-    "sbjs_udata": "vst%3D3%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Windows%20NT%2010.0%3B%20Win64%3B%20x64%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F131.0.0.0%20Safari%2F537.36",
-    "woocommerce_recently_viewed": "2692",
-    "sbjs_session": "pgs%3D3%7C%7C%7Ccpg%3Dhttps%3A%2F%2Fkik-tuning.com.ua%2Fproduct%2Fkapot-bmw-5-f10-f11%2F",
+    "tk_or": "%22%22",
+    "tk_lr": "%22%22",
+    "_ga": "GA1.1.1907690628.1747750782",
+    "rngstHash": "%7B%22hash%22%3A%227eac036a0ac3c55178a3c7dad0509fe809d495c8%22%7D",
+    "rngst": "%7B%22clientId%22%3A%22b557eeac-6374-463a-a04e-2f90468c3627%22%7D",
+    "tk_ai": "%2FxuHlqctexb2m6SDA9%2BoIHuY",
+    "woocommerce_recently_viewed": "37744",
+    "sbjs_udata": "vst%3D2%7C%7C%7Cuip%3D%28none%29%7C%7C%7Cuag%3DMozilla%2F5.0%20%28Macintosh%3B%20Intel%20Mac%20OS%20X%2010_15_7%29%20AppleWebKit%2F537.36%20%28KHTML%2C%20like%20Gecko%29%20Chrome%2F136.0.0.0%20Safari%2F537.36",
+    "tk_r3d": "%22%22",
+    "rngst2": "%7B%22utmz%22%3A%7B%22utm_source%22%3A%22(direct)%22%2C%22utm_medium%22%3A%22(none)%22%2C%22utm_campaign%22%3A%22(direct)%22%2C%22utm_content%22%3A%22(not%20set)%22%2C%22utm_term%22%3A%22(none)%22%7D%2C%22sl%22%3A%22a9068767-b4a8-4265-a989-f8347d928557%22%7D",
+    "_ga_874TJFFQRE": "GS2.1.s1748109974$o3$g1$t1748111719$j0$l0$h0",
 }
 
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "accept-language": "ru,en;q=0.9,uk;q=0.8",
-    "cache-control": "no-cache",
+    "cache-control": "max-age=0",
     "dnt": "1",
-    "pragma": "no-cache",
+    "if-none-match": '"163912-1747667989;br"',
     "priority": "u=0, i",
-    "referer": "https://kik-tuning.com.ua/sitemap_index.xml",
-    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "sec-ch-ua": '"Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
     "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
+    "sec-ch-ua-platform": '"macOS"',
     "sec-fetch-dest": "document",
     "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "same-origin",
+    "sec-fetch-site": "none",
     "sec-fetch-user": "?1",
     "upgrade-insecure-requests": "1",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
 }
+
+
+def download_file(url, output_dir="downloads"):
+    """
+    Универсальная функция для скачивания файлов по URL с использованием curl.
+
+    Args:
+        url (str): URL файла для скачивания.
+        output_dir (str): Папка для сохранения файлов.
+
+    Returns:
+        bool: True если скачивание успешно, False в случае ошибки.
+    """
+    # Создаем папку для сохранения, если она не существует
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Получаем имя файла из URL
+    parsed_url = urlparse(url)
+    file_name = os.path.basename(parsed_url.path)
+    if not file_name:
+        file_name = "downloaded_file"
+
+    output_path = os.path.join(output_dir, file_name)
+
+    # Формируем команду curl с заголовками и куками
+    command = [
+        "curl",
+        "-o",
+        output_path,  # Выходной файл
+        "-L",  # Следовать редиректам
+        "-A",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",  # User-Agent
+        "--max-redirs",
+        "10",  # Максимальное количество редиректов
+        "--connect-timeout",
+        "30",  # Тайм-аут соединения
+        "-H",
+        "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "-H",
+        "Accept-Language: ru,en;q=0.9,uk;q=0.8",
+        "-H",
+        "Cache-Control: max-age=0",
+        "-H",
+        "DNT: 1",
+        "-H",
+        "Priority: u=0, i",
+        "-H",
+        'Sec-Ch-Ua: "Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+        "-H",
+        "Sec-Ch-Ua-Mobile: ?0",
+        "-H",
+        'Sec-Ch-Ua-Platform: "macOS"',
+        "-H",
+        "Sec-Fetch-Dest: document",
+        "-H",
+        "Sec-Fetch-Mode: navigate",
+        "-H",
+        "Sec-Fetch-Site: none",
+        "-H",
+        "Sec-Fetch-User: ?1",
+        "-H",
+        "Upgrade-Insecure-Requests: 1",
+        "-b",
+        (
+            "sbjs_migrations=1418474375998=1;"
+            "sbjs_current_add=fd=2025-05-20 14:19:41|||ep=https://kik-tuning.com.ua/product-category/audi/a4-b9/vsi-tovary-audi-a4-b9/|||rf=(none);"
+            "sbjs_first_add=fd=2025-05-20 14:19:41|||ep=https://kik-tuning.com.ua/product-category/audi/a4-b9/vsi-tovary-audi-a4-b9/|||rf=(none);"
+            "sbjs_current=typ=typein|||src=(direct)|||mdm=(none)|||cmp=(none)|||cnt=(none)|||trm=(none)|||id=(none)|||plt=(none)|||fmt=(none)|||tct=(none);"
+            "sbjs_first=typ=typein|||src=(direct)|||mdm=(none)|||cmp=(none)|||cnt=(none)|||trm=(none)|||id=(none)|||plt=(none)|||fmt=(none)|||tct=(none);"
+            'tk_or="";'
+            'tk_lr="";'
+            "_ga=GA1.1.1907690628.1747750782;"
+            'rngstHash={"hash":"7eac036a0ac3c55178a3c7dad0509fe809d495c8"};'
+            'rngst={"clientId":"b557eeac-6374-463a-a04e-2f90468c3627"};'
+            "tk_ai=/xuHlqctexb2m6SDA9+oIHuY;"
+            "woocommerce_recently_viewed=37744;"
+            "sbjs_udata=vst=2|||uip=(none)|||uag=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36;"
+            'tk_r3d="";'
+            'rngst2={"utmz":{"utm_source":"(direct)","utm_medium":"(none)","utm_campaign":"(direct)","utm_content":"(not set)","utm_term":"(none)"},"sl":"a9068767-b4a8-4265-a989-f8347d928557"};'
+            "_ga_874TJFFQRE=GS2.1.s1748109974$o3$g1$t1748111719$j0$l0$h0"
+        ),
+        url,
+    ]
+
+    try:
+        # Выполняем команду
+        result = subprocess.run(command, capture_output=True, text=True, check=True)
+        print(f"Файл успешно сохранен: {output_path}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"Ошибка при скачивании {url}: {e.stderr}")
+        return False
+    except Exception as e:
+        print(f"Неизвестная ошибка при скачивании {url}: {e}")
+        return False
 
 
 def get_xml():
@@ -74,19 +178,18 @@ def get_xml():
     for sitemap in sitemaps:
         # Скачиваем XML
         response = requests.get(sitemap, cookies=cookies, headers=headers, timeout=30)
-        if response.status_code == 200:
-            # Парсим XML
-            root = ET.fromstring(response.content)
-            # Извлекаем URL из тегов <loc>
-            for url in root.findall(
-                ".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"
-            ):
-                loc = url.text
-                # Фильтруем только нужные ссылки
-                if loc and "https://kik-tuning.com.ua/product/" in loc:
-                    product_urls.append(loc)
-        else:
-            print(f"Не удалось загрузить {sitemap}. Код ответа: {response.status_code}")
+        print(response.content)
+        # if response.status_code == 200:
+        # Парсим XML
+        root = ET.fromstring(response.content)
+        # Извлекаем URL из тегов <loc>
+        for url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
+            loc = url.text
+            # Фильтруем только нужные ссылки
+            if loc and "https://kik-tuning.com.ua/product/" in loc:
+                product_urls.append(loc)
+        # else:
+        #     print(f"Не удалось загрузить {sitemap}. Код ответа: {response.status_code}")
 
     # Создаем DataFrame и сохраняем в CSV
     df = pd.DataFrame(product_urls, columns=["url"])
@@ -136,16 +239,6 @@ def fetch(url, headers):
 
 
 def parsing(soup):
-    # product_json = extract_product(soup)
-    # if product_json is None:
-    #     return None
-    # brand_product, category_product, breadcrumb = extract_data_breadcrumb(soup)
-
-    # name_product = product_json.get("name")
-    # image_product = product_json.get("image")
-    # url_product = product_json.get("url")
-    # sku_product = product_json.get("sku")
-    # price_product = product_json.get("offers", {}).get("price")
     brand_product = ""
     category_product = ""
     breadcrumb = ""
@@ -156,41 +249,55 @@ def parsing(soup):
     product_price = ""
 
     # Парсинг HTML с помощью BeautifulSoup
-    script_tag = soup.find_all("script", type="application/ld+json")
+    script_tag = soup.find("script", type="application/ld+json")
 
-    if len(script_tag) > 1:  # Проверяем, есть ли хотя бы два таких тега
-        # Парсинг JSON
-        second_script = script_tag[1].string  # Берем содержимое второго тега
-        json_data = json.loads(second_script)
-        if "@graph" in json_data:
-            for item in json_data["@graph"]:
-                # Извлечение данных из BreadcrumbList
-                if item.get("@type") == "BreadcrumbList":
-                    for element in item.get("itemListElement", []):
-                        position = element.get("position")
-                        name = element["item"].get("name", "")
-                        if position == 2:
-                            brand_product = name
-                        elif position == 3:
-                            category_product = name
-                        elif position == 4:
-                            breadcrumb = name
+    if script_tag:
+        try:
+            # Парсинг JSON
+            json_data = json.loads(script_tag.string)
 
-                # Извлечение данных о продукте
-                if item.get("@type") == "Product":
-                    product_name = item.get("name", "")
-                    product_url = item.get("url", "")
-                    product_image = item.get("image", "")
-                    product_sku = item.get("sku", "")
-                    if "offers" in item:
-                        offers = (
-                            item["offers"][0]
-                            if isinstance(item["offers"], list)
-                            else item["offers"]
-                        )
-                        product_price = offers.get("priceSpecification", [{}])[0].get(
-                            "price", ""
-                        )
+            if "@graph" in json_data:
+                for item in json_data["@graph"]:
+                    # Извлечение данных из BreadcrumbList
+                    if item.get("@type") == "BreadcrumbList":
+                        for element in item.get("itemListElement", []):
+                            position = element.get("position")
+                            name = element.get("item", {}).get("name", "")
+                            if position == 2:
+                                brand_product = name
+                            elif position == 3:
+                                category_product = name
+                            elif position == 4:
+                                breadcrumb = name
+
+                    # Извлечение данных о продукте
+                    if item.get("@type") == "Product":
+                        product_name = item.get("name", "")
+                        product_url = item.get("url", "")
+                        product_image = item.get("image", "")
+                        product_sku = item.get("sku", "")
+
+                        if "offers" in item and item["offers"]:
+                            offers = (
+                                item["offers"][0]
+                                if isinstance(item["offers"], list)
+                                else item["offers"]
+                            )
+
+                            # Получаем цену из priceSpecification
+                            if (
+                                "priceSpecification" in offers
+                                and offers["priceSpecification"]
+                            ):
+                                price_spec = (
+                                    offers["priceSpecification"][0]
+                                    if isinstance(offers["priceSpecification"], list)
+                                    else offers["priceSpecification"]
+                                )
+                                product_price = price_spec.get("price", "")
+        except json.JSONDecodeError:
+            pass  # Если JSON некорректный, оставляем пустые значения
+
     all_data = {
         "breadcrumb": breadcrumb,
         "brand_product": brand_product,
@@ -289,6 +396,14 @@ async def parsing_page():
 
 
 if __name__ == "__main__":
-    get_xml()
-    main()
+    # get_xml()
+    # main()
     asyncio.run(parsing_page())
+    # Пример использования
+    # urls = [
+    #     "https://kik-tuning.com.ua/wp-sitemap-posts-product-1.xml",
+    #     "https://kik-tuning.com.ua/wp-sitemap-posts-product-2.xml",
+    # ]
+
+    # for url in urls:
+    #     download_file(url, output_dir="downloaded_files")

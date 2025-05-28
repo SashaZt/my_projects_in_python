@@ -1,0 +1,23 @@
+# Извлеченные бренды eBay (простой метод)
+BRAND_URLS = {
+    "Audi": "https://www.ebay.com/b/Audi-Car-and-Truck-ECUs/33596/bn_584161",
+    "BMW": "https://www.ebay.com/b/BMW-Car-and-Truck-ECUs/33596/bn_574989",
+    "Bosch": "https://www.ebay.com/b/Bosch-Car-and-Truck-ECUs/33596/bn_580785",
+    "Chevrolet": "https://www.ebay.com/b/Chevrolet-Car-and-Truck-ECUs/33596/bn_579193",
+    "Chrysler": "https://www.ebay.com/b/Chrysler-Car-and-Truck-ECUs/33596/bn_559086",
+    "Dodge": "https://www.ebay.com/b/Dodge-Car-and-Truck-ECUs/33596/bn_573266",
+    "Ford": "https://www.ebay.com/b/Ford-Car-and-Truck-ECUs/33596/bn_564285",
+    "General Motors": "https://www.ebay.com/b/Car-Truck-Engine-Computers-General-Motors/33596/bn_573041",
+    "Honda": "https://www.ebay.com/b/Honda-Car-and-Truck-ECUs/33596/bn_568949",
+    "Hyundai": "https://www.ebay.com/b/Hyundai-Car-and-Truck-ECUs/33596/bn_568843",
+    "Jeep": "https://www.ebay.com/b/Jeep-Car-and-Truck-ECUs/33596/bn_578048",
+    "Kia": "https://www.ebay.com/b/Kia-Car-and-Truck-ECUs/33596/bn_567399",
+    "Lexus": "https://www.ebay.com/b/Lexus-Car-and-Truck-ECUs/33596/bn_581085",
+    "Mazda": "https://www.ebay.com/b/Mazda-Car-and-Truck-ECUs/33596/bn_575445",
+    "Mercedes-Benz": "https://www.ebay.com/b/Mercedes-Benz-Car-and-Truck-ECUs/33596/bn_583237",
+    "Nissan": "https://www.ebay.com/b/Nissan-Car-and-Truck-ECUs/33596/bn_569541",
+    "OEM": "https://www.ebay.com/b/OEM-Car-Truck-ECUs-Computer-Modules/33596/bn_116208612",
+    "Subaru": "https://www.ebay.com/b/Subaru-Car-and-Truck-ECUs/33596/bn_572589",
+    "Toyota": "https://www.ebay.com/b/Toyota-Car-and-Truck-ECUs/33596/bn_561140",
+    "Volkswagen": "https://www.ebay.com/b/Volkswagen-Car-and-Truck-ECUs/33596/bn_576409",
+}

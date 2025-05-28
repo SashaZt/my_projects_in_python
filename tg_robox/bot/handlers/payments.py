@@ -15,7 +15,7 @@ from db.models import CardCode, Order, Payment, RobloxProduct, User
 from keyboards import inline as ikb
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from utils.monobank import MonobankPayment
+# from utils.monobank import MonobankPayment
 from utils.payment_logging import log_payment_event
 
 router = Router()

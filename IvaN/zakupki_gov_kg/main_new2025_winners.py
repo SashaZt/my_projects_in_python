@@ -136,22 +136,6 @@ def parse_file(file_path):
             lot_number_text = td_elements[4].get_text(strip=True)
             lot_number = re.sub(r"Номер лота\s*", "", lot_number_text).strip()
 
-            # planned_sum_text = td_elements[5].get_text(strip=True)
-            # planned_sum = re.sub(
-            #     r"Планируемая сумма лота\s*", "", planned_sum_text
-            # ).strip()
-
-            # offered_price_text = td_elements[6].get_text(strip=True)
-            # offered_price = re.sub(
-            #     r"Цена предложенная участником\s*", "", offered_price_text
-            # ).strip()
-
-            # contract_price_text = td_elements[7].get_text(strip=True)
-            # contract_price = re.sub(
-            #     r"Цена контракта\s*", "", contract_price_text
-            # ).strip()
-            # Обработка "Планируемая сумма лота"
-            # Обработка "Планируемая сумма лота"
             planned_sum_text = td_elements[5].get_text(strip=True)
             planned_sum_clean = re.sub(
                 r"Планируемая сумма лота\s*", "", planned_sum_text
@@ -239,5 +223,5 @@ def parsing_files():
 
 
 if __name__ == "__main__":
-    # get_html()
+    get_html()
     parsing_files()

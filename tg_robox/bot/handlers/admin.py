@@ -1,26 +1,25 @@
+# Стандартная библиотека Python
 import csv
-import json
-import io
 from datetime import datetime
-from pathlib import Path
-from sqlalchemy import func
-from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
-from aiogram.filters import Command, CommandObject
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
+
+# SQLAlchemy
+from sqlalchemy import func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func
-from db.models import CardCode, RobloxProduct, Order, Payment, User
-from keyboards import inline as ikb
-from keyboards import reply as kb
-from config.config import Config
-from config.logger import logger
-from sqlalchemy import func
-from db.models import Review
 from sqlalchemy.orm import joinedload
 
+# Aiogram
+from aiogram import Router, F
+from aiogram.filters import Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+
+# Локальные модули
+from config.config import Config
+from config.logger import logger
+from db.models import CardCode, Order, User, Review
+from keyboards import inline as ikb
 router = Router()
 
 
@@ -251,69 +250,6 @@ async def process_code_file(message: Message, state: FSMContext):
         )
 
 
-# # Обработчик JSON-файла с кодами
-# @router.message(AdminStates.add_code_file, F.document)
-# async def process_json_code_file(message: Message, state: FSMContext):
-#     """Обработка загруженного JSON-файла с кодами"""
-#     # Проверяем, что файл имеет расширение JSON
-#     file_name = message.document.file_name
-#     if not file_name.lower().endswith(".json"):
-#         # Если это не JSON и не CSV, это обработает другой обработчик
-#         return
-
-#     # Скачиваем файл
-#     file = await message.bot.download(message.document)
-
-#     try:
-#         # Парсим JSON файл
-#         with open(file, "r", encoding="utf-8") as json_file:
-#             json_data = json.load(json_file)
-
-#         codes_data = []
-
-#         # Обрабатываем различные форматы JSON
-#         if isinstance(json_data, list):
-#             for item in json_data:
-#                 if isinstance(item, dict) and "card_value" in item and "code" in item:
-#                     try:
-#                         card_value = float(item["card_value"])
-#                         code = str(item["code"]).strip()
-#                         codes_data.append((card_value, code))
-#                     except (ValueError, TypeError):
-#                         continue
-
-#         # Сохраняем данные в состоянии
-#         await state.update_data(codes_data=codes_data)
-
-#         # Показываем сводку и запрашиваем подтверждение
-#         if codes_data:
-#             await message.answer(
-#                 f"📊 <b>Знайдено {len(codes_data)} кодів в файлі</b>\n\n"
-#                 f"Номінали карт:\n"
-#                 + "\n".join(
-#                     [
-#                         f"${value}: {sum(1 for v, _ in codes_data if v == value)} шт."
-#                         for value in set(value for value, _ in codes_data)
-#                     ]
-#                 )
-#                 + "\n\nБажаєте додати ці коди в базу даних?",
-#                 reply_markup=ikb.get_admin_confirm_codes_keyboard(),
-#             )
-#             await state.set_state(AdminStates.add_code_confirm)
-#         else:
-#             await message.answer(
-#                 "❌ В файлі не знайдено коректних даних. Перевірте формат файлу і спробуйте ще раз.",
-#                 reply_markup=ikb.get_back_to_admin_keyboard(),
-#             )
-
-#     except Exception as e:
-#         logger.error(f"Ошибка при обработке JSON файла с кодами: {e}")
-#         await message.answer(
-#             "❌ Помилка при обробці файлу. Перевірте формат файлу і спробуйте ще раз.",
-#             reply_markup=ikb.get_back_to_admin_keyboard(),
-#         )
-
-
 # Обработчик подтверждения добавления кодов из файла
 @router.callback_query(AdminStates.add_code_confirm, F.data == "confirm_add_codes")
 async def confirm_add_codes(
@@ -431,45 +367,188 @@ async def admin_stats(
     await callback.answer()
 
 
-# Обработчик кнопки "Користувачі"
-@router.callback_query(F.data == "admin_users")
-async def admin_users(
-    callback: CallbackQuery, state: FSMContext, session: AsyncSession
-):
-    """Обработчик кнопки Користувачі"""
-    # Получаем 10 последних пользователей
-    stmt = select(User).order_by(User.last_activity.desc()).limit(10)
+@router.message(F.text == "🗝 Залишок ключів")
+async def rest_keys_button(message: Message, state: FSMContext, session: AsyncSession):
+    """Обработчик кнопки остатков ключей из reply клавиатуры"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    # Получаем все доступные коды, сгруппированные по номиналам
+    stmt = (
+        select(CardCode)
+        .where(CardCode.is_used == False)  # Только неиспользованные
+        .order_by(CardCode.card_value, CardCode.added_at.desc())
+    )
+    
     result = await session.execute(stmt)
-    users = result.scalars().all()
+    available_codes = result.scalars().all()
+    
+    # Группируем коды по номиналам
+    codes_by_value = {}
+    for code in available_codes:
+        value = float(code.card_value)
+        if value not in codes_by_value:
+            codes_by_value[value] = []
+        codes_by_value[value].append(code)
+    
+    # Формируем сообщение
+    message_text = "🗝 <b>Залишок ключів</b>\n\n"
+    
+    if codes_by_value:
+        total_available = 0
+        
+        # Сортируем по номиналам
+        for card_value in sorted(codes_by_value.keys()):
+            codes_list = codes_by_value[card_value]
+            total_available += len(codes_list)
+            
+            message_text += f"💵 <b>${card_value:.0f}</b>: <b>{len(codes_list)}</b> доступно\n"
+            
+            # Добавляем сами коды
+            for code in codes_list:
+                message_text += f"<code>{code.code}</code>\n"
+            
+            message_text += "\n"  # Пустая строка между номиналами
+        
+        message_text += f"📊 <b>Загалом доступно: {total_available} ключів</b>\n"
+    else:
+        message_text += "❌ Ключів в базі немає\n"
+    
+    # Проверяем длину сообщения (лимит Telegram ~4096 символов)
+    if len(message_text) > 4000:
+        # Если сообщение слишком длинное, отправляем по частям
+        await send_long_message(message, message_text)
+    else:
+        await message.answer(message_text)
 
-    # Формируем сообщение со списком пользователей
-    users_message = "👤 <b>Останні активні користувачі</b>\n\n"
 
-    for user in users:
-        username = f"@{user.username}" if user.username else "Без імені користувача"
-        last_activity = (
-            user.last_activity.strftime("%d.%m.%Y %H:%M")
-            if user.last_activity
-            else "Невідомо"
-        )
-
-        users_message += (
-            f"ID: {user.user_id}\n"
-            f"Ім'я: {user.first_name or 'Не вказано'} {user.last_name or ''}\n"
-            f"Юзернейм: {username}\n"
-            f"Остання активність: {last_activity}\n"
-            f"{'➖' * 15}\n"
-        )
-
-    # Если нет пользователей
-    if not users:
-        users_message += "Немає активних користувачів."
-
+    
+    # Создаем клавиатуру с дополнительными опциями
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text="🔄 Оновити дані", 
+                callback_data="rest_keys"  # Исправляем callback_data
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="📋 Детальний звіт ключів", 
+                callback_data="admin_keys_detail"
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="🔙 Назад", 
+                callback_data="admin_back"
+            )
+        ]
+    ]
+    
     await callback.message.edit_text(
-        users_message, reply_markup=ikb.get_back_to_admin_keyboard()
+        message_text, 
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
     )
     await state.set_state(AdminStates.main_menu)
     await callback.answer()
+
+## Также исправляем callback в детальном отчете
+@router.callback_query(F.data == "admin_keys_detail")
+async def admin_keys_detail(
+    callback: CallbackQuery, state: FSMContext, session: AsyncSession
+):
+    """Детальный отчет по ключам с показом самих кодов"""
+    
+    # Получаем доступные ключи по номиналам (показываем только первые 3 для каждого номинала)
+    stmt = (
+        select(CardCode)
+        .where(CardCode.is_used == False)
+        .order_by(CardCode.card_value, CardCode.added_at.desc())
+    )
+    
+    result = await session.execute(stmt)
+    available_codes = result.scalars().all()
+    
+    # Группируем по номиналам
+    codes_by_value = {}
+    for code in available_codes:
+        value = float(code.card_value)
+        if value not in codes_by_value:
+            codes_by_value[value] = []
+        codes_by_value[value].append(code)
+    
+    # Формируем детальное сообщение
+    message_text = "🗝 <b>Детальний звіт по ключах</b>\n\n"
+    
+    if codes_by_value:
+        for card_value in sorted(codes_by_value.keys()):
+            codes_list = codes_by_value[card_value]
+            message_text += f"💵 <b>${card_value:.0f} ({len(codes_list)} шт.):</b>\n"
+            
+            # Показываем первые 3 кода для каждого номинала
+            for i, code in enumerate(codes_list[:3]):
+                added_date = code.added_at.strftime("%d.%m") if code.added_at else "Невідомо"
+                message_text += f"  🔑 <code>{code.code}</code> ({added_date})\n"
+            
+            # Если кодов больше 3, показываем количество остальных
+            if len(codes_list) > 3:
+                message_text += f"  ... та ще {len(codes_list) - 3} кодів\n"
+            
+            message_text += "\n"
+    else:
+        message_text += "❌ Доступних ключів немає\n\n"
+    
+    # Добавляем информацию о последних использованных ключах
+    stmt_used = (
+        select(CardCode)
+        .where(CardCode.is_used == True)
+        .order_by(CardCode.used_at.desc())
+        .limit(5)
+    )
+    
+    result_used = await session.execute(stmt_used)
+    used_codes = result_used.scalars().all()
+    
+    if used_codes:
+        message_text += "📋 <b>Останні використані ключі:</b>\n"
+        for code in used_codes:
+            used_date = code.used_at.strftime("%d.%m %H:%M") if code.used_at else "Невідомо"
+            order_info = f" (#{code.order_id})" if code.order_id else ""
+            message_text += f"  🔑 ${code.card_value} - {used_date}{order_info}\n"
+    
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text="🔙 Назад до ключів", 
+                callback_data="rest_keys"  # Исправляем callback_data
+            )
+        ]
+    ]
+    
+    await callback.message.edit_text(
+        message_text, 
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
+    )
+    await callback.answer()
+
+
+# Также обновляем обработчик кнопки из reply клавиатуры
+@router.message(F.text == "🗝 Залишок ключів")
+async def users_button(message: Message, state: FSMContext, session: AsyncSession):
+    """Обработчик кнопки пользователей из reply клавиатуры"""
+    if not is_admin(message.from_user.id):
+        return
+    
+    # Используем ту же логику, что и в callback обработчике
+    await rest_keys(
+        # Создаем фиктивный callback для совместимости
+        type('MockCallback', (), {
+            'message': message,
+            'answer': lambda: None
+        })(),
+        state,
+        session
+    )
 
 
 # Обработчик кнопки "Розіграш / Бонуси"
@@ -492,7 +571,7 @@ def get_admin_main_keyboard():
     buttons = [
         [InlineKeyboardButton(text="➕ Додати код", callback_data="admin_add_code")],
         [InlineKeyboardButton(text="📊 Статистика", callback_data="admin_stats")],
-        [InlineKeyboardButton(text="👤 Користувачі", callback_data="admin_users")],
+        [InlineKeyboardButton(text="🗝 Залишок ключів", callback_data="rest_keys")],
         [
             InlineKeyboardButton(
                 text="🎁 Розіграш / Бонуси", callback_data="admin_promos"
@@ -505,44 +584,6 @@ def get_admin_main_keyboard():
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-
-# # Обработчик для просмотра отзывов в админ-панели
-# @router.callback_query(AdminStates.main_menu, F.data == "admin_reviews")
-# async def admin_reviews(
-#     callback: CallbackQuery, state: FSMContext, session: AsyncSession
-# ):
-#     """Просмотр отзывов для администратора"""
-#     # Получаем статистику по отзывам
-#     total_reviews = await session.scalar(select(func.count()).select_from(Review))
-#     avg_rating = await session.scalar(select(func.coalesce(func.avg(Review.rating), 0)))
-
-#     # Формируем сообщение со статистикой
-#     stats_message = (
-#         "📊 <b>Статистика відгуків</b>\n\n"
-#         f"Всього відгуків: {total_reviews}\n"
-#         f"Середня оцінка: {avg_rating:.1f}/5.0 ⭐\n\n"
-#         "Виберіть дію:"
-#     )
-
-#     # Создаем клавиатуру для админа
-#     keyboard = [
-#         [
-#             InlineKeyboardButton(
-#                 text="📝 Останні відгуки", callback_data="admin_last_reviews"
-#             )
-#         ],
-#         [
-#             InlineKeyboardButton(
-#                 text="⭐ Відгуки за оцінкою", callback_data="admin_rating_reviews"
-#             )
-#         ],
-#         [InlineKeyboardButton(text="🔙 Назад", callback_data="admin_back")],
-#     ]
-
-
-#     await callback.message.edit_text(
-#         stats_message, reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
-#     )
 @router.callback_query(AdminStates.main_menu, F.data == "admin_reviews")
 async def admin_reviews_menu(callback: CallbackQuery, state: FSMContext):
     """Меню управления отзывами"""

@@ -6,7 +6,7 @@ source ./.env
 
 BACKUP_DATE=$(date +"%Y_%m_%d_%H_%M")
 BACKUP_FILE="${BACKUP_DIR}/backup_${BACKUP_DATE}.backup"
-CONTAINER_NAME="db"
+CONTAINER_NAME="postgres"
 DB_USER="${POSTGRES_USER}"
 DB_NAME="${POSTGRES_DB}"
 

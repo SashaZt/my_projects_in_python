@@ -22,12 +22,14 @@ importlib.reload(keyboards.inline)
 
 # Команды бота для меню
 async def set_commands(bot: Bot):
+    """Установка команд бота"""
     commands = [
-        BotCommand(command="start", description="Запустить бота"),
-        BotCommand(command="help", description="Підтримка / FAQ"),
-        BotCommand(command="menu", description="Головне меню"),
+        BotCommand(command="start", description="🚀 Запустити бота"),
+        BotCommand(command="menu", description="📋 Головне меню"),
+        BotCommand(command="help", description="🛟 Підтримка / FAQ"),
     ]
     await bot.set_my_commands(commands)
+    logger.info("📋 Bot commands set successfully")
 
 
 async def main():
@@ -53,53 +55,19 @@ async def main():
     # Инициализация моделей
     await init_models(engine)
 
-    # # Инициализация планировщика
-    # scheduler = AsyncIOScheduler()
-    # # Добавление задачи по расписанию (например, каждый час)
-    # scheduler.add_job(publish_approved_reviews, "interval", hours=1, args=[bot])
-
-    # # Запуск планировщика
-    # scheduler.start()
-
     # Настройка middlewares
     setup_middlewares(dp, session_maker, config)
 
     register_all_handlers(dp, config)
 
     # Установка команд бота
+    logger.info("📋 Setting bot commands...")
     await set_commands(bot)
+
 
     # Запуск бота
     try:
-        if config.monobank.webhook_url:
-            # Настройка веб-сервера для приема вебхуков
-            from aiohttp import web
-            from handlers.webhook import monobank_webhook_handler
-
-            # Создаем приложение aiohttp
-            app = web.Application()
-
-            # Добавляем маршрут для вебхука Monobank
-            # Предположим, что webhook_url имеет вид https://yourdomain.com/webhooks/monobank
-            # В этом случае путь будет "/webhooks/monobank"
-            webhook_path = config.monobank.webhook_url.split("/")[-1]
-            app.router.add_post(f"/{webhook_path}", monobank_webhook_handler)
-
-            # Запускаем веб-сервер в отдельном таске
-            runner = web.AppRunner(app)
-            await runner.setup()
-
-            # Извлекаем порт из конфигурации или используем порт по умолчанию
-            webhook_port = (
-                config.monobank.webhook_port
-                if hasattr(config.monobank, "webhook_port")
-                else 8080
-            )
-            site = web.TCPSite(runner, "0.0.0.0", webhook_port)
-
-            # Запускаем сайт
-            await site.start()
-            logger.info(f"Веб-сервер для вебхуков запущен на порту {webhook_port}")
+        
         logger.info(
             f"Бот запущен (Проект: {config.project_name}, "
             f"Версия: {config.version}, Окружение: {config.environment})"

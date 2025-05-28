@@ -22,36 +22,36 @@ async def contact_info(message: Message):
     )
 
 
-@router.callback_query(F.data == "get_offer_pdf")
-async def send_offer_agreement(callback: CallbackQuery):
-    """Обработчик кнопки для отправки PDF с офертой"""
-    # Путь к файлу PDF в папке assets
-    pdf_path = "assets/documents/offer_agreement.pdf"
+# @router.callback_query(F.data == "get_offer_pdf")
+# async def send_offer_agreement(callback: CallbackQuery):
+#     """Обработчик кнопки для отправки PDF с офертой"""
+#     # Путь к файлу PDF в папке assets
+#     pdf_path = "assets/documents/offer_agreement.pdf"
 
-    try:
-        # Проверяем существование файла
-        if os.path.exists(pdf_path):
-            # Отправляем файл как документ
-            await callback.message.answer_document(
-                document=FSInputFile(pdf_path),
-                caption="📄 Оферта публічного договору на продаж карт поповнення Roblox.",
-            )
-            await callback.answer("Документ відправлено!")
-        else:
-            logger.error(f"Файл не найден: {pdf_path}")
-            await callback.answer("На жаль, файл оферти не знайдено.")
-    except Exception as e:
-        logger.error(f"Ошибка при отправке PDF: {e}")
-        await callback.answer("На жаль, сталася помилка при відправці документу.")
+#     try:
+#         # Проверяем существование файла
+#         if os.path.exists(pdf_path):
+#             # Отправляем файл как документ
+#             await callback.message.answer_document(
+#                 document=FSInputFile(pdf_path),
+#                 caption="📄 Оферта публічного договору на продаж карт поповнення Roblox.",
+#             )
+#             await callback.answer("Документ відправлено!")
+#         else:
+#             logger.error(f"Файл не найден: {pdf_path}")
+#             await callback.answer("На жаль, файл оферти не знайдено.")
+#     except Exception as e:
+#         logger.error(f"Ошибка при отправке PDF: {e}")
+#         await callback.answer("На жаль, сталася помилка при відправці документу.")
 
 
-@router.callback_query(F.data == "back_to_menu")
-async def back_to_menu_from_contact(callback: CallbackQuery):
-    """Обработчик кнопки 'Назад' к главному меню"""
-    await callback.message.edit_text(
-        "📋 <b>Головне меню</b>\n\n" "Виберіть потрібний розділ:",
-        reply_markup=kb.get_main_menu_keyboard(),
-    )
+# @router.callback_query(F.data == "back_to_menu")
+# async def back_to_menu_from_contact(callback: CallbackQuery):
+#     """Обработчик кнопки 'Назад' к главному меню"""
+#     await callback.message.edit_text(
+#         "📋 <b>Головне меню</b>\n\n" "Виберіть потрібний розділ:",
+#         reply_markup=kb.get_main_menu_keyboard(),
+#     )
 
 
 # @router.message(F.text == "ℹ️ Про нас")

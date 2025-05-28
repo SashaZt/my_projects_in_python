@@ -28,9 +28,6 @@ python3 config_loader.py
 echo -e "${BLUE}Генерация конфигурации для бота...${NC}"
 python3 -c "from config_loader import generate_component_config; generate_component_config(component='bot', output_format='env')"
 
-echo -e "${BLUE}Генерация конфигурации для платежного сервиса...${NC}"
-python3 -c "from config_loader import generate_component_config; generate_component_config(component='payment_service', output_format='env')"
-
 echo -e "${BLUE}Генерация конфигурации для базы данных...${NC}"
 python3 -c "from config_loader import generate_component_config; generate_component_config(component='db', output_format='env')"
 

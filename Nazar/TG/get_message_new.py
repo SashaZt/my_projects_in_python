@@ -1,4 +1,4 @@
-# Рабочий код от 07032025
+# get_message_new.py
 import asyncio
 import re
 from pathlib import Path

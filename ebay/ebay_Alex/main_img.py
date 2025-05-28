@@ -2,19 +2,31 @@ import io
 import json
 import random
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from urllib.parse import urlparse
 
 import urllib3
+from requests.exceptions import (
+    ConnectionError,
+    HTTPError,
+    ProxyError,
+    RequestException,
+    Timeout,
+)
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
+from urllib3.exceptions import ProtocolError, ReadTimeoutError
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import requests
 from logger import logger
 from PIL import Image
-from requests.exceptions import HTTPError
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -87,9 +99,19 @@ def get_random_proxy():
 
 
 @retry(
-    stop=stop_after_attempt(10),  # Максимум 10 попыток
-    wait=wait_fixed(10),  # Задержка 10 секунд между попытками
-    retry=retry_if_exception_type(HTTPError),  # Повторять при HTTPError
+    stop=stop_after_attempt(10),
+    wait=wait_exponential(
+        multiplier=1, min=4, max=60
+    ),  # Экспоненциальная задержка: 4, 8, 16, 32, 60, 60...
+    retry=(
+        retry_if_exception_type(HTTPError)
+        | retry_if_exception_type(ConnectionError)
+        | retry_if_exception_type(Timeout)
+        | retry_if_exception_type(ProxyError)
+        | retry_if_exception_type(ProtocolError)
+        | retry_if_exception_type(ReadTimeoutError)
+        | retry_if_exception_type(OSError)
+    ),
 )
 def download_single_image(image_url, file_path, thread_id):
     """

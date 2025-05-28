@@ -1,0 +1,100 @@
+Так получаем токен
+Такой запрос
+curl --location 'https://api.checkbox.ua/api/v1/cashier/signinPinCode' \
+--header 'Content-Type: application/json' \
+--header 'X-Client-Name: My Custom SDK' \
+--header 'X-Client-Version: v1.2.5' \
+--header 'X-License-Key: 58ecbb3bd028d0f07b0b5d9c' \
+--header 'X-Device-ID: device12345' \
+--data '{
+           "pin_code": "7955308424"
+         }'
+Такой ответ
+{
+    "type": "bearer",
+    "token_type": "bearer",
+    "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiQVBJIiwianRpIjoiNTkxNjYwYzctYWZlNS00YjFkLWI1ZTItNWVhZDc1YzEzMDU0Iiwic3ViIjoiOTAyZjhlZGYtY2UzMC00NTZhLTliYmQtMDU5NjBlMzJkYTZhIiwibmJmIjoxNzQ3ODI4NTYwLCJpYXQiOjE3NDc4Mjg1NjB9.tW5ntuZs0GQgGqqUB9SnrIXer9Ox58oVryrm3mqpv78"
+} 
+access_token - сохраняем в папку config в файл token.json весь ответ
+
+Создание инвойса
+curl --location 'https://api.checkbox.ua/api/v1/invoices/fiscalize' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiQVBJIiwianRpIjoiNTkxNjYwYzctYWZlNS00YjFkLWI1ZTItNWVhZDc1YzEzMDU0Iiwic3ViIjoiOTAyZjhlZGYtY2UzMC00NTZhLTliYmQtMDU5NjBlMzJkYTZhIiwibmJmIjoxNzQ3ODI4NTYwLCJpYXQiOjE3NDc4Mjg1NjB9.tW5ntuZs0GQgGqqUB9SnrIXer9Ox58oVryrm3mqpv78' \
+--header 'X-Client-Name: My Custom SDK' \
+--header 'X-Client-Version: v1.2.5' \
+--header 'X-License-Key: 58ecbb3bd028d0f07b0b5d9c' \
+--data '{
+    "goods": [
+        {
+            "good": {
+                "name": "Roblox Card 1000 ROBUX", - указываем название 
+                "price": 55000, - указываем цену в копейках
+                "code": "1234567890"
+            },
+            "quantity": 1000, - всегда 1 шт
+            "is_return": false  - так оставляем
+        }
+    ],
+    "payments": [
+        {
+            "type": "CASHLESS",
+            "value": 55000, - указываем цену в копейках
+            "label": "Платіж через інтегратора MONOBANK", - так оставляем
+            "provider_type": "TERMINAL"  - так оставляем
+        }
+    ],
+    "terminal_id": "0c7da6e8-b78e-4afb-9aef-1290ccf4cdab",
+    "discounts": [],
+    "bonuses": [],
+    "validity": 60 -  указываем 1 мин 
+}'
+
+Ответ
+охраняем в файл в json 
+{
+    "id": "dff8a419-d4cb-4fa7-9536-828d02d987a1", сохраняем 
+    "external_id": "250521726Be8DDhwLtZK",
+    "status": "CREATED",
+    "page_url": "https://pay.monobank.ua/250521726Be8DDhwLtZK",
+    "receipt_id": "77dffe30-aa01-478a-80c8-f47a12601491"
+}
+
+прверка статуса инвойса
+запрос
+curl --location 'https://api.checkbox.ua/api/v1/invoices/dff8a419-d4cb-4fa7-9536-828d02d987a1' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiQVBJIiwianRpIjoiNTkxNjYwYzctYWZlNS00YjFkLWI1ZTItNWVhZDc1YzEzMDU0Iiwic3ViIjoiOTAyZjhlZGYtY2UzMC00NTZhLTliYmQtMDU5NjBlMzJkYTZhIiwibmJmIjoxNzQ3ODI4NTYwLCJpYXQiOjE3NDc4Mjg1NjB9.tW5ntuZs0GQgGqqUB9SnrIXer9Ox58oVryrm3mqpv78' \
+--header 'X-Client-Name: My Custom SDK' \
+--header 'X-Client-Version: v1.2.5' \
+--header 'X-License-Key: 58ecbb3bd028d0f07b0b5d9c'
+
+ответ
+сохраняем в файл 
+{
+    "id": "dff8a419-d4cb-4fa7-9536-828d02d987a1",
+    "receipt_id": "77dffe30-aa01-478a-80c8-f47a12601491",
+    "terminal_id": "0c7da6e8-b78e-4afb-9aef-1290ccf4cdab",
+    "external_id": "250521726Be8DDhwLtZK",
+    "status": "CREATED",
+    "transaction_id": null,
+    "page_url": "https://pay.monobank.ua/250521726Be8DDhwLtZK",
+    "amount": null,
+    "ccy": null,
+    "final_amount": null,
+    "failure_reason": null,
+    "reference": null,
+    "validity": 86400,
+    "tips_employee_id": null,
+    "card_mask": null,
+    "auth_code": null,
+    "rrn": null,
+    "commission": null,
+    "terminal_name": null,
+    "created_at": "2025-05-21T13:06:15.514363+00:00",
+    "updated_at": "2025-05-21T13:06:15.514363+00:00"
+}
+поля записываем в json файл
+"status": "CREATED",
+"id": "dff8a419-d4cb-4fa7-9536-828d02d987a1",
+"created_at": "2025-05-21T13:06:15.514363+00:00",
+"updated_at": "2025-05-21T13:06:15.514363+00:00"

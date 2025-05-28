@@ -149,20 +149,7 @@ def generate_component_config(
                         "password": config.get("postgres", {}).get("password", ""),
                         "db": config.get("postgres", {}).get("db", ""),
                     },
-                    "monobank": config.get("monobank", {}),
-                }
-            )
-        elif component == "payment_service":
-            component_config.update(
-                {
-                    "portmone": config.get("portmone", {}),
-                    "postgres": {
-                        "host": config.get("postgres", {}).get("host", "postgres"),
-                        "port": config.get("postgres", {}).get("port", 5432),
-                        "user": config.get("postgres", {}).get("user", ""),
-                        "password": config.get("postgres", {}).get("password", ""),
-                        "db": config.get("postgres", {}).get("db", ""),
-                    },
+                    "checkbox": config.get("checkbox", {}),
                 }
             )
         elif component == "db":
@@ -180,12 +167,12 @@ def generate_component_config(
         # Вывод в нужный формат
         if output_format == "json":
             output_file = f"{component_dir}/{component}_config.json"
-            with open(output_file, "w") as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 json.dump(component_config, f, indent=4)
         elif output_format == "env":
             output_file = f"{component_dir}/.env"
             flat_config = flatten_json(component_config)
-            with open(output_file, "w") as f:
+            with open(output_file, "w", encoding="utf-8") as f:
                 for key, value in flat_config.items():
                     if "." in key:
                         key = key.replace(".", "_")

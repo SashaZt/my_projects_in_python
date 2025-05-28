@@ -58,109 +58,109 @@ headers = {
 proxy_list = []
 
 
-def encode_ebay_special_chars(value):
-    """
-    Специальная функция кодирования для eBay, которая обрабатывает особые символы
-    так же, как это делает браузер на eBay.
+# def encode_ebay_special_chars(value):
+#     """
+#     Специальная функция кодирования для eBay, которая обрабатывает особые символы
+#     так же, как это делает браузер на eBay.
 
-    Args:
-        value (str): Исходная строка
+#     Args:
+#         value (str): Исходная строка
 
-    Returns:
-        str: Закодированная строка для eBay
-    """
-    # Предварительно заменяем специальные символы как на eBay
-    replacements = {
-        ".": "%252E",  # Точка кодируется как %252E в eBay
-        "/": "%252F",  # Слэш кодируется как %252F в eBay
-        "&": "%2526",  # Амперсанд кодируется особым образом
-        "+": "%252B",  # Плюс кодируется особым образом
-        "(": "%2528",  # Скобки кодируются особым образом
-        ")": "%2529",  # Скобки кодируются особым образом
-    }
+#     Returns:
+#         str: Закодированная строка для eBay
+#     """
+#     # Предварительно заменяем специальные символы как на eBay
+#     replacements = {
+#         ".": "%252E",  # Точка кодируется как %252E в eBay
+#         "/": "%252F",  # Слэш кодируется как %252F в eBay
+#         "&": "%2526",  # Амперсанд кодируется особым образом
+#         "+": "%252B",  # Плюс кодируется особым образом
+#         "(": "%2528",  # Скобки кодируются особым образом
+#         ")": "%2529",  # Скобки кодируются особым образом
+#     }
 
-    # Применяем замены
-    for char, replacement in replacements.items():
-        value = value.replace(char, replacement)
+#     # Применяем замены
+#     for char, replacement in replacements.items():
+#         value = value.replace(char, replacement)
 
-    # Заменяем пробелы на %2520 (двойное кодирование пробела в eBay)
-    value = value.replace(" ", "%2520")
+#     # Заменяем пробелы на %2520 (двойное кодирование пробела в eBay)
+#     value = value.replace(" ", "%2520")
 
-    return value
+#     return value
 
 
-def create_ebay_url(base_url, params, ebay_order=None):
-    """
-    Создает URL для eBay, точно соответствующий формату браузера.
+# def create_ebay_url(base_url, params, ebay_order=None):
+#     """
+#     Создает URL для eBay, точно соответствующий формату браузера.
 
-    Args:
-        base_url (str): Базовый URL без параметров
-        params (dict): Словарь параметров запроса
+#     Args:
+#         base_url (str): Базовый URL без параметров
+#         params (dict): Словарь параметров запроса
 
-    Returns:
-        str: Точно сформированный URL в формате eBay
-    """
-    # Стандартный порядок параметров в eBay
-    ebay_order = ["LH_ItemCondition", "Items Included", "Brand", "mag", "_pgn"]
+#     Returns:
+#         str: Точно сформированный URL в формате eBay
+#     """
+#     # Стандартный порядок параметров в eBay
+#     ebay_order = ["LH_ItemCondition", "Items Included", "Brand", "mag", "_pgn"]
 
-    # Преобразуем параметры в формат eBay
-    encoded_pairs = []
+#     # Преобразуем параметры в формат eBay
+#     encoded_pairs = []
 
-    for key in ebay_order:
-        if key in params:
-            # Кодируем ключи и значения в стиле eBay
-            if key == "Items Included":
-                encoded_key = "Items%2520Included"
-            else:
-                encoded_key = key
+#     for key in ebay_order:
+#         if key in params:
+#             # Кодируем ключи и значения в стиле eBay
+#             if key == "Items Included":
+#                 encoded_key = "Items%2520Included"
+#             else:
+#                 encoded_key = key
 
-            value = params[key]
+#             value = params[key]
 
-            # Кодируем значения с пробелами и специальными символами
-            if isinstance(value, str):
-                # Заменяем пробелы на %2520
-                encoded_value = value.replace(" ", "%2520")
+#             # Кодируем значения с пробелами и специальными символами
+#             if isinstance(value, str):
+#                 # Заменяем пробелы на %2520
+#                 encoded_value = value.replace(" ", "%2520")
 
-                # Заменяем специальные символы
-                encoded_value = encoded_value.replace(".", "%252E")
-                encoded_value = encoded_value.replace("/", "%252F")
-                encoded_value = encoded_value.replace("&", "%2526")
-                encoded_value = encoded_value.replace("+", "%252B")
-                encoded_value = encoded_value.replace("(", "%2528")
-                encoded_value = encoded_value.replace(")", "%2529")
-            else:
-                # Для числовых значений просто преобразуем в строку
-                encoded_value = str(value)
+#                 # Заменяем специальные символы
+#                 encoded_value = encoded_value.replace(".", "%252E")
+#                 encoded_value = encoded_value.replace("/", "%252F")
+#                 encoded_value = encoded_value.replace("&", "%2526")
+#                 encoded_value = encoded_value.replace("+", "%252B")
+#                 encoded_value = encoded_value.replace("(", "%2528")
+#                 encoded_value = encoded_value.replace(")", "%2529")
+#             else:
+#                 # Для числовых значений просто преобразуем в строку
+#                 encoded_value = str(value)
 
-            encoded_pairs.append(f"{encoded_key}={encoded_value}")
+#             encoded_pairs.append(f"{encoded_key}={encoded_value}")
 
-    # Добавляем оставшиеся параметры, которых нет в стандартном порядке
-    for key, value in params.items():
-        if key not in ebay_order:
-            # Кодируем значения с пробелами и специальными символами
-            if isinstance(value, str):
-                # Заменяем пробелы на %2520
-                encoded_value = value.replace(" ", "%2520")
+#     # Добавляем оставшиеся параметры, которых нет в стандартном порядке
+#     for key, value in params.items():
+#         if key not in ebay_order:
+#             # Кодируем значения с пробелами и специальными символами
+#             if isinstance(value, str):
+#                 # Заменяем пробелы на %2520
+#                 encoded_value = value.replace(" ", "%2520")
 
-                # Заменяем специальные символы
-                encoded_value = encoded_value.replace(".", "%252E")
-                encoded_value = encoded_value.replace("/", "%252F")
-                encoded_value = encoded_value.replace("&", "%2526")
-                encoded_value = encoded_value.replace("+", "%252B")
-                encoded_value = encoded_value.replace("(", "%2528")
-                encoded_value = encoded_value.replace(")", "%2529")
-            else:
-                # Для числовых значений просто преобразуем в строку
-                encoded_value = str(value)
+#                 # Заменяем специальные символы
+#                 encoded_value = encoded_value.replace(".", "%252E")
+#                 encoded_value = encoded_value.replace("/", "%252F")
+#                 encoded_value = encoded_value.replace("&", "%2526")
+#                 encoded_value = encoded_value.replace("+", "%252B")
+#                 encoded_value = encoded_value.replace("(", "%2528")
+#                 encoded_value = encoded_value.replace(")", "%2529")
+#             else:
+#                 # Для числовых значений просто преобразуем в строку
+#                 encoded_value = str(value)
 
-            encoded_pairs.append(f"{key}={encoded_value}")
+#             encoded_pairs.append(f"{key}={encoded_value}")
 
-    # Соединяем параметры в строку запроса
-    query_string = "&".join(encoded_pairs)
+#     # Соединяем параметры в строку запроса
+#     query_string = "&".join(encoded_pairs)
 
-    # Формируем полный URL
-    full_url = f"{base_url}?{query_string}"
-    return full_url
+#     # Формируем полный URL
+#     full_url = f"{base_url}?{query_string}"
+#     return full_url
 
 
 def load_proxies():
@@ -170,7 +170,7 @@ def load_proxies():
     global proxy_list
     try:
         if config_file.exists():
-            with open(config_file, "r") as f:
+            with open(config_file, "r", encoding="utf-8") as f:
                 config = json.load(f)
 
                 # Проверяем формат данных в config.json
@@ -241,10 +241,10 @@ def make_request_one_html(url):
     """
     Выполняет HTTP-запрос с автоматическими повторными попытками при ошибках.
     """
-    proxies = {
-        "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
-        "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
-    }
+    # proxies = {
+    #     "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+    #     "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
+    # }
     proxies = get_random_proxy()
     response = requests.get(
         url,
@@ -266,7 +266,7 @@ def load_progress():
 
     if progress_file.exists():
         try:
-            with open(progress_file, "r") as f:
+            with open(progress_file, "r", encoding="utf-8") as f:
                 progress = json.load(f)
                 logger.info("Загружена информация о прогрессе")
                 return progress
@@ -284,6 +284,84 @@ def load_progress():
     }
 
 
+def make_soup(src):
+    soup = BeautifulSoup(src, "lxml")
+    return soup
+
+
+def extract_filter_options(soup, filter_name):
+    """
+    Извлекает опции для указанного фильтра из HTML
+
+    Args:
+        soup (BeautifulSoup): Объект BeautifulSoup
+        filter_name (str): Название фильтра (Brand, Condition, Type и т.д.)
+
+    Returns:
+        list: Список словарей с данными опций
+    """
+    options = []
+
+    try:
+        # Ищем контейнер фильтра по названию
+        filter_containers = soup.find_all("span", class_="filter-menu-button")
+
+        target_container = None
+        for container in filter_containers:
+            # Ищем кнопку с нужным названием фильтра
+            filter_label = container.find("span", class_="filter-label")
+            if filter_label and filter_label.get_text().strip() == filter_name:
+                target_container = container
+                break
+
+        if not target_container:
+            print(f"Фильтр '{filter_name}' не найден")
+            return options
+
+        # Ищем все элементы опций в найденном контейнере
+        option_items = target_container.find_all("li", class_="brwr__inputs")
+
+        print(f"Найдено {len(option_items)} опций для фильтра '{filter_name}'")
+
+        for item in option_items:
+            # Ищем ссылку внутри элемента
+            link = item.find("a", class_="brwr__inputs__actions")
+            if not link:
+                continue
+
+            # Извлекаем URL
+            href = link.get("href")
+            if not href:
+                continue
+
+            # Извлекаем название опции
+            option_span = link.find("span", class_="textual-display")
+            if not option_span:
+                continue
+
+            option_name = option_span.get_text().strip()
+
+            # Очищаем URL от HTML entities
+            clean_url = href.replace("&amp;", "&")
+            base_url = clean_url.split("?")[0] if "?" in clean_url else clean_url
+
+            # Создаем словарь с данными опции
+            option_data = {
+                "name": option_name,
+                "base_url": base_url,
+                "full_url": clean_url,
+            }
+
+            options.append(option_data)
+            print(f"Найдена опция: {option_name} -> {base_url}")
+
+        return options
+
+    except Exception as e:
+        print(f"Ошибка при извлечении фильтра '{filter_name}': {str(e)}")
+        return []
+
+
 def save_progress(progress):
     """
     Сохраняет информацию о прогрессе скрапинга
@@ -291,7 +369,7 @@ def save_progress(progress):
     progress_file = progress_directory / "scraping_progress.json"
 
     try:
-        with open(progress_file, "w") as f:
+        with open(progress_file, "w", encoding="utf-8") as f:
             json.dump(progress, f, indent=4)
         # logger.info("Сохранена информация о прогрессе")
     except Exception as e:
@@ -467,157 +545,24 @@ def run_scraper(max_pages=None, threads=20, resume=True):
     )
 
     # Базовый URL (без параметров)
-    base_url = "https://www.ebay.com/b/Car-Truck-Additional-ABS-Parts/33560/bn_583684?rt=nc&mag=1&Items%2520Included=ABS%2520Accumulator"
-
-    # Список брендов (сокращен для примера, используйте полный список)
-    all_brands = [
-        # "1",
-        # "1&1",
-        "A.B.S.",
-        "AB Components",
-        "ABS",
-        "ABS Private Brand",
-        "ACDelco",
-        "ACDelco (OE)",
-        "Acura",
-        "ADVICS",
-        "Aftermarket Products",
-        "Aisin",
-        "Alfa Romeo",
-        "Alto",
-        "American Motors",
-        "AM General",
-        "Areyourshop",
-        "ASTON MARTIN",
-        "ATE",
-        "ATE/Premium One",
-        "ATI",
-        "ATS",
-        "Audi",
-        "Autopower",
-        "Autozone",
-        "Bendix",
-        "Bentley",
-        "BMW",
-        "Bosch",
-        "Brembo",
-        "Buick",
-        "Cadillac",
-        "CAR",
-        "Cherokee",
-        "Chevrolet",
-        "Chrysler",
-        "Citroën",
-        "Cooper",
-        "Corsa",
-        "Corvette",
-        "Cruiser",
-        "Cummins",
-        "Custom",
-        "Daewoo",
-        "Dart",
-        "Delco",
-        "Delphi",
-        "DENSO",
-        "Dodge",
-        "Dragon",
-        "Ducati",
-        "Edge",
-        "EVO",
-        "Factory/OEM",
-        "Factory Spec",
-        "Ferrari",
-        "Fiat",
-        "Fomoco",
-        "Ford",
-        "Ford Performance",
-        "Fusion",
-        "FWD",
-        "FWD Front Wheel Drive",
-        "Galaxy",
-        "General Motors",
-        "Genesis",
-        "GM",
-        "GMC",
-        "Haldex",
-        "Hella",
-        "Honda",
-        "Hummer",
-        "Hyundai",
-        "Infiniti",
-        "Jaguar",
-        "Jeep",
-        "Kia",
-        "Lamborghini",
-        "Land Rover",
-        "Legacy",
-        "Lexus",
-        "Lincoln",
-        "Mando",
-        "Maserati",
-        "Maxima",
-        "MaXpeedingRods",
-        "Mazda",
-        "Mazdaspeed",
-        "McLaren",
-        "Mercedes-Benz",
-        "Mercury",
-        "Merkur",
-        "Mini",
-        "Mitsubishi",
-        "Mitsuboshi",
-        "Mopar",
-        "Mustang",
-        "Nissan",
-        "Nissin",
-        "OE+",
-        "OE Brand",
-        "OEM",
-        "Oldsmobile",
-        "Opel",
-        "Pathfinder",
-        "Peugeot",
-        "Pilot",
-        "Plymouth",
-        "Pontiac",
-        "Porsche",
-        "Promaster",
-        "Ram",
-        "Range Rover",
-        "Renault",
-        "Rogue",
-        "Rolls-Royce",
-        "Rover",
-        "Saab",
-        "Saturn",
-        "Scion",
-        "Shark",
-        "Škoda",
-        "Smart",
-        "Speedmotor",
-        "Standard",
-        "Subaru",
-        "Suburban",
-        "Suburban Manufacturing",
-        "Sumitomo",
-        "Suzuki",
-        "Tesla",
-        "Toyota",
-        "Triumph",
-        "TRW",
-        "URO",
-        "VAG",
-        "Vauxhall",
-        "Visteon",
-        "Volkswagen",
-        "Volvo",
-        "WABCO",
-        "Western Star",
-        "Yamaha",
-        "Yukon",
-        "Unbranded",
-        "Not Specified",
+    base_url = (
+        "https://www.ebay.com/b/Car-Truck-ECUs-Computer-Modules/33596/bn_584314?mag=1"
+    )
+    response_text = make_request(base_url)
+    src = make_soup(response_text)
+    filters = [
+        "Brand",
+        "Condition",
+        "Price",
+        "Type",
+        "Brand Type",
+        "Programming Required",
+        "Country/Region of Manufacture",
+        "Buying Format",
     ]
+    all_brands = extract_filter_options(src, filters[:1])
+    for brand in all_brands:
+        url_brand = brand[brand]
 
     # Условия товаров
     conditions = ["1000", "2500", "3000"]
@@ -730,12 +675,6 @@ def run_scraper(max_pages=None, threads=20, resume=True):
                 # Цикл по страницам
                 next_url = None
                 while True:
-                    # Проверяем ограничение по максимальному количеству страниц
-                    if max_pages is not None and current_page > max_pages:
-                        logger.info(
-                            f"Достигнуто максимальное количество страниц ({max_pages})"
-                        )
-                        break
 
                     logger.info(f"Обработка страницы {current_page}...")
 
@@ -859,6 +798,429 @@ def run_scraper(max_pages=None, threads=20, resume=True):
     return unique_urls
 
 
+# # РАБОЧИЙ Код
+# def run_scraper(max_pages=None, threads=20, resume=True):
+#     """
+#     Основная функция для запуска скрапера, который сразу скачивает страницы товаров
+#     после обработки каждой страницы пагинации.
+
+#     Args:
+#         max_pages (int, optional): Максимальное количество страниц для каждой комбинации
+#         threads (int): Количество потоков для скачивания страниц товаров
+#         resume (bool): Продолжить с последнего сохраненного прогресса
+#     """
+#     # Загружаем прокси
+#     load_proxies()
+
+#     # Загружаем прогресс, если нужно
+#     progress = (
+#         load_progress()
+#         if resume
+#         else {
+#             "completed_brands": [],
+#             "current_brand": None,
+#             "completed_conditions": [],
+#             "current_condition": None,
+#             "completed_price_ranges": [],
+#             "current_price_range": None,
+#             "current_page": 1,
+#             "completed_urls": [],
+#         }
+#     )
+
+#     # Базовый URL (без параметров)
+#     base_url = "https://www.ebay.com/b/Car-Truck-Additional-ABS-Parts/33560/bn_583684?rt=nc&mag=1&Items%2520Included=ABS%2520Accumulator"
+
+#     # Список брендов (сокращен для примера, используйте полный список)
+#     all_brands = [
+#         # "1",
+#         # "1&1",
+#         "A.B.S.",
+#         "AB Components",
+#         "ABS",
+#         "ABS Private Brand",
+#         "ACDelco",
+#         "ACDelco (OE)",
+#         "Acura",
+#         "ADVICS",
+#         "Aftermarket Products",
+#         "Aisin",
+#         "Alfa Romeo",
+#         "Alto",
+#         "American Motors",
+#         "AM General",
+#         "Areyourshop",
+#         "ASTON MARTIN",
+#         "ATE",
+#         "ATE/Premium One",
+#         "ATI",
+#         "ATS",
+#         "Audi",
+#         "Autopower",
+#         "Autozone",
+#         "Bendix",
+#         "Bentley",
+#         "BMW",
+#         "Bosch",
+#         "Brembo",
+#         "Buick",
+#         "Cadillac",
+#         "CAR",
+#         "Cherokee",
+#         "Chevrolet",
+#         "Chrysler",
+#         "Citroën",
+#         "Cooper",
+#         "Corsa",
+#         "Corvette",
+#         "Cruiser",
+#         "Cummins",
+#         "Custom",
+#         "Daewoo",
+#         "Dart",
+#         "Delco",
+#         "Delphi",
+#         "DENSO",
+#         "Dodge",
+#         "Dragon",
+#         "Ducati",
+#         "Edge",
+#         "EVO",
+#         "Factory/OEM",
+#         "Factory Spec",
+#         "Ferrari",
+#         "Fiat",
+#         "Fomoco",
+#         "Ford",
+#         "Ford Performance",
+#         "Fusion",
+#         "FWD",
+#         "FWD Front Wheel Drive",
+#         "Galaxy",
+#         "General Motors",
+#         "Genesis",
+#         "GM",
+#         "GMC",
+#         "Haldex",
+#         "Hella",
+#         "Honda",
+#         "Hummer",
+#         "Hyundai",
+#         "Infiniti",
+#         "Jaguar",
+#         "Jeep",
+#         "Kia",
+#         "Lamborghini",
+#         "Land Rover",
+#         "Legacy",
+#         "Lexus",
+#         "Lincoln",
+#         "Mando",
+#         "Maserati",
+#         "Maxima",
+#         "MaXpeedingRods",
+#         "Mazda",
+#         "Mazdaspeed",
+#         "McLaren",
+#         "Mercedes-Benz",
+#         "Mercury",
+#         "Merkur",
+#         "Mini",
+#         "Mitsubishi",
+#         "Mitsuboshi",
+#         "Mopar",
+#         "Mustang",
+#         "Nissan",
+#         "Nissin",
+#         "OE+",
+#         "OE Brand",
+#         "OEM",
+#         "Oldsmobile",
+#         "Opel",
+#         "Pathfinder",
+#         "Peugeot",
+#         "Pilot",
+#         "Plymouth",
+#         "Pontiac",
+#         "Porsche",
+#         "Promaster",
+#         "Ram",
+#         "Range Rover",
+#         "Renault",
+#         "Rogue",
+#         "Rolls-Royce",
+#         "Rover",
+#         "Saab",
+#         "Saturn",
+#         "Scion",
+#         "Shark",
+#         "Škoda",
+#         "Smart",
+#         "Speedmotor",
+#         "Standard",
+#         "Subaru",
+#         "Suburban",
+#         "Suburban Manufacturing",
+#         "Sumitomo",
+#         "Suzuki",
+#         "Tesla",
+#         "Toyota",
+#         "Triumph",
+#         "TRW",
+#         "URO",
+#         "VAG",
+#         "Vauxhall",
+#         "Visteon",
+#         "Volkswagen",
+#         "Volvo",
+#         "WABCO",
+#         "Western Star",
+#         "Yamaha",
+#         "Yukon",
+#         "Unbranded",
+#         "Not Specified",
+#     ]
+
+#     # Условия товаров
+#     conditions = ["1000", "2500", "3000"]
+
+#     # Диапазоны цен
+#     price_ranges = [
+#         {"name": "low", "params": {"_udhi": "75"}},  # До 75 долларов
+#         {
+#             "name": "medium",
+#             "params": {"_udlo": "75", "_udhi": "150"},
+#         },  # От 75 до 150 долларов
+#         {"name": "high", "params": {"_udlo": "150"}},  # От 150 долларов и выше
+#     ]
+
+#     # Пропускаем уже обработанные бренды
+#     if progress["completed_brands"]:
+#         logger.info(
+#             f"Пропускаем {len(progress['completed_brands'])} обработанных брендов"
+#         )
+#         all_brands = [
+#             brand for brand in all_brands if brand not in progress["completed_brands"]
+#         ]
+
+#     # Если есть текущий бренд, начинаем с него
+#     if progress["current_brand"] and progress["current_brand"] in all_brands:
+#         start_index = all_brands.index(progress["current_brand"])
+#         all_brands = all_brands[start_index:]
+#         logger.info(f"Начинаем с бренда: {progress['current_brand']}")
+
+#     # Общий счетчик обработанных URL и страниц
+#     total_processed_urls = 0
+#     total_processed_pages = 0
+
+#     # Перебираем бренды
+#     for brand in all_brands:
+#         logger.info(f"Обработка бренда: {brand}")
+#         progress["current_brand"] = brand
+
+#         # Пропускаем уже обработанные условия для текущего бренда
+#         current_conditions = conditions
+#         if brand == progress["current_brand"] and progress["completed_conditions"]:
+#             logger.info(
+#                 f"Пропускаем {len(progress['completed_conditions'])} обработанных условий"
+#             )
+#             current_conditions = [
+#                 c for c in conditions if c not in progress["completed_conditions"]
+#             ]
+
+#         # Сбрасываем список обработанных условий для нового бренда
+#         if brand != progress["current_brand"]:
+#             progress["completed_conditions"] = []
+
+#         # Перебираем условия
+#         for condition in current_conditions:
+#             logger.info(f"Обработка состояния: {condition}")
+#             progress["current_condition"] = condition
+
+#             # Пропускаем уже обработанные ценовые диапазоны для текущего условия
+#             current_price_ranges = price_ranges
+#             if (
+#                 brand == progress["current_brand"]
+#                 and condition == progress["current_condition"]
+#                 and progress.get("completed_price_ranges")
+#             ):
+#                 logger.info(
+#                     f"Пропускаем {len(progress['completed_price_ranges'])} обработанных ценовых диапазонов"
+#                 )
+#                 current_price_ranges = [
+#                     pr
+#                     for pr in price_ranges
+#                     if pr["name"] not in progress["completed_price_ranges"]
+#                 ]
+
+#             # Сбрасываем список обработанных ценовых диапазонов для нового условия
+#             if condition != progress["current_condition"]:
+#                 progress["completed_price_ranges"] = []
+
+#             # Перебираем ценовые диапазоны
+#             for price_range in current_price_ranges:
+#                 logger.info(f"Обработка ценового диапазона: {price_range['name']}")
+#                 progress["current_price_range"] = price_range["name"]
+
+#                 # Базовые параметры запроса
+#                 params = {
+#                     "Brand": brand,
+#                     "Items Included": "ABS Pump",  # Используем пробелы вместо %20
+#                     "LH_ItemCondition": condition,
+#                     "mag": "1",
+#                 }
+
+#                 # Добавляем параметры ценового диапазона
+#                 params.update(price_range["params"])
+
+#                 # Устанавливаем начальную страницу
+#                 current_page = 1
+#                 if (
+#                     brand == progress["current_brand"]
+#                     and condition == progress["current_condition"]
+#                     and price_range["name"] == progress["current_price_range"]
+#                 ):
+#                     current_page = progress["current_page"]
+#                     logger.info(f"Начинаем с страницы {current_page}")
+#                 else:
+#                     progress["current_page"] = 1
+
+#                 # Для всех страниц, кроме первой, добавляем параметр пагинации
+#                 if current_page > 1:
+#                     params["_pgn"] = str(current_page)
+
+#                 # Цикл по страницам
+#                 next_url = None
+#                 while True:
+#                     # Проверяем ограничение по максимальному количеству страниц
+#                     if max_pages is not None and current_page > max_pages:
+#                         logger.info(
+#                             f"Достигнуто максимальное количество страниц ({max_pages})"
+#                         )
+#                         break
+
+#                     logger.info(f"Обработка страницы {current_page}...")
+
+#                     # На первой странице или при использовании программной навигации используем параметры
+#                     if next_url is None:
+#                         # Обрабатываем текущую страницу и получаем URL товаров
+#                         next_url, page_hrefs = scrape_page(base_url, params)
+#                     else:
+#                         # Если есть прямая ссылка на следующую страницу, используем её
+#                         next_url, page_hrefs = scrape_page(next_url)
+
+#                     # Увеличиваем счетчик обработанных страниц
+#                     total_processed_pages += 1
+
+#                     # Если на странице нашлись товары, сразу скачиваем их
+#                     if page_hrefs:
+#                         logger.info(
+#                             f"Найдено {len(page_hrefs)} ссылок на странице {current_page}. Начинаем загрузку..."
+#                         )
+#                         brand_safe = brand.replace("/", "_")
+#                         price_range_name = price_range["name"]
+
+#                         # Сохраняем URL для отчетности с указанием ценового диапазона
+#                         urls_df = pd.DataFrame(page_hrefs, columns=["href"])
+#                         file_name = f"urls_{brand_safe}_{condition}_{price_range_name}_page_{current_page}.csv"
+#                         output_path = data_directory / file_name
+#                         urls_df.to_csv(output_path, index=False)
+
+#                         # Запускаем многопоточную загрузку страниц товаров
+#                         success_count = get_product_th(page_hrefs, threads=threads)
+
+#                         # Добавляем успешно загруженные URL в список завершенных
+#                         progress["completed_urls"].extend(page_hrefs)
+
+#                         # Увеличиваем общий счетчик
+#                         total_processed_urls += success_count
+
+#                         logger.info(
+#                             f"Загружено {success_count}/{len(page_hrefs)} товаров со страницы {current_page}"
+#                         )
+#                         logger.info(
+#                             f"Всего обработано: {total_processed_urls} товаров, {total_processed_pages} страниц"
+#                         )
+#                     else:
+#                         logger.info(f"На странице {current_page} не найдено товаров")
+
+#                     # Сохраняем прогресс
+#                     progress["current_page"] = current_page
+#                     # save_progress(progress)
+
+#                     # Если есть следующий URL, продолжаем, иначе завершаем
+#                     if next_url:
+#                         current_page += 1
+
+#                         # Обновляем параметр страницы для программной навигации
+#                         if "_pgn" in params:
+#                             params["_pgn"] = str(current_page)
+#                         elif current_page > 1:
+#                             params["_pgn"] = str(current_page)
+
+#                         # Пауза между запросами с небольшой рандомизацией
+#                         delay = random.uniform(1.8, 3.2)
+#                         logger.info(f"Пауза перед следующим запросом: {delay:.2f} сек")
+#                         # time.sleep(delay)
+#                     else:
+#                         logger.info("Достигнут конец пагинации для текущей комбинации")
+#                         break
+
+#                 # Отмечаем ценовой диапазон как обработанный
+#                 if "completed_price_ranges" not in progress:
+#                     progress["completed_price_ranges"] = []
+#                 progress["completed_price_ranges"].append(price_range["name"])
+#                 progress["current_page"] = 1
+#                 # save_progress(progress)
+
+#                 logger.info(
+#                     f"Завершена обработка комбинации {brand}/{condition}/{price_range['name']}"
+#                 )
+
+#             # Отмечаем условие как обработанное
+#             progress["completed_conditions"].append(condition)
+#             progress["completed_price_ranges"] = []
+#             progress["current_page"] = 1
+#             # save_progress(progress)
+
+#             logger.info(f"Завершена обработка комбинации {brand}/{condition}")
+
+#         # Отмечаем бренд как обработанный
+#         progress["completed_brands"].append(brand)
+#         progress["completed_conditions"] = []
+#         progress["completed_price_ranges"] = []
+#         # save_progress(progress)
+
+#         logger.info(f"Завершена обработка бренда {brand}")
+
+#     logger.info(
+#         f"Скрапинг завершен. Обработано {total_processed_urls} товаров на {total_processed_pages} страницах."
+#     )
+
+#     # Объединяем все собранные URL для итогового отчета
+#     all_csv_files = list(data_directory.glob("urls_*.csv"))
+#     all_urls = []
+
+#     for file in all_csv_files:
+#         try:
+#             df = pd.read_csv(file)
+#             all_urls.extend(df["href"].tolist())
+#         except Exception as e:
+#             logger.error(f"Ошибка при чтении файла {file}: {str(e)}")
+
+#     # Удаляем дубликаты
+#     unique_urls = list(set(all_urls))
+
+#     # Сохраняем итоговый отчет
+#     final_df = pd.DataFrame(unique_urls, columns=["href"])
+#     final_path = data_directory / "all_urls_final.csv"
+#     final_df.to_csv(final_path, index=False)
+
+#     logger.info(f"Создан итоговый отчет с {len(unique_urls)} уникальными URL")
+
+#     return unique_urls
+
+
 def get_product_th(urls, threads=10):
     """
     Загружает страницы товаров в параллельном режиме.
@@ -915,8 +1277,10 @@ def get_product_th(urls, threads=10):
             # Выполняем запрос
             src = make_request_one_html(url)
             logger.info(f"файл {output_html_file}")
+
             # Сохраняем HTML в файл
-            output_html_file.write_text(src, encoding="utf-8")
+            # output_html_file.write_text(src, encoding="utf-8")
+
             result = scrap_online(src)
             if result:
                 with log_lock:
@@ -977,23 +1341,23 @@ def main(max_pages=None, threads=20, resume=True):
     logger.info("=== Шаг 1: Сбор URL товаров ===")
     all_urls = run_scraper(max_pages=max_pages, resume=resume)
 
-    # # Шаг 2: Если URL не собраны, пытаемся объединить существующие файлы
-    # if not all_urls:
-    #     logger.info("URL не были собраны, объединяем существующие файлы")
-    #     df = merge_collected_urls()
-    #     if not df.empty:
-    #         all_urls = df["href"].tolist()
+    # Шаг 2: Если URL не собраны, пытаемся объединить существующие файлы
+    if not all_urls:
+        logger.info("URL не были собраны, объединяем существующие файлы")
+        df = merge_collected_urls()
+        if not df.empty:
+            all_urls = df["href"].tolist()
 
-    # # Шаг 3: Скачиваем страницы товаров в многопоточном режиме
-    # if all_urls:
-    #     logger.info(f"=== Шаг 2: Скачивание {len(all_urls)} страниц товаров .===")
-    #     success_count = get_product_th(all_urls, threads=threads)
-    #     logger.info(f"Скачивание завершено: {success_count}/{len(all_urls)} успешно")
-    # else:
-    #     logger.warning("Нет URL для скачивания")
+    # Шаг 3: Скачиваем страницы товаров в многопоточном режиме
+    if all_urls:
+        logger.info(f"=== Шаг 2: Скачивание {len(all_urls)} страниц товаров .===")
+        success_count = get_product_th(all_urls, threads=threads)
+        logger.info(f"Скачивание завершено: {success_count}/{len(all_urls)} успешно")
+    else:
+        logger.warning("Нет URL для скачивания")
 
 
 if __name__ == "__main__":
-    # Пример запуска полного процесса
-    while True:
-        main(threads=20)
+    #     # Пример запуска полного процесса
+    # while True:
+    main(threads=1)

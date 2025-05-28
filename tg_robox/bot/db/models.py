@@ -128,27 +128,24 @@ class Order(Base):
 
 
 class Payment(Base):
-    """Модель для хранения информации о платежах"""
-
     __tablename__ = "payments"
 
     payment_id = Column(Integer, primary_key=True)
     order_id = Column(Integer, ForeignKey("orders.order_id"), unique=True)
     amount = Column(NUMERIC(10, 2), nullable=False)
-    status = Column(String(50), default="pending")  # pending, success, failed
+    status = Column(String(50), default="pending")
+    
+    # ДОБАВИТЬ эти поля, которые есть в БД:
     portmone_order_id = Column(String(255), nullable=True)
     payment_url = Column(String(512), nullable=True)
-    payment_data = Column(JSON, nullable=True)  # Дополнительные данные о платеже
+    payment_data = Column(JSON, nullable=True)  # В БД это JSONB
+    
     created_at = Column(TIMESTAMP, server_default=func.now())
     updated_at = Column(TIMESTAMP, onupdate=func.now())
     payment_date = Column(TIMESTAMP, nullable=True)
-
-    # Отношения с другими таблицами
+    
+    # Отношения
     order = relationship("Order", back_populates="payment")
-
-    def __repr__(self):
-        return f"<Payment(id={self.payment_id}, order_id={self.order_id}, status={self.status})>"
-
 
 # class Review(Base):
 #     """Модель для хранения отзывов пользователей"""

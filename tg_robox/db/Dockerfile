@@ -1,4 +1,4 @@
-#postger/Dockerfile
+#db/Dockerfile
 FROM postgres:17
 
 # Копируем скрипты инициализации

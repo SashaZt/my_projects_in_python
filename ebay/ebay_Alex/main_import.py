@@ -10,8 +10,8 @@ db_config = {
     "host": "localhost",
     "database": "ebay",
     "user": "ebay_user",
-    "password": "Pqm36q1kmcAlsVMIp2glEdfwNnj69X",
-    "port": 5432,
+    "password": "ebay_user",
+    "port": 5430,
 }
 
 

@@ -1,10 +1,10 @@
 services:
   # PostgreSQL сервис
-  db:
+  postgres:
     build:
       context: ./db
       dockerfile: Dockerfile
-    container_name: db
+    container_name: postgres
     # container_name: ${PROJECT_NAME:-tiktok-analytics}-postgres
     restart: unless-stopped
     environment:
@@ -15,7 +15,6 @@ services:
       PGDATA: ${PGDATA}
       # Параметры настройки производительности
       PG_MAX_CONNECTIONS: ${PG_MAX_CONNECTIONS}
-      PG_SHARED_BUFFERS: ${PG_SHARED_BUFFERS}
       PG_EFFECTIVE_CACHE_SIZE: ${PG_EFFECTIVE_CACHE_SIZE}
       PG_MAINTENANCE_WORK_MEM: ${PG_MAINTENANCE_WORK_MEM}
       PG_CHECKPOINT_COMPLETION_TARGET: ${PG_CHECKPOINT_COMPLETION_TARGET}
@@ -34,54 +33,57 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-crm_bts}" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-  # bot:
-  #   build:
-  #     context: ./parser
-  #     dockerfile: Dockerfile
-  #   container_name: parser
-  #   volumes:
-  #     - ./category:/app/category
-  #     - ./log:/app/log
-  #     - ./parser/config:/app/config
-  #   env_file:
-  #     - ./.env
-  #   environment:
-  #     - TZ=${TIMEZONE:-Europe/Kiev}
-  #   restart: unless-stopped
-  #   networks:
-  #     - app_network
-  # payment_service:
-  #   build:
-  #     context: ./payment_service
-  #     dockerfile: Dockerfile
-  #   container_name: payment_service
-  #   volumes:
-  #     - ./category:/app/category
-  #     - ./log/importer:/app/log
-  #     - ./importer/config:/app/config
-  #   env_file:
-  #     - ./.env
-  #   environment:
-  #     - TZ=${TIMEZONE:-Europe/Kiev}
-  #     - PYTHONPATH=/app
-  #     - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
-  #     - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-  #     - POSTGRES_USER=${POSTGRES_USER}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-  #     - POSTGRES_DB=${POSTGRES_DB}
-  #     - WATCH_DIR=category
-  #     - CHECK_INTERVAL=1800
-  #     - INITIAL_SCAN=true
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - postgres
-  #   networks:
-  #     - app_network
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: bot
+    # volumes:
+    #   - ./assets:/bot/assets
+    env_file:
+      - ./.env
+    environment:
+      - TZ=${TIMEZONE:-Europe/Kiev}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - WORKING_HOURS=08:30-22:30
+      - BOT_START_TIME=$(date +%Y-%m-%d_%H:%M:%S)
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy  
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import requests; requests.get(\"http://localhost:8000/health\", timeout=5)' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    # Ограничения ресурсов
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.2'
 
 networks:
   app_network:
     driver: bridge
+    # Настройки сети для изоляции
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

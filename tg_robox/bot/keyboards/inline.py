@@ -25,22 +25,6 @@ def get_products_keyboard(products: List[RobloxProduct]) -> InlineKeyboardMarkup
     return builder.as_markup()
 
 
-def get_payment_keyboard(product_id: int, amount: float) -> InlineKeyboardMarkup:
-    """Инлайн-клавиатура для подтверждения оплаты"""
-    builder = InlineKeyboardBuilder()
-
-    # Кнопка "Оплатить"
-    builder.add(
-        InlineKeyboardButton(
-            text="💳 Оплатити", callback_data=f"pay_{product_id}_{amount}"
-        )
-    )
-
-    # Кнопка "Назад"
-    builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products"))
-
-    return builder.as_markup()
-
 
 def get_payment_url_keyboard(url: str) -> InlineKeyboardMarkup:
     """Инлайн-клавиатура с URL для оплаты"""
@@ -82,9 +66,6 @@ def get_offer_agreement_keyboard() -> InlineKeyboardMarkup:
     )
     builder.add(InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu"))
     return builder.as_markup()
-
-
-# Добавьте эти функции в ваш файл keyboards/inline.py
 
 
 def get_admin_main_keyboard():
@@ -195,26 +176,6 @@ def get_review_keyboard(order_id: int) -> InlineKeyboardMarkup:
 
     return builder.as_markup()
 
-
-# def get_rating_keyboard() -> InlineKeyboardMarkup:
-#     """Инлайн-клавиатура для оценки сервиса"""
-#     builder = InlineKeyboardBuilder()
-
-#     # Кнопки от 1 до 5 звезд
-#     for rating in range(1, 6):
-#         stars = "⭐" * rating
-#         builder.add(InlineKeyboardButton(text=stars, callback_data=f"rating_{rating}"))
-
-#     # Размещаем кнопки в ряд
-#     builder.adjust(5)
-
-#     # Кнопка отмены
-#     builder.row(
-#         InlineKeyboardButton(text="❌ Скасувати", callback_data="cancel_review")
-#     )
-
-
-#     return builder.as_markup()
 def get_rating_keyboard() -> InlineKeyboardMarkup:
     """Инлайн-клавиатура для оценки сервиса"""
     builder = InlineKeyboardBuilder()
@@ -236,26 +197,29 @@ def get_rating_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-# keyboards/inline.py
-def get_payment_method_keyboard(product_id: int, price: float) -> InlineKeyboardMarkup:
-    """Инлайн-клавиатура для выбора способа оплаты"""
+def get_checkbox_payment_keyboard(payment_url: str) -> InlineKeyboardMarkup:
+    """Клавиатура для оплаты через Checkbox"""
     builder = InlineKeyboardBuilder()
+    
+    builder.add(
+        InlineKeyboardButton(text="💳 Оплатити", url=payment_url)
+    )
+    builder.add(
+        InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products")
+    )
+    
+    return builder.as_markup()
 
-    # Кнопки способов оплаты
-    builder.row(
+def get_payment_keyboard(product_id: int, amount: float) -> InlineKeyboardMarkup:
+    """Только Checkbox"""
+    builder = InlineKeyboardBuilder()
+    builder.add(
         InlineKeyboardButton(
-            text="💳 Оплатить через Telegram", callback_data=f"pay_{product_id}_{price}"
+            text="💳 Оплатити", 
+            callback_data=f"pay_checkbox_{product_id}_{amount}"
         )
     )
-
-    builder.row(
-        InlineKeyboardButton(
-            text="💳 Оплатить через Monobank",
-            callback_data=f"pay_mono_{product_id}_{price}",
-        )
+    builder.add(
+        InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products")
     )
-
-    # Кнопка "Назад"
-    builder.row(InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_products"))
-
     return builder.as_markup()
