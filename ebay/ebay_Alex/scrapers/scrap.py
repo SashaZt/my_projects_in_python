@@ -154,156 +154,181 @@ def get_returns(soup):
 
     return returns
 
-
 def get_shipping(soup):
-    # 6-7. Извлекаем информацию о доставке (Shipping и Delivery)
-    shipping_container = soup.find("div", {"data-testid": "d-shipping-minview"})
-    if not shipping_container:
-        # Резервный поиск по классу
-        shipping_container = soup.find("div", {"class": "vim d-shipping-minview"})
-
+    # Находим контейнер с информацией о доставке
+    shipping_container = soup.select_one("div.ux-labels-values--shipping")
+    
+    shipping = None
+    location = None
+    
     if shipping_container:
-        # Ищем Shipping внутри контейнера
-        shipping_block = shipping_container.find(
-            "div",
-            {
-                "data-testid": "ux-labels-values",
-                "class": lambda c: c and "ux-labels-values--shipping" in c,
-            },
-        )
-        if shipping_block:
-            shipping_content = shipping_block.find(
-                "div", {"class": "ux-labels-values__values-content"}
-            )
-            if shipping_content:
-                # Обрабатываем первую строку с ценой и методом доставки
-                first_line_parts = []
-                for span in shipping_content.select(
-                    "div:first-child > span.ux-textspans"
-                ):
-                    text = span.get_text(strip=True)
-                    if text and not text.startswith("See details"):
-                        first_line_parts.append(text)
-
-                # Обрабатываем вторую строку с информацией о местоположении
-                location_text = ""
-                location_span = shipping_content.select_one(
-                    "div:nth-child(2) > span.ux-textspans--SECONDARY"
-                )
-                if location_span:
-                    location_text = location_span.get_text(strip=True)
-
-                # Собираем всю информацию о доставке
-                shipping_info = []
-                if first_line_parts:
-                    shipping_info.append(" ".join(first_line_parts))
-                if location_text:
-                    shipping_info.append(location_text)
-
-                # Ищем информацию о комбинированной доставке
-                combined_shipping = shipping_container.find(
-                    "span",
-                    string=lambda s: s and "Save on combined shipping" in s,
-                )
-                if combined_shipping:
-                    shipping_info.append("Save on combined shipping")
-
-                shipping = ", ".join(shipping_info)
+        # Извлекаем информацию о доставке (первый div)
+        shipping_spans = shipping_container.select("div.ux-labels-values__values-content > div:first-child > span.ux-textspans")
+        if shipping_spans:
+            shipping_info = []
+            for span in shipping_spans:
+                text = span.get_text(strip=True)
+                if text and not text.startswith("See details"):
+                    shipping_info.append(text)
+            shipping = " ".join(shipping_info) if shipping_info else None
+            # logger.info(f"Shipping: {shipping}")
+        
+        # Извлекаем информацию о местоположении (второй div)
+        location_span = shipping_container.select_one("div.ux-labels-values__values-content > div:nth-child(2) > span.ux-textspans--SECONDARY")
+        if location_span:
+            location_text = location_span.get_text(strip=True)
+            # Убираем префикс "Located in: " если он есть
+            if location_text.startswith("Located in: "):
+                location = location_text.replace("Located in: ", "")
             else:
-                shipping = None
-        else:
-            shipping = None
+                location = location_text
+            # logger.info(f"Location: {location}")
+    
+    return shipping, location
+# def get_shipping(soup):
+#     # 6-7. Извлекаем информацию о доставке (Shipping и Delivery)
+#     shipping_container = soup.find("div", {"data-testid": "d-shipping-minview"})
+#     if not shipping_container:
+#         # Резервный поиск по классу
+#         shipping_container = soup.find("div", {"class": "vim d-shipping-minview"})
+#         if shipping_container:
+#             # Ищем Shipping внутри контейнера
+#             shipping_block = shipping_container.find(
+#                 "div",
+#                 {
+#                     "data-testid": "ux-labels-values",
+#                     "class": lambda c: c and "ux-labels-values--shipping" in c,
+#                 },
+#             )
+#             location = None
+#             if shipping_block:
+#                 shipping_content = shipping_block.find(
+#                     "div", {"class": "ux-labels-values__values-content"}
+#                 )
+#                 if shipping_content:
+#                     # Обрабатываем первую строку с информацией о доставке
+#                     shipping_info = []
+#                     for span in shipping_content.select("div:first-child > span.ux-textspans"):
+#                         text = span.get_text(strip=True)
+#                         if text and not text.startswith("See details"):
+#                             shipping_info.append(text)
 
-        # Обработка информации о доставке (Delivery)
-        delivery_block = shipping_container.find(
-            "div", {"class": "ux-labels-values--deliverto"}
-        )
+#                     # Формируем строку доставки
+#                     shipping = " ".join(shipping_info) if shipping_info else None
 
-        if delivery_block:
-            delivery_content_div = delivery_block.find(
-                "div", {"class": "ux-labels-values__values-content"}
-            )
-            if delivery_content_div:
-                delivery_info = []
+#                     # Обрабатываем информацию о местоположении
+#                     location = None
+#                     location_span = shipping_content.select_one("div:nth-child(2) > span.ux-textspans--SECONDARY")
+#                     if location_span:
+#                         location = location_span.get_text(strip=True)
 
-                # Первая строка - даты доставки
-                first_div = delivery_content_div.find("div")
+#                     # Ищем информацию о комбинированной доставке
+#                     combined_shipping = shipping_container.find(
+#                         "span",
+#                         string=lambda s: s and "Save on combined shipping" in s,
+#                     )
+#                     if combined_shipping and shipping:
+#                         shipping += ", Save on combined shipping"
+#                     elif combined_shipping:
+#                         shipping = "Save on combined shipping"
 
-                if first_div:
-                    delivery_text = ""
+#                 else:
+#                     shipping = None
+#                     location = None
+#             else:
+#                 shipping = None
 
-                    # Ищем основной текст и выделенные даты
-                    main_spans = first_div.find_all(
-                        "span", {"class": "ux-textspans"}, recursive=False
-                    )
+#         # # Обработка информации о доставке (Delivery)
+#         # delivery_block = shipping_container.find(
+#         #     "div", {"class": "ux-labels-values--deliverto"}
+#         # )
 
-                    # Собираем текст и даты
-                    for span in main_spans:
-                        # Исключаем span-элементы, содержащие информационный всплывающий блок
-                        if "ux-textspans__custom-view" not in span.get(
-                            "class", []
-                        ) and not span.has_attr("role"):
-                            delivery_text += span.get_text(strip=True) + " "
+#         # if delivery_block:
+#         #     delivery_content_div = delivery_block.find(
+#         #         "div", {"class": "ux-labels-values__values-content"}
+#         #     )
+#         #     if delivery_content_div:
+#         #         delivery_info = []
 
-                    if delivery_text.strip():
-                        delivery_info.append(delivery_text.strip())
+#         #         # Первая строка - даты доставки
+#         #         first_div = delivery_content_div.find("div")
 
-                # Вторая строка - примечание о сроках
-                second_div = (
-                    delivery_content_div.find_all("div")[1]
-                    if len(delivery_content_div.find_all("div")) > 1
-                    else None
-                )
-                if second_div:
-                    notes = []
-                    for span in second_div.find_all(
-                        "span",
-                        {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
-                    ):
-                        notes.append(span.get_text(strip=True))
+#         #         if first_div:
+#         #             delivery_text = ""
 
-                    if notes:
-                        delivery_info.append(" ".join(notes))
+#         #             # Ищем основной текст и выделенные даты
+#         #             main_spans = first_div.find_all(
+#         #                 "span", {"class": "ux-textspans"}, recursive=False
+#         #             )
 
-                # Третья строка - информация об отправке
-                third_div = (
-                    delivery_content_div.find_all("div")[2]
-                    if len(delivery_content_div.find_all("div")) > 2
-                    else None
-                )
-                if third_div:
-                    shipping_info = []
+#         #             # Собираем текст и даты
+#         #             for span in main_spans:
+#         #                 # Исключаем span-элементы, содержащие информационный всплывающий блок
+#         #                 if "ux-textspans__custom-view" not in span.get(
+#         #                     "class", []
+#         #                 ) and not span.has_attr("role"):
+#         #                     delivery_text += span.get_text(strip=True) + " "
 
-                    # Собираем текст из всех span элементов
-                    for span in third_div.find_all(
-                        "span",
-                        {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
-                    ):
-                        shipping_info.append(span.get_text(strip=True))
+#         #             if delivery_text.strip():
+#         #                 delivery_info.append(delivery_text.strip())
 
-                    # Собираем текст из всех ссылок
-                    for link in third_div.find_all("a"):
-                        span = link.find(
-                            "span",
-                            {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
-                        )
-                        if span:
-                            shipping_info.append(span.get_text(strip=True))
+#         #         # Вторая строка - примечание о сроках
+#         #         second_div = (
+#         #             delivery_content_div.find_all("div")[1]
+#         #             if len(delivery_content_div.find_all("div")) > 1
+#         #             else None
+#         #         )
+#         #         if second_div:
+#         #             notes = []
+#         #             for span in second_div.find_all(
+#         #                 "span",
+#         #                 {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
+#         #             ):
+#         #                 notes.append(span.get_text(strip=True))
 
-                    if shipping_info:
-                        delivery_info.append(" ".join(shipping_info))
+#         #             if notes:
+#         #                 delivery_info.append(" ".join(notes))
 
-                # Собираем всю информацию в одну строку с разделителями
-                delivery = ", ".join(delivery_info)
-            else:
-                delivery = None
-        else:
-            delivery = None
-    else:
-        shipping = None
-        delivery = None
+#         #         # Третья строка - информация об отправке
+#         #         third_div = (
+#         #             delivery_content_div.find_all("div")[2]
+#         #             if len(delivery_content_div.find_all("div")) > 2
+#         #             else None
+#         #         )
+#         #         if third_div:
+#         #             shipping_info = []
 
-    return shipping, delivery
+#         #             # Собираем текст из всех span элементов
+#         #             for span in third_div.find_all(
+#         #                 "span",
+#         #                 {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
+#         #             ):
+#         #                 shipping_info.append(span.get_text(strip=True))
+
+#         #             # Собираем текст из всех ссылок
+#         #             for link in third_div.find_all("a"):
+#         #                 span = link.find(
+#         #                     "span",
+#         #                     {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
+#         #                 )
+#         #                 if span:
+#         #                     shipping_info.append(span.get_text(strip=True))
+
+#         #             if shipping_info:
+#         #                 delivery_info.append(" ".join(shipping_info))
+
+#         #         # Собираем всю информацию в одну строку с разделителями
+#         #         delivery = ", ".join(delivery_info)
+#         #     else:
+#         #         delivery = None
+#         # else:
+#         #     delivery = None
+#     else:
+#         shipping = None
+#         location = None
+
+#     # return shipping, delivery
+#     return shipping, location
 
 
 def get_specifications(soup):
@@ -688,7 +713,7 @@ def scrap_online(src, brand_directory):
         "url_image_3",
         "returns",
         "shipping",
-        "delivery",
+        "location",
         "Condition",
         "Vehicle VIN",
         "Model",
@@ -741,10 +766,10 @@ def scrap_online(src, brand_directory):
                 product_data["filename"] = f"{product_id}.html"
             else:
                 product_data["product_id"] = None
-                logger.warning("Не удалось извлечь product_id из URL")
+                # logger.warning("Не удалось извлечь product_id из URL")
         else:
             product_data["product_id"] = None
-            logger.warning("URL товара не найден")
+            # logger.warning("URL товара не найден")
 
         # Парсим остальные данные
         breadcrumb = get_breadcrumbList(soup)
@@ -758,8 +783,8 @@ def scrap_online(src, brand_directory):
 
         # Извлекаем изображения
         images = extract_image_urls(soup)
-        if not images:
-            logger.warning(f"Изображения не найдены, {product_url}")
+        # if not images:
+            # logger.warning(f"Изображения не найдены, {product_url}")
         product_data["url_image_1"] = images[0] if len(images) > 0 else ""
         product_data["url_image_2"] = images[1] if len(images) > 1 else ""
         product_data["url_image_3"] = images[2] if len(images) > 2 else ""
@@ -767,9 +792,11 @@ def scrap_online(src, brand_directory):
         product_returns = get_returns(soup)
         product_data["returns"] = product_returns
 
-        shipping, delivery = get_shipping(soup)
+        # shipping, delivery = get_shipping(soup)
+        shipping, location = get_shipping(soup)
         product_data["shipping"] = shipping
-        product_data["delivery"] = delivery
+        product_data["location"] = location
+        # product_data["delivery"] = delivery
 
         specifications = get_specifications(soup)
 
@@ -803,10 +830,10 @@ def scrap_online(src, brand_directory):
             with open(json_filename, "w", encoding="utf-8") as json_file:
                 json.dump(filtered_product, json_file, ensure_ascii=False, indent=4)
 
-            logger.info(f"Данные товара {product_id} сохранены в {json_filename}")
+            # logger.info(f"Данные товара {product_id} сохранены в {json_filename}")
 
         return True
 
     except Exception as e:
-        logger.error(f"Ошибка при парсинге HTML контента: {str(e)}")
+        # logger.error(f"Ошибка при парсинге HTML контента: {str(e)}")
         return None

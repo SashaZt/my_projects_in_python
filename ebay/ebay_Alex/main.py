@@ -1,45 +1,42 @@
 import concurrent.futures
-import hashlib
 import json
-import queue
 import random
 import re
-import threading
 import time
 from pathlib import Path
 from threading import Lock
-from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
-
+import argparse
 import pandas as pd
 import requests
+import urllib3
 from bs4 import BeautifulSoup
-from logger import logger
+from config.logger import logger
 from requests.exceptions import HTTPError
+from scrap import scrap_online
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+# Инициализация директорий
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
 config_directory = current_directory / "config"
-data_directory.mkdir(parents=True, exist_ok=True)
+progress_directory = current_directory / "progress"
+temp_directory = current_directory / "temp"
+xlsx_directory = temp_directory / "xlsx"
+json_directory = temp_directory / "json"
+
+html_directory = temp_directory / "html"
+config_directory = current_directory / "config"
+temp_directory.mkdir(parents=True, exist_ok=True)
+json_directory.mkdir(parents=True, exist_ok=True)
 config_directory.mkdir(parents=True, exist_ok=True)
-html_directory = current_directory / "html"
-html_directory.mkdir(parents=True, exist_ok=True)
+
 
 config_file = config_directory / "config.json"
 
-cookies = {
-    "__uzma": "48f63d0a-8f14-443b-8715-fcdba0ef603b",
-    "__uzmb": "1728902698",
-    "__uzme": "0335",
-    "__uzmc": "256671941755",
-    "__uzmd": "1742639115",
-    "__uzmf": "7f600064f0eb3a-c548-42ca-b2b7-28f9559755a4172890269899113736416513-2a38b34a491a6dcd19",
-    "AMP_MKTG_f93443b04c": "JTdCJTIycmVmZXJyZXIlMjIlM0ElMjJodHRwcyUzQSUyRiUyRnd3dy5nb29nbGUuY29tJTJGJTIyJTJDJTIycmVmZXJyaW5nX2RvbWFpbiUyMiUzQSUyMnd3dy5nb29nbGUuY29tJTIyJTdE",
-    "AMP_f93443b04c": "JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI1NWQ1NmQxMi1mOThiLTQ5MGEtYTUzMi00ZjEyZThiZTJkMGYlMjIlMkMlMjJzZXNzaW9uSWQlMjIlM0ExNzQyNjM5MTE3MDMyJTJDJTIyb3B0T3V0JTIyJTNBZmFsc2UlMkMlMjJsYXN0RXZlbnRUaW1lJTIyJTNBMTc0MjYzOTExNzA1NCUyQyUyMmxhc3RFdmVudElkJTIyJTNBMiUyQyUyMnBhZ2VDb3VudGVyJTIyJTNBMSU3RA==",
-    "dp1": "bbl/UA6ba0f710^",
-    "nonsession": "BAQAAAZRXz2gmAAaAADMABWm/w5AyMTAwMADKACBroPcQOGFhMTk4MGYxOTIwYTZmMTZlM2QyZjUwZmZiNTE4YTYAywABZ96XGDbYNiX16bk46kVFvzpbH3uSlWh5Iw**",
-}
-
+# Заголовки HTTP-запросов
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "accept-language": "ru,en;q=0.9,uk;q=0.8",
@@ -58,21 +55,17 @@ headers = {
     "upgrade-insecure-requests": "1",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
 }
-
+# Глобальный список прокси
 proxy_list = []
 
 
 def load_proxies():
-    """
-    Загружает список прокси-серверов из config.json
-    """
+    """Загружает список прокси-серверов из config.json"""
     global proxy_list
     try:
         if config_file.exists():
-            with open(config_file, "r") as f:
+            with open(config_file, "r", encoding="utf-8") as f:
                 config = json.load(f)
-
-                # Проверяем формат данных в config.json
                 if "proxy_server" in config and isinstance(
                     config["proxy_server"], list
                 ):
@@ -89,477 +82,556 @@ def load_proxies():
 
 
 def get_random_proxy():
-    """
-    Возвращает случайный прокси из списка
-    """
+    """Возвращает случайный прокси из списка"""
     if not proxy_list:
         return None
-
     proxy_url = random.choice(proxy_list)
-    # Удаляем лишние пробелы в URL прокси (если они есть)
     proxy_url = proxy_url.strip()
-
     return {"http": proxy_url, "https": proxy_url}
 
 
-# Декоратор для повторных попыток
-# Декоратор для повторных попыток
 @retry(
-    stop=stop_after_attempt(10),  # Максимум 10 попыток
-    wait=wait_fixed(10),  # Задержка 10 секунд между попытками
-    retry=retry_if_exception_type(HTTPError),  # Повторять при HTTPError
+    stop=stop_after_attempt(10),
+    wait=wait_fixed(10),
+    retry=retry_if_exception_type(
+        (HTTPError, requests.exceptions.ConnectionError, requests.exceptions.Timeout)
+    ),
 )
-def make_request(url, params=None):
-    """
-    Выполняет HTTP-запрос с автоматическими повторными попытками при ошибках.
-    """
-    # Получаем случайный прокси
-    proxies = get_random_proxy()
-    logger.info(proxies)
-    response = requests.get(
-        url,
-        proxies=proxies,
-        params=params,
-        headers=headers,
-        cookies=cookies,
-        timeout=30,
-    )
-    response.raise_for_status()  # Вызывает HTTPError, если статус не 200
+def make_request(url):
+    """Выполняет HTTP-запрос"""
+    try:
+        proxies = get_random_proxy()
+        response = requests.get(
+            url,
+            # cook/ies=cookies,
+            proxies=proxies,
+            headers=headers,
+            timeout=30,
+            verify=False,
+        )
+        response.raise_for_status()
+        return response.text
+    except requests.exceptions.ProxyError as e:
+        logger.error(f"❌ Ошибка прокси для {url}: {e}")
+        raise
 
-    return response.text
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"❌ Ошибка соединения {url}: {e}")
+        raise
+
+    except requests.exceptions.Timeout as e:
+        logger.error(f"❌ Таймаут запроса {url}: {e}")
+        raise
+
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"❌ HTTP ошибка {url}: {e}")
+        raise
+
+    except Exception as e:
+        logger.error(f"❌ Неожиданная ошибка запроса {url}: {e}")
+        raise
 
 
-def get_pagination(max_pages=None):
+def make_soup(html_content):
+    """Создает BeautifulSoup объект"""
+    return BeautifulSoup(html_content, "lxml")
+
+
+def extract_filter_options(soup, filter_name):
+    """Извлекает опции для указанного фильтра"""
+    options = []
+    try:
+        table = soup.find("section", attrs={"id": "brw-refinement-root"})
+        filter_containers = table.find_all("span", class_="filter-menu-button")
+
+        target_container = None
+        for container in filter_containers:
+            filter_label = container.find("span", class_="filter-label")
+            if filter_label and filter_label.get_text().strip() == filter_name:
+                target_container = container
+                break
+
+        if not target_container:
+            logger.warning(f"⚠️  Фильтр '{filter_name}' не найден")
+            return options
+
+        option_items = target_container.find_all("li", class_="brwr__inputs")
+        logger.info(f"📋 Найдено {len(option_items)} опций для фильтра '{filter_name}'")
+
+        for item in option_items:
+            link = item.find("a", class_="brwr__inputs__actions")
+            if not link:
+                continue
+
+            href = link.get("href")
+            if not href:
+                continue
+
+            option_span = link.find("span", class_="textual-display")
+            if not option_span:
+                continue
+
+            option_name = option_span.get_text().strip()
+            clean_url = href.replace("&amp;", "&")
+
+            options.append({"name": option_name, "url": clean_url})
+
+        return options
+    except Exception as e:
+        logger.error(f"❌ Ошибка при извлечении фильтра '{filter_name}': {e}")
+        return []
+
+
+def get_results_count(soup):
+    """Извлекает количество результатов со страницы"""
+    try:
+        count_element = soup.find("h2", class_="textual-display brw-controls__count")
+
+        if not count_element:
+            count_element = soup.find("span", class_="brw-controls__count")
+
+        if count_element:
+            count_text = count_element.get_text()
+            match = re.search(r"([\d,]+)", count_text)
+            if match:
+                count_str = match.group(1).replace(",", "")
+                count = int(count_str)
+                return count
+
+        return 0
+    except Exception as e:
+        logger.error(f"❌ Ошибка при извлечении количества: {e}")
+        return 0
+
+
+def get_final_segment_urls(url, applied_filters=None, max_results=10000):
     """
-    Функция для сбора ссылок с пагинацией с заданным максимальным количеством страниц
+    Рекурсивно разбивает URL на сегменты ≤ max_results
+    Создает папки для брендов
 
     Args:
-        max_pages (int, optional): Максимальное количество страниц для обхода.
-                                   None означает без ограничений.
+        url (str): URL для проверки
+        applied_filters (list): Уже примененные фильтры
+        max_results (int): Максимальное количество результатов в сегменте
+
+    Yields:
+        tuple: (url, brand_name) - Финальные URL с товарами и название бренда
+    """
+    if applied_filters is None:
+        applied_filters = []
+
+    filter_path = " → ".join(applied_filters) if applied_filters else "Базовая страница"
+    logger.info(f"🔍 Проверяем: {filter_path}")
+
+    # Загружаем страницу
+    response_text = make_request(url)
+    if not response_text:
+        return
+
+    soup = make_soup(response_text)
+    count = get_results_count(soup)
+
+    logger.info(f"📊 Результатов: {count:,}")
+
+    # Если результатов приемлемо - возвращаем URL с информацией о бренде
+    if count <= max_results:
+        logger.info(f"✅ Готовый сегмент: {count:,} результатов")
+
+        # Определяем бренд из примененных фильтров
+        brand_name = "no_brand"
+        for filter_item in applied_filters:
+            if filter_item.startswith("Brand: "):
+                brand_name = filter_item.replace("Brand: ", "").strip()
+                # Очищаем имя бренда от недопустимых символов для папки
+                brand_name = re.sub(r'[<>:"/\\|?*]', "_", brand_name)
+                break
+
+        yield url, brand_name
+        return
+
+    # Применяем дополнительную фильтрацию
+    logger.info(
+        f"⚠️  Много результатов ({count:,} > {max_results:,}). Применяем фильтрацию."
+    )
+
+    filters_sequence = [
+        "Brand",
+        "Condition",
+        "Price",
+        "Type",
+        "Brand Type",
+        "Programming Required",
+        "Country/Region of Manufacture",
+    ]
+
+    # Находим следующий фильтр
+    next_filter = None
+    for filter_name in filters_sequence:
+        if not any(filter_name in af for af in applied_filters):
+            next_filter = filter_name
+            break
+
+    if not next_filter:
+        logger.warning(
+            f"⚠️  Все фильтры применены, но результатов {count:,}. Возвращаем как есть."
+        )
+
+        # Определяем бренд из примененных фильтров
+        brand_name = "no_brand"
+        for filter_item in applied_filters:
+            if filter_item.startswith("Brand: "):
+                brand_name = filter_item.replace("Brand: ", "").strip()
+                brand_name = re.sub(r'[<>:"/\\|?*]', "_", brand_name)
+                break
+
+        yield url, brand_name
+        return
+
+    logger.info(f"🎯 Применяем фильтр: {next_filter}")
+
+    # Извлекаем опции фильтра
+    filter_options = extract_filter_options(soup, next_filter)
+
+    if not filter_options:
+        logger.error(f"❌ Не удалось извлечь опции для '{next_filter}'")
+
+        # Определяем бренд из примененных фильтров
+        brand_name = "no_brand"
+        for filter_item in applied_filters:
+            if filter_item.startswith("Brand: "):
+                brand_name = filter_item.replace("Brand: ", "").strip()
+                brand_name = re.sub(r'[<>:"/\\|?*]', "_", brand_name)
+                break
+
+        yield url, brand_name
+        return
+
+    # Рекурсивно обрабатываем каждую опцию
+    for i, option in enumerate(filter_options):
+        option_name = option["name"]
+        option_url = option["url"]
+
+        logger.info(f"📌 Опция {i+1}/{len(filter_options)}: {option_name}")
+
+        new_applied_filters = applied_filters + [f"{next_filter}: {option_name}"]
+
+        # Рекурсивно получаем URL из этой опции
+        yield from get_final_segment_urls(option_url, new_applied_filters, max_results)
+
+
+def scrape_page(full_url, params=None):
+    """
+    Обрабатывает одну страницу и извлекает ссылки на товары
+
+    Args:
+        url (str): Базовый URL страницы
+        params (dict): Параметры запроса
 
     Returns:
-        list: Список собранных ссылок
+        tuple: (next_url, page_hrefs) - URL следующей страницы и список найденных ссылок
     """
-    # Список для хранения всех href
-    all_hrefs = []
-    load_proxies()
+    page_hrefs = []
 
-    def scrape_page(url, params):
-        try:
-            src = make_request(url, params=params)
-            soup = BeautifulSoup(src, "lxml")
+    try:
 
-            # Ищем структурированные данные JSON-LD
-            json_ld_scripts = soup.find_all("script", {"type": "application/ld+json"})
+        logger.info(f"Запрашиваем: {full_url}")
 
-            # Обрабатываем каждый блок JSON-LD
-            for script in json_ld_scripts:
-                try:
-                    # Извлекаем JSON-данные из тега script
-                    json_data = json.loads(script.string)
+        # Выполняем запрос
+        src = make_request(full_url)
+        soup = BeautifulSoup(src, "lxml")
 
-                    # Проверяем, есть ли данные о товарах
-                    if (
-                        "about" in json_data
-                        and "offers" in json_data["about"]
-                        and "itemOffered" in json_data["about"]["offers"]
-                    ):
-                        # Извлекаем список товаров
-                        items = json_data["about"]["offers"]["itemOffered"]
+        # Ищем структурированные данные JSON-LD
+        json_ld_scripts = soup.find_all("script", {"type": "application/ld+json"})
 
-                        # Перебираем товары и извлекаем URL
-                        for item in items:
-                            if "url" in item:
-                                # Очищаем URL от параметров отслеживания, если необходимо
-                                item_url = item["url"]
-                                if "?" in item_url:
-                                    url = item_url.split("?")[0]
-                                    all_hrefs.append(url)
-                                else:
-                                    all_hrefs.append(item_url)
+        # Обрабатываем каждый блок JSON-LD
+        for script in json_ld_scripts:
+            try:
+                # Извлекаем JSON-данные из тега script
+                json_data = json.loads(script.string)
 
-                                # logger.debug(
-                                #     f"Найден товар из JSON-LD: {item.get('name', 'Без имени')} - {item_url}"
-                                # )
-                except json.JSONDecodeError:
-                    logger.warning("Не удалось разобрать JSON-LD")
-                    continue
+                # Проверяем, есть ли данные о товарах
+                if (
+                    "about" in json_data
+                    and "offers" in json_data["about"]
+                    and "itemOffered" in json_data["about"]["offers"]
+                ):
+                    # Извлекаем список товаров
+                    items = json_data["about"]["offers"]["itemOffered"]
 
-            # Если из JSON-LD не удалось получить товары, пробуем обычные способы
-            if not all_hrefs:
-                # Ищем основной блок с товарами
-                main_section = soup.find("section", {"class": "brw-river"})
-
-                if main_section:
-                    # Пробуем разные селекторы для поиска ссылок на товары
-                    items = []
-
-                    # Стратегия 1: Стандартные ссылки товаров
-                    items = main_section.select("a.s-item__link")
-
-                    # Стратегия 2: Ссылки в информационных блоках
-                    if not items:
-                        items = main_section.select("div.s-item__info a")
-
-                    # Стратегия 3: Ссылки в карточках товаров
-                    if not items:
-                        items = main_section.select(
-                            "li.brwrvr__item-card a.bsig__title__wrapper"
-                        )
-
-                    # Стратегия 4: Поиск span с классом bsig__title и получение родительской ссылки
-                    if not items:
-                        title_spans = main_section.select("span.bsig__title")
-                        items = [
-                            span.parent
-                            for span in title_spans
-                            if span.parent.name == "a"
-                        ]
-
-                    # Собираем все найденные ссылки
+                    # Перебираем товары и извлекаем URL
                     for item in items:
-                        if "href" in item.attrs:
-                            all_hrefs.append(item["href"])
+                        if "url" in item:
+                            # Очищаем URL от параметров отслеживания, если необходимо
+                            item_url = item["url"]
+                            if "?" in item_url:
+                                cleaned_url = item_url.split("?")[0]
+                                page_hrefs.append(cleaned_url)
+                            else:
+                                page_hrefs.append(item_url)
+            except json.JSONDecodeError:
+                logger.warning("Не удалось разобрать JSON-LD")
+                continue
+            except Exception as e:
+                logger.warning(f"Ошибка при обработке JSON-LD: {str(e)}")
+                continue
 
-            # Проверяем наличие следующей страницы
-            next_button = soup.select_one("a.pagination__next")
+        # Проверяем наличие следующей страницы
+        next_button = soup.select_one("a.pagination__next")
 
-            # Проверяем, что кнопка существует, имеет атрибут href и не отключена
-            if next_button and "href" in next_button.attrs:
-                disabled_next = soup.select_one(
-                    'a.pagination__next[aria-disabled="true"]'
-                )
+        # Проверяем, что кнопка существует, имеет атрибут href и не отключена
+        if next_button and "href" in next_button.attrs:
+            disabled_next = soup.select_one('a.pagination__next[aria-disabled="true"]')
 
-                if not disabled_next:
-                    logger.info(
-                        f"Найдена ссылка на следующую страницу: {next_button['href']}"
-                    )
-                    return next_button["href"]
+            if not disabled_next:
+                next_url = next_button["href"]
+                logger.info(f"Найдена ссылка на следующую страницу: {next_url}")
+                return next_url, page_hrefs
 
-            # Если мы на странице 167 и не нашли кнопку Next, проверяем наличие ссылки на страницу 168
-            if params and "_pgn" in params and params["_pgn"] == 167:
-                # Ищем прямые ссылки на страницу 168
-                page_links = soup.select("a.pagination__item")
-                for link in page_links:
-                    if link.text.strip() == "168" and "href" in link.attrs:
-                        logger.info(
-                            f"Найдена прямая ссылка на страницу 168: {link['href']}"
-                        )
-                        return link["href"]
-
-                logger.info("Принудительно переходим к странице 168")
-                # Если не нашли прямую ссылку, но мы на странице 167, возвращаем тот же URL
-                # В цикле будет автоматически создан параметр _pgn=168
-                return url
-
-            return None
-        except Exception as e:
-            logger.error(f"Ошибка при обработке {url}: {str(e)}")
-            return None
-
-    # Начинаем с первой страницы
-    current_url = (
-        "https://www.ebay.com/b/Car-Truck-Additional-ABS-Parts/33560/bn_583684"
-    )
-    page_count = 1
-    all_brands = [
-        "1",
-        "1&1",
-        "A.B.S.",
-        "AB Components",
-        "ABS",
-        "ABS Private Brand",
-        "ACDelco",
-        "ACDelco (OE)",
-        "Acura",
-        "ADVICS",
-        "Aftermarket Products",
-        "Aisin",
-        "Alfa Romeo",
-        "Alto",
-        "American Motors",
-        "AM General",
-        "Areyourshop",
-        "ASTON MARTIN",
-        "ATE",
-        "ATE/Premium One",
-        "ATI",
-        "ATS",
-        "Audi",
-        "Autopower",
-        "Autozone",
-        "Bendix",
-        "Bentley",
-        "BMW",
-        "Bosch",
-        "Brembo",
-        "Buick",
-        "Cadillac",
-        "CAR",
-        "Cherokee",
-        "Chevrolet",
-        "Chrysler",
-        "Citroën",
-        "Cooper",
-        "Corsa",
-        "Corvette",
-        "Cruiser",
-        "Cummins",
-        "Custom",
-        "Daewoo",
-        "Dart",
-        "Delco",
-        "Delphi",
-        "DENSO",
-        "Dodge",
-        "Dragon",
-        "Ducati",
-        "Edge",
-        "EVO",
-        "Factory/OEM",
-        "Factory Spec",
-        "Ferrari",
-        "Fiat",
-        "Fomoco",
-        "Ford",
-        "Ford Performance",
-        "Fusion",
-        "FWD",
-        "FWD Front Wheel Drive",
-        "Galaxy",
-        "General Motors",
-        "Genesis",
-        "GM",
-        "GMC",
-        "Haldex",
-        "Hella",
-        "Honda",
-        "Hummer",
-        "Hyundai",
-        "Infiniti",
-        "Jaguar",
-        "Jeep",
-        "Kia",
-        "Lamborghini",
-        "Land Rover",
-        "Legacy",
-        "Lexus",
-        "Lincoln",
-        "Mando",
-        "Maserati",
-        "Maxima",
-        "MaXpeedingRods",
-        "Mazda",
-        "Mazdaspeed",
-        "McLaren",
-        "Mercedes-Benz",
-        "Mercury",
-        "Merkur",
-        "Mini",
-        "Mitsubishi",
-        "Mitsuboshi",
-        "Mopar",
-        "Mustang",
-        "Nissan",
-        "Nissin",
-        "OE+",
-        "OE Brand",
-        "OEM",
-        "Oldsmobile",
-        "Opel",
-        "Pathfinder",
-        "Peugeot",
-        "Pilot",
-        "Plymouth",
-        "Pontiac",
-        "Porsche",
-        "Promaster",
-        "Ram",
-        "Range Rover",
-        "Renault",
-        "Rogue",
-        "Rolls-Royce",
-        "Rover",
-        "Saab",
-        "Saturn",
-        "Scion",
-        "Shark",
-        "Škoda",
-        "Smart",
-        "Speedmotor",
-        "Standard",
-        "Subaru",
-        "Suburban",
-        "Suburban Manufacturing",
-        "Sumitomo",
-        "Suzuki",
-        "Tesla",
-        "Toyota",
-        "Triumph",
-        "TRW",
-        "URO",
-        "VAG",
-        "Vauxhall",
-        "Visteon",
-        "Volkswagen",
-        "Volvo",
-        "WABCO",
-        "Western Star",
-        "Yamaha",
-        "Yukon",
-        "Unbranded",
-        "Not Specified",
-    ]
-    # Начальные параметры для первой страницы
-    params = {
-        "Brand": "Audi",
-        "Items%20Included": "ABS%20Pump",
-        "LH_ItemCondition": "1000",
-        "mag": "1",
-        "rt": "nc",
-    }
-    conditions = ["1000", "2500", "3000"]
-    for brand in all_brands:
-        logger.info(f"Обработка бренда: {brand}")
-        params["Brand"] = brand
-        for condition in conditions:
-            params["LH_ItemCondition"] = condition
-            logger.info(f"Обработка состояния: {condition}")
-
-            while current_url:
-                # Проверяем максимальное количество страниц
-                # if max_pages is not None and page_count > max_pages:
-                #     logger.info(f"Достигнуто максимальное количество страниц: {max_pages}")
-                #     break
-
-                logger.info(f"Обработка страницы {page_count}...")
-
-                # Для всех страниц, кроме первой, добавляем параметр пагинации
-                if page_count > 1:
-                    params["_pgn"] = page_count
-
-                # Обрабатываем текущую страницу
-                next_url = scrape_page(current_url, params)
-
-                # Сохраняем промежуточные результаты каждые 10 страниц
-                if page_count % 10 == 0:
-                    temp_df = pd.DataFrame(all_hrefs, columns=["href"])
-                    file_name_temp = f"all_urls_page_{page_count}.csv"
-                    output_temp_csv_path = data_directory / file_name_temp
-                    temp_df.to_csv(output_temp_csv_path, index=False)
-                    logger.info(
-                        f"Промежуточное сохранение: {len(all_hrefs)} ссылок в all_urls_page_{page_count}.csv"
-                    )
-
-                # Если есть следующий URL, продолжаем, иначе завершаем
-                if next_url:
-                    current_url = next_url
-                    page_count += 1
-
-                    # Пауза между запросами с небольшой рандомизацией
-                    delay = random.uniform(1.8, 3.2)
-                    logger.info(f"Пауза перед следующим запросом: {delay:.2f} сек")
-                    time.sleep(delay)
-                else:
-                    logger.info("Достигнут конец пагинации")
-                    break
-
-            # Сохраняем в CSV с помощью pandas
-            file_name = "all_urls.csv"
-            output_csv_path = data_directory / file_name
-            df = pd.DataFrame(all_hrefs, columns=["href"])
-            df.to_csv(output_csv_path, index=False)
-
-            logger.info(f"Собрано {len(all_hrefs)} ссылок и сохранено в all_urls.csv")
-            get_product_th(all_hrefs, 40)
-            # return all_hrefs
+        return None, page_hrefs
+    except Exception as e:
+        logger.error(f"Ошибка при обработке {full_url}: {str(e)}")
+        return None, []
 
 
-def get_product_th(urls, threads=10):
+def collect_segment_urls(base_url,threads, max_results=10000):
     """
-    Загружает страницы товаров в параллельном режиме.
+    Собирает все финальные URL сегментов и обрабатывает их по одному
+    Создает папки для брендов
 
     Args:
-        threads (int): Количество потоков для параллельной загрузки. По умолчанию 10.
+        base_url (str): Базовый URL eBay
+        max_results (int): Максимальное количество результатов в сегменте
     """
+    logger.info("🚀 НАЧИНАЕМ СБОР И ОБРАБОТКУ СЕГМЕНТОВ")
+    logger.info("=" * 60)
+    logger.info(f"🎯 Цель: URL с товарами ≤ {max_results:,}")
+    logger.info("=" * 60)
 
-    # Заголовки из curl-запроса
-    # Заголовки из curl-запроса
-    headers = {
-        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "accept-language": "ru,en;q=0.9,uk;q=0.8",
-        "cache-control": "no-cache",
-        "dnt": "1",
-        "pragma": "no-cache",
-        "priority": "u=0, i",
-        "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-        "sec-ch-ua-full-version": '"135.0.7049.96"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-model": '""',
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-ch-ua-platform-version": '"19.0.0"',
-        "sec-fetch-dest": "document",
-        "sec-fetch-mode": "navigate",
-        "sec-fetch-site": "same-origin",
-        "sec-fetch-user": "?1",
-        "upgrade-insecure-requests": "1",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+    segment_counter = 0
+
+    # Обрабатываем каждый URL сразу как только получаем его из генератора
+    for segment_url, brand_name in get_final_segment_urls(
+        base_url, max_results=max_results
+    ):
+        segment_counter += 1
+        logger.info(
+            f"🔗 Получен сегмент #{segment_counter} для бренда '{brand_name}': {segment_url}"
+        )
+
+        # Создаем папку для бренда
+        brand_directory = json_directory / brand_name
+        brand_directory.mkdir(parents=True, exist_ok=True)
+        logger.info(f"📁 Создана/проверена папка: {brand_directory}")
+
+        # Обрабатываем сегмент сразу
+        success =  process_single_segment(
+            segment_url, segment_counter, brand_name, brand_directory,threads
+        )
+        if success:
+            logger.info(f"✅ ГОТОВО! Обработано {segment_counter} сегментов")
+            break
+
+    
+
+
+def process_single_segment(
+    segment_url, segment_number, brand_name, brand_directory, threads
+):
+    """
+    Обрабатывает один сегмент - добавляет пагинацию и собирает товары
+
+    Args:
+        segment_url (str): URL сегмента
+        segment_number (int): Номер сегмента для логирования
+        brand_name (str): Название бренда
+        brand_directory (Path): Путь к папке бренда
+        threads (int): Количество потоков для загрузки товаров
+    """
+    logger.info(f"🔄 ОБРАБОТКА СЕГМЕНТА #{segment_number}")
+    logger.info(f"📌 URL: {segment_url}")
+
+    total_processed_urls = 0
+    total_processed_pages = 0
+    current_page = 1
+    next_url = None
+
+    # Цикл по страницам текущего сегмента
+    while True:
+        logger.info(f"📄 Сегмент #{segment_number} | Страница {current_page}")
+
+        # Определяем URL для текущей страницы
+        if current_page == 1:
+            # Первая страница - используем базовый URL сегмента
+            page_url = segment_url
+            next_url, page_hrefs = scrape_page(page_url)
+        else:
+            # Последующие страницы
+            if next_url is None:
+                # Если нет прямой ссылки, формируем URL с параметром пагинации
+                separator = "&" if "?" in segment_url else "?"
+                page_url = f"{segment_url}{separator}_pgn={current_page}"
+                if "rt=nc" not in page_url:
+                    page_url += "&rt=nc"
+                next_url, page_hrefs = scrape_page(page_url)
+            else:
+                # Используем прямую ссылку на следующую страницу
+                next_url, page_hrefs = scrape_page(next_url)
+
+        # Увеличиваем счетчик обработанных страниц
+        total_processed_pages += 1
+
+        # Обрабатываем найденные товары
+        if page_hrefs:
+            logger.info(
+                f"✅ Найдено {len(page_hrefs)} товаров на странице {current_page}"
+            )
+
+            # Запускаем многопоточную загрузку страниц товаров
+            try:
+                success_count = get_product_th(
+                    page_hrefs, brand_directory, threads=threads
+                )
+                total_processed_urls += success_count
+
+                logger.info(f"📥 Загружено {success_count}/{len(page_hrefs)} товаров")
+                logger.info(
+                    f"📊 Сегмент #{segment_number} | Всего: {total_processed_urls} товаров, {total_processed_pages} страниц"
+                )
+
+            except Exception as e:
+                logger.error(f"❌ Ошибка при загрузке товаров: {e}")
+        else:
+            logger.warning(f"⚠️ На странице {current_page} не найдено товаров")
+
+        # Проверяем, есть ли следующая страница
+        if next_url:
+            current_page += 1
+
+        else:
+            logger.info(
+                f"🏁 Сегмент #{segment_number} завершен | {total_processed_pages} страниц | {total_processed_urls} товаров"
+            )
+            break
+
+    return {
+        "segment_number": segment_number,
+        "brand_name": brand_name,
+        "total_pages": total_processed_pages,
+        "total_products": total_processed_urls,
     }
 
-    # Куки из curl-запроса
-    cookies = {
-        "__uzma": "97357116-b531-48ea-a787-9a1cdbc0d2a3",
-        "__uzmb": "1737571173",
-        "__uzme": "0889",
-        "__ssds": "2",
-        "__ssuzjsr2": "a9be0cd8e",
-        "__uzmaj2": "f52997a6-1322-426e-8b54-c2c2eac61cf7",
-        "__uzmbj2": "1737571182",
-        "cid": "Qwjcj8NLrZa4OA91%23169442320",
-        "shs": "BAQAAAZRXz2gmAAaAAVUAD2mwKzcyMjQyMjM4Mjg5MDAzLDLKGm6oHxSYJNWSOKNvMcNNo6deng**",
-        "shui-messages-KYC_ALERT-viewsLeft": "999993",
-        "ebaysid": "BAQAAAZRXz2gmAAaAA/oDQWuVKtBleUpyWlhraU9pSnphWFJsTG1saFppNXphV2R1WVhSMWNtVXVhMlY1Y0dGcGNpSXNJblpsY2lJNk1UTXNJbUZzWnlJNklsSlROVEV5SW4wLmV5SnBjM01pT2lKSlFVWlRUMEZKUkVWT1ZDSXNJbk4xWWlJNklqUm5aWGszYjNwdmRHVnRJaXdpWlhod0lqb3hOelF4T0RZMk9ETTJMQ0p1WW1ZaU9qRTNOREU0TmpVNU16WXNJbWxoZENJNk1UYzBNVGcyTlRrek5pd2lhblJwSWpvaU16azNaams1WXpFdE5HTTRZaTAwWWpKaExUa3daakV0TVRNelpHSTFNak0wWlRKbUlpd2ljMlZ6YzJsdmJsUnZhMlZ1VW1WbVpYSmxibU5sSWpvaWRsNHhMakVqYVY0eEkzQmVNeU55WGpFalpsNHdJMGxlTXlOMFhsVnNOSGhOUmpneFQydEdRMUZVVWtKTmFrSkNVbFJOZUU1RVJrZFNSVmt4VDBSb1ExSnFhekpSYTFKRFRWUnJNVkpVVVhsWWVrWm1UVk5PUmxocVNUSk5RVDA5SWl3aWMyVnpjMmx2Ymtsa0lqb2lPR0ZrTVdZeVlXUXhPVEl3WVdFM01qZzRZelprTnpnMlptWmpaV1UzT1RZaWZRLlB6WWtiNGJZWndOalJMbW81TXprVFBLWUNER1A0UllmSmE3a3BackFyUHhxX0h5TWpjUGtsWmFaZlExVjlEc3RjRUJEVTZPbUFTRzMwcTZoMVpDa3U0SEZOaTVNLU1OSTdhYmxtMkRBdDdnRGZ1VW5BMy1PckVEaUFqLTZmeTRXRjV3N1Q3eHNmbTZQYUJCUWFFTXRZZmRuYk5iZ1VnTk0yYTJ6OHpWNm05VjF0cURXeGY2QkpHX3paOTJaMnRsYl9NWS1ZMkFjVHZhdjI4Wk4zUTRmeGRWUDBRbUloUEdHZS1fMy1GVGNBM1JtUlFUQ3ByV09yNjFJS3c3cFplaFNGQksxODRTTXdjYWFqbWpvanBJZ0VQUjE0dGFCclFUeTlHdkRXblp2YU1RZW45cXN2ZFNTTHUwNUlwREdtdjE4ZFZUbVZtRENJRzBMUG5NdUNHbVdrd8QyyucYciLIbBojCo8LK3++Sy8x",
-        "__uzmlj2": "G9FAAxnDuMKptEcAzxYkJIGvwaFLJ25rRkt6/3IP/jM=",
-        "cpt": "%5Ecpt_prvd%3Dhcaptcha%5E",
-        "__deba": "Wed3akqZJHwtM1z8M732L6ii3bqHZuzpiBZB3tGbaQbTPrlh8SVw389_7KVXBGqwXR8UW1J2_XMwSXzXGqPFGBpfL_bTa09RToxbD82BSPFB4sx0wK9nLHnUrJtlsixT0HRcCVsfcKIPRCZzSv4Rgw==",
-        "__uzmcj2": "541718282825",
-        "__uzmdj2": "1745310345",
-        "__uzmfj2": "7f600038e61fac-f753-483f-8618-80f320552cd617375711825237739162974-e2ffbe8e527097c082",
-        "ds1": "ats/1745310956857",
-        "ns1": "BAQAAAZZay1gcAAaAAKUADGnoiG0xMzQ0MDY3NjMvMDvpPZJlkVUgx4l3N2CqNEQAeekN5Q**",
-        "s": "CgAD4ACBoC2jPNWNhM2MzNWUxOTYwYWQ1OTg4ZDIxYWU0ZmY3Zjc0YjBnFkGC",
-        "ak_bmsc": "C2ECD7D77F71821EE513B7B3B2480630~000000000000000000000000000000~YAAQBUx1aAAKEUuWAQAAESyGaRuW9aZ0ekXKkZzsI0kyGf0qouioE7XHR+OXUAPSznIfHKImsFIMTBd1xIIGTho9s7UgT7KXQygQKmt6oHMjS3pL/FXkRYlr/5qxj5EJt/CM+OcIPGzOAeIz1BXiGPHNcFZ6XGQUwqYWxnagmoJh0bBIa4TKOycl13Y/dVv6DBCJlir3eHy7QQ+8Jo69/OA0OxJalZM7spn8e6pULNEe8Gre4sgu4n3e+/+KgLpEnhyfUQCx9iidyooUaFtpa0ERpQ+x4f4UF6wDVNztzEDUr64Foj36k6m6sKnRnfz3h5AYThYMhrpiWz4emz8h+S9cfMEbahTLbtU+A48vbBotjWRN1ecJ/YhsaODxD+06Qw/Ppy2ivJo=",
-        "ebay": "%5Ejs%3D1%5EsfLMD%3D0%5Esin%3Din%5Esbf%3D%2300000004%5E",
-        "__uzmc": "2378932286496",
-        "__uzmd": "1745530440",
-        "__uzmf": "7f600038e61fac-f753-483f-8618-80f320552cd617375711736317959267058-150c914f21eedb01322",
-        "totp": "1745530442106.iKVpBvoQ4A9rdCj5AxmsfGvdDoUrnJ5aeWFfjbtTpUSYsoJQpHWP+cj1En6KNPh8xOWRTXWVSdbYGvdqABqRqA==.rT765YSD8240_-ElUr6mQTVlLWGQPBQxu6oJx1gJKDg",
-        "dp1": "bu1p/dGVzdHVzZXJfcmVzdGVxMQ**6bcd154b^kms/in6bcd154b^pbf/%230000e400e0000000800000000069ebe1cb^u1f/Bohdan6bcd154b^bl/DEen-US6bcd154b^",
-        "nonsession": "CgADKACBrzRVLNWNhM2MzNWUxOTYwYWQ1OTg4ZDIxYWU0ZmY3Zjc0YjAAywABaAq1UzQMPWZF",
-        "bm_sv": "4412198FB9F945B4A1004A4BC7D99614~YAAQFkx1aIUHxyOWAQAAete4aRuU5vduaJOn4pgjq6EVDHga/DIIqDYbJ7gNTlr+NaByhQco0ZV3ZhO5oZDWMV6jpT7D5uoukWumggLYbu+8RCXeVYVvHjaoNLiBNG/WxbQZAG5sijqhc9Ap9T5/GmoqVNIpSe2bQNnhHWyZBUlkXPYsikwka2eNCt1ux7nG1B8wMY4/gOlEquX3YvTY4bCOg+VDpsLkJa4o0pduncsGr+8X/kWXxSgZRr2wgIs=~1",
-    }
 
-    # Создаем директорию для сохранения HTML-файлов, если она не существует
+def get_product_th(urls, brand_directory, threads):
+    """
+    Загружает страницы товаров в параллельном режиме.
+    Ведет учет обработанных URL и пропускает только успешно загруженные.
+    Повторно обрабатывает URL со статусами 'failed' и 'error'.
 
-    # Файл для хранения маппинга
-    mapping_file = html_directory / "url_mapping.csv"
-    # file_name = "all_urls.csv"
-    # output_csv_path = data_directory / file_name
-    # Читаем CSV-файл
-    # try:
-    #     df = pd.read_csv(output_csv_path)
-    # except FileNotFoundError:
-    #     logger.error("Файл all_urls.csv не найден!")
-    #     return
+    Args:
+        urls (list): Список URL для загрузки
+        brand_directory (Path): Папка бренда для сохранения
+        threads (int): Количество потоков для параллельной загрузки. По умолчанию 40.
 
-    # total_urls = len(df)
-    # logger.info(f"Всего найдено {total_urls} URL для загрузки")
+    Returns:
+        int: Количество успешно загруженных страниц
+    """
+    # Проверяем список URL
+    if not urls:
+        logger.warning("Список URL пуст")
+        return 0
 
-    # Словарь для маппинга
-    url_mapping = []
+    total_urls = len(urls)
+    logger.info(f"Начинаем загрузку {total_urls} страниц товаров")
 
-    # Блокировка для безопасного добавления в url_mapping и логирования
-    mapping_lock = Lock()
+    # Файл для хранения маппинга обработанных URL
+    mapping_file = brand_directory / "processed_urls.csv"
+
+    # Загружаем уже обработанные URL из файла
+    processed_urls_success = set()  # Только успешно обработанные
+    processed_urls_data = {}  # Данные обо всех обработанных URL
+
+    if mapping_file.exists():
+        try:
+            existing_df = pd.read_csv(mapping_file)
+            if "url" in existing_df.columns:
+                for _, row in existing_df.iterrows():
+                    url = row["url"]
+                    status = row.get("status", "unknown")
+
+                    # Сохраняем данные о URL
+                    processed_urls_data[url] = {
+                        "status": status,
+                        "timestamp": row.get("timestamp", ""),
+                        "error": row.get("error", ""),
+                    }
+
+                    # Только успешные URL добавляем в set для пропуска
+                    if status == "success":
+                        processed_urls_success.add(url)
+                # count_urls = int(len(processed_urls_data))
+                # count_urls_success = int(len(processed_urls_success))
+                difference_threshold = 5
+                
+                logger.info(
+                    f"📋 Загружено {len(processed_urls_data)} записей из {mapping_file.name}"
+                )
+                logger.info(f"✅ Из них успешных: {len(processed_urls_success)}")
+                # difference = abs(count_urls - count_urls_success)
+                # if difference <= difference_threshold:
+                #     logger.info("Все скачали")
+                #     exit()
+                # Считаем количество неудачных для повторной обработки
+                failed_count = sum(
+                    1
+                    for data in processed_urls_data.values()
+                    if data["status"] in ["failed", "error"]
+                )
+                if failed_count > 0:
+                    logger.info(
+                        f"🔄 К повторной обработке: {failed_count} неудачных URL"
+                    )
+
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при загрузке файла маппинга: {e}")
+            processed_urls_success = set()
+            processed_urls_data = {}
+
+    # Фильтруем URL - исключаем только те, что успешно обработаны
+    urls_to_process = []
+    retry_urls = []
+
+    for url in urls:
+        if url in processed_urls_success:
+            continue  # Пропускаем успешно обработанные
+        elif url in processed_urls_data:
+            # URL есть в базе, но статус не 'success' - добавляем для повторной обработки
+            retry_urls.append(url)
+            urls_to_process.append(url)
+        else:
+            # Новый URL
+            urls_to_process.append(url)
+
+    skipped_count = len(urls) - len(urls_to_process)
+
+    if skipped_count > 0:
+        logger.info(f"⏭️ Пропускаем {skipped_count} успешно обработанных URL")
+
+    if retry_urls:
+        logger.info(f"🔄 Повторная обработка {len(retry_urls)} неудачных URL")
+
+    if not urls_to_process:
+        logger.info("✅ Все URL уже успешно обработаны, пропускаем")
+        return 0
+
+    logger.info(
+        f"🔄 К обработке: {len(urls_to_process)} URL ({len(urls_to_process) - len(retry_urls)} новых + {len(retry_urls)} повторных)"
+    )
+
+    # Список для хранения обработанных URL
+    newly_processed_urls = []
+
+    # Блокировки для безопасного доступа
+    processed_lock = Lock()
     log_lock = Lock()
 
     # Счетчик обработанных URL
@@ -569,78 +641,200 @@ def get_product_th(urls, threads=10):
     # Определяем функцию для обработки одного URL
     def process_url(url):
         try:
-            # Создаем MD5-хеш URL
-            url_hash = hashlib.md5(url.encode()).hexdigest()
-            filename = f"{url_hash}.html"
-            output_html_file = html_directory / filename
-
-            # Добавляем в маппинг
-            with mapping_lock:
-                url_mapping.append({"hash": url_hash, "url": url})
-
-            # Проверяем, не скачан ли уже файл
-            if output_html_file.exists():
-                with log_lock:
-                    logger.debug(f"Файл {filename} уже существует, пропускаем")
-                return True  # URL уже обработан
+            # Двойная проверка - возможно URL был обработан в другом потоке
+            with processed_lock:
+                if url in processed_urls_success:
+                    return False
 
             # Выполняем запрос
-            # response = requests.get(url, headers=headers, cookies=cookies, timeout=30)
             src = make_request(url)
-            # Сохраняем HTML в файл
-            output_html_file.write_text(src, encoding="utf-8")
 
-            with log_lock:
-                logger.info(f"Сохранено в {filename}")
+            # Обрабатываем товар
+            result = scrap_online(src, brand_directory)
 
-            # Увеличиваем счетчик обработанных URL
-            with counter_lock:
-                processed_counter["count"] += 1
-                count = processed_counter["count"]
-
-                # Периодически сохраняем маппинг
-                if count % 100 == 0:
-                    with mapping_lock:
-                        mapping_df = pd.DataFrame(url_mapping)
-                        mapping_df.to_csv(mapping_file, index=False)
-                    logger.info(
-                        f"Промежуточное сохранение маппинга: {count}/{total_urls}"
+            if result:
+                # URL успешно обработан
+                with processed_lock:
+                    newly_processed_urls.append(
+                        {
+                            "url": url,
+                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "status": "success",
+                        }
                     )
+                    processed_urls_success.add(url)  # Добавляем в set успешных
 
-            return True
+                    # Если это повторная обработка, логируем обновление статуса
+                    if (
+                        url in processed_urls_data
+                        and processed_urls_data[url]["status"] != "success"
+                    ):
+                        old_status = processed_urls_data[url]["status"]
+                        logger.info(
+                            f"🔄 URL {url} - статус изменен с '{old_status}' на 'success'"
+                        )
+
+                # Увеличиваем счетчик обработанных URL
+                with counter_lock:
+                    processed_counter["count"] += 1
+                    count = processed_counter["count"]
+
+                    # Периодически сохраняем маппинг
+                    if count % 50 == 0:  # Сохраняем каждые 50 URL
+                        save_processed_urls(
+                            mapping_file, newly_processed_urls, processed_lock
+                        )
+                        logger.info(
+                            f"💾 Промежуточное сохранение: {count}/{len(urls_to_process)} обработано"
+                        )
+
+                return True
+            else:
+                # Неудачная обработка
+                with processed_lock:
+                    newly_processed_urls.append(
+                        {
+                            "url": url,
+                            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                            "status": "failed",
+                        }
+                    )
+                return False
 
         except Exception as e:
             with log_lock:
-                logger.error(f"Ошибка при загрузке {url}: {str(e)}")
+                logger.error(f"❌ Ошибка при загрузке {url}: {str(e)}")
+
+            # Записываем ошибку
+            with processed_lock:
+                newly_processed_urls.append(
+                    {
+                        "url": url,
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
             return False
 
     # Запускаем многопоточную обработку
     start_time = time.time()
-    logger.info(f"Запуск загрузки в {threads} потоков")
+    logger.info(f"🚀 Запуск загрузки в {threads} потоков")
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-        results = list(executor.map(process_url, urls))  # df["href"])
+        results = list(executor.map(process_url, urls_to_process))
 
-    # Сохраняем итоговый маппинг
-    mapping_df = pd.DataFrame(url_mapping)
-    mapping_df.to_csv(mapping_file, index=False)
+    # Сохраняем финальный маппинг
+    save_processed_urls(mapping_file, newly_processed_urls, processed_lock)
 
     end_time = time.time()
     total_time = end_time - start_time
     success_count = sum(1 for r in results if r)
 
-    # logger.info(
-    #     f"Загрузка завершена! Успешно обработано {success_count} из {total_urls} URL"
-    # )
-    logger.info(f"Затраченное время: {total_time:.2f} секунд")
+    logger.info(
+        f"✅ Загрузка завершена: {success_count}/{len(urls_to_process)} успешно"
+    )
+    logger.info(f"⏱️ Затраченное время: {total_time:.2f} секунд")
+    logger.info(f"📊 Всего успешных в базе: {len(processed_urls_success)} URL")
 
     return success_count
 
 
+def save_processed_urls(mapping_file, newly_processed_urls, lock):
+    """
+    Сохраняет список обработанных URL в CSV файл
+    Обновляет существующие записи или добавляет новые
+
+    Args:
+        mapping_file (Path): Путь к файлу маппинга
+        newly_processed_urls (list): Список новых/обновленных URL
+        lock (Lock): Блокировка для безопасного доступа
+    """
+    try:
+        with lock:
+            if not newly_processed_urls:
+                return
+
+            # Создаем DataFrame из новых URL
+            new_df = pd.DataFrame(newly_processed_urls)
+
+            # Если файл существует, загружаем существующие данные
+            if mapping_file.exists():
+                try:
+                    existing_df = pd.read_csv(mapping_file)
+
+                    # Объединяем данные
+                    combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+
+                    # Удаляем дубликаты по URL, оставляя последнюю запись (самую свежую)
+                    combined_df = combined_df.drop_duplicates(
+                        subset=["url"], keep="last"
+                    )
+
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка при чтении существующего файла: {e}")
+                    combined_df = new_df
+            else:
+                combined_df = new_df
+
+            # Сохраняем в файл
+            combined_df.to_csv(mapping_file, index=False)
+            logger.debug(
+                f"💾 Сохранено {len(combined_df)} записей в {mapping_file.name}"
+            )
+
+            # Очищаем список после сохранения
+            newly_processed_urls.clear()
+
+    except Exception as e:
+        logger.error(f"❌ Ошибка при сохранении маппинга: {e}")
+
+
+def main(base_url, threads):
+    """Основная функция"""
+    # Загружаем прокси
+    load_proxies()
+
+
+    try:
+        # Собираем и обрабатываем сегменты по одному
+        collect_segment_urls(base_url,threads, max_results=10000)
+
+        logger.info("🎉 ВСЯ ОБРАБОТКА ЗАВЕРШЕНА!")
+        return False
+    except KeyboardInterrupt:
+        logger.info("⏹️  Процесс прерван пользователем")
+    except Exception as e:
+        logger.error(f"❌ Ошибка: {e}")
+
 
 if __name__ == "__main__":
-    # get_pagination()
-    # get_pagination_th(20)
-    # get_product()
-    # get_product_th(20)
+    # Настройка аргументов командной строки
+    parser = argparse.ArgumentParser(description="Скрипт для обработки URL eBay")
+    parser.add_argument("--base_url", type=str, default="https://www.ebay.com", help="Базовый URL для обработки")
+    parser.add_argument("--threads", type=int, default=1, help="Количество потоков")
+    parser.add_argument("--count", type=int, default=1, help="Количество попыток")
 
+    args = parser.parse_args()
+
+    # Валидация аргументов
+    if args.threads <= 0:
+        parser.error("Количество потоков должно быть положительным числом")
+    if args.count <= 0:
+        parser.error("Количество попыток должно быть положительным числом")
+
+    # Запуск основной функции
+    count = 0
+    while count < args.count:
+        try:
+            logger.info(f"Попытка {count + 1} из {args.count}")
+            if main(args.base_url, args.threads):
+                logger.info("✅ Успешное выполнение, завершение работы")
+                break
+            count += 1
+        except Exception as e:
+            logger.error(f"❌ Ошибка в основном цикле: {e}")
+            logger.info("🔄 Повторная попытка через 10 секунд...")
+            time.sleep(10)
+    else:
+        logger.info(f"🛑 Достигнуто максимальное количество попыток ({args.count})")

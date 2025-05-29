@@ -1,50 +1,63 @@
+import concurrent.futures
+import hashlib
 import json
+import queue
+import random
 import re
+import threading
+import time
+from pathlib import Path
+from threading import Lock
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
+import pandas as pd
+import requests
 from bs4 import BeautifulSoup
-from config.logger import logger
+from logger import logger
+from requests.exceptions import HTTPError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
-# current_directory = Path.cwd()
-# temp_directory = current_directory / "temp"
-# json_directory = temp_directory / "json"
-# html_directory = temp_directory / "html"
-# config_directory = current_directory / "config"
-# temp_directory.mkdir(parents=True, exist_ok=True)
-# config_directory.mkdir(parents=True, exist_ok=True)
-# html_directory.mkdir(parents=True, exist_ok=True)
+current_directory = Path.cwd()
+temp_directory = current_directory / "temp"
+json_directory = temp_directory / "json"
+html_directory = temp_directory / "html"
+config_directory = current_directory / "config"
+temp_directory.mkdir(parents=True, exist_ok=True)
+config_directory.mkdir(parents=True, exist_ok=True)
+html_directory.mkdir(parents=True, exist_ok=True)
 
-# config_file = config_directory / "config.json"
-# cookies = {
-#     "__uzma": "48f63d0a-8f14-443b-8715-fcdba0ef603b",
-#     "__uzmb": "1728902698",
-#     "__uzme": "0335",
-#     "__uzmc": "256671941755",
-#     "__uzmd": "1742639115",
-#     "__uzmf": "7f600064f0eb3a-c548-42ca-b2b7-28f9559755a4172890269899113736416513-2a38b34a491a6dcd19",
-#     "AMP_MKTG_f93443b04c": "JTdCJTIycmVmZXJyZXIlMjIlM0ElMjJodHRwcyUzQSUyRiUyRnd3dy5nb29nbGUuY29tJTJGJTIyJTJDJTIycmVmZXJyaW5nX2RvbWFpbiUyMiUzQSUyMnd3dy5nb29nbGUuY29tJTIyJTdE",
-#     "AMP_f93443b04c": "JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI1NWQ1NmQxMi1mOThiLTQ5MGEtYTUzMi00ZjEyZThiZTJkMGYlMjIlMkMlMjJzZXNzaW9uSWQlMjIlM0ExNzQyNjM5MTE3MDMyJTJDJTIyb3B0T3V0JTIyJTNBZmFsc2UlMkMlMjJsYXN0RXZlbnRUaW1lJTIyJTNBMTc0MjYzOTExNzA1NCUyQyUyMmxhc3RFdmVudElkJTIyJTNBMiUyQyUyMnBhZ2VDb3VudGVyJTIyJTNBMSU3RA==",
-#     "dp1": "bbl/UA6ba0f710^",
-#     "nonsession": "BAQAAAZRXz2gmAAaAADMABWm/w5AyMTAwMADKACBroPcQOGFhMTk4MGYxOTIwYTZmMTZlM2QyZjUwZmZiNTE4YTYAywABZ96XGDbYNiX16bk46kVFvzpbH3uSlWh5Iw**",
-# }
+config_file = config_directory / "config.json"
+cookies = {
+    "__uzma": "48f63d0a-8f14-443b-8715-fcdba0ef603b",
+    "__uzmb": "1728902698",
+    "__uzme": "0335",
+    "__uzmc": "256671941755",
+    "__uzmd": "1742639115",
+    "__uzmf": "7f600064f0eb3a-c548-42ca-b2b7-28f9559755a4172890269899113736416513-2a38b34a491a6dcd19",
+    "AMP_MKTG_f93443b04c": "JTdCJTIycmVmZXJyZXIlMjIlM0ElMjJodHRwcyUzQSUyRiUyRnd3dy5nb29nbGUuY29tJTJGJTIyJTJDJTIycmVmZXJyaW5nX2RvbWFpbiUyMiUzQSUyMnd3dy5nb29nbGUuY29tJTIyJTdE",
+    "AMP_f93443b04c": "JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI1NWQ1NmQxMi1mOThiLTQ5MGEtYTUzMi00ZjEyZThiZTJkMGYlMjIlMkMlMjJzZXNzaW9uSWQlMjIlM0ExNzQyNjM5MTE3MDMyJTJDJTIyb3B0T3V0JTIyJTNBZmFsc2UlMkMlMjJsYXN0RXZlbnRUaW1lJTIyJTNBMTc0MjYzOTExNzA1NCUyQyUyMmxhc3RFdmVudElkJTIyJTNBMiUyQyUyMnBhZ2VDb3VudGVyJTIyJTNBMSU3RA==",
+    "dp1": "bbl/UA6ba0f710^",
+    "nonsession": "BAQAAAZRXz2gmAAaAADMABWm/w5AyMTAwMADKACBroPcQOGFhMTk4MGYxOTIwYTZmMTZlM2QyZjUwZmZiNTE4YTYAywABZ96XGDbYNiX16bk46kVFvzpbH3uSlWh5Iw**",
+}
 
-# headers = {
-#     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-#     "accept-language": "ru,en;q=0.9,uk;q=0.8",
-#     "dnt": "1",
-#     "priority": "u=0, i",
-#     "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-#     "sec-ch-ua-full-version": '"135.0.7049.115"',
-#     "sec-ch-ua-mobile": "?0",
-#     "sec-ch-ua-model": '""',
-#     "sec-ch-ua-platform": '"Windows"',
-#     "sec-ch-ua-platform-version": '"19.0.0"',
-#     "sec-fetch-dest": "document",
-#     "sec-fetch-mode": "navigate",
-#     "sec-fetch-site": "none",
-#     "sec-fetch-user": "?1",
-#     "upgrade-insecure-requests": "1",
-#     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-# }
+headers = {
+    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "accept-language": "ru,en;q=0.9,uk;q=0.8",
+    "dnt": "1",
+    "priority": "u=0, i",
+    "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+    "sec-ch-ua-full-version": '"135.0.7049.115"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-model": '""',
+    "sec-ch-ua-platform": '"Windows"',
+    "sec-ch-ua-platform-version": '"19.0.0"',
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-fetch-site": "none",
+    "sec-fetch-user": "?1",
+    "upgrade-insecure-requests": "1",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
+}
 
 
 def get_breadcrumbList(soup):
@@ -154,181 +167,156 @@ def get_returns(soup):
 
     return returns
 
+
 def get_shipping(soup):
-    # Находим контейнер с информацией о доставке
-    shipping_container = soup.select_one("div.ux-labels-values--shipping")
-    
-    shipping = None
-    location = None
-    
+    # 6-7. Извлекаем информацию о доставке (Shipping и Delivery)
+    shipping_container = soup.find("div", {"data-testid": "d-shipping-minview"})
+    if not shipping_container:
+        # Резервный поиск по классу
+        shipping_container = soup.find("div", {"class": "vim d-shipping-minview"})
+
     if shipping_container:
-        # Извлекаем информацию о доставке (первый div)
-        shipping_spans = shipping_container.select("div.ux-labels-values__values-content > div:first-child > span.ux-textspans")
-        if shipping_spans:
-            shipping_info = []
-            for span in shipping_spans:
-                text = span.get_text(strip=True)
-                if text and not text.startswith("See details"):
-                    shipping_info.append(text)
-            shipping = " ".join(shipping_info) if shipping_info else None
-            # logger.info(f"Shipping: {shipping}")
-        
-        # Извлекаем информацию о местоположении (второй div)
-        location_span = shipping_container.select_one("div.ux-labels-values__values-content > div:nth-child(2) > span.ux-textspans--SECONDARY")
-        if location_span:
-            location_text = location_span.get_text(strip=True)
-            # Убираем префикс "Located in: " если он есть
-            if location_text.startswith("Located in: "):
-                location = location_text.replace("Located in: ", "")
+        # Ищем Shipping внутри контейнера
+        shipping_block = shipping_container.find(
+            "div",
+            {
+                "data-testid": "ux-labels-values",
+                "class": lambda c: c and "ux-labels-values--shipping" in c,
+            },
+        )
+        if shipping_block:
+            shipping_content = shipping_block.find(
+                "div", {"class": "ux-labels-values__values-content"}
+            )
+            if shipping_content:
+                # Обрабатываем первую строку с ценой и методом доставки
+                first_line_parts = []
+                for span in shipping_content.select(
+                    "div:first-child > span.ux-textspans"
+                ):
+                    text = span.get_text(strip=True)
+                    if text and not text.startswith("See details"):
+                        first_line_parts.append(text)
+
+                # Обрабатываем вторую строку с информацией о местоположении
+                location_text = ""
+                location_span = shipping_content.select_one(
+                    "div:nth-child(2) > span.ux-textspans--SECONDARY"
+                )
+                if location_span:
+                    location_text = location_span.get_text(strip=True)
+
+                # Собираем всю информацию о доставке
+                shipping_info = []
+                if first_line_parts:
+                    shipping_info.append(" ".join(first_line_parts))
+                if location_text:
+                    shipping_info.append(location_text)
+
+                # Ищем информацию о комбинированной доставке
+                combined_shipping = shipping_container.find(
+                    "span",
+                    string=lambda s: s and "Save on combined shipping" in s,
+                )
+                if combined_shipping:
+                    shipping_info.append("Save on combined shipping")
+
+                shipping = ", ".join(shipping_info)
             else:
-                location = location_text
-            # logger.info(f"Location: {location}")
-    
-    return shipping, location
-# def get_shipping(soup):
-#     # 6-7. Извлекаем информацию о доставке (Shipping и Delivery)
-#     shipping_container = soup.find("div", {"data-testid": "d-shipping-minview"})
-#     if not shipping_container:
-#         # Резервный поиск по классу
-#         shipping_container = soup.find("div", {"class": "vim d-shipping-minview"})
-#         if shipping_container:
-#             # Ищем Shipping внутри контейнера
-#             shipping_block = shipping_container.find(
-#                 "div",
-#                 {
-#                     "data-testid": "ux-labels-values",
-#                     "class": lambda c: c and "ux-labels-values--shipping" in c,
-#                 },
-#             )
-#             location = None
-#             if shipping_block:
-#                 shipping_content = shipping_block.find(
-#                     "div", {"class": "ux-labels-values__values-content"}
-#                 )
-#                 if shipping_content:
-#                     # Обрабатываем первую строку с информацией о доставке
-#                     shipping_info = []
-#                     for span in shipping_content.select("div:first-child > span.ux-textspans"):
-#                         text = span.get_text(strip=True)
-#                         if text and not text.startswith("See details"):
-#                             shipping_info.append(text)
+                shipping = None
+        else:
+            shipping = None
 
-#                     # Формируем строку доставки
-#                     shipping = " ".join(shipping_info) if shipping_info else None
+        # Обработка информации о доставке (Delivery)
+        delivery_block = shipping_container.find(
+            "div", {"class": "ux-labels-values--deliverto"}
+        )
 
-#                     # Обрабатываем информацию о местоположении
-#                     location = None
-#                     location_span = shipping_content.select_one("div:nth-child(2) > span.ux-textspans--SECONDARY")
-#                     if location_span:
-#                         location = location_span.get_text(strip=True)
+        if delivery_block:
+            delivery_content_div = delivery_block.find(
+                "div", {"class": "ux-labels-values__values-content"}
+            )
+            if delivery_content_div:
+                delivery_info = []
 
-#                     # Ищем информацию о комбинированной доставке
-#                     combined_shipping = shipping_container.find(
-#                         "span",
-#                         string=lambda s: s and "Save on combined shipping" in s,
-#                     )
-#                     if combined_shipping and shipping:
-#                         shipping += ", Save on combined shipping"
-#                     elif combined_shipping:
-#                         shipping = "Save on combined shipping"
+                # Первая строка - даты доставки
+                first_div = delivery_content_div.find("div")
 
-#                 else:
-#                     shipping = None
-#                     location = None
-#             else:
-#                 shipping = None
+                if first_div:
+                    delivery_text = ""
 
-#         # # Обработка информации о доставке (Delivery)
-#         # delivery_block = shipping_container.find(
-#         #     "div", {"class": "ux-labels-values--deliverto"}
-#         # )
+                    # Ищем основной текст и выделенные даты
+                    main_spans = first_div.find_all(
+                        "span", {"class": "ux-textspans"}, recursive=False
+                    )
 
-#         # if delivery_block:
-#         #     delivery_content_div = delivery_block.find(
-#         #         "div", {"class": "ux-labels-values__values-content"}
-#         #     )
-#         #     if delivery_content_div:
-#         #         delivery_info = []
+                    # Собираем текст и даты
+                    for span in main_spans:
+                        # Исключаем span-элементы, содержащие информационный всплывающий блок
+                        if "ux-textspans__custom-view" not in span.get(
+                            "class", []
+                        ) and not span.has_attr("role"):
+                            delivery_text += span.get_text(strip=True) + " "
 
-#         #         # Первая строка - даты доставки
-#         #         first_div = delivery_content_div.find("div")
+                    if delivery_text.strip():
+                        delivery_info.append(delivery_text.strip())
 
-#         #         if first_div:
-#         #             delivery_text = ""
+                # Вторая строка - примечание о сроках
+                second_div = (
+                    delivery_content_div.find_all("div")[1]
+                    if len(delivery_content_div.find_all("div")) > 1
+                    else None
+                )
+                if second_div:
+                    notes = []
+                    for span in second_div.find_all(
+                        "span",
+                        {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
+                    ):
+                        notes.append(span.get_text(strip=True))
 
-#         #             # Ищем основной текст и выделенные даты
-#         #             main_spans = first_div.find_all(
-#         #                 "span", {"class": "ux-textspans"}, recursive=False
-#         #             )
+                    if notes:
+                        delivery_info.append(" ".join(notes))
 
-#         #             # Собираем текст и даты
-#         #             for span in main_spans:
-#         #                 # Исключаем span-элементы, содержащие информационный всплывающий блок
-#         #                 if "ux-textspans__custom-view" not in span.get(
-#         #                     "class", []
-#         #                 ) and not span.has_attr("role"):
-#         #                     delivery_text += span.get_text(strip=True) + " "
+                # Третья строка - информация об отправке
+                third_div = (
+                    delivery_content_div.find_all("div")[2]
+                    if len(delivery_content_div.find_all("div")) > 2
+                    else None
+                )
+                if third_div:
+                    shipping_info = []
 
-#         #             if delivery_text.strip():
-#         #                 delivery_info.append(delivery_text.strip())
+                    # Собираем текст из всех span элементов
+                    for span in third_div.find_all(
+                        "span",
+                        {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
+                    ):
+                        shipping_info.append(span.get_text(strip=True))
 
-#         #         # Вторая строка - примечание о сроках
-#         #         second_div = (
-#         #             delivery_content_div.find_all("div")[1]
-#         #             if len(delivery_content_div.find_all("div")) > 1
-#         #             else None
-#         #         )
-#         #         if second_div:
-#         #             notes = []
-#         #             for span in second_div.find_all(
-#         #                 "span",
-#         #                 {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
-#         #             ):
-#         #                 notes.append(span.get_text(strip=True))
+                    # Собираем текст из всех ссылок
+                    for link in third_div.find_all("a"):
+                        span = link.find(
+                            "span",
+                            {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
+                        )
+                        if span:
+                            shipping_info.append(span.get_text(strip=True))
 
-#         #             if notes:
-#         #                 delivery_info.append(" ".join(notes))
+                    if shipping_info:
+                        delivery_info.append(" ".join(shipping_info))
 
-#         #         # Третья строка - информация об отправке
-#         #         third_div = (
-#         #             delivery_content_div.find_all("div")[2]
-#         #             if len(delivery_content_div.find_all("div")) > 2
-#         #             else None
-#         #         )
-#         #         if third_div:
-#         #             shipping_info = []
+                # Собираем всю информацию в одну строку с разделителями
+                delivery = ", ".join(delivery_info)
+            else:
+                delivery = None
+        else:
+            delivery = None
+    else:
+        shipping = None
+        delivery = None
 
-#         #             # Собираем текст из всех span элементов
-#         #             for span in third_div.find_all(
-#         #                 "span",
-#         #                 {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
-#         #             ):
-#         #                 shipping_info.append(span.get_text(strip=True))
-
-#         #             # Собираем текст из всех ссылок
-#         #             for link in third_div.find_all("a"):
-#         #                 span = link.find(
-#         #                     "span",
-#         #                     {"class": lambda c: c and "ux-textspans--SECONDARY" in c},
-#         #                 )
-#         #                 if span:
-#         #                     shipping_info.append(span.get_text(strip=True))
-
-#         #             if shipping_info:
-#         #                 delivery_info.append(" ".join(shipping_info))
-
-#         #         # Собираем всю информацию в одну строку с разделителями
-#         #         delivery = ", ".join(delivery_info)
-#         #     else:
-#         #         delivery = None
-#         # else:
-#         #     delivery = None
-#     else:
-#         shipping = None
-#         location = None
-
-#     # return shipping, delivery
-#     return shipping, location
+    return shipping, delivery
 
 
 def get_specifications(soup):
@@ -424,169 +412,169 @@ def get_specifications(soup):
     return specifications
 
 
-# def scrap_html():
-#     # Список для хранения данных
-#     data = []
+def scrap_html():
+    # Список для хранения данных
+    data = []
 
-#     # Определяем нужные ключи
-#     required_keys = [
-#         "filename",
-#         "title",
-#         "category",
-#         "url",
-#         "product_id",
-#         "price",
-#         "url_image_1",
-#         "url_image_2",
-#         "url_image_3",
-#         "returns",
-#         "shipping",
-#         "delivery",
-#         "Condition",
-#         "Vehicle VIN",
-#         "Model",
-#         "Model2",
-#         "Brand",
-#         "Manufacturer Part Number",
-#         "Manufacturer Part Number2",
-#         "Codice ricambio originale OE/OEM",
-#         "Condition and Options",
-#         "Conditions & Options",
-#         "Conditions and Options",
-#         "Direct Replacement",
-#         "Herstellernummer",
-#         "Interchange 1",
-#         "Interchange 2",
-#         "Interchange 3",
-#         "Interchange Part Number",
-#         "Material",
-#         "Mounting Style",
-#         "Numer części OE/OEM",
-#         "O.E. Part Number",
-#         "OE/OEM Part Number",
-#         "OE/OEM Referenznummer(n)",
-#         "OEM NO.",
-#         "Original Part Number OE/OEM",
-#         "POP_MPN",
-#         "POP_Other Part Number",
-#         "Referenznummer(n) OE",
-#         "Referenznummer(n) OEM",
-#         "Vergleichsnummer",
-#     ]
+    # Определяем нужные ключи
+    required_keys = [
+        "filename",
+        "title",
+        "category",
+        "url",
+        "product_id",
+        "price",
+        "url_image_1",
+        "url_image_2",
+        "url_image_3",
+        "returns",
+        "shipping",
+        "delivery",
+        "Condition",
+        "Vehicle VIN",
+        "Model",
+        "Model2",
+        "Brand",
+        "Manufacturer Part Number",
+        "Manufacturer Part Number2",
+        "Codice ricambio originale OE/OEM",
+        "Condition and Options",
+        "Conditions & Options",
+        "Conditions and Options",
+        "Direct Replacement",
+        "Herstellernummer",
+        "Interchange 1",
+        "Interchange 2",
+        "Interchange 3",
+        "Interchange Part Number",
+        "Material",
+        "Mounting Style",
+        "Numer części OE/OEM",
+        "O.E. Part Number",
+        "OE/OEM Part Number",
+        "OE/OEM Referenznummer(n)",
+        "OEM NO.",
+        "Original Part Number OE/OEM",
+        "POP_MPN",
+        "POP_Other Part Number",
+        "Referenznummer(n) OE",
+        "Referenznummer(n) OEM",
+        "Vergleichsnummer",
+    ]
 
-#     files = list(html_directory.glob("*.html"))
-#     logger.info(f"Обработка {len(files)} HTML-файлов...")
-#     count = 0
+    files = list(html_directory.glob("*.html"))
+    logger.info(f"Обработка {len(files)} HTML-файлов...")
+    count = 0
 
-#     for html_file in files[:]:
-#         with html_file.open(encoding="utf-8") as file:
-#             content = file.read()
+    for html_file in files[:]:
+        with html_file.open(encoding="utf-8") as file:
+            content = file.read()
 
-#             try:
-#                 soup = BeautifulSoup(content, "lxml")
+            try:
+                soup = BeautifulSoup(content, "lxml")
 
-#                 # Инициализируем словарь для данных
-#                 product_data = {"filename": html_file.name}
-#                 breadcrumb = get_breadcrumbList(soup)
-#                 product_data["category"] = breadcrumb
+                # Инициализируем словарь для данных
+                product_data = {"filename": html_file.name}
+                breadcrumb = get_breadcrumbList(soup)
+                product_data["category"] = breadcrumb
 
-#                 product_url = get_url(soup)
-#                 product_data["url"] = product_url
-#                 if product_url:
-#                     match = re.search(r"itm/(\d+)", product_url)
-#                     if match:
-#                         item_id = match.group(1)
-#                         product_data["product_id"] = item_id
-#                     else:
-#                         product_data["product_id"] = None
-#                 product_price = get_price(soup)
-#                 product_data["price"] = product_price
+                product_url = get_url(soup)
+                product_data["url"] = product_url
+                if product_url:
+                    match = re.search(r"itm/(\d+)", product_url)
+                    if match:
+                        item_id = match.group(1)
+                        product_data["product_id"] = item_id
+                    else:
+                        product_data["product_id"] = None
+                product_price = get_price(soup)
+                product_data["price"] = product_price
 
-#                 product_title = get_title(soup)
-#                 product_data["title"] = product_title
+                product_title = get_title(soup)
+                product_data["title"] = product_title
 
-#                 # Извлекаем изображения
-#                 images = extract_image_urls(soup)
-#                 if not images:
-#                     logger.warning(
-#                         f"Изображения не найдены в {html_file.name}, пробуем старый метод"
-#                     )
-#                 product_data["url_image_1"] = images[0] if len(images) > 0 else ""
-#                 product_data["url_image_2"] = images[1] if len(images) > 1 else ""
-#                 product_data["url_image_3"] = images[2] if len(images) > 2 else ""
+                # Извлекаем изображения
+                images = extract_image_urls(soup)
+                if not images:
+                    logger.warning(
+                        f"Изображения не найдены в {html_file.name}, пробуем старый метод"
+                    )
+                product_data["url_image_1"] = images[0] if len(images) > 0 else ""
+                product_data["url_image_2"] = images[1] if len(images) > 1 else ""
+                product_data["url_image_3"] = images[2] if len(images) > 2 else ""
 
-#                 # product_condition = get_condition(soup)
-#                 # product_data["condition"] = product_condition
+                # product_condition = get_condition(soup)
+                # product_data["condition"] = product_condition
 
-#                 product_returns = get_returns(soup)
-#                 product_data["returns"] = product_returns
+                product_returns = get_returns(soup)
+                product_data["returns"] = product_returns
 
-#                 shipping, delivery = get_shipping(soup)
-#                 product_data["shipping"] = shipping
-#                 product_data["delivery"] = delivery
+                shipping, delivery = get_shipping(soup)
+                product_data["shipping"] = shipping
+                product_data["delivery"] = delivery
 
-#                 specifications = get_specifications(soup)
-#                 # Обрабатываем Manufacturer Part Number и разделяем его если есть ~
-#                 if "Manufacturer Part Number" in specifications:
-#                     mpn_value = specifications["Manufacturer Part Number"]
-#                     if isinstance(mpn_value, str) and "~" in mpn_value:
-#                         # Разделяем по символу ~
-#                         parts = mpn_value.split("~")
-#                         if len(parts) >= 2:
-#                             # Первая часть - Model2
-#                             specifications["Model2"] = parts[0].strip()
-#                             # Вторая часть - Manufacturer Part Number2
-#                             specifications["Manufacturer Part Number2"] = parts[
-#                                 1
-#                             ].strip()
-#                             # Оригинальное значение остается как есть
-#                             # specifications["Manufacturer Part Number"] уже содержит полное значение
+                specifications = get_specifications(soup)
+                # Обрабатываем Manufacturer Part Number и разделяем его если есть ~
+                if "Manufacturer Part Number" in specifications:
+                    mpn_value = specifications["Manufacturer Part Number"]
+                    if isinstance(mpn_value, str) and "~" in mpn_value:
+                        # Разделяем по символу ~
+                        parts = mpn_value.split("~")
+                        if len(parts) >= 2:
+                            # Первая часть - Model2
+                            specifications["Model2"] = parts[0].strip()
+                            # Вторая часть - Manufacturer Part Number2
+                            specifications["Manufacturer Part Number2"] = parts[
+                                1
+                            ].strip()
+                            # Оригинальное значение остается как есть
+                            # specifications["Manufacturer Part Number"] уже содержит полное значение
 
-#                 # Добавляем характеристики как отдельные поля в product_data
-#                 for key, value in specifications.items():
-#                     product_data[key] = value
+                # Добавляем характеристики как отдельные поля в product_data
+                for key, value in specifications.items():
+                    product_data[key] = value
 
-#                 # Обновляем список required_keys, добавляя новые ключи
-#                 required_keys_updated = required_keys + [
-#                     "Model2",
-#                     "Manufacturer Part Number2",
-#                 ]
+                # Обновляем список required_keys, добавляя новые ключи
+                required_keys_updated = required_keys + [
+                    "Model2",
+                    "Manufacturer Part Number2",
+                ]
 
-#                 # Создаем финальный объект только с нужными ключами
-#                 filtered_product = {}
-#                 for key in required_keys_updated:
-#                     value = product_data.get(key, "")
-#                     # Очищаем значение от переносов строк
-#                     if isinstance(value, str):
-#                         value = value.replace("\n", " ").replace("\r", "")
-#                     filtered_product[key] = value
+                # Создаем финальный объект только с нужными ключами
+                filtered_product = {}
+                for key in required_keys_updated:
+                    value = product_data.get(key, "")
+                    # Очищаем значение от переносов строк
+                    if isinstance(value, str):
+                        value = value.replace("\n", " ").replace("\r", "")
+                    filtered_product[key] = value
 
-#                 count += 1
-#                 print(f"Обработано {count} файлов", end="\r")
+                count += 1
+                print(f"Обработано {count} файлов", end="\r")
 
-#                 # Добавляем отфильтрованные данные в список
-#                 data.append(filtered_product)
+                # Добавляем отфильтрованные данные в список
+                data.append(filtered_product)
 
-#             except Exception as e:
-#                 logger.error(f"Ошибка при обработке {html_file.name}: {str(e)}")
+            except Exception as e:
+                logger.error(f"Ошибка при обработке {html_file.name}: {str(e)}")
 
-#                 # Создаем объект с пустыми значениями при ошибке
-#                 error_product = {}
-#                 for key in required_keys:
-#                     error_product[key] = ""
-#                 error_product["filename"] = html_file.name
+                # Создаем объект с пустыми значениями при ошибке
+                error_product = {}
+                for key in required_keys:
+                    error_product[key] = ""
+                error_product["filename"] = html_file.name
 
-#                 data.append(error_product)
+                data.append(error_product)
 
-#     # logger.info(data)
-#     # Сохраняем данные в JSON файл
-#     with open("product_details.json", "w", encoding="utf-8") as json_file:
-#         json.dump(data, json_file, ensure_ascii=False, indent=4)
+    # logger.info(data)
+    # Сохраняем данные в JSON файл
+    with open("product_details.json", "w", encoding="utf-8") as json_file:
+        json.dump(data, json_file, ensure_ascii=False, indent=4)
 
-#     logger.info(
-#         f"Обработано {len(data)} файлов, данные сохранены в product_details.json"
-#     )
-#     # download_images_and_update_json(data)
+    logger.info(
+        f"Обработано {len(data)} файлов, данные сохранены в product_details.json"
+    )
+    # download_images_and_update_json(data)
 
 
 def extract_image_urls(soup):
@@ -688,7 +676,7 @@ def extract_image_urls(soup):
         pass
 
 
-def scrap_online(src, brand_directory):
+def scrap_online(src):
     """
     Парсит HTML контент на лету и возвращает данные товара
 
@@ -713,7 +701,7 @@ def scrap_online(src, brand_directory):
         "url_image_3",
         "returns",
         "shipping",
-        "location",
+        "delivery",
         "Condition",
         "Vehicle VIN",
         "Model",
@@ -766,10 +754,10 @@ def scrap_online(src, brand_directory):
                 product_data["filename"] = f"{product_id}.html"
             else:
                 product_data["product_id"] = None
-                # logger.warning("Не удалось извлечь product_id из URL")
+                logger.warning("Не удалось извлечь product_id из URL")
         else:
             product_data["product_id"] = None
-            # logger.warning("URL товара не найден")
+            logger.warning("URL товара не найден")
 
         # Парсим остальные данные
         breadcrumb = get_breadcrumbList(soup)
@@ -783,8 +771,8 @@ def scrap_online(src, brand_directory):
 
         # Извлекаем изображения
         images = extract_image_urls(soup)
-        # if not images:
-            # logger.warning(f"Изображения не найдены, {product_url}")
+        if not images:
+            logger.warning(f"Изображения не найдены, {product_url}")
         product_data["url_image_1"] = images[0] if len(images) > 0 else ""
         product_data["url_image_2"] = images[1] if len(images) > 1 else ""
         product_data["url_image_3"] = images[2] if len(images) > 2 else ""
@@ -792,11 +780,9 @@ def scrap_online(src, brand_directory):
         product_returns = get_returns(soup)
         product_data["returns"] = product_returns
 
-        # shipping, delivery = get_shipping(soup)
-        shipping, location = get_shipping(soup)
+        shipping, delivery = get_shipping(soup)
         product_data["shipping"] = shipping
-        product_data["location"] = location
-        # product_data["delivery"] = delivery
+        product_data["delivery"] = delivery
 
         specifications = get_specifications(soup)
 
@@ -826,14 +812,16 @@ def scrap_online(src, brand_directory):
         if product_id:
 
             # Сохраняем JSON с именем product_id
-            json_filename = brand_directory / f"{product_id}.json"
+            json_filename = json_directory / f"{product_id}.json"
             with open(json_filename, "w", encoding="utf-8") as json_file:
                 json.dump(filtered_product, json_file, ensure_ascii=False, indent=4)
-
-            # logger.info(f"Данные товара {product_id} сохранены в {json_filename}")
-
-        return True
+            logger.info(f"Данные товара {product_id} сохранены в {json_filename}")
+            return True
 
     except Exception as e:
-        # logger.error(f"Ошибка при парсинге HTML контента: {str(e)}")
+        logger.error(f"Ошибка при парсинге HTML контента: {str(e)}")
         return None
+
+
+# if __name__ == "__main__":
+#     scrap_html()

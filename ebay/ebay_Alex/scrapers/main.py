@@ -5,7 +5,7 @@ import re
 import time
 from pathlib import Path
 from threading import Lock
-
+import argparse
 import pandas as pd
 import requests
 import urllib3
@@ -24,6 +24,7 @@ data_directory = current_directory / "data"
 config_directory = current_directory / "config"
 progress_directory = current_directory / "progress"
 temp_directory = current_directory / "temp"
+xlsx_directory = temp_directory / "xlsx"
 json_directory = temp_directory / "json"
 
 html_directory = temp_directory / "html"
@@ -53,41 +54,6 @@ headers = {
     "sec-fetch-user": "?1",
     "upgrade-insecure-requests": "1",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-}
-cookies = {
-    "__uzma": "5dd6f251-16bd-43eb-adf6-a5fc68d31ba5",
-    "__uzmb": "1747417341",
-    "__uzme": "1319",
-    "_fbp": "fb.1.1747646769982.102243040132258771",
-    "_scid": "cuIKE6Gb42pNRDXP15V5qWD3xpGVppFH",
-    "_gcl_au": "1.1.634085916.1747646770",
-    "_pin_unauth": "dWlkPVkyUTNPVE16TURRdE1UZGxaQzAwT0dNekxXSmxZV010WldOak1HTTJZV1V3TURZMA",
-    "_ScCbts": "%5B%5D",
-    "__ssds": "2",
-    "__ssuzjsr2": "a9be0cd8e",
-    "__uzmaj2": "7771b6a6-eefb-4d2a-a09d-f7fb10017a47",
-    "__uzmbj2": "1748265263",
-    "__uzmcj2": "443031050084",
-    "__uzmdj2": "1748265263",
-    "__uzmlj2": "zjLRJT/evn5PESJdSC48NwLEf2CBMPC0tH+ijBtVZrw=",
-    "__uzmfj2": "7f600089ee2927-1811-4b12-b3dc-d0f942520fff17482652639160-f46a16705fbe7ee410",
-    "_uetsid": "e25c1d803a3211f090abb9d7ff70d114|917pju|2|fw8|0|1972",
-    "_uetvid": "4cc0c570349311f09a166b26e8c6d101|j6jwo6|1748265274665|5|1|bat.bing.com/p/insights/c/f",
-    "ak_bmsc": "767FF8D816C408BED2CCC6AA0201713F~000000000000000000000000000000~YAAQbEx1aOR6wfaWAQAADEHDDRtLfxAtDj33sKlK78O4LUQcdBFOVSyyjvJRTn/drlzQxgZ12JybDFrGSC5L55p23YiCcNbwxMga/B3AP4DRy2R8/0JOaoMr0QTwBSu+6xDzVcJswPgNG/u7bFyEZNZJjLyzIi8UGklEK/7VV4UBPrK0Dj4PznRyMh0kpaZ2nAHdNBFC22PQqECeEFaXy/rWN2vixKzIzvsJ6u8KMF3ihw5pcjIfYofsLxGkPT/QXcaEe3mBiuu2L6uXN8VmTaoxfbYBs2C0KkCDaHE4RlRf8l+CiGFVH479c/qMkYNwRqcVt21snTEBqc320xYorghCow0MoVDOn7yZvJaklfTgp0Gz23cHhjKMxTcj1Tqp5EtL2rnQsr0=",
-    "utag_main__sn": "8",
-    "_scid_r": "j2IKE6Gb42pNRDXP15V5qWD3xpGVppFHko2G-w",
-    "_rdt_uuid": "1747646770138.eb01c0f4-d653-4e0e-9119-5db930f013a4",
-    "cto_bundle": "QG9_X19IM05DWEZjaThLMDRDRlBFSnQ1ZGZmUjJZcWFNWE1sM1RuTldXVFFmUFhBazBCMXFxU0lDWW8lMkYxdjRBdGVrRGJXU2FEa2cwM1d4YW8xTVhMNGJXTzk2enlVSFV2RjM0UnFFOTd4bG1nS1kwQ290V1VjOTZVUU92VWtBYkZQTnhGSWtVVzE0NW1PJTJGMHloMUU0dWhVOUtFWXZWcnBEdGM3c25zalAzb0MyMVhZTVBvbU80UmVzNVY3bmxzYUVtWGFPSHIlMkZZQkx4aGFaJTJCR1BqR0g5SiUyQkZoUSUzRCUzRA",
-    "s": "CgADuAKloNbqrMTQGaHR0cHM6Ly93d3cuZWJheS5jb20vYi9CTVctQ2FyLWFuZC1UcnVjay1FQ1VzLzMzNTk2L2JuXzU3NDk4OT9Db3VudHJ5JTI1MkZSZWdpb24lMjUyMG9mJTI1MjBNYW51ZmFjdHVyZT1BdXN0cmFsaWEmTEhfSXRlbUNvbmRpdGlvbj0zMDAwJlR5cGU9JTIxJl91ZGhpPTc1Jm1hZz0xJnJ0PW5jBwD4ACBoNge8ZGEzMDllNDYxOTYwYWI3MmEzZTRhMWMzZmZmN2ZhZWVGN8WG",
-    "__uzmc": "605359415463",
-    "__uzmd": "1748286525",
-    "__uzmf": "7f600089ee2927-1811-4b12-b3dc-d0f942520fff1747417341482869183688-f03ba45e2b53978694",
-    "__gads": "ID=23db798a068a3c28:T=1747417343:RT=1748286526:S=ALNI_MYw30Zys92W6lwpOzLctDwMCzY9Gw",
-    "__eoi": "ID=57cc6f271819f5ee:T=1747417343:RT=1748286526:S=AA-AfjYAnNJe27z1lol8qcfzopMj",
-    "ebay": "%5Ejs%3D1%5Esbf%3D%23000000%5E",
-    "bm_sv": "ED4CBFA2F3C0778C0D585778F777E338~YAAQZkx1aK/mYdGWAQAASR0ADhsO0va6bOcVq9JTj5i82if2afIZePNeWSF/6W4AO38sSzntAtfGNFG9ULaV9VTZfQ+qhjZ8ClkaNjsG8glm37aSqhli4lRwC8OcxVn3OEWB6Hz0yD/OdNDRFz7OGvRE8oo7Vd4DdhBiQvnZiK+jen0vMebdTG3bdYcOJI8mMQxlAOdz2jNAftvM2DC1G7fxmdjNEPOdl9zs+aWf1FMiKIXsJQRyumoaJWlbBhU=~1",
-    "dp1": "bpbf/%23e000000000000000006a15f028^bl/UA6bf723a8^",
-    "nonsession": "BAQAAAZZay1gcAAaAADMABGoV8CgsUE9MAMoAIGv3I6hkYTMwOWU0NjE5NjBhYjcyYTNlNGExYzNmZmY3ZmFlZQDLAAJoNMOwMzMyKKYGCGkeVo1SLa4/ZyQwYNxJ4Q**",
 }
 # Глобальный список прокси
 proxy_list = []
@@ -135,13 +101,9 @@ def make_request(url):
     """Выполняет HTTP-запрос"""
     try:
         proxies = get_random_proxy()
-        # proxies = {
-        #     "http": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
-        #     "https": "http://scraperapi:6c54502fd688c7ce737f1c650444884a@proxy-server.scraperapi.com:8001",
-        # }
         response = requests.get(
             url,
-            cookies=cookies,
+            # cook/ies=cookies,
             proxies=proxies,
             headers=headers,
             timeout=30,
@@ -431,7 +393,7 @@ def scrape_page(full_url, params=None):
         return None, []
 
 
-def collect_segment_urls(base_url, max_results=10000):
+def collect_segment_urls(base_url,threads, max_results=10000):
     """
     Собирает все финальные URL сегментов и обрабатывает их по одному
     Создает папки для брендов
@@ -462,15 +424,18 @@ def collect_segment_urls(base_url, max_results=10000):
         logger.info(f"📁 Создана/проверена папка: {brand_directory}")
 
         # Обрабатываем сегмент сразу
-        process_single_segment(
-            segment_url, segment_counter, brand_name, brand_directory
+        success =  process_single_segment(
+            segment_url, segment_counter, brand_name, brand_directory,threads
         )
+        if success:
+            logger.info(f"✅ ГОТОВО! Обработано {segment_counter} сегментов")
+            break
 
-    logger.info(f"✅ ГОТОВО! Обработано {segment_counter} сегментов")
+    
 
 
 def process_single_segment(
-    segment_url, segment_number, brand_name, brand_directory, threads=40
+    segment_url, segment_number, brand_name, brand_directory, threads
 ):
     """
     Обрабатывает один сегмент - добавляет пагинацию и собирает товары
@@ -556,7 +521,7 @@ def process_single_segment(
     }
 
 
-def get_product_th(urls, brand_directory, threads=40):
+def get_product_th(urls, brand_directory, threads):
     """
     Загружает страницы товаров в параллельном режиме.
     Ведет учет обработанных URL и пропускает только успешно загруженные.
@@ -603,12 +568,18 @@ def get_product_th(urls, brand_directory, threads=40):
                     # Только успешные URL добавляем в set для пропуска
                     if status == "success":
                         processed_urls_success.add(url)
-
+                # count_urls = int(len(processed_urls_data))
+                # count_urls_success = int(len(processed_urls_success))
+                difference_threshold = 5
+                
                 logger.info(
                     f"📋 Загружено {len(processed_urls_data)} записей из {mapping_file.name}"
                 )
                 logger.info(f"✅ Из них успешных: {len(processed_urls_success)}")
-
+                # difference = abs(count_urls - count_urls_success)
+                # if difference <= difference_threshold:
+                #     logger.info("Все скачали")
+                #     exit()
                 # Считаем количество неудачных для повторной обработки
                 failed_count = sum(
                     1
@@ -819,213 +790,15 @@ def save_processed_urls(mapping_file, newly_processed_urls, lock):
         logger.error(f"❌ Ошибка при сохранении маппинга: {e}")
 
 
-# def get_product_th(urls, brand_directory, threads=40):
-#     """
-#     Загружает страницы товаров в параллельном режиме.
-#     Ведет учет обработанных URL и пропускает уже загруженные.
-
-#     Args:
-#         urls (list): Список URL для загрузки
-#         brand_directory (Path): Папка бренда для сохранения
-#         threads (int): Количество потоков для параллельной загрузки. По умолчанию 10.
-
-#     Returns:
-#         int: Количество успешно загруженных страниц
-#     """
-#     # Проверяем список URL
-#     if not urls:
-#         logger.warning("Список URL пуст")
-#         return 0
-
-#     total_urls = len(urls)
-#     logger.info(f"Начинаем загрузку {total_urls} страниц товаров")
-
-#     # Файл для хранения маппинга обработанных URL
-#     mapping_file = brand_directory / "processed_urls.csv"
-
-#     # Загружаем уже обработанные URL из файла
-#     processed_urls = set()
-#     if mapping_file.exists():
-#         try:
-#             existing_df = pd.read_csv(mapping_file)
-#             if "url" in existing_df.columns:
-#                 processed_urls = set(existing_df["url"].tolist())
-#                 logger.info(
-#                     f"📋 Загружено {len(processed_urls)} уже обработанных URL из {mapping_file.name}"
-#                 )
-#         except Exception as e:
-#             logger.warning(f"⚠️ Ошибка при загрузке файла маппинга: {e}")
-#             processed_urls = set()
-
-#     # Фильтруем URL - оставляем только те, что еще не обработаны
-#     urls_to_process = [url for url in urls if url not in processed_urls]
-#     skipped_count = len(urls) - len(urls_to_process)
-
-#     if skipped_count > 0:
-#         logger.info(f"⏭️ Пропускаем {skipped_count} уже обработанных URL")
-
-#     if not urls_to_process:
-#         logger.info("✅ Все URL уже обработаны, пропускаем")
-#         return 0
-
-#     logger.info(f"🔄 К обработке: {len(urls_to_process)} новых URL")
-
-#     # Список для хранения успешно обработанных URL
-#     newly_processed_urls = []
-
-#     # Блокировки для безопасного доступа
-#     processed_lock = Lock()
-#     log_lock = Lock()
-
-#     # Счетчик обработанных URL
-#     processed_counter = {"count": 0}
-#     counter_lock = Lock()
-
-#     # Определяем функцию для обработки одного URL
-#     def process_url(url):
-#         try:
-#             # Двойная проверка - возможно URL был обработан в другом потоке
-#             with processed_lock:
-#                 if url in processed_urls:
-#                     return False
-
-#             # Выполняем запрос
-#             src = make_request(url)
-
-#             # Обрабатываем товар
-#             result = scrap_online(src, brand_directory)
-
-#             if result:
-#                 # Добавляем URL в список успешно обработанных
-#                 with processed_lock:
-#                     newly_processed_urls.append(
-#                         {
-#                             "url": url,
-#                             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-#                             "status": "success",
-#                         }
-#                     )
-#                     processed_urls.add(url)  # Добавляем в set для быстрой проверки
-
-#                 # Увеличиваем счетчик обработанных URL
-#                 with counter_lock:
-#                     processed_counter["count"] += 1
-#                     count = processed_counter["count"]
-
-#                     # Периодически сохраняем маппинг
-#                     if count % 50 == 0:  # Сохраняем каждые 50 URL
-#                         save_processed_urls(
-#                             mapping_file, newly_processed_urls, processed_lock
-#                         )
-#                         logger.info(
-#                             f"💾 Промежуточное сохранение: {count}/{len(urls_to_process)} обработано"
-#                         )
-
-#                 return True
-#             else:
-#                 # Даже неудачные попытки записываем, чтобы не повторять
-#                 with processed_lock:
-#                     newly_processed_urls.append(
-#                         {
-#                             "url": url,
-#                             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-#                             "status": "failed",
-#                         }
-#                     )
-
-#                 return False
-
-#         except Exception as e:
-#             with log_lock:
-#                 logger.error(f"❌ Ошибка при загрузке {url}: {str(e)}")
-
-#             # Записываем ошибку
-#             with processed_lock:
-#                 newly_processed_urls.append(
-#                     {
-#                         "url": url,
-#                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-#                         "status": "error",
-#                         "error": str(e),
-#                     }
-#                 )
-#             return False
-
-#     # Запускаем многопоточную обработку
-#     start_time = time.time()
-#     logger.info(f"🚀 Запуск загрузки в {threads} потоков")
-
-#     with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-#         results = list(executor.map(process_url, urls_to_process))
-
-#     # Сохраняем финальный маппинг
-#     save_processed_urls(mapping_file, newly_processed_urls, processed_lock)
-
-#     end_time = time.time()
-#     total_time = end_time - start_time
-#     success_count = sum(1 for r in results if r)
-
-#     logger.info(
-#         f"✅ Загрузка завершена: {success_count}/{len(urls_to_process)} успешно"
-#     )
-#     logger.info(f"⏱️ Затраченное время: {total_time:.2f} секунд")
-#     logger.info(f"📊 Всего в базе: {len(processed_urls)} обработанных URL")
-
-#     return success_count
-
-
-# def save_processed_urls(mapping_file, newly_processed_urls, lock):
-#     """
-#     Сохраняет список обработанных URL в CSV файл
-
-#     Args:
-#         mapping_file (Path): Путь к файлу маппинга
-#         newly_processed_urls (list): Список новых обработанных URL
-#         lock (Lock): Блокировка для безопасного доступа
-#     """
-#     try:
-#         with lock:
-#             if not newly_processed_urls:
-#                 return
-
-#             # Создаем DataFrame из новых URL
-#             new_df = pd.DataFrame(newly_processed_urls)
-
-#             # Если файл существует, добавляем к существующим данным
-#             if mapping_file.exists():
-#                 try:
-#                     existing_df = pd.read_csv(mapping_file)
-#                     combined_df = pd.concat([existing_df, new_df], ignore_index=True)
-#                 except Exception as e:
-#                     logger.warning(f"⚠️ Ошибка при чтении существующего файла: {e}")
-#                     combined_df = new_df
-#             else:
-#                 combined_df = new_df
-
-#             # Удаляем дубликаты по URL (оставляем последнюю запись)
-#             combined_df = combined_df.drop_duplicates(subset=["url"], keep="last")
-
-#             # Сохраняем в файл
-#             combined_df.to_csv(mapping_file, index=False)
-
-#             # Очищаем список после сохранения
-#             newly_processed_urls.clear()
-
-#     except Exception as e:
-#         logger.error(f"❌ Ошибка при сохранении маппинга: {e}")
-
-
-def main():
+def main(base_url, threads):
     """Основная функция"""
     # Загружаем прокси
     load_proxies()
 
-    # Базовый URL eBay
-    base_url = "https://www.ebay.com/b/Car-Truck-ECUs-Computer-Modules/33596/bn_584314?Type=AC%2520Motor%2520Controllers&mag=1&rt=nc"
 
     try:
         # Собираем и обрабатываем сегменты по одному
-        collect_segment_urls(base_url, max_results=10000)
+        collect_segment_urls(base_url,threads, max_results=10000)
 
         logger.info("🎉 ВСЯ ОБРАБОТКА ЗАВЕРШЕНА!")
         return False
@@ -1036,13 +809,32 @@ def main():
 
 
 if __name__ == "__main__":
+    # Настройка аргументов командной строки
+    parser = argparse.ArgumentParser(description="Скрипт для обработки URL eBay")
+    parser.add_argument("--base_url", type=str, default="https://www.ebay.com", help="Базовый URL для обработки")
+    parser.add_argument("--threads", type=int, default=1, help="Количество потоков")
+    parser.add_argument("--count", type=int, default=1, help="Количество попыток")
+
+    args = parser.parse_args()
+
+    # Валидация аргументов
+    if args.threads <= 0:
+        parser.error("Количество потоков должно быть положительным числом")
+    if args.count <= 0:
+        parser.error("Количество попыток должно быть положительным числом")
+
     # Запуск основной функции
-    while True:
+    count = 0
+    while count < args.count:
         try:
-            main()
-            break  # Если все прошло успешно, выходим из цикла
+            logger.info(f"Попытка {count + 1} из {args.count}")
+            if main(args.base_url, args.threads):
+                logger.info("✅ Успешное выполнение, завершение работы")
+                break
+            count += 1
         except Exception as e:
             logger.error(f"❌ Ошибка в основном цикле: {e}")
             logger.info("🔄 Повторная попытка через 10 секунд...")
-
-    # main()
+            time.sleep(10)
+    else:
+        logger.info(f"🛑 Достигнуто максимальное количество попыток ({args.count})")

@@ -4,9 +4,8 @@ import random
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-import pandas as pd
+
 import urllib3
-import argparse
 from requests.exceptions import (
     ConnectionError,
     HTTPError,
@@ -22,26 +21,21 @@ from tenacity import (
     wait_exponential,
 )
 from urllib3.exceptions import ProtocolError, ReadTimeoutError
-from typing import List, Dict, Any
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import requests
-from config.logger import logger
+from logger import logger
 from PIL import Image
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 current_directory = Path.cwd()
+data_directory = current_directory / "data"
 config_directory = current_directory / "config"
-temp_directory = current_directory / "temp"
-xlsx_directory = temp_directory / "xlsx"
-
-
-temp_directory.mkdir(parents=True, exist_ok=True)
+data_directory.mkdir(parents=True, exist_ok=True)
 config_directory.mkdir(parents=True, exist_ok=True)
+html_directory = current_directory / "html"
+html_directory.mkdir(parents=True, exist_ok=True)
 
-
-
-product_details = xlsx_directory / "product_details.xlsx"
-product_details_updated = xlsx_directory / "product_details_updated.xlsx"
 config_file = config_directory / "config.json"
 
 headers = {
@@ -331,57 +325,8 @@ def download_images_and_update_json_threaded(json_data, max_workers=5):
     logger.info(f"Скачивание завершено для {len(updated_data)} товаров")
     return updated_data
 
-def extract_product_data_compact(file_path):
-    """
-    Извлекает данные продуктов с условиями:
-    - Если нет product_id - пропускаем строку
-    - Если нет url_image - ставим None
-    
-    Args:
-        file_path (str): Путь к Excel файлу
-        
-    Returns:
-        list: Список словарей с данными продуктов (только строки с product_id)
-    """
-    df = pd.read_excel(file_path)
-    
-    # Проверяем наличие обязательной колонки product_id
-    if 'product_id' not in df.columns:
-        raise ValueError("Колонка 'product_id' не найдена в файле")
-    
-    # Все нужные колонки
-    all_columns = ['product_id', 'url_image_1', 'url_image_2', 'url_image_3']
-    
-    result = []
-    
-    for index, row in df.iterrows():
-        # Проверяем наличие product_id и что он не пустой/None
-        product_id = row.get('product_id')
-        
-        # Пропускаем строку если product_id отсутствует, пустой или NaN
-        if pd.isna(product_id) or product_id is None or str(product_id).strip() == '':
-            continue
-        
-        # Создаем словарь для текущей строки
-        product_dict = {'product_id': str(product_id).strip()}
-        
-        # Добавляем url_image колонки (None если отсутствуют)
-        for col in ['url_image_1', 'url_image_2', 'url_image_3']:
-            if col in df.columns:
-                value = row.get(col)
-                # Проверяем на NaN или пустое значение
-                if pd.isna(value) or (isinstance(value, str) and value.strip() == ''):
-                    product_dict[col] = None
-                else:
-                    product_dict[col] = str(value).strip()
-            else:
-                product_dict[col] = None
-        
-        result.append(product_dict)
-    
-    return result
 
-def process_json_file_threaded(input_file,max_workers):
+def process_json_file_threaded(input_file, output_file, max_workers=5):
     """
     Обрабатывает JSON файл: скачивает изображения многопоточно и сохраняет обновленный JSON.
 
@@ -392,20 +337,20 @@ def process_json_file_threaded(input_file,max_workers):
     """
     try:
         # Загружаем JSON данные
-        # with open(input_file, "r", encoding="utf-8") as f:
-        #     json_data = json.load(f)
-        
-        xlsx_data = extract_product_data_compact(input_file)
+        with open(input_file, "r", encoding="utf-8") as f:
+            json_data = json.load(f)
 
-        # logger.info(xlsx_data)
-        # exit()
+        logger.info(f"Загружено {len(json_data)} товаров из {input_file}")
 
         # Обрабатываем данные
-        updated_data = download_images_and_update_json_threaded(xlsx_data, max_workers)
-        update_excel_with_images(
-            product_details, 
-            updated_data, 
-            product_details_updated
+        updated_data = download_images_and_update_json_threaded(json_data, max_workers)
+
+        # Сохраняем обновленные данные
+        with open(output_file, "w", encoding="utf-8") as f:
+            json.dump(updated_data, f, ensure_ascii=False, indent=4)
+
+        logger.info(
+            f"Обработка завершена. Обновленные данные сохранены в {output_file}"
         )
 
     except FileNotFoundError:
@@ -415,119 +360,8 @@ def process_json_file_threaded(input_file,max_workers):
     except Exception as e:
         logger.error(f"Ошибка при обработке файла: {e}")
 
-def update_excel_with_images(file_path: str, products_data: List[Dict[str, Any]], output_path: str = None):
-    """
-    Обновляет Excel файл, добавляя колонки image_1, image_2, image_3 
-    и заполняя данные по product_id
-    
-    Args:
-        file_path (str): Путь к исходному Excel файлу
-        products_data (List[Dict]): Список словарей с данными продуктов
-        output_path (str, optional): Путь для сохранения. Если None, перезаписывает исходный файл
-        
-    Returns:
-        bool: True если успешно, False если ошибка
-    """
-    try:
-        # Читаем существующий Excel файл
-        df = pd.read_excel(file_path)
-        
-        # Добавляем новые колонки если их нет
-        new_columns = ['image_1', 'image_2', 'image_3']
-        for col in new_columns:
-            if col not in df.columns:
-                df[col] = None
-        
-        # Создаем словарь для быстрого поиска по product_id
-        products_dict = {str(item['product_id']): item for item in products_data}
-        
-        # Обновляем данные
-        updated_count = 0
-        
-        # Используем vectorized операции для лучшей производительности
-        for index, row in df.iterrows():
-            product_id = str(row['product_id'])
-            
-            if product_id in products_dict:
-                product_data = products_dict[product_id]
-                
-                # Обновляем колонки image_1, image_2, image_3
-                for img_col in ['image_1', 'image_2', 'image_3']:
-                    if img_col in product_data and product_data[img_col]:
-                        df.at[index, img_col] = product_data[img_col]
-                
-                updated_count += 1
-                logger.info(f"Обновлен продукт с ID: {product_id}")
-        
-        # Сохраняем файл
-        save_path = output_path if output_path else file_path
-        df.to_excel(save_path, index=False)
-        
-        logger.info(f"Файл сохранен: {save_path}")
-        logger.info(f"Обновлено записей: {updated_count}")
-        logger.info(f"Всего записей в файле: {len(df)}")
-        
-        return True
-        
-    except Exception as e:
-        logger.error(f"Ошибка при обновлении файла: {e}")
-        return False
-
-def add_image_columns_only(file_path: str, output_path: str = None):
-    """
-    Добавляет только колонки image_1, image_2, image_3 без заполнения данных
-    
-    Args:
-        file_path (str): Путь к Excel файлу
-        output_path (str, optional): Путь для сохранения
-    """
-    try:
-        df = pd.read_excel(file_path)
-        
-        # Добавляем новые колонки
-        new_columns = ['image_1', 'image_2', 'image_3']
-        for col in new_columns:
-            if col not in df.columns:
-                df[col] = None
-                logger.info(f"Добавлена колонка: {col}")
-        
-        save_path = output_path if output_path else file_path
-        df.to_excel(save_path, index=False)
-        
-        logger.info(f"Файл сохранен с новыми колонками: {save_path}")
-        return True
-        
-    except Exception as e:
-        print(f"Ошибка: {e}")
-        return False
 
 # Пример использования
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Скрипт для обработки URL eBay")
-    parser.add_argument("--max_workers", type=int, default=1, help="Количество потоков")
-    parser.add_argument("--count", type=int, default=1, help="Количество попыток (по умолчанию: 10)")
-
-    args = parser.parse_args()
-
-    # Валидация аргументов
-    if args.max_workers <= 0:
-        parser.error("Количество потоков должно быть положительным числом")
-    if args.count <= 0:
-        parser.error("Количество попыток должно быть положительным числом")
-
-
-    
-    # Запуск основной функции
-    count = 0
-    while count < args.count:
-        try:
-            logger.info(f"Попытка {count + 1} из {args.count}")
-            if process_json_file_threaded(product_details, args.max_workers):
-                logger.info("✅ Успешное выполнение, завершение работы")
-                break
-            count += 1
-        except Exception as e:
-            logger.error(f"❌ Ошибка в основном цикле: {e}")
-            logger.info("🔄 Повторная попытка через 10 секунд...")
-    else:
-        logger.info(f"🛑 Достигнуто максимальное количество попыток ({args.count})")
+    # Обрабатываем файл с 10 потоками
+    process_json_file_threaded("product_details.json", "result.json", max_workers=40)
