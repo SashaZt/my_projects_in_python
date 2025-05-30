@@ -580,8 +580,8 @@ def get_specifications(soup):
 
 #     # logger.info(data)
 #     # Сохраняем данные в JSON файл
-#     with open("product_details.json", "w", encoding="utf-8") as json_file:
-#         json.dump(data, json_file, ensure_ascii=False, indent=4)
+    # with open("product_details.json", "w", encoding="utf-8") as json_file:
+    #     json.dump(data, json_file, ensure_ascii=False, indent=4)
 
 #     logger.info(
 #         f"Обработано {len(data)} файлов, данные сохранены в product_details.json"

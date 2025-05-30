@@ -88,7 +88,7 @@ def insert_product(cursor, product_data: Dict[str, Any]) -> bool:
 def insert_product_images(
     cursor, product_id: int, product_data: Dict[str, Any]
 ) -> bool:
-    """Вставляет изображения продукта"""
+    """Вставляет изображения продукта (URL и локальные пути)"""
     try:
         # Удаляем существующие изображения
         cursor.execute(
@@ -345,11 +345,64 @@ def verify_data_integrity():
         products_without_images = cursor.fetchone()[0]
         logger.info(f"Товаров без изображений: {products_without_images}")
 
+        # Проверяем товары с определенным количеством изображений
+        for img_count in range(1, 4):
+            cursor.execute(
+                """
+                SELECT COUNT(*) FROM (
+                    SELECT p.product_id 
+                    FROM products p 
+                    LEFT JOIN product_images pi ON p.product_id = pi.product_id 
+                    GROUP BY p.product_id 
+                    HAVING COUNT(pi.id) = %s
+                ) as counted
+            """,
+                (img_count,),
+            )
+            count = cursor.fetchone()[0]
+            logger.info(f"Товаров с {img_count} изображением(ями): {count}")
+
         cursor.close()
         conn.close()
 
     except Exception as e:
         logger.error(f"Ошибка проверки целостности данных: {e}")
+
+
+def get_product_sample(product_id: int = None):
+    """Возвращает образец данных из БД для проверки"""
+    try:
+        conn = connect_to_db()
+        cursor = conn.cursor()
+
+        if product_id:
+            cursor.execute(
+                "SELECT * FROM products_full_view WHERE product_id = %s", (product_id,)
+            )
+        else:
+            cursor.execute("SELECT * FROM products_full_view LIMIT 1")
+
+        result = cursor.fetchone()
+
+        if result:
+            # Получаем названия колонок
+            columns = [desc[0] for desc in cursor.description]
+
+            # Создаем словарь
+            product_dict = dict(zip(columns, result))
+
+            logger.info("Образец данных из БД:")
+            logger.info(
+                json.dumps(product_dict, indent=2, default=str, ensure_ascii=False)
+            )
+        else:
+            logger.info("Данные не найдены")
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        logger.error(f"Ошибка получения образца данных: {e}")
 
 
 if __name__ == "__main__":
@@ -359,5 +412,8 @@ if __name__ == "__main__":
 
         # Проверяем целостность данных
         verify_data_integrity()
+
+        # Показываем образец данных
+        get_product_sample(396199726415)  # ID из вашего примера
     else:
         logger.error("Ошибка загрузки данных в базу данных")

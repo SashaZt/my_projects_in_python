@@ -9,15 +9,15 @@ import re
 import shutil
 import sys
 from asyncio import sleep
-from glob import glob
 from asyncio import sleep 
-
+import ssl
 import aiofiles
 import aiohttp
 import pandas as pd
 from openpyxl import Workbook
 from playwright.async_api import async_playwright
 from selectolax.parser import HTMLParser
+
 
 
 async def create_directories_async(folders_list):
@@ -67,8 +67,12 @@ async def process_hrefs(all_hrefs, session, type_pars):
     # Выполняем все задачи асинхронно
     await asyncio.gather(*tasks)
 
-
-# Основаная функция
+def create_ssl_context():
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    return ssl_context
+# Основная функция
 async def run(url_start, type_pars):
     timeout = 200000
     current_directory = os.getcwd()
@@ -85,7 +89,12 @@ async def run(url_start, type_pars):
             path_json_item,
         ]
     )
-    async with async_playwright() as playwright, aiohttp.ClientSession() as session:
+    
+    ssl_context = create_ssl_context()
+    # ИСПРАВЛЕНИЕ: используйте ssl_context в основной сессии
+    async with async_playwright() as playwright, aiohttp.ClientSession(
+        connector=aiohttp.TCPConnector(ssl=ssl_context)
+    ) as session:
         browser = await playwright.chromium.launch(headless=False)
         context = await browser.new_context(accept_downloads=True)
         page = await context.new_page()
@@ -128,8 +137,8 @@ async def run(url_start, type_pars):
                         all_hrefs.append(
                             f"https://sls.g2g.com/offer/{id_product}?currency=USD&country=UA&include_out_of_stock=1"
                         )
-            async with aiohttp.ClientSession() as session:
-                await process_hrefs(all_hrefs, session, type_pars)
+            # ИСПРАВЛЕНИЕ: убираем дублирование создания сессии
+            await process_hrefs(all_hrefs, session, type_pars)
             await browser.close()
         # GamePal
         elif type_pars == 1:
@@ -193,11 +202,6 @@ async def run(url_start, type_pars):
 
                     return log_response
 
-                # for href in all_hrefs:
-                #     match = re.search(r"/([^/?]+)\?", href)
-                #     if match:
-                #         id_product = match.group(1)
-                # if type_pars == 1:
                 filename = f"{counter}.json"
                 file_path = os.path.join(path_json_GamePal, filename)
 
@@ -218,7 +222,6 @@ async def run(url_start, type_pars):
                     page.remove_listener("response", previous_handler)
         await browser.close()
 
-
 async def save_hrefs_to_json(all_hrefs):
     # Откройте файл в асинхронном режиме и запишите данные
     async with aiofiles.open("all_hrefs.json", "w") as file:
@@ -234,9 +237,6 @@ async def run_html(url_start, type_pars):
     path_json_item = os.path.join(temp_path, "json_Item")
     if os.path.exists(temp_path) and os.path.isdir(temp_path):
         shutil.rmtree(temp_path)
-    # browsers_path = os.path.join(current_directory, "pw-browsers")
-    # os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
-    # Убедитесь, что папки существуют или создайте их
     await create_directories_async(
         [
             temp_path,
@@ -282,25 +282,47 @@ async def run_html(url_start, type_pars):
             for pages in range(1, list_pages + 1):
 
                 await page.goto(f"{url_start}&page={pages}")
-                await page.wait_for_selector(
-                    "div.full-height.full-width.position-relative > a"
-                )
+                # Ждем появления элементов
+                # Пробуем найти элементы от 1 до 48
+                for i in range(1, 49):  # от 1 до 48
+                    try:
+                        xpath = f'//*[@id="q-app"]/div/div[1]/main/div/div[6]/div[1]/div[2]/div/div[2]/div/div[{i}]/div/a'
+                        
+                        # Добавьте таймаут для поиска элемента
+                        link_element = await page.query_selector(f'xpath={xpath}')
+                        print(f"Элемент {i}: {link_element}")
+                        
+                        if link_element:
+                            href = await link_element.get_attribute("href")
+                            print(f"href {i}: {href}")
+                            
+                            if href:
+                                if href.startswith("http://") or href.startswith("https://"):
+                                    all_hrefs.append(href)
+                                else:
+                                    all_hrefs.append(f"https://www.g2g.com{href}")
+                    except Exception as e:
+                        print(f"Ошибка для элемента {i}: {e}")
+                        continue
+                # await page.wait_for_selector(
+                #     "div.full-height.full-width.position-relative > a"
+                # )
 
-                # Получите все элементы a внутри div
-                link_elements = await page.query_selector_all(
-                    "div.full-height.full-width.position-relative > a"
-                )
+                # # Получите все элементы a внутри div
+                # link_elements = await page.query_selector_all(
+                #     "div.full-height.full-width.position-relative > a"
+                # )
 
-                # Извлеките из каждого элемента атрибут href и сохраните в список
-                for link_element in link_elements:
-                    href = await link_element.get_attribute("href")
-                    # Проверяем, начинается ли ссылка с http:// или https://
-                    if href.startswith("http://") or href.startswith("https://"):
-                        all_hrefs.append(href)  # Ссылка уже полная, добавляем как есть
-                    else:
-                        all_hrefs.append(
-                            f"https://www.g2g.com{href}"
-                        )  # Добавляем префикс, если это относительная ссылка
+                # # Извлеките из каждого элемента атрибут href и сохраните в список
+                # for link_element in link_elements:
+                #     href = await link_element.get_attribute("href")
+                #     # Проверяем, начинается ли ссылка с http:// или https://
+                #     if href.startswith("http://") or href.startswith("https://"):
+                #         all_hrefs.append(href)  # Ссылка уже полная, добавляем как есть
+                #     else:
+                #         all_hrefs.append(
+                #             f"https://www.g2g.com{href}"
+                #         )  # Добавляем префикс, если это относительная ссылка
 
             await save_hrefs_to_json(all_hrefs)
             await browser.close()
@@ -310,19 +332,36 @@ async def run_html(url_start, type_pars):
             counter = 0
             for pages in range(1, list_pages + 1):
                 await page.goto(f"{url_start}&page={pages}")
-                await page.wait_for_selector(
-                    "div.full-height.full-width.position-relative > a"
-                )
+                # await page.wait_for_selector(
+                #     "div.full-height.full-width.position-relative > a"
+                # )
 
-                # Получите все элементы a внутри div
-                link_elements = await page.query_selector_all(
-                    "div.full-height.full-width.position-relative > a"
-                )
+                # # Получите все элементы a внутри div
+                # link_elements = await page.query_selector_all(
+                #     "div.full-height.full-width.position-relative > a"
+                # )
 
-                # Извлеките из каждого элемента атрибут href и сохраните в список
-                for link_element in link_elements:
-                    href = await link_element.get_attribute("href")
-                    all_hrefs.append(f"https://www.g2g.com{href}")
+                # # Извлеките из каждого элемента атрибут href и сохраните в список
+                # for link_element in link_elements:
+                #     href = await link_element.get_attribute("href")
+                for i in range(1, 49):  # от 1 до 48
+                    try:
+                        xpath = f'//*[@id="q-app"]/div/div[1]/main/div/div[6]/div[1]/div[2]/div/div[2]/div/div[{i}]/div/a'
+
+                        link_element = await page.query_selector(f'xpath={xpath}')
+                        print(link_element)
+                        if link_element:
+                            href = await link_element.get_attribute("href")
+                            
+                            if href:
+                                if href.startswith("http://") or href.startswith("https://"):
+                                    all_hrefs.append(href)
+                                else:
+                                    all_hrefs.append(f"https://www.g2g.com{href}")
+                    except:
+                        # Элемент не найден, продолжаем
+                        continue
+                #     all_hrefs.append(f"https://www.g2g.com{href}")
             await save_hrefs_to_json(all_hrefs)
 
             await browser.close()
@@ -680,15 +719,15 @@ if __name__ == "__main__":
 
     while True:
         print("Вставьте ссылку (или введите 'exit' для выхода):")
-        # url_start = input()
-        url_start = "https://www.g2g.com/categories/the-division-2-boosting-service?seller=AMELIBOOST"
+        url_start = input()
+        # url_start = "https://www.g2g.com/categories/the-division-2-item?seller=AMELIBOOST"
         if url_start.lower() == "exit":
             print("Программа завершена.")
             break
 
         print("Название файла:")
-        # file_name_csv = input()
-        file_name_csv = "1"
+        file_name_csv = input()
+        # file_name_csv = "2"
 
         while True:
             print(

@@ -148,7 +148,7 @@ if __name__ == "__main__":
     # Пример JSON-данных (вставь свои данные)
     try:
         # Читаем JSON из файла
-        with open("test.json", "r", encoding="utf-8") as file:
+        with open("living_guests_response.json", "r", encoding="utf-8") as file:
             json_data = file.read()
 
         # Извлекаем HTML-таблицу
@@ -160,6 +160,8 @@ if __name__ == "__main__":
 
         # Парсим данные гостей
         guests = parse_guest_data(html_table)
+        with open("product_details.json", "w", encoding="utf-8") as json_file:
+            json.dump(guests, json_file, ensure_ascii=False, indent=4)
 
         # Выводим результат (первые 5 записей для примера)
         for guest in guests[:5]:

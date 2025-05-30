@@ -6,6 +6,7 @@ from xml.etree import ElementTree as ET
 from bs4 import BeautifulSoup
 from config.logger import logger
 from lxml import etree as ET
+from main_xml import create_xml
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"
@@ -18,7 +19,7 @@ output_html_file = html_directory / "easy.html"
 
 def scrap_html_file():
 
-    with open("111.html", "r", encoding="utf-8") as file:
+    with open("10035233.html", "r", encoding="utf-8") as file:
         content = file.read()
     soup = BeautifulSoup(content, "lxml")
     script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
@@ -48,7 +49,7 @@ def scrap_html_file():
     product_data_description = scrap_html_product(soup)
     product_data.update(product_data_description)
     # logger.info(json.dumps(product_data, indent=4, ensure_ascii=False))
-    with open("file_name.json", "w", encoding="utf-8") as f:
+    with open("Kla10035233.json", "w", encoding="utf-8") as f:
         json.dump(product_data, f, ensure_ascii=False, indent=4)
     create_xml(product_data, "output.xml")
 
@@ -68,7 +69,7 @@ def scrap_json_product(json_data_product, json_data_breadcrumb):
     if name and sku:  # Проверка, чтобы не добавлять пустые данные
         product_data["product"] = {
             "name_pl": name,
-            "sku": f"Kla1{sku}",
+            "sku": f"Kla{sku}",
             "price": price,
             "images": images,
         }
@@ -135,162 +136,162 @@ def read_json_file(file_path):
     return data
 
 
-def create_xml(data, output_file):
-    # Создание корневого элемента
-    
-    root = ET.Element("yml_catalog")
-    root.set("date", "2025-05-13 12:00")
+# def create_xml(data, output_file):
+#     # Создание корневого элемента
 
-    shop = ET.SubElement(root, "shop")
+#     root = ET.Element("yml_catalog")
+#     root.set("date", "2025-05-13 12:00")
 
-    # Обязательные элементы магазина
-    name = ET.SubElement(shop, "name")
-    name.text = "Klarstein"
+#     shop = ET.SubElement(root, "shop")
 
-    company = ET.SubElement(shop, "company")
-    company.text = "Klarstein Shop"
+#     # Обязательные элементы магазина
+#     name = ET.SubElement(shop, "name")
+#     name.text = "Klarstein"
 
-    url = ET.SubElement(shop, "url")
-    url.text = "https://klarstein.ua"
+#     company = ET.SubElement(shop, "company")
+#     company.text = "Klarstein Shop"
 
-    currencies = ET.SubElement(shop, "currencies")
-    currency = ET.SubElement(currencies, "currency", id="UAH", rate="1")
+#     url = ET.SubElement(shop, "url")
+#     url.text = "https://klarstein.ua"
 
-    # Блок товаров
-    offers = ET.SubElement(shop, "offers")
+#     currencies = ET.SubElement(shop, "currencies")
+#     currency = ET.SubElement(currencies, "currency", id="UAH", rate="1")
 
-    # Создание элемента товара
-    offer = ET.SubElement(
-        offers,
-        "offer",
-        id=data["product"]["sku"],
-        available="true",
-        selling_type="u",
-    )
+#     # Блок товаров
+#     offers = ET.SubElement(shop, "offers")
 
-    # Название товара
-    name = ET.SubElement(offer, "name")
+#     # Создание элемента товара
+#     offer = ET.SubElement(
+#         offers,
+#         "offer",
+#         id=data["product"]["sku"],
+#         available="true",
+#         selling_type="u",
+#     )
 
-    name.text = data["product"]["name_pl"]
+#     # Название товара
+#     name = ET.SubElement(offer, "name")
 
-    # Цена
-    price = ET.SubElement(offer, "price")
-    price.text = data["product"]["price"]
+#     name.text = data["product"]["name_pl"]
 
-    # Валюта
-    currencyId = ET.SubElement(offer, "currencyId")
-    currencyId.text = "UAH"
+#     # Цена
+#     price = ET.SubElement(offer, "price")
+#     price.text = data["product"]["price"]
 
-    # Производитель
-    vendor = ET.SubElement(offer, "vendor")
-    vendor.text = "Klarstein"
+#     # Валюта
+#     currencyId = ET.SubElement(offer, "currencyId")
+#     currencyId.text = "UAH"
 
-    # Страна производитель
-    country_of_origin = ET.SubElement(offer, "country_of_origin")
-    country_of_origin.text = "Германия"
+#     # Производитель
+#     vendor = ET.SubElement(offer, "vendor")
+#     vendor.text = "Klarstein"
 
-    # Модель
-    model = ET.SubElement(offer, "model")
-    model.text = data["product"]["name_pl"]
+#     # Страна производитель
+#     country_of_origin = ET.SubElement(offer, "country_of_origin")
+#     country_of_origin.text = "Германия"
 
-    # Категория
-    categoryId = ET.SubElement(offer, "categoryId")
-    categoryId.text = "1"  # ID категории
+#     # Модель
+#     model = ET.SubElement(offer, "model")
+#     model.text = data["product"]["name_pl"]
 
-    # Изображения
-    for img_url in data["product"]["images"]:
-        picture = ET.SubElement(offer, "picture")
-        picture.text = img_url
+#     # Категория
+#     categoryId = ET.SubElement(offer, "categoryId")
+#     categoryId.text = "1"  # ID категории
 
-    # Описание: включаем все аккордеоны и вставляем изображения между ними
-    description_text = ""
-    for i, accordion in enumerate(data["description_pl"]):
-        # Добавляем заголовок и содержимое
-        description_text += (
-            f"<h2>{accordion['title_pl']}</h2>\n{accordion['description_pl']}\n"
-        )
+#     # Изображения
+#     for img_url in data["product"]["images"]:
+#         picture = ET.SubElement(offer, "picture")
+#         picture.text = img_url
 
-        # После каждого блока, кроме последнего, добавляем фото
-        if i < len(data["product"]["images"]) and i < len(data["description_pl"]) - 1:
-            description_text += f'<p><img src="{data["product"]["images"][i]}" alt="Product image"></p>\n'
+#     # Описание: включаем все аккордеоны и вставляем изображения между ними
+#     description_text = ""
+#     for i, accordion in enumerate(data["description_pl"]):
+#         # Добавляем заголовок и содержимое
+#         description_text += (
+#             f"<h2>{accordion['title_pl']}</h2>\n{accordion['description_pl']}\n"
+#         )
 
-    description = ET.SubElement(offer, "description_pl")
-    description.text = "DESCRIPTION_PLACEHOLDER"
+#         # После каждого блока, кроме последнего, добавляем фото
+#         if i < len(data["product"]["images"]) and i < len(data["description_pl"]) - 1:
+#             description_text += f'<p><img src="{data["product"]["images"][i]}" alt="Product image"></p>\n'
 
-    # Обработка размеров и веса из технического блока
-    for accordion in data["description_pl"]:
-        if accordion["title_pl"] == "Wymiary i szczegóły techniczne":
-            tech_desc = accordion["description_pl"]
+#     description = ET.SubElement(offer, "description_pl")
+#     description.text = "DESCRIPTION_PLACEHOLDER"
 
-            # Извлечение габаритов и веса
-            width = None
-            height = None
-            length = None
-            weight = None
+#     # Обработка размеров и веса из технического блока
+#     for accordion in data["description_pl"]:
+#         if accordion["title_pl"] == "Wymiary i szczegóły techniczne":
+#             tech_desc = accordion["description_pl"]
 
-            # Поиск размеров
-            import re
+#             # Извлечение габаритов и веса
+#             width = None
+#             height = None
+#             length = None
+#             weight = None
 
-            # Ищем габариты (ширина x высота x глубина)
-            # Пример: Wymiary: ok. 48 x 129 x 60 cm (SxWxG)
-            dimensions_match = re.search(
-                r"Wymiary: ok\. (\d+) x (\d+) x (\d+) cm", tech_desc
-            )
-            if dimensions_match:
-                width = dimensions_match.group(1)  # ширина
-                height = dimensions_match.group(2)  # высота
-                length = dimensions_match.group(3)  # глубина/длина
+#             # Поиск размеров
+#             import re
 
-            # Ищем вес
-            # Пример: Waga: ok. 46 kg
-            weight_match = re.search(r"Waga: ok\. (\d+) kg", tech_desc)
-            if weight_match:
-                weight = weight_match.group(1)
+#             # Ищем габариты (ширина x высота x глубина)
+#             # Пример: Wymiary: ok. 48 x 129 x 60 cm (SxWxG)
+#             dimensions_match = re.search(
+#                 r"Wymiary: ok\. (\d+) x (\d+) x (\d+) cm", tech_desc
+#             )
+#             if dimensions_match:
+#                 width = dimensions_match.group(1)  # ширина
+#                 height = dimensions_match.group(2)  # высота
+#                 length = dimensions_match.group(3)  # глубина/длина
 
-            # Добавляем блок с размерами если нашли хотя бы часть данных
-            if any([width, height, length, weight]):
-                dimensions = ET.SubElement(offer, "dimensions")
+#             # Ищем вес
+#             # Пример: Waga: ok. 46 kg
+#             weight_match = re.search(r"Waga: ok\. (\d+) kg", tech_desc)
+#             if weight_match:
+#                 weight = weight_match.group(1)
 
-                if weight:
-                    weight_elem = ET.SubElement(dimensions, "weight", unit="кг")
-                    weight_elem.text = weight
+#             # Добавляем блок с размерами если нашли хотя бы часть данных
+#             if any([width, height, length, weight]):
+#                 dimensions = ET.SubElement(offer, "dimensions")
 
-                if width:
-                    width_elem = ET.SubElement(dimensions, "width", unit="см")
-                    width_elem.text = width
+#                 if weight:
+#                     weight_elem = ET.SubElement(dimensions, "weight", unit="кг")
+#                     weight_elem.text = weight
 
-                if height:
-                    height_elem = ET.SubElement(dimensions, "height", unit="см")
-                    height_elem.text = height
+#                 if width:
+#                     width_elem = ET.SubElement(dimensions, "width", unit="см")
+#                     width_elem.text = width
 
-                if length:
-                    length_elem = ET.SubElement(dimensions, "length", unit="см")
-                    length_elem.text = length
+#                 if height:
+#                     height_elem = ET.SubElement(dimensions, "height", unit="см")
+#                     height_elem.text = height
 
-    # Создание XML строки
-    xml_str = ET.tostring(root, encoding="utf-8").decode("utf-8")
+#                 if length:
+#                     length_elem = ET.SubElement(dimensions, "length", unit="см")
+#                     length_elem.text = length
 
-    # Заменяем плейсхолдер на CDATA содержимое
-    xml_str = xml_str.replace(
-        "<description>DESCRIPTION_PLACEHOLDER</description>",
-        f"<description><![CDATA[{description_text}]]></description>",
-    )
+#     # Создание XML строки
+#     xml_str = ET.tostring(root, encoding="utf-8").decode("utf-8")
 
-    # Форматирование XML
-    dom = xml.dom.minidom.parseString(xml_str)
-    pretty_xml = dom.toprettyxml(indent="  ")
+#     # Заменяем плейсхолдер на CDATA содержимое
+#     xml_str = xml_str.replace(
+#         "<description>DESCRIPTION_PLACEHOLDER</description>",
+#         f"<description><![CDATA[{description_text}]]></description>",
+#     )
 
-    # Добавление декларации XML
-    pretty_xml = (
-        '<?xml version="1.0" encoding="UTF-8"?>\n'
-        + pretty_xml[pretty_xml.find("<yml_catalog") :]
-    )
+#     # Форматирование XML
+#     dom = xml.dom.minidom.parseString(xml_str)
+#     pretty_xml = dom.toprettyxml(indent="  ")
 
-    # Запись в файл
-    with open(output_file, "w", encoding="utf-8") as file:
-        file.write(pretty_xml)
+#     # Добавление декларации XML
+#     pretty_xml = (
+#         '<?xml version="1.0" encoding="UTF-8"?>\n'
+#         + pretty_xml[pretty_xml.find("<yml_catalog") :]
+#     )
 
-    return pretty_xml
+#     # Запись в файл
+#     with open(output_file, "w", encoding="utf-8") as file:
+#         file.write(pretty_xml)
+
+#     return pretty_xml
 
 
 if __name__ == "__main__":
