@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import psycopg2
 from config.logger import logger
-from psycopg2.extras import execute_values
+from psycopg2.extras import RealDictCursor, execute_values
 
 # Конфигурация подключения к БД
 DB_CONFIG = {
@@ -17,7 +17,7 @@ DB_CONFIG = {
 
 
 class KlarsteinProductLoader:
-    """Класс для загрузки продуктов Klarstein в PostgreSQL"""
+    """Класс для загрузки продуктов Klarstein в PostgreSQL (новая схема)"""
 
     def __init__(self, db_config: Dict[str, Any]):
         self.db_config = db_config
@@ -40,8 +40,8 @@ class KlarsteinProductLoader:
             self.connection.close()
             logger.info("Подключение к БД закрыто")
 
-    def extract_product_id_from_sku(self, sku: str) -> int:
-        """Извлекает product_id из SKU"""
+    def extract_vendor_code_from_sku(self, sku: str) -> int:
+        """Извлекает vendor_code из SKU"""
         # Убираем префикс Kla и извлекаем числовую часть
         sku_clean = sku.replace("Kla", "").replace("kla", "")
         match = re.search(r"(\d+)", sku_clean)
@@ -51,55 +51,349 @@ class KlarsteinProductLoader:
             # Если не найдено число, используем хеш от SKU
             return abs(hash(sku)) % (2**31)
 
-    def insert_product(self, cursor, product_data: Dict[str, Any]) -> Optional[int]:
-        """Вставляет основную информацию о продукте"""
+    def get_products_for_export(self) -> List[Dict[str, Any]]:
+        """Получает товары с export_xml = false (НЕ выгруженные в XML)"""
         try:
-            sku = product_data.get("sku", "")
-            if not sku:
-                logger.warning("SKU отсутствует в данных продукта")
+            if not self.connect_to_db():
+                return []
+
+            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
+
+            # ИСПРАВЛЕННЫЙ SQL: добавлено поле quantity
+            query = """
+            SELECT 
+                p.id, p.product_id, p.vendor_code, p.available, p.selling_type, 
+                p.price, p.price_opt, p.quantity, p.currency_id, p.category_id, 
+                p.name_pl, p.name, p.name_ua, p.vendor, p.country_of_origin,
+                p.keywords_pl, p.keywords, p.keywords_ua,
+                p.description_pl, p.description, p.description_ua,
+                p.created_at, p.updated_at, p.export_xml,
+                -- ИСПРАВЛЕНО: сортировка вынесена в подзапрос
+                (
+                    SELECT array_agg(pi2.image_url ORDER BY pi2.image_order)
+                    FROM product_images pi2 
+                    WHERE pi2.product_id = p.product_id
+                ) as images,
+                pd.width, pd.height, pd.length, pd.weight
+            FROM products p
+            LEFT JOIN product_dimensions pd ON p.product_id = pd.product_id
+            WHERE p.export_xml = false  -- НЕ выгруженные товары
+            ORDER BY p.created_at DESC
+            """
+
+            cursor.execute(query)
+            results = cursor.fetchall()
+
+            # Преобразуем результаты в список словарей
+            products = []
+            for row in results:
+                product = dict(row)
+                # Убираем None значения из массива изображений
+                if product.get("images"):
+                    product["images"] = [img for img in product["images"] if img]
+                else:
+                    product["images"] = []
+                products.append(product)
+
+            cursor.close()
+            logger.info(f"Получено {len(products)} товаров для экспорта")
+            return products
+
+        except Exception as e:
+            logger.error(f"Ошибка получения товаров для экспорта: {e}")
+            return []
+        finally:
+            self.close_connection()
+
+    def mark_as_exported(self, product_ids: List[str]) -> bool:
+        """Помечает товары как выгруженные (export_xml = true)"""
+        try:
+            if not product_ids:
+                logger.warning("Пустой список товаров для пометки как экспортированные")
+                return False
+
+            if not self.connect_to_db():
+                return False
+
+            cursor = self.connection.cursor()
+
+            query = """
+            UPDATE products 
+            SET export_xml = true, updated_at = NOW()
+            WHERE product_id = ANY(%s)
+            """
+
+            cursor.execute(query, (product_ids,))
+            affected_rows = cursor.rowcount
+
+            if affected_rows > 0:
+                self.connection.commit()
+                logger.info(f"Помечено как выгруженные {affected_rows} товаров")
+                return True
+            else:
+                logger.warning("Не найдено товаров для обновления")
+                return False
+
+        except Exception as e:
+            self.connection.rollback()
+            logger.error(f"Ошибка пометки товаров как выгруженных: {e}")
+            return False
+        finally:
+            self.close_connection()
+
+    def load_data_to_db(self, data) -> bool:
+        """Загружает данные напрямую в базу данных (принимает один YML объект)"""
+        try:
+            # Подключаемся к БД
+            if not self.connect_to_db():
+                return False
+
+            cursor = self.connection.cursor()
+
+            try:
+                # Определяем тип структуры данных
+                if isinstance(data, dict):
+                    if "shop_info" in data and "offers" in data:
+                        # Новая YML структура
+                        success = self.process_yml_structure(cursor, data)
+                    elif "product" in data:
+                        # Старый формат с одним продуктом
+                        success = self.process_single_product(cursor, data)
+                    else:
+                        logger.error("Неизвестная структура JSON")
+                        return False
+                elif isinstance(data, list):
+                    # Массив продуктов (старый формат)
+                    success_count = 0
+                    for product_data in data:
+                        if self.process_single_product(cursor, product_data):
+                            success_count += 1
+                    success = success_count > 0
+                else:
+                    logger.error("JSON должен быть объектом или массивом")
+                    return False
+
+                if success:
+                    self.connection.commit()
+                    logger.info("Данные успешно загружены в БД")
+                else:
+                    self.connection.rollback()
+                    logger.error("Ошибка загрузки данных, откат изменений")
+
+                return success
+
+            except Exception as e:
+                self.connection.rollback()
+                logger.error(f"Критическая ошибка, откат транзакции: {e}")
+                return False
+            finally:
+                cursor.close()
+
+        except Exception as e:
+            logger.error(f"Ошибка загрузки данных: {e}")
+            return False
+        finally:
+            self.close_connection()
+
+    def insert_categories(self, cursor, categories_data: List[Dict[str, Any]]) -> bool:
+        """Вставляет категории в БД"""
+        try:
+            if not categories_data:
+                return True
+
+            for category in categories_data:
+                category_id = category.get("id")
+                parent_id = category.get("parentId")
+                name_pl = category.get("name_pl", "")
+                name = category.get("name", "")
+                name_ua = category.get("name_ua", "")
+
+                # Проверяем, существует ли категория
+                cursor.execute(
+                    "SELECT COUNT(*) FROM categories WHERE category_id = %s",
+                    (category_id,),
+                )
+                exists = cursor.fetchone()[0] > 0
+
+                if exists:
+                    # Обновляем существующую категорию
+                    update_query = """
+                        UPDATE categories SET
+                            parent_id = %s,
+                            name_pl = %s,
+                            name = %s,
+                            name_ua = %s,
+                            updated_at = NOW()
+                        WHERE category_id = %s
+                    """
+                    cursor.execute(
+                        update_query, (parent_id, name_pl, name, name_ua, category_id)
+                    )
+                    logger.info(f"Обновлена категория ID: {category_id}")
+                else:
+                    # Вставляем новую категорию
+                    insert_query = """
+                        INSERT INTO categories (category_id, parent_id, name_pl, name, name_ua)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(
+                        insert_query, (category_id, parent_id, name_pl, name, name_ua)
+                    )
+                    logger.info(f"Добавлена категория ID: {category_id}")
+
+            logger.info(f"Обработано {len(categories_data)} категорий")
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка при вставке категорий: {e}")
+            return False
+
+    def insert_product(self, cursor, offer_data: Dict[str, Any]) -> Optional[str]:
+        """Вставляет основную информацию о продукте (ИСПРАВЛЕННАЯ ВЕРСИЯ)"""
+        try:
+            product_id = offer_data.get("id", "")
+            if not product_id:
+                logger.warning("product_id отсутствует в данных продукта")
                 return None
 
-            product_id = self.extract_product_id_from_sku(sku)
-            name_pl = product_data.get("name_pl", "")
-            price = product_data.get("price")
+            # Извлекаем vendor_code - сначала пробуем из данных, потом из product_id
+            vendor_code = offer_data.get("vendorCode")
+            if not vendor_code:
+                vendor_code = self.extract_vendor_code_from_sku(product_id)
 
             # Конвертируем цену в число
+            quantity = offer_data.get("quantity")
+
+            price = offer_data.get("price")
             if price:
                 try:
                     price = float(str(price).replace(",", "."))
                 except (ValueError, TypeError):
-                    price = None
+                    price = 0.0
+            price_opt = offer_data.get("price_opt")
+            logger.info(price_opt)
+            if price_opt:
+                try:
+                    price_opt = float(str(price_opt).replace(",", "."))
+                except (ValueError, TypeError):
+                    price_opt = 0.0
 
-            insert_query = """
-                INSERT INTO products (product_id, sku, name_pl, price)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (product_id) DO UPDATE SET
-                    sku = EXCLUDED.sku,
-                    name_pl = EXCLUDED.name_pl,
-                    price = EXCLUDED.price,
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING product_id
-            """
+            # Проверяем, существует ли продукт
+            cursor.execute(
+                "SELECT COUNT(*) FROM products WHERE product_id = %s", (product_id,)
+            )
+            exists = cursor.fetchone()[0] > 0
 
-            cursor.execute(insert_query, (product_id, sku, name_pl, price))
-            result = cursor.fetchone()
-
-            if result:
-                logger.info(
-                    f"Продукт {sku} (ID: {product_id}) успешно вставлен/обновлен"
+            if exists:
+                # Обновляем существующий продукт
+                update_query = """
+                    UPDATE products SET
+                        vendor_code = %s,
+                        available = %s,
+                        selling_type = %s,
+                        price = %s,
+                        price_opt = %s,
+                        quantity = %s,
+                        currency_id = %s,
+                        category_id = %s,
+                        name_pl = %s,
+                        name = %s,
+                        name_ua = %s,
+                        vendor = %s,
+                        country_of_origin = %s,
+                        model_pl = %s,
+                        model = %s,
+                        model_ua = %s,
+                        keywords_pl = %s,
+                        keywords = %s,
+                        keywords_ua = %s,
+                        description_pl = %s,
+                        description = %s,
+                        description_ua = %s,
+                        updated_at = NOW()
+                    WHERE product_id = %s
+                    RETURNING product_id
+                """
+                cursor.execute(
+                    update_query,
+                    (
+                        vendor_code,
+                        offer_data.get("available", "true") == "true",
+                        offer_data.get("selling_type", "u"),
+                        price,
+                        price_opt,
+                        quantity,
+                        offer_data.get("currencyId", "UAH"),
+                        int(offer_data.get("categoryId", 1)),
+                        offer_data.get("name_pl", ""),
+                        offer_data.get("name", ""),
+                        offer_data.get("name_ua", ""),
+                        offer_data.get("vendor", "Klarstein"),
+                        offer_data.get("country_of_origin", "Германия"),
+                        offer_data.get("keywords_pl", ""),
+                        offer_data.get("keywords", ""),
+                        offer_data.get("keywords_ua", ""),
+                        offer_data.get("description_pl", ""),
+                        offer_data.get("description", ""),
+                        offer_data.get("description_ua", ""),
+                        product_id,
+                    ),
                 )
-                return result[0]
+                logger.info(
+                    f"Обновлен продукт {product_id} (vendor_code: {vendor_code})"
+                )
             else:
-                logger.error(f"Не удалось вставить продукт {sku}")
-                return None
+                # Вставляем новый продукт
+                insert_query = """
+                    INSERT INTO products (
+                        product_id, vendor_code, available, selling_type, price,price_opt,quantity, currency_id,
+                        category_id, name_pl, name, name_ua, vendor, country_of_origin,keywords_pl, keywords, keywords_ua,
+                        description_pl, description, description_ua
+                    )
+                    VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s
+                    )
+                    RETURNING product_id
+                """
+                cursor.execute(
+                    insert_query,
+                    (
+                        product_id,
+                        vendor_code,
+                        offer_data.get("available", "true") == "true",
+                        offer_data.get("selling_type", "u"),
+                        price,
+                        price_opt,
+                        quantity,
+                        offer_data.get("currencyId", "UAH"),
+                        int(offer_data.get("categoryId", 1)),
+                        offer_data.get("name_pl", ""),
+                        offer_data.get("name", ""),
+                        offer_data.get("name_ua", ""),
+                        offer_data.get("vendor", "Klarstein"),
+                        offer_data.get("country_of_origin", "Германия"),
+                        offer_data.get("keywords_pl", ""),
+                        offer_data.get("keywords", ""),
+                        offer_data.get("keywords_ua", ""),
+                        offer_data.get("description_pl", ""),
+                        offer_data.get("description", ""),
+                        offer_data.get("description_ua", ""),
+                    ),
+                )
+                logger.info(
+                    f"Добавлен продукт {product_id} (vendor_code: {vendor_code})"
+                )
+
+            result = cursor.fetchone()
+            return result[0] if result else product_id
 
         except Exception as e:
             logger.error(
-                f"Ошибка при вставке продукта {product_data.get('sku', 'unknown')}: {e}"
+                f"Ошибка при вставке продукта {offer_data.get('id', 'unknown')}: {e}"
             )
             return None
 
-    def insert_product_images(self, cursor, product_id: int, images: List[str]) -> bool:
+    def insert_product_images(self, cursor, product_id: str, images: List[str]) -> bool:
         """Вставляет изображения продукта"""
         try:
             # Удаляем существующие изображения
@@ -134,231 +428,198 @@ class KlarsteinProductLoader:
             )
             return False
 
-    def insert_product_breadcrumbs(
-        self, cursor, product_id: int, breadcrumbs: List[str]
+    def insert_product_dimensions(
+        self, cursor, product_id: str, dimensions: Dict[str, Any]
     ) -> bool:
-        """Вставляет хлебные крошки продукта"""
+        """Вставляет размеры продукта"""
         try:
-            # Удаляем существующие хлебные крошки
+            # Удаляем существующие размеры
             cursor.execute(
-                "DELETE FROM product_breadcrumbs WHERE product_id = %s", (product_id,)
+                "DELETE FROM product_dimensions WHERE product_id = %s", (product_id,)
             )
 
-            if not breadcrumbs:
+            if not dimensions:
                 return True
 
-            # Подготавливаем данные
-            breadcrumbs_data = []
-            for order, breadcrumb in enumerate(breadcrumbs, 1):
-                if breadcrumb and breadcrumb.strip():
-                    breadcrumbs_data.append((product_id, breadcrumb.strip(), order))
+            # Извлекаем размеры
+            width = self._safe_float(dimensions.get("width"))
+            height = self._safe_float(dimensions.get("height"))
+            length = self._safe_float(dimensions.get("length"))
+            weight = self._safe_float(dimensions.get("weight"))
 
-            if breadcrumbs_data:
+            # Вставляем только если есть хотя бы один размер
+            if any([width, height, length, weight]):
                 insert_query = """
-                    INSERT INTO product_breadcrumbs (product_id, breadcrumb_name, breadcrumb_order)
-                    VALUES %s
+                    INSERT INTO product_dimensions (product_id, width, height, length, weight)
+                    VALUES (%s, %s, %s, %s, %s)
                 """
-                execute_values(cursor, insert_query, breadcrumbs_data)
-                logger.info(
-                    f"Добавлено {len(breadcrumbs_data)} хлебных крошек для товара {product_id}"
+                cursor.execute(
+                    insert_query, (product_id, width, height, length, weight)
                 )
+                logger.info(f"Добавлены размеры для товара {product_id}")
 
             return True
 
         except Exception as e:
-            logger.error(
-                f"Ошибка при вставке хлебных крошек для продукта {product_id}: {e}"
-            )
+            logger.error(f"Ошибка при вставке размеров для продукта {product_id}: {e}")
             return False
 
-    def insert_description_sections(
-        self, cursor, product_id: int, sections: List[Dict[str, str]]
-    ) -> bool:
-        """Вставляет секции описания продукта"""
+    def _safe_float(self, value) -> Optional[float]:
+        """Безопасное преобразование в float"""
+        if value is None:
+            return None
         try:
-            # Удаляем существующие секции
-            cursor.execute(
-                "DELETE FROM product_description_sections WHERE product_id = %s",
-                (product_id,),
-            )
+            return float(str(value).replace(",", "."))
+        except (ValueError, TypeError):
+            return None
 
-            if not sections:
+    def process_yml_structure(self, cursor, yml_data: Dict[str, Any]) -> bool:
+        """Обрабатывает данные в YML структуре"""
+        try:
+            # 1. Вставляем категории
+            categories = yml_data.get("categories", [])
+            if not self.insert_categories(cursor, categories):
+                return False
+
+            # 2. Обрабатываем товары
+            offers = yml_data.get("offers", [])
+            if not offers:
+                logger.warning("Нет товаров для обработки")
                 return True
 
-            # Подготавливаем данные
-            sections_data = []
-            for order, section in enumerate(sections, 1):
-                title_pl = section.get("title_pl", "").strip()
-                description_pl = section.get("description_pl", "").strip()
+            success_count = 0
+            for offer in offers:
+                try:
+                    # Начинаем savepoint для каждого товара
+                    cursor.execute("SAVEPOINT offer_savepoint")
 
-                if title_pl and description_pl:
-                    sections_data.append((product_id, title_pl, description_pl, order))
+                    # Вставляем основную информацию о товаре
+                    product_id = self.insert_product(cursor, offer)
+                    if not product_id:
+                        cursor.execute("ROLLBACK TO SAVEPOINT offer_savepoint")
+                        continue
 
-            if sections_data:
-                insert_query = """
-                    INSERT INTO product_description_sections (product_id, title_pl, description_pl, section_order)
-                    VALUES %s
-                """
-                execute_values(cursor, insert_query, sections_data)
-                logger.info(
-                    f"Добавлено {len(sections_data)} секций описания для товара {product_id}"
-                )
+                    # Вставляем изображения
+                    images = offer.get("pictures", [])
+                    if not self.insert_product_images(cursor, product_id, images):
+                        cursor.execute("ROLLBACK TO SAVEPOINT offer_savepoint")
+                        continue
 
-            return True
+                    # Вставляем размеры
+                    dimensions = offer.get("dimensions", {})
+                    if not self.insert_product_dimensions(
+                        cursor, product_id, dimensions
+                    ):
+                        cursor.execute("ROLLBACK TO SAVEPOINT offer_savepoint")
+                        continue
 
-        except Exception as e:
-            logger.error(
-                f"Ошибка при вставке секций описания для продукта {product_id}: {e}"
-            )
-            return False
+                    cursor.execute("RELEASE SAVEPOINT offer_savepoint")
+                    success_count += 1
+                    logger.info(f"Товар {product_id} успешно обработан")
 
-    def insert_specifications(
-        self, cursor, product_id: int, specifications: Dict[str, str]
-    ) -> bool:
-        """Вставляет характеристики продукта"""
-        try:
-            # Удаляем существующие характеристики
-            cursor.execute(
-                "DELETE FROM product_specifications WHERE product_id = %s",
-                (product_id,),
-            )
+                except Exception as e:
+                    cursor.execute("ROLLBACK TO SAVEPOINT offer_savepoint")
+                    logger.error(f"Ошибка обработки товара: {e}")
 
-            if not specifications:
-                return True
-
-            # Подготавливаем данные
-            specs_data = []
-            for spec_name, spec_value in specifications.items():
-                if spec_name and str(spec_value).strip():
-                    specs_data.append(
-                        (product_id, spec_name.strip(), str(spec_value).strip())
-                    )
-
-            if specs_data:
-                insert_query = """
-                    INSERT INTO product_specifications (product_id, spec_name, spec_value)
-                    VALUES %s
-                """
-                execute_values(cursor, insert_query, specs_data)
-                logger.info(
-                    f"Добавлено {len(specs_data)} характеристик для товара {product_id}"
-                )
-
-            return True
+            logger.info(f"Успешно обработано {success_count} из {len(offers)} товаров")
+            return success_count > 0
 
         except Exception as e:
-            logger.error(
-                f"Ошибка при вставке характеристик для продукта {product_id}: {e}"
-            )
+            logger.error(f"Ошибка обработки YML структуры: {e}")
             return False
 
     def process_single_product(self, cursor, product_data: Dict[str, Any]) -> bool:
-        """Обрабатывает один продукт"""
+        """Обрабатывает один продукт (старый формат)"""
         try:
-            # Извлекаем данные в зависимости от структуры
+            # Конвертируем старый формат в новый
             if "product" in product_data:
-                # Новый формат с вложенной структурой
                 product_info = product_data["product"]
                 breadcrumbs = product_data.get("breadcrumbs_pl", [])
                 descriptions = product_data.get("description_pl", [])
-                specifications = product_data.get("product_specifications", {})
+
+                # Создаем структуру категорий из breadcrumbs
+                categories = []
+                for idx, category_name in enumerate(breadcrumbs, 1):
+                    categories.append(
+                        {
+                            "id": idx,
+                            "name_pl": category_name,
+                            "name": category_name,
+                            "name_ua": category_name,
+                            "parentId": idx - 1 if idx > 1 else None,
+                        }
+                    )
+
+                # Создаем структуру offer
+                offer = {
+                    "id": product_info.get("sku", ""),
+                    "available": "true",
+                    "selling_type": "u",
+                    "price": product_info.get("price", "0"),
+                    "price_opt": product_info.get("price_opt", "0"),
+                    "quantity": product_info.get("quantity", "0"),
+                    "currencyId": "UAH",
+                    "categoryId": str(len(categories)) if categories else "1",
+                    "name_pl": product_info.get("name_pl", ""),
+                    "name": "",
+                    "name_ua": "",
+                    "vendor": "Klarstein",
+                    "country_of_origin": "Германия",
+                    "pictures": product_info.get("images", []),
+                    "description_pl": "",
+                    "description": "",
+                    "description_ua": "",
+                    "dimensions": product_data.get("product_specifications", {}),
+                }
+
+                # Создаем YML структуру
+                yml_structure = {"categories": categories, "offers": [offer]}
+
+                return self.process_yml_structure(cursor, yml_structure)
             else:
-                # Прямой формат
-                product_info = product_data
-                breadcrumbs = product_data.get("breadcrumbs_pl", [])
-                descriptions = product_data.get("description_pl", [])
-                specifications = product_data.get("product_specifications", {})
-
-            sku = product_info.get("sku")
-            if not sku:
-                logger.warning("Продукт не имеет SKU, пропускаем")
+                logger.error("Неподдерживаемый формат данных продукта")
                 return False
-
-            logger.info(f"Обработка продукта: {sku}")
-
-            # 1. Вставляем основную информацию
-            product_id = self.insert_product(cursor, product_info)
-            if not product_id:
-                return False
-
-            # 2. Вставляем изображения
-            images = product_info.get("images", [])
-            if not self.insert_product_images(cursor, product_id, images):
-                return False
-
-            # 3. Вставляем хлебные крошки
-            if not self.insert_product_breadcrumbs(cursor, product_id, breadcrumbs):
-                return False
-
-            # 4. Вставляем секции описания
-            if not self.insert_description_sections(cursor, product_id, descriptions):
-                return False
-
-            # 5. Вставляем характеристики
-            if not self.insert_specifications(cursor, product_id, specifications):
-                return False
-
-            logger.info(f"Продукт {sku} успешно обработан")
-            return True
 
         except Exception as e:
-            logger.error(f"Ошибка обработки продукта: {e}")
+            logger.error(f"Ошибка обработки одного продукта: {e}")
             return False
 
-    def load_json_file(self, json_file_path: str) -> bool:
+    def load_json_file(self, data: dict) -> bool:
         """Загружает данные из JSON файла в базу данных"""
         try:
-            # Читаем JSON файл
-            with open(json_file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Определяем структуру данных
-            if isinstance(data, dict):
-                if "product" in data or "sku" in data:
-                    # Один продукт
-                    products_data = [data]
-                else:
-                    logger.error("Неизвестная структура JSON")
-                    return False
-            elif isinstance(data, list):
-                # Массив продуктов
-                products_data = data
-            else:
-                logger.error("JSON должен быть объектом или массивом")
-                return False
-
-            logger.info(
-                f"Найдено {len(products_data)} продуктов в файле {json_file_path}"
-            )
-
-            # Подключаемся к БД
-            if not self.connect_to_db():
-                return False
-
             cursor = self.connection.cursor()
-            success_count = 0
-            error_count = 0
 
             try:
-                for i, product_data in enumerate(products_data, 1):
-                    try:
-                        # Начинаем транзакцию для каждого продукта
-                        cursor.execute("SAVEPOINT product_savepoint")
-
+                # Определяем тип структуры данных
+                if isinstance(data, dict):
+                    if "shop_info" in data and "offers" in data:
+                        # Новая YML структура
+                        success = self.process_yml_structure(cursor, data)
+                    elif "product" in data:
+                        # Старый формат с одним продуктом
+                        success = self.process_single_product(cursor, data)
+                    else:
+                        logger.error("Неизвестная структура JSON")
+                        return False
+                elif isinstance(data, list):
+                    # Массив продуктов (старый формат)
+                    success_count = 0
+                    for product_data in data:
                         if self.process_single_product(cursor, product_data):
-                            cursor.execute("RELEASE SAVEPOINT product_savepoint")
                             success_count += 1
-                        else:
-                            cursor.execute("ROLLBACK TO SAVEPOINT product_savepoint")
-                            error_count += 1
+                    success = success_count > 0
+                else:
+                    logger.error("JSON должен быть объектом или массивом")
+                    return False
 
-                    except Exception as e:
-                        cursor.execute("ROLLBACK TO SAVEPOINT product_savepoint")
-                        logger.error(f"Ошибка обработки продукта {i}: {e}")
-                        error_count += 1
+                if success:
+                    self.connection.commit()
+                    logger.info("Данные успешно загружены в БД")
+                else:
+                    self.connection.rollback()
+                    logger.error("Ошибка загрузки данных, откат изменений")
 
-                # Подтверждаем все изменения
-                self.connection.commit()
+                return success
 
             except Exception as e:
                 self.connection.rollback()
@@ -367,73 +628,32 @@ class KlarsteinProductLoader:
             finally:
                 cursor.close()
 
-            logger.info(
-                f"Загрузка завершена. Успешно: {success_count}, Ошибок: {error_count}"
-            )
-            return success_count > 0
-
         except Exception as e:
-            logger.error(f"Ошибка загрузки файла {json_file_path}: {e}")
+            logger.error(f"Ошибка загрузки файла {data}: {e}")
             return False
         finally:
             self.close_connection()
 
-    def get_product_statistics(self) -> Dict[str, int]:
-        """Возвращает статистику по загруженным продуктам"""
+    def get_product_by_id(self, product_id: str) -> Optional[Dict[str, Any]]:
+        """Получает товар по ID в JSON формате"""
         try:
             if not self.connect_to_db():
-                return {}
+                return None
 
-            cursor = self.connection.cursor()
-            stats = {}
+            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
 
-            # Статистика по таблицам
-            tables_queries = {
-                "products": "SELECT COUNT(*) FROM products",
-                "product_images": "SELECT COUNT(*) FROM product_images",
-                "product_breadcrumbs": "SELECT COUNT(*) FROM product_breadcrumbs",
-                "product_description_sections": "SELECT COUNT(*) FROM product_description_sections",
-                "product_specifications": "SELECT COUNT(*) FROM product_specifications",
-            }
-
-            for table, query in tables_queries.items():
-                try:
-                    cursor.execute(query)
-                    stats[table] = cursor.fetchone()[0]
-                except Exception as e:
-                    logger.error(f"Ошибка получения статистики для {table}: {e}")
-                    stats[table] = 0
+            # Используем готовую функцию из БД
+            cursor.execute("SELECT get_product_json(%s) as product_data", (product_id,))
+            result = cursor.fetchone()
 
             cursor.close()
-            return stats
+            return result["product_data"] if result else None
 
         except Exception as e:
-            logger.error(f"Ошибка получения статистики: {e}")
-            return {}
+            logger.error(f"Ошибка получения продукта {product_id}: {e}")
+            return None
         finally:
             self.close_connection()
 
 
-def main():
-    """Основная функция для тестирования"""
-    # Создаем экземпляр загрузчика
-    loader = KlarsteinProductLoader(DB_CONFIG)
-
-    # Загружаем тестовые данные (замените на ваш путь к файлу)
-    json_file_path = "Kla10035233.json"
-
-    # Загружаем данные
-    if loader.load_json_file(json_file_path):
-        logger.info("Данные успешно загружены!")
-
-        # Получаем статистику
-        stats = loader.get_product_statistics()
-        logger.info("Статистика по таблицам:")
-        for table, count in stats.items():
-            logger.info(f"  {table}: {count}")
-    else:
-        logger.error("Ошибка загрузки данных")
-
-
-if __name__ == "__main__":
-    main()
+loader = KlarsteinProductLoader(DB_CONFIG)

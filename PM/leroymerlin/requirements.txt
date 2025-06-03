@@ -1,0 +1,5 @@
+beautifulsoup4==4.13.4
+loguru==0.7.3
+lxml==5.4.0
+soupsieve==2.7
+typing_extensions==4.13.2

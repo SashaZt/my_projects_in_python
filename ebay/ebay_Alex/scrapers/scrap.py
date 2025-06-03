@@ -4,48 +4,6 @@ import re
 from bs4 import BeautifulSoup
 from config.logger import logger
 
-# current_directory = Path.cwd()
-# temp_directory = current_directory / "temp"
-# json_directory = temp_directory / "json"
-# html_directory = temp_directory / "html"
-# config_directory = current_directory / "config"
-# temp_directory.mkdir(parents=True, exist_ok=True)
-# config_directory.mkdir(parents=True, exist_ok=True)
-# html_directory.mkdir(parents=True, exist_ok=True)
-
-# config_file = config_directory / "config.json"
-# cookies = {
-#     "__uzma": "48f63d0a-8f14-443b-8715-fcdba0ef603b",
-#     "__uzmb": "1728902698",
-#     "__uzme": "0335",
-#     "__uzmc": "256671941755",
-#     "__uzmd": "1742639115",
-#     "__uzmf": "7f600064f0eb3a-c548-42ca-b2b7-28f9559755a4172890269899113736416513-2a38b34a491a6dcd19",
-#     "AMP_MKTG_f93443b04c": "JTdCJTIycmVmZXJyZXIlMjIlM0ElMjJodHRwcyUzQSUyRiUyRnd3dy5nb29nbGUuY29tJTJGJTIyJTJDJTIycmVmZXJyaW5nX2RvbWFpbiUyMiUzQSUyMnd3dy5nb29nbGUuY29tJTIyJTdE",
-#     "AMP_f93443b04c": "JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI1NWQ1NmQxMi1mOThiLTQ5MGEtYTUzMi00ZjEyZThiZTJkMGYlMjIlMkMlMjJzZXNzaW9uSWQlMjIlM0ExNzQyNjM5MTE3MDMyJTJDJTIyb3B0T3V0JTIyJTNBZmFsc2UlMkMlMjJsYXN0RXZlbnRUaW1lJTIyJTNBMTc0MjYzOTExNzA1NCUyQyUyMmxhc3RFdmVudElkJTIyJTNBMiUyQyUyMnBhZ2VDb3VudGVyJTIyJTNBMSU3RA==",
-#     "dp1": "bbl/UA6ba0f710^",
-#     "nonsession": "BAQAAAZRXz2gmAAaAADMABWm/w5AyMTAwMADKACBroPcQOGFhMTk4MGYxOTIwYTZmMTZlM2QyZjUwZmZiNTE4YTYAywABZ96XGDbYNiX16bk46kVFvzpbH3uSlWh5Iw**",
-# }
-
-# headers = {
-#     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-#     "accept-language": "ru,en;q=0.9,uk;q=0.8",
-#     "dnt": "1",
-#     "priority": "u=0, i",
-#     "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-#     "sec-ch-ua-full-version": '"135.0.7049.115"',
-#     "sec-ch-ua-mobile": "?0",
-#     "sec-ch-ua-model": '""',
-#     "sec-ch-ua-platform": '"Windows"',
-#     "sec-ch-ua-platform-version": '"19.0.0"',
-#     "sec-fetch-dest": "document",
-#     "sec-fetch-mode": "navigate",
-#     "sec-fetch-site": "none",
-#     "sec-fetch-user": "?1",
-#     "upgrade-insecure-requests": "1",
-#     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-# }
-
 
 def get_breadcrumbList(soup):
     scripts = soup.find_all("script", type="application/ld+json")
@@ -154,16 +112,19 @@ def get_returns(soup):
 
     return returns
 
+
 def get_shipping(soup):
     # Находим контейнер с информацией о доставке
     shipping_container = soup.select_one("div.ux-labels-values--shipping")
-    
+
     shipping = None
     location = None
-    
+
     if shipping_container:
         # Извлекаем информацию о доставке (первый div)
-        shipping_spans = shipping_container.select("div.ux-labels-values__values-content > div:first-child > span.ux-textspans")
+        shipping_spans = shipping_container.select(
+            "div.ux-labels-values__values-content > div:first-child > span.ux-textspans"
+        )
         if shipping_spans:
             shipping_info = []
             for span in shipping_spans:
@@ -172,9 +133,11 @@ def get_shipping(soup):
                     shipping_info.append(text)
             shipping = " ".join(shipping_info) if shipping_info else None
             # logger.info(f"Shipping: {shipping}")
-        
+
         # Извлекаем информацию о местоположении (второй div)
-        location_span = shipping_container.select_one("div.ux-labels-values__values-content > div:nth-child(2) > span.ux-textspans--SECONDARY")
+        location_span = shipping_container.select_one(
+            "div.ux-labels-values__values-content > div:nth-child(2) > span.ux-textspans--SECONDARY"
+        )
         if location_span:
             location_text = location_span.get_text(strip=True)
             # Убираем префикс "Located in: " если он есть
@@ -183,8 +146,10 @@ def get_shipping(soup):
             else:
                 location = location_text
             # logger.info(f"Location: {location}")
-    
+
     return shipping, location
+
+
 # def get_shipping(soup):
 #     # 6-7. Извлекаем информацию о доставке (Shipping и Delivery)
 #     shipping_container = soup.find("div", {"data-testid": "d-shipping-minview"})
@@ -784,7 +749,7 @@ def scrap_online(src, brand_directory):
         # Извлекаем изображения
         images = extract_image_urls(soup)
         # if not images:
-            # logger.warning(f"Изображения не найдены, {product_url}")
+        # logger.warning(f"Изображения не найдены, {product_url}")
         product_data["url_image_1"] = images[0] if len(images) > 0 else ""
         product_data["url_image_2"] = images[1] if len(images) > 1 else ""
         product_data["url_image_3"] = images[2] if len(images) > 2 else ""
