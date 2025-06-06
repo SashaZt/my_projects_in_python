@@ -21,31 +21,53 @@ file_name = "10035233"
 
 
 class CategoriesManager:
-    """Менеджер для управления уникальными категориями"""
+    """Менеджер для управления уникальными категориями с правильной иерархией"""
 
     def __init__(self):
-        self.categories_registry = {}  # {name_pl: category_data}
+        # Основной реестр: {уникальный_ключ: category_data}
+        self.categories_registry = {}
+        # Маппинг имени на ID для быстрого поиска: {name_pl: category_id}
+        self.name_to_id = {}
+        # Маппинг полного пути на ID: {"Małe AGD" -> "Małe AGD > Kostkarki do lodu": category_id}
+        self.path_to_id = {}
         self.next_id = 1
+
+    def _get_category_path(self, breadcrumbs_pl, index):
+        """Создает уникальный путь для категории"""
+        return " > ".join(breadcrumbs_pl[: index + 1])
 
     def add_breadcrumbs(self, breadcrumbs_pl):
         """
         Добавляет цепочку breadcrumbs и возвращает ID последней категории
+        ИСПРАВЛЕНО: правильная обработка иерархии без дубликатов
         """
         if not breadcrumbs_pl:
             return 1  # Дефолтная категория
 
-        parent_id = None
+        current_parent_id = None
         last_category_id = None
 
-        for category_name_pl in breadcrumbs_pl:
-            # Ищем категорию по польскому названию
-            if category_name_pl in self.categories_registry:
+        # Проходим по каждому уровню breadcrumbs
+        for i, category_name_pl in enumerate(breadcrumbs_pl):
+            # Создаем уникальный путь для этой категории
+            category_path = self._get_category_path(breadcrumbs_pl, i)
+
+            # Проверяем, существует ли категория по полному пути
+            if category_path in self.path_to_id:
                 # Категория уже существует
-                category = self.categories_registry[category_name_pl]
-                last_category_id = category["id"]
-                parent_id = category["id"]
+                category_id = self.path_to_id[category_path]
+                last_category_id = category_id
+                current_parent_id = category_id
+                logger.debug(
+                    f"Найдена существующая категория: {category_path} (ID: {category_id})"
+                )
             else:
                 # Создаем новую категорию
+                logger.info(
+                    f"Создаем новую категорию: {category_name_pl} (путь: {category_path})"
+                )
+
+                # Переводим название
                 russian, ukrainian = translate_text(category_name_pl)
 
                 new_category = {
@@ -53,29 +75,76 @@ class CategoriesManager:
                     "name": russian,
                     "name_pl": category_name_pl,
                     "name_ua": ukrainian,
+                    "path": category_path,  # Сохраняем полный путь для отладки
                 }
 
                 # Добавляем parentId если есть родитель
-                if parent_id:
-                    new_category["parentId"] = parent_id
+                if current_parent_id:
+                    new_category["parentId"] = current_parent_id
 
                 # Регистрируем категорию
-                self.categories_registry[category_name_pl] = new_category
+                unique_key = f"id_{self.next_id}"
+                self.categories_registry[unique_key] = new_category
+                self.path_to_id[category_path] = self.next_id
+
+                # Также ведем простой маппинг имени на ID (для последней категории с таким именем)
+                self.name_to_id[category_name_pl] = self.next_id
+
                 last_category_id = self.next_id
-                parent_id = self.next_id
+                current_parent_id = self.next_id
                 self.next_id += 1
+
+                logger.info(
+                    f"Категория создана: {category_name_pl} -> ID: {current_parent_id}"
+                )
 
         return last_category_id
 
     def get_all_categories(self):
         """Возвращает все уникальные категории в виде списка"""
-        return list(self.categories_registry.values())
+        categories = list(self.categories_registry.values())
+
+        # Сортируем: сначала родительские (без parentId), потом дочерние
+        categories_sorted = sorted(
+            categories,
+            key=lambda x: (
+                "parentId" in x,  # Сначала без parentId (родительские)
+                x.get("parentId", 0),  # Потом по parentId
+                x["id"],  # Потом по id
+            ),
+        )
+
+        logger.info(f"Возвращаем {len(categories_sorted)} уникальных категорий")
+        return categories_sorted
 
     def get_category_id_by_name_pl(self, name_pl):
         """Возвращает ID категории по польскому названию"""
-        if name_pl in self.categories_registry:
-            return self.categories_registry[name_pl]["id"]
-        return 1  # Дефолтная категория
+        return self.name_to_id.get(name_pl, 1)  # Дефолтная категория
+
+    def get_category_id_by_path(self, breadcrumbs_pl):
+        """Возвращает ID категории по полному пути"""
+        if not breadcrumbs_pl:
+            return 1
+
+        full_path = " > ".join(breadcrumbs_pl)
+        return self.path_to_id.get(full_path, 1)
+
+    def print_debug_info(self):
+        """Отладочная информация о категориях"""
+        logger.info("=== ОТЛАДКА КАТЕГОРИЙ ===")
+        logger.info(f"Всего категорий: {len(self.categories_registry)}")
+
+        for key, category in self.categories_registry.items():
+            parent_info = (
+                f" (родитель: {category['parentId']})"
+                if "parentId" in category
+                else " (корневая)"
+            )
+            logger.info(f"ID {category['id']}: {category['name_pl']}{parent_info}")
+
+        logger.info("=== ПУТИ КАТЕГОРИЙ ===")
+        for path, cat_id in self.path_to_id.items():
+            logger.info(f"'{path}' -> ID: {cat_id}")
 
 
 categories_manager = CategoriesManager()
@@ -133,9 +202,117 @@ categories_manager = CategoriesManager()
 #         logger.error(f"Ошибка загрузки товара {file_name} в БД")
 
 
-#     return success
+# #     return success
+# def scrap_html_file():
+#     """ИСПРАВЛЕННАЯ версия - обрабатывает множество HTML файлов"""
+#     global categories_manager
+
+#     all_products = []
+#     html_files = list(html_directory.glob("*.html"))
+
+#     logger.info(f"Найдено {len(html_files)} HTML файлов для обработки")
+
+#     for html_file in html_files:
+#         logger.info(f"Обрабатываем файл: {html_file.name}")
+
+#         try:
+#             with open(html_file, "r", encoding="utf-8") as file:
+#                 content = file.read()
+
+#             soup = BeautifulSoup(content, "lxml")
+#             script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
+
+#             # Проходим по всем тегам
+#             breadcrumb_script = None
+#             product_script = None
+#             for script in script_tags:
+#                 try:
+#                     # Парсим содержимое тега как JSON
+#                     json_data = json.loads(script.string)
+
+#                     # Проверяем @type
+#                     if (
+#                         json_data.get("@type") == "BreadcrumbList"
+#                         and not breadcrumb_script
+#                     ):
+#                         breadcrumb_script = json_data
+#                     elif json_data.get("@type") == "Product" and not product_script:
+#                         product_script = json_data
+
+#                     # Если оба найдены, можно прервать цикл
+#                     if breadcrumb_script and product_script:
+#                         break
+#                 except (json.JSONDecodeError, TypeError):
+#                     # Пропускаем, если содержимое не является валидным JSON
+#                     continue
+
+#             if not product_script or not breadcrumb_script:
+#                 logger.warning(
+#                     f"Не найдены необходимые данные в файле {html_file.name}"
+#                 )
+#                 continue
+
+#             # Получаем данные продукта
+#             product_data = scrap_json_product(product_script, breadcrumb_script)
+#             product_data_description = scrap_html_product(soup)
+
+#             # Объединяем данные
+#             product_data.update(product_data_description)
+
+#             # ВАЖНО: Регистрируем категории из этого товара
+#             breadcrumbs_pl = product_data.get("breadcrumbs_pl", [])
+#             category_id = categories_manager.add_breadcrumbs(breadcrumbs_pl)
+
+#             # Добавляем ID категории к данным товара
+#             product_data["category_id"] = category_id
+#             logger.info(product_data)
+#             exit()
+#             all_products.append(product_data)
+
+#         except Exception as e:
+#             logger.error(f"Ошибка обработки файла {html_file.name}: {e}")
+#             continue
+
+#     if not all_products:
+#         logger.error("Не удалось обработать ни одного товара")
+#         return False
+
+#     # Формируем финальную YML структуру со всеми товарами
+#     yml_structure = {
+#         "shop_info": {
+#             "name": "Klarstein Ukraine",
+#             "company": "Klarstein UA",
+#             "url": "https://klarstein.ua",
+#         },
+#         "categories": categories_manager.get_all_categories(),  # Все уникальные категории
+#         "offers": [],
+#     }
+
+#     # Генерируем offers для всех товаров
+#     for product_data in all_products:
+#         offer = generate_offer_with_category_id(product_data)
+#         yml_structure["offers"].append(offer)
+
+#     # Сохраняем результат
+#     with open("result_all_products.json", "w", encoding="utf-8") as f:
+#         json.dump(yml_structure, f, ensure_ascii=False, indent=4)
+
+# with open("result_all_products.json", "r", encoding="utf-8") as f:
+#     yml_structure = json.load(f)
+#     # Загружаем в БД
+#     success = loader.load_data_to_db(yml_structure)
+
+#     if success:
+#         logger.info(
+#             f"Успешно загружено {len(all_products)} товаров и {len(yml_structure['categories'])} уникальных категорий в БД"
+#         )
+#     else:
+#         logger.error("Ошибка загрузки данных в БД")
+
+
+#     # return success
 def scrap_html_file():
-    """ИСПРАВЛЕННАЯ версия - обрабатывает множество HTML файлов"""
+    """ИСПРАВЛЕННАЯ версия - корректное управление категориями"""
     # global categories_manager
 
     # all_products = []
@@ -143,8 +320,11 @@ def scrap_html_file():
 
     # logger.info(f"Найдено {len(html_files)} HTML файлов для обработки")
 
+    # # ЭТАП 1: Сначала собираем ВСЕ категории из всех файлов
+    # logger.info("=== ЭТАП 1: Сбор всех категорий ===")
+
     # for html_file in html_files:
-    #     logger.info(f"Обрабатываем файл: {html_file.name}")
+    #     logger.info(f"Сканируем категории в файле: {html_file.name}")
 
     #     try:
     #         with open(html_file, "r", encoding="utf-8") as file:
@@ -153,15 +333,60 @@ def scrap_html_file():
     #         soup = BeautifulSoup(content, "lxml")
     #         script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
 
-    #         # Проходим по всем тегам
+    #         # Ищем breadcrumbs
+    #         breadcrumb_script = None
+    #         for script in script_tags:
+    #             try:
+    #                 json_data = json.loads(script.string)
+    #                 if json_data.get("@type") == "BreadcrumbList":
+    #                     breadcrumb_script = json_data
+    #                     break
+    #             except (json.JSONDecodeError, TypeError):
+    #                 continue
+
+    #         if breadcrumb_script:
+    #             # Извлекаем breadcrumbs
+    #             itemListElement = breadcrumb_script.get("itemListElement", [])
+    #             breadcrumbs_pl = []
+    #             for item in itemListElement[
+    #                 :-1
+    #             ]:  # Исключаем последний элемент (сам товар)
+    #                 if isinstance(item, dict):
+    #                     breadcrumbs_pl.append(item.get("name"))
+
+    #             if breadcrumbs_pl:
+    #                 # ВАЖНО: Регистрируем категории, но пока не обрабатываем товары
+    #                 categories_manager.add_breadcrumbs(breadcrumbs_pl)
+    #                 logger.info(
+    #                     f"Зарегистрированы категории: {' > '.join(breadcrumbs_pl)}"
+    #                 )
+
+    #     except Exception as e:
+    #         logger.error(f"Ошибка сканирования категорий в файле {html_file.name}: {e}")
+    #         continue
+
+    # # Выводим отладочную информацию о собранных категориях
+    # categories_manager.print_debug_info()
+
+    # # ЭТАП 2: Теперь обрабатываем товары с уже готовыми категориями
+    # logger.info("=== ЭТАП 2: Обработка товаров ===")
+
+    # for html_file in html_files:
+    #     logger.info(f"Обрабатываем товар в файле: {html_file.name}")
+
+    #     try:
+    #         with open(html_file, "r", encoding="utf-8") as file:
+    #             content = file.read()
+
+    #         soup = BeautifulSoup(content, "lxml")
+    #         script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
+
+    #         # Ищем данные товара и breadcrumbs
     #         breadcrumb_script = None
     #         product_script = None
     #         for script in script_tags:
     #             try:
-    #                 # Парсим содержимое тега как JSON
     #                 json_data = json.loads(script.string)
-
-    #                 # Проверяем @type
     #                 if (
     #                     json_data.get("@type") == "BreadcrumbList"
     #                     and not breadcrumb_script
@@ -170,11 +395,9 @@ def scrap_html_file():
     #                 elif json_data.get("@type") == "Product" and not product_script:
     #                     product_script = json_data
 
-    #                 # Если оба найдены, можно прервать цикл
     #                 if breadcrumb_script and product_script:
     #                     break
     #             except (json.JSONDecodeError, TypeError):
-    #                 # Пропускаем, если содержимое не является валидным JSON
     #                 continue
 
     #         if not product_script or not breadcrumb_script:
@@ -190,12 +413,21 @@ def scrap_html_file():
     #         # Объединяем данные
     #         product_data.update(product_data_description)
 
-    #         # ВАЖНО: Регистрируем категории из этого товара
+    #         # ВАЖНО: Определяем category_id по полному пути breadcrumbs
     #         breadcrumbs_pl = product_data.get("breadcrumbs_pl", [])
-    #         category_id = categories_manager.add_breadcrumbs(breadcrumbs_pl)
+    #         if breadcrumbs_pl:
+    #             category_id = categories_manager.get_category_id_by_path(breadcrumbs_pl)
+    #         else:
+    #             category_id = 1
 
     #         # Добавляем ID категории к данным товара
     #         product_data["category_id"] = category_id
+
+    #         logger.info(
+    #             f"Товар: {product_data.get('product', {}).get('sku', 'unknown')}"
+    #         )
+    #         logger.info(f"Путь категорий: {' > '.join(breadcrumbs_pl)}")
+    #         logger.info(f"Назначен category_id: {category_id}")
 
     #         all_products.append(product_data)
 
@@ -227,6 +459,17 @@ def scrap_html_file():
     # with open("result_all_products.json", "w", encoding="utf-8") as f:
     #     json.dump(yml_structure, f, ensure_ascii=False, indent=4)
 
+    # logger.info("=== ФИНАЛЬНАЯ СТАТИСТИКА ===")
+    # logger.info(f"Обработано товаров: {len(all_products)}")
+    # logger.info(f"Уникальных категорий: {len(yml_structure['categories'])}")
+
+    # # Показываем финальную структуру категорий
+    # logger.info("=== ФИНАЛЬНЫЕ КАТЕГОРИИ ===")
+    # for cat in yml_structure["categories"]:
+    #     parent_info = (
+    #         f" (родитель: {cat['parentId']})" if "parentId" in cat else " (корневая)"
+    #     )
+    #     logger.info(f"ID {cat['id']}: {cat['name_pl']}{parent_info}")
     with open("result_all_products.json", "r", encoding="utf-8") as f:
         yml_structure = json.load(f)
     # Загружаем в БД
@@ -242,9 +485,77 @@ def scrap_html_file():
     # return success
 
 
+# def generate_offer_with_category_id(raw_data):
+#     """
+#     ИСПРАВЛЕННАЯ версия - использует уже определенный category_id
+#     """
+#     product = raw_data.get("product", {})
+#     description_pl = raw_data.get("description_pl", [])
+#     images = product.get("images", [])
+
+#     # Извлекаем размеры и вес
+#     dimensions = extract_dimensions_and_weight(description_pl)
+
+#     # Определяем категорию товара (последняя в breadcrumbs)
+#     categories = raw_data.get("breadcrumbs_pl", [])
+
+#     keywords_pl = ", ".join(categories)
+
+#     category_id = len(categories) if categories else 1
+
+#     # Формируем готовое HTML описание из польских данных
+#     description, description_ua, description_pl = generate_complete_description_html(
+#         description_pl, images
+#     )
+
+#     name_pl = product.get("name_pl", "")
+#     name_russian, name_ukrainian = translate_text(name_pl)
+
+#     keywords, keywords_ua = translate_text(keywords_pl)
+
+#     # Основная структура offer
+#     offer = {
+#         # Обязательные атрибуты
+#         "id": product.get("sku", ""),
+#         "available": "true",
+#         "selling_type": "u",
+#         # Обязательные элементы
+#         "price": product.get("price", "0"),
+#         "price_opt1": "",
+#         "price_opt2": "",
+#         "quantity1": "",
+#         "quantity2": "",
+#         "discount": "",
+#         "currencyId": "UAH",
+#         "categoryId": str(category_id),
+#         # Название товара
+#         "name": name_russian,  # русский - пока копируем, потом переведем
+#         "name_pl": name_pl,  # польский - исходный
+#         "name_ua": name_ukrainian,  # украинский - заполнится после перевода
+#         # Дополнительные поля
+#         "vendor": "Klarstein",
+#         "vendorCode": generate_10_digit_number(),
+#         "country_of_origin": "Германия",
+#         "keywords_pl": keywords_pl,
+#         "keywords": keywords,
+#         "keywords_ua": keywords_ua,
+#         "model": "",
+#         # Изображения
+#         "pictures": product.get("images", []),
+#         # Готовые HTML описания для всех языков
+#         "description": description,  # русский - пока польский HTML, потом переведем
+#         "description_pl": description_pl,  # польский - готовый HTML
+#         "description_ua": description_ua,  # украинский - заполнится после перевода
+#         # Размеры и вес
+#         "dimensions": dimensions,
+#     }
+
+#     return offer
+
+
 def generate_offer_with_category_id(raw_data):
     """
-    ИСПРАВЛЕННАЯ версия - использует уже определенный category_id
+    ИСПРАВЛЕННАЯ версия - использует правильный category_id из данных
     """
     product = raw_data.get("product", {})
     description_pl = raw_data.get("description_pl", [])
@@ -253,12 +564,12 @@ def generate_offer_with_category_id(raw_data):
     # Извлекаем размеры и вес
     dimensions = extract_dimensions_and_weight(description_pl)
 
-    # Определяем категорию товара (последняя в breadcrumbs)
+    # ИСПРАВЛЕНО: Используем category_id, который уже определен правильно
+    category_id = raw_data.get("category_id", 1)
+
+    # Определяем категории для ключевых слов
     categories = raw_data.get("breadcrumbs_pl", [])
-
     keywords_pl = ", ".join(categories)
-
-    category_id = len(categories) if categories else 1
 
     # Формируем готовое HTML описание из польских данных
     description, description_ua, description_pl = generate_complete_description_html(
@@ -267,7 +578,6 @@ def generate_offer_with_category_id(raw_data):
 
     name_pl = product.get("name_pl", "")
     name_russian, name_ukrainian = translate_text(name_pl)
-
     keywords, keywords_ua = translate_text(keywords_pl)
 
     # Основная структура offer
@@ -278,14 +588,17 @@ def generate_offer_with_category_id(raw_data):
         "selling_type": "u",
         # Обязательные элементы
         "price": product.get("price", "0"),
-        "price_opt": "",
-        "quantity": "",
+        "price_opt1": "",
+        "price_opt2": "",
+        "quantity1": "",
+        "quantity2": "",
+        "discount": "",
         "currencyId": "UAH",
-        "categoryId": str(category_id),
+        "categoryId": str(category_id),  # ИСПРАВЛЕНО: используем правильный ID
         # Название товара
-        "name": name_russian,  # русский - пока копируем, потом переведем
-        "name_pl": name_pl,  # польский - исходный
-        "name_ua": name_ukrainian,  # украинский - заполнится после перевода
+        "name": name_russian,
+        "name_pl": name_pl,
+        "name_ua": name_ukrainian,
         # Дополнительные поля
         "vendor": "Klarstein",
         "vendorCode": generate_10_digit_number(),
@@ -297,9 +610,9 @@ def generate_offer_with_category_id(raw_data):
         # Изображения
         "pictures": product.get("images", []),
         # Готовые HTML описания для всех языков
-        "description": description,  # русский - пока польский HTML, потом переведем
-        "description_pl": description_pl,  # польский - готовый HTML
-        "description_ua": description_ua,  # украинский - заполнится после перевода
+        "description": description,
+        "description_pl": description_pl,
+        "description_ua": description_ua,
         # Размеры и вес
         "dimensions": dimensions,
     }
@@ -358,11 +671,6 @@ def scrap_html_product(soup):
         # Извлечение содержимого
         content_div = item.find("div", attrs={"class": "accordion__content"})
         if content_div:
-            # content = "".join(
-            #     str(child).strip()
-            #     for child in content_div.children
-            #     if str(child).strip()
-            # )
             content = content_div.decode_contents()
         else:
             content = ""
@@ -375,118 +683,8 @@ def scrap_html_product(soup):
     return product_data
 
 
-# def transform_to_yml_structure(raw_data):
-#     """
-#     Трансформирует сырые данные в структуру, готовую для YML
-#     """
-#     yml_data = {
-#         # Информация о магазине (константы или из конфига)
-#         "shop_info": {
-#             "name": "Klarstein Ukraine",
-#             "company": "Klarstein UA",
-#             "url": "https://klarstein.ua",
-#         },
-#         # Категории (из breadcrumbs)
-#         "categories": generate_categories(raw_data.get("breadcrumbs_pl", [])),
-#         # Товары
-#         "offers": [generate_offer(raw_data)],
-#     }
-
-#     return yml_data
-
-
-# def generate_categories(breadcrumbs):
-#     """
-#     Генерирует структуру категорий из breadcrumbs
-#     """
-#     categories = []
-#     parent_id = None
-
-#     for idx, category_name in enumerate(breadcrumbs, 1):
-#         russian, ukrainian = translate_text(category_name)
-#         category = {
-#             "id": idx,
-#             "name": russian,  # русский - пока копируем, потом переведем
-#             "name_pl": category_name,  # польский - исходный
-#             "name_ua": ukrainian,  # украинский - заполнится после перевода
-#         }
-
-#         if parent_id:
-#             category["parentId"] = parent_id
-
-#         categories.append(category)
-#         parent_id = idx
-
-#     return categories
-
-
 def generate_10_digit_number():
     return random.randint(1000000000, 9999999999)
-
-
-# def generate_offer(raw_data):
-#     """
-#     Генерирует структуру товара для YML с готовым HTML описанием
-#     """
-#     product = raw_data.get("product", {})
-#     description_pl = raw_data.get("description_pl", [])
-#     images = product.get("images", [])
-
-#     # Извлекаем размеры и вес
-#     dimensions = extract_dimensions_and_weight(description_pl)
-
-#     # Определяем категорию товара (последняя в breadcrumbs)
-#     categories = raw_data.get("breadcrumbs_pl", [])
-
-#     keywords_pl = ", ".join(categories)
-
-#     category_id = len(categories) if categories else 1
-
-#     # Формируем готовое HTML описание из польских данных
-#     description, description_ua, description_pl = generate_complete_description_html(
-#         description_pl, images
-#     )
-
-#     name_pl = product.get("name_pl", "")
-#     name_russian, name_ukrainian = translate_text(name_pl)
-
-#     keywords, keywords_ua = translate_text(keywords_pl)
-
-#     # Основная структура offer
-#     offer = {
-#         # Обязательные атрибуты
-#         "id": product.get("sku", ""),
-#         "available": "true",
-#         "selling_type": "u",
-#         # Обязательные элементы
-#         "price": product.get("price", "0"),
-#         "price_opt": "",
-#         "quantity": "",
-#         "currencyId": "UAH",
-#         "categoryId": str(category_id),
-#         # Название товара
-#         "name": name_russian,  # русский - пока копируем, потом переведем
-#         "name_pl": name_pl,  # польский - исходный
-#         "name_ua": name_ukrainian,  # украинский - заполнится после перевода
-#         # Дополнительные поля
-#         "vendor": "Klarstein",
-#         "vendorCode": generate_10_digit_number(),
-#         "country_of_origin": "Германия",
-#         "keywords_pl": keywords_pl,
-#         "keywords": keywords,
-#         "keywords_ua": keywords_ua,
-#         "model": "",
-#         # Изображения
-#         "pictures": product.get("images", []),
-#         # Готовые HTML описания для всех языков
-#         "description": description,  # русский - пока польский HTML, потом переведем
-#         "description_pl": description_pl,  # польский - готовый HTML
-#         "description_ua": description_ua,  # украинский - заполнится после перевода
-#         # Размеры и вес
-#         "dimensions": dimensions,
-#     }
-
-#     return offer
 
 
 def generate_complete_description_html(descriptions, images):

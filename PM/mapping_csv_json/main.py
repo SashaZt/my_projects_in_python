@@ -1,813 +1,3 @@
-# import csv
-# import json
-# from copy import deepcopy
-# from typing import Any, Dict, List, Set, Union
-
-# from config.logger import logger
-
-
-# class AdvancedCSVToJSONMapper:
-#     def __init__(self, protected_fields: List[str] = None):
-#         """
-#         Продвинутый маппер CSV в JSON с поддержкой внешних конфигураций
-
-#         Args:
-#             protected_fields: Список полей которые не должны изменяться при мапинге
-#         """
-#         self.json_template = {}
-#         self.field_mapping = {}
-#         self.protected_fields = set(protected_fields or [])
-
-#     def _parse_csv_to_object_array(
-#         self, csv_value: str, template_item: Dict[str, Any], field_path: str
-#     ) -> List[Dict[str, Any]]:
-#         """
-#         Парсинг строки из CSV в массив объектов
-#         """
-#         parse_config = self._get_array_parse_config(field_path)
-#         delimiter = parse_config.get("delimiter", "|")
-#         target_field = parse_config.get("target_field", "original")
-
-#         values = [v.strip() for v in csv_value.split(delimiter) if v.strip()]
-
-#         result_array = []
-#         for value in values:
-#             new_obj = deepcopy(template_item)
-#             if target_field in new_obj:
-#                 new_obj[target_field] = value
-#             result_array.append(new_obj)
-
-#         return result_array
-
-#     def _get_array_parse_config(self, field_path: str) -> Dict[str, Any]:
-#         """
-#         Получение конфигурации разбора массива из мапинга
-#         """
-#         config_key = f"{field_path}._config"
-
-#         if config_key in self.field_mapping:
-#             return self.field_mapping[config_key]
-
-#         default_configs = {
-#             "images": {"delimiter": "|", "target_field": "original"},
-#             "category_path": {"delimiter": ">", "target_field": "name"},
-#             "tags": {"delimiter": ",", "target_field": "name"},
-#             "reviews": {"delimiter": "||", "target_field": "text"},
-#         }
-
-#         return default_configs.get(
-#             field_path, {"delimiter": "|", "target_field": "original"}
-#         )
-
-#     def load_json_template(self, template_file_path: str) -> Dict[str, Any]:
-#         """
-#         Загрузка шаблона JSON из файла
-
-#         Args:
-#             template_file_path: Путь к файлу с шаблоном JSON
-
-#         Returns:
-#             Словарь с шаблоном JSON
-#         """
-#         try:
-#             with open(template_file_path, "r", encoding="utf-8") as file:
-#                 self.json_template = json.load(file)
-#                 logger.info(f"Шаблон JSON загружен из {template_file_path}")
-#                 return self.json_template
-#         except FileNotFoundError:
-#             logger.error(f"Файл шаблона {template_file_path} не найден")
-#             return {}
-#         except json.JSONDecodeError as e:
-#             logger.error(f"Ошибка при разборе JSON шаблона: {e}")
-#             return {}
-#         except Exception as e:
-#             logger.error(f"Ошибка при загрузке шаблона: {e}")
-#             return {}
-
-#     def load_protected_fields(self, protected_fields_file: str = None) -> Set[str]:
-#         """
-#         Загрузка списка защищенных полей из файла
-
-#         Args:
-#             protected_fields_file: Путь к JSON файлу со списком защищенных полей
-
-#         Returns:
-#             Множество защищенных полей
-#         """
-#         if not protected_fields_file:
-#             return self.protected_fields
-
-#         try:
-#             with open(protected_fields_file, "r", encoding="utf-8") as file:
-#                 protected_data = json.load(file)
-
-#                 # Поддерживаем разные форматы файла
-#                 if isinstance(protected_data, list):
-#                     # Простой список: ["success", "active"]
-#                     self.protected_fields.update(protected_data)
-#                 elif isinstance(protected_data, dict):
-#                     # Объект с описаниями: {"success": "Статус успеха", "active": "Активность"}
-#                     self.protected_fields.update(protected_data.keys())
-
-#                 logger.info(
-#                     f"Загружено {len(protected_data)} защищенных полей из {protected_fields_file}"
-#                 )
-#                 logger.info(f"Защищенные поля: {list(self.protected_fields)}")
-#                 return self.protected_fields
-
-#         except FileNotFoundError:
-#             logger.warning(
-#                 f"Файл защищенных полей {protected_fields_file} не найден, используем настройки по умолчанию"
-#             )
-#         except json.JSONDecodeError as e:
-#             logger.error(f"Ошибка при разборе файла защищенных полей: {e}")
-#         except Exception as e:
-#             logger.error(f"Ошибка при загрузке защищенных полей: {e}")
-
-#         return self.protected_fields
-
-#     def load_field_mapping(
-#         self, mapping_file_path: str
-#     ) -> Dict[str, Union[str, List[str]]]:
-#         """
-#         Загрузка мапинга полей из JSON файла
-
-#         Args:
-#             mapping_file_path: Путь к файлу с мапингом полей
-
-#         Returns:
-#             Словарь с мапингом полей
-#         """
-#         try:
-#             with open(mapping_file_path, "r", encoding="utf-8") as file:
-#                 self.field_mapping = json.load(file)
-#                 logger.info(f"Мапинг полей загружен из {mapping_file_path}")
-#                 return self.field_mapping
-#         except FileNotFoundError:
-#             logger.error(f"Файл мапинга {mapping_file_path} не найден")
-#             return {}
-#         except json.JSONDecodeError as e:
-#             logger.error(f"Ошибка при разборе JSON мапинга: {e}")
-#             return {}
-#         except Exception as e:
-#             logger.error(f"Ошибка при загрузке мапинга: {e}")
-#             return {}
-
-#     def add_protected_fields(self, *fields: str):
-#         """
-#         Добавление полей в список защищенных
-
-#         Args:
-#             *fields: Поля для защиты
-#         """
-#         self.protected_fields.update(fields)
-#         logger.info(f"Добавлены защищенные поля: {list(fields)}")
-#         logger.info(f"Всего защищенных полей: {list(self.protected_fields)}")
-
-#     def remove_protected_fields(self, *fields: str):
-#         """
-#         Удаление полей из списка защищенных
-
-#         Args:
-#             *fields: Поля для удаления из защиты
-#         """
-#         for field in fields:
-#             self.protected_fields.discard(field)
-#         logger.info(f"Удалены из защищенных полей: {list(fields)}")
-#         logger.info(f"Остались защищенными: {list(self.protected_fields)}")
-
-#     def is_protected_field(self, field_path: str) -> bool:
-#         """
-#         Проверка является ли поле защищенным
-
-#         Args:
-#             field_path: Путь к полю (например: "success" или "specifications.Parametry.Marka")
-
-#         Returns:
-#             True если поле защищено
-#         """
-#         # Проверяем точное соответствие
-#         if field_path in self.protected_fields:
-#             return True
-
-#         # Проверяем соответствие по частям пути для вложенных полей
-#         field_parts = field_path.split(".")
-#         for i in range(len(field_parts)):
-#             partial_path = ".".join(field_parts[: i + 1])
-#             if partial_path in self.protected_fields:
-#                 return True
-
-#         return False
-
-#     def read_csv(
-#         self, csv_file_path: str, encoding="utf-8", delimiter=","
-#     ) -> List[Dict[str, Any]]:
-#         """
-#         Чтение данных из CSV файла с обработкой BOM
-
-#         Args:
-#             csv_file_path: Путь к CSV файлу
-#             encoding: Кодировка файла
-#             delimiter: Разделитель CSV
-
-#         Returns:
-#             Список словарей с данными из CSV
-#         """
-#         data = []
-#         try:
-#             # Пробуем разные кодировки для обработки BOM
-#             encodings_to_try = ["utf-8-sig", "utf-8", "cp1251", "latin1"]
-#             file_content = None
-#             used_encoding = encoding
-
-#             for enc in encodings_to_try:
-#                 try:
-#                     with open(csv_file_path, "r", encoding=enc) as file:
-#                         file_content = file.read()
-#                         used_encoding = enc
-#                         break
-#                 except UnicodeDecodeError:
-#                     continue
-
-#             if file_content is None:
-#                 raise Exception(
-#                     f"Не удалось прочитать файл ни с одной из кодировок: {encodings_to_try}"
-#                 )
-
-#             logger.info(f"Файл прочитан с кодировкой: {used_encoding}")
-
-#             # Создаем StringIO для обработки содержимого
-#             from io import StringIO
-
-#             file_like = StringIO(file_content)
-
-#             # Автоматическое определение разделителя
-#             sample = file_content[:1024]
-#             sniffer = csv.Sniffer()
-#             try:
-#                 delimiter = sniffer.sniff(sample).delimiter
-#                 logger.info(f"Определен разделитель: '{delimiter}'")
-#             except:
-#                 delimiter = delimiter  # используем переданный разделитель
-#                 logger.info(f"Используем разделитель по умолчанию: '{delimiter}'")
-
-#             csv_reader = csv.DictReader(file_like, delimiter=delimiter)
-
-#             for row_num, row in enumerate(csv_reader, 1):
-#                 # Удаляем BOM и пустые значения
-#                 cleaned_row = {}
-#                 for k, v in row.items():
-#                     if k:  # проверяем что ключ не пустой
-#                         # Удаляем BOM из ключа если есть
-#                         key = k.replace("\ufeff", "").strip()
-#                         # Удаляем BOM из значения если есть
-#                         value = v.replace("\ufeff", "").strip() if v else ""
-#                         if key:  # добавляем только если ключ не пустой после очистки
-#                             cleaned_row[key] = value
-#                 data.append(cleaned_row)
-
-#                 # Логируем первую строку для проверки
-#                 if row_num == 1:
-#                     logger.info(f"Первая строка (ключи): {list(cleaned_row.keys())}")
-#                     logger.info(
-#                         f"Первая строка (данные): {dict(list(cleaned_row.items())[:3])}..."
-#                     )
-
-#             logger.info(f"Загружено {len(data)} записей из {csv_file_path}")
-
-#         except FileNotFoundError:
-#             logger.error(f"CSV файл {csv_file_path} не найден")
-#         except Exception as e:
-#             logger.error(f"Ошибка при чтении CSV файла: {e}")
-
-#         return data
-
-#     def get_default_value(self, template_value: Any) -> Any:
-#         """
-#         Получение значения по умолчанию на основе типа из шаблона
-
-#         Args:
-#             template_value: Значение из шаблона JSON
-
-#         Returns:
-#             Значение по умолчанию соответствующего типа
-#         """
-#         if isinstance(template_value, bool):
-#             return False
-#         elif isinstance(template_value, int):
-#             return 0
-#         elif isinstance(template_value, float):
-#             return 0.0
-#         elif isinstance(template_value, str):
-#             return ""
-#         elif isinstance(template_value, list):
-#             return []
-#         elif isinstance(template_value, dict):
-#             return {}
-#         elif template_value is None:
-#             return None
-#         else:
-#             return ""
-
-#     def find_csv_value(self, csv_row: Dict[str, str], json_field: str) -> str:
-#         """
-#         Поиск значения в CSV строке по мапингу полей
-
-#         Args:
-#             csv_row: Строка данных из CSV
-#             json_field: Поле JSON для которого ищем значение
-
-#         Returns:
-#             Найденное значение или пустая строка
-#         """
-#         # Игнорируем конфигурационные поля
-#         if json_field.endswith("._config"):
-#             return ""
-
-#         if json_field not in self.field_mapping:
-#             return ""
-
-#         mapping = self.field_mapping[json_field]
-
-#         # Если мапинг - это строка
-#         if isinstance(mapping, str):
-#             return csv_row.get(mapping, "")
-
-#         # Если мапинг - это список возможных полей
-#         elif isinstance(mapping, list):
-#             for csv_field in mapping:
-#                 if csv_field in csv_row and csv_row[csv_field]:
-#                     return csv_row[csv_field]
-#             return ""
-
-#         return ""
-
-#     def convert_value_type(self, value: str, template_value: Any) -> Any:
-#         """
-#         Конвертация значения с сохранением исходного типа числа из CSV
-
-#         Args:
-#             value: Строковое значение из CSV
-#             template_value: Значение из шаблона для определения целевого типа
-
-#         Returns:
-#             Сконвертированное значение с сохранением точности
-#         """
-#         if not value:
-#             return self.get_default_value(template_value)
-
-#         try:
-#             if isinstance(template_value, bool):
-#                 return value.lower() in ["true", "1", "yes", "да", "истина"]
-#             elif isinstance(template_value, (int, float)):
-#                 # НОВАЯ ЛОГИКА: Сохраняем исходное число из CSV
-#                 # Сначала пробуем как число с плавающей точкой
-#                 float_value = float(value)
-
-#                 # Если это целое число (например 12.0), возвращаем int
-#                 if float_value.is_integer():
-#                     return int(float_value)
-#                 else:
-#                     # Иначе возвращаем float с исходной точностью
-#                     return float_value
-#             elif isinstance(template_value, str):
-#                 return str(value)
-#             else:
-#                 return value
-#         except (ValueError, TypeError):
-#             return self.get_default_value(template_value)
-
-#     def fill_json_object(
-#         self, json_obj: Dict[str, Any], csv_row: Dict[str, str], prefix: str = ""
-#     ) -> None:
-#         """
-#         Рекурсивное заполнение JSON объекта данными из CSV с учетом защищенных полей
-
-#         Args:
-#             json_obj: JSON объект для заполнения
-#             csv_row: Строка данных из CSV
-#             prefix: Префикс для вложенных полей
-#         """
-#         for key, template_value in json_obj.items():
-#             current_field = f"{prefix}.{key}" if prefix else key
-
-#             # ПРОВЕРЯЕМ ЗАЩИЩЕННОЕ ЛИ ПОЛЕ
-#             if self.is_protected_field(current_field):
-#                 # logger.debug(f"Поле '{current_field}' защищено, пропускаем")
-#                 continue  # Пропускаем защищенные поля
-
-#             if isinstance(template_value, dict):
-#                 # Рекурсивная обработка вложенных объектов
-#                 self.fill_json_object(json_obj[key], csv_row, current_field)
-#             elif isinstance(template_value, list):
-#                 # ИСПРАВЛЕННАЯ ОБРАБОТКА МАССИВОВ
-#                 if not template_value:
-#                     # Пустой массив - оставляем пустым
-#                     json_obj[key] = []
-#                 elif isinstance(template_value[0], dict):
-#                     # Массив объектов
-#                     self._handle_array_of_objects(
-#                         json_obj, key, template_value[0], csv_row, current_field
-#                     )
-#                 else:
-#                     # Массив простых значений
-#                     self._handle_array_of_values(json_obj, key, csv_row, current_field)
-#             else:
-#                 # Простое поле
-#                 csv_value = self.find_csv_value(csv_row, current_field)
-#                 json_obj[key] = self.convert_value_type(csv_value, template_value)
-
-#     def _handle_array_of_objects(
-#         self,
-#         json_obj: Dict[str, Any],
-#         key: str,
-#         template_item: Dict[str, Any],
-#         csv_row: Dict[str, str],
-#         current_field: str,
-#     ) -> None:
-#         """
-#         Обработка массива объектов с поддержкой разбиения строки из CSV
-#         """
-#         # Ищем данные для этого массива
-#         csv_value = self.find_csv_value(csv_row, current_field)
-
-#         if csv_value:
-#             # НОВАЯ ЛОГИКА: Разбиваем строку и создаем массив объектов
-#             result_array = self._parse_csv_to_object_array(
-#                 csv_value, template_item, current_field
-#             )
-#             json_obj[key] = result_array
-#         else:
-#             # Проверяем есть ли данные для отдельных полей объекта (старая логика)
-#             has_data = False
-#             for item_key in template_item.keys():
-#                 item_field = f"{current_field}.{item_key}"
-#                 if self.find_csv_value(csv_row, item_field):
-#                     has_data = True
-#                     break
-
-#             if has_data:
-#                 new_item = deepcopy(template_item)
-#                 self.fill_json_object(new_item, csv_row, current_field)
-#                 json_obj[key] = [new_item]
-#             else:
-#                 json_obj[key] = []
-
-#     def map_csv_to_json(self, csv_data: List[Dict[str, str]]) -> List[Dict[str, Any]]:
-#         """
-#         Мапинг данных из CSV в JSON формат
-#         ГАРАНТИРУЕТ создание JSON объекта для каждой строки CSV
-
-#         Args:
-#             csv_data: Данные из CSV файла
-
-#         Returns:
-#             Список JSON объектов (по одному на каждую строку CSV)
-#         """
-#         json_data = []
-#         successful_rows = 0
-#         failed_rows = 0
-
-#         logger.info(f"Начинаем обработку {len(csv_data)} строк CSV")
-
-#         for row_num, csv_row in enumerate(csv_data, 1):
-#             try:
-#                 # Создаем глубокую копию шаблона для каждой строки
-#                 json_obj = deepcopy(self.json_template)
-
-#                 # Заполняем объект данными из текущей строки CSV
-#                 self.fill_json_object(json_obj, csv_row)
-
-#                 # Добавляем созданный объект в результат
-#                 json_data.append(json_obj)
-#                 successful_rows += 1
-
-#                 # Логируем прогресс каждые 100 строк
-#                 if row_num % 100 == 0:
-#                     logger.info(f"Обработано {row_num} строк из {len(csv_data)}")
-
-#             except Exception as e:
-#                 logger.error(f"Ошибка при обработке строки {row_num}: {e}")
-#                 logger.error(f"Данные строки: {csv_row}")
-#                 failed_rows += 1
-
-#                 # Создаем пустой объект на основе шаблона даже при ошибке
-#                 try:
-#                     empty_obj = deepcopy(self.json_template)
-#                     self._fill_with_defaults(empty_obj)
-#                     json_data.append(empty_obj)
-#                     logger.warning(f"Создан пустой объект для строки {row_num}")
-#                 except Exception as inner_e:
-#                     logger.error(
-#                         f"Не удалось создать даже пустой объект для строки {row_num}: {inner_e}"
-#                     )
-
-#         logger.info(
-#             f"Обработка завершена: {successful_rows} успешно, {failed_rows} с ошибками"
-#         )
-#         logger.info(
-#             f"Создано {len(json_data)} JSON объектов из {len(csv_data)} строк CSV"
-#         )
-
-#         # ПРОВЕРКА: количество JSON объектов должно соответствовать количеству строк CSV
-#         if len(json_data) != len(csv_data):
-#             logger.warning(
-#                 f"ВНИМАНИЕ: Количество JSON объектов ({len(json_data)}) не соответствует количеству строк CSV ({len(csv_data)})"
-#             )
-
-#         return json_data
-
-#     def _fill_with_defaults(self, json_obj: Dict[str, Any]) -> None:
-#         """
-#         Заполнение JSON объекта значениями по умолчанию
-#         """
-#         for key, value in json_obj.items():
-#             if isinstance(value, dict):
-#                 self._fill_with_defaults(value)
-#             elif isinstance(value, list):
-#                 json_obj[key] = []
-#             else:
-#                 json_obj[key] = self.get_default_value(value)
-
-#     def save_json(self, data: List[Dict[str, Any]], output_file: str, encoding="utf-8"):
-#         """
-#         Сохранение данных в JSON файл
-
-#         Args:
-#             data: Данные для сохранения
-#             output_file: Путь к выходному JSON файлу
-#             encoding: Кодировка файла
-#         """
-#         try:
-#             with open(output_file, "w", encoding=encoding) as file:
-#                 json.dump(data, file, ensure_ascii=False, indent=4)
-#             logger.info(f"Данные успешно сохранены в {output_file}")
-#             logger.info(f"Сохранено {len(data)} JSON объектов")
-#         except Exception as e:
-#             logger.error(f"Ошибка при сохранении файла: {e}")
-
-#     def save_individual_json_files(
-#         self,
-#         data: List[Dict[str, Any]],
-#         output_directory: str,
-#         file_prefix: str = "item",
-#         encoding="utf-8",
-#     ):
-#         """
-#         Сохранение каждого JSON объекта в отдельный файл
-
-#         Args:
-#             data: Данные для сохранения
-#             output_directory: Папка для сохранения файлов
-#             file_prefix: Префикс для имен файлов
-#             encoding: Кодировка файлов
-#         """
-#         import os
-
-#         try:
-#             # Создаем папку если не существует
-#             os.makedirs(output_directory, exist_ok=True)
-
-#             successful_saves = 0
-#             failed_saves = 0
-
-#             logger.info(
-#                 f"Начинаем сохранение {len(data)} файлов в папку {output_directory}"
-#             )
-
-#             for index, json_obj in enumerate(data):
-#                 try:
-#                     # Формируем имя файла
-#                     filename = f"{file_prefix}_{index + 1:06d}.json"  # item_000001.json
-#                     filepath = os.path.join(output_directory, filename)
-
-#                     # Сохраняем объект в отдельный файл
-#                     with open(filepath, "w", encoding=encoding) as file:
-#                         json.dump(json_obj, file, ensure_ascii=False, indent=4)
-
-#                     successful_saves += 1
-
-#                     # Логируем прогресс каждые 1000 файлов
-#                     if (index + 1) % 1000 == 0:
-#                         logger.info(f"Сохранено {index + 1} файлов из {len(data)}")
-
-#                 except Exception as e:
-#                     logger.error(f"Ошибка при сохранении файла {filename}: {e}")
-#                     failed_saves += 1
-
-#             logger.info(
-#                 f"Сохранение завершено: {successful_saves} успешно, {failed_saves} с ошибками"
-#             )
-#             logger.info(f"Файлы сохранены в папке: {output_directory}")
-
-#             return successful_saves
-
-#         except Exception as e:
-#             logger.error(f"Ошибка при создании папки или сохранении файлов: {e}")
-#             return 0
-
-#     def process_files(
-#         self,
-#         template_file: str,
-#         csv_file: str,
-#         mapping_file: str,
-#         output_file: str = None,
-#         output_directory: str = None,
-#         save_as_individual_files: bool = False,
-#         protected_fields_file: str = None,
-#     ):
-#         """
-#         Полный процесс обработки файлов
-
-#         Args:
-#             template_file: Путь к файлу шаблона JSON
-#             csv_file: Путь к CSV файлу
-#             mapping_file: Путь к файлу мапинга полей
-#             output_file: Путь к выходному JSON файлу (если save_as_individual_files=False)
-#             output_directory: Папка для сохранения отдельных файлов (если save_as_individual_files=True)
-#             save_as_individual_files: True - сохранять каждый объект в отдельный файл, False - все в один файл
-#             protected_fields_file: Путь к файлу с защищенными полями
-#         """
-#         logger.info("=== Начало обработки ===")
-
-#         # Загружаем защищенные поля если указан файл
-#         if protected_fields_file:
-#             self.load_protected_fields(protected_fields_file)
-
-#         # Загружаем шаблон JSON
-#         if not self.load_json_template(template_file):
-#             logger.error("Не удалось загрузить шаблон JSON")
-#             return False
-
-#         # Загружаем мапинг полей
-#         if not self.load_field_mapping(mapping_file):
-#             logger.error("Не удалось загрузить мапинг полей")
-#             return False
-
-#         # Показываем информацию о защищенных полях
-#         if self.protected_fields:
-#             logger.info(
-#                 f"Защищенные поля (не изменяются): {list(self.protected_fields)}"
-#             )
-
-#         # Читаем CSV данные
-#         csv_data = self.read_csv(csv_file)
-#         if not csv_data:
-#             logger.error("Нет данных для обработки")
-#             return False
-
-#         # Показываем как работает мапинг на первой строке
-#         if csv_data:
-#             logger.info("=== ДЕМОНСТРАЦИЯ МАПИНГА ===")
-#             self.show_processing_flow(csv_data[0])
-#             logger.info("")
-
-#         # Преобразуем данные
-#         json_data = self.map_csv_to_json(csv_data)
-
-#         # Проверяем результат
-#         if len(json_data) == 0:
-#             logger.error("Не удалось создать ни одного JSON объекта")
-#             return False
-
-#         # Сохраняем результат
-#         if save_as_individual_files:
-#             if not output_directory:
-#                 logger.error("Не указана папка для сохранения отдельных файлов")
-#                 return False
-#             saved_count = self.save_individual_json_files(json_data, output_directory)
-#             success = saved_count > 0
-#         else:
-#             if not output_file:
-#                 logger.error("Не указан файл для сохранения")
-#                 return False
-#             self.save_json(json_data, output_file)
-#             success = True
-
-#         if success:
-#             logger.info("=== Обработка завершена успешно ===")
-#         else:
-#             logger.error("=== Обработка завершена с ошибками ===")
-
-#         return success
-
-#     def validate_mapping(self) -> bool:
-#         """
-#         Валидация мапинга полей
-#         """
-#         if not self.field_mapping:
-#             logger.error("Мапинг полей пуст")
-#             return False
-
-#         logger.info(f"Найдено {len(self.field_mapping)} правил мапинга:")
-#         for json_field, csv_fields in self.field_mapping.items():
-#             logger.info(f"  {json_field} <- {csv_fields}")
-
-#         return True
-
-#     def show_processing_flow(self, csv_sample: Dict[str, str]):
-#         """
-#         Показывает как происходит процесс мапинга для примера строки
-
-#         Args:
-#             csv_sample: Пример строки из CSV для демонстрации
-#         """
-#         logger.info("=== ДЕМОНСТРАЦИЯ ПРОЦЕССА МАПИНГА ===")
-#         logger.info(f"Пример CSV строки: {csv_sample}")
-#         logger.info("")
-
-#         logger.info("Шаг 1: Читаем CSV колонки:")
-#         for i, (csv_key, csv_value) in enumerate(csv_sample.items(), 1):
-#             logger.info(f"  {i}. '{csv_key}' = '{csv_value}'")
-
-#         logger.info("")
-#         logger.info("Шаг 2: Применяем мапинг (CSV колонка → JSON поле):")
-
-#         mapped_fields = []
-#         for json_field, csv_variants in self.field_mapping.items():
-#             found_value = self.find_csv_value(csv_sample, json_field)
-#             if found_value:
-#                 if isinstance(csv_variants, str):
-#                     matched_csv_field = (
-#                         csv_variants if csv_variants in csv_sample else "НЕ НАЙДЕНО"
-#                     )
-#                 else:
-#                     matched_csv_field = None
-#                     for variant in csv_variants:
-#                         if variant in csv_sample and csv_sample[variant]:
-#                             matched_csv_field = variant
-#                             break
-#                     if not matched_csv_field:
-#                         matched_csv_field = "НЕ НАЙДЕНО"
-
-#                 logger.info(
-#                     f"  ✅ {json_field} <- '{matched_csv_field}' = '{found_value}'"
-#                 )
-#                 mapped_fields.append((json_field, found_value))
-#             else:
-#                 logger.info(f"  ❌ {json_field} <- {csv_variants} = НЕТ ДАННЫХ")
-
-#         logger.info("")
-#         logger.info("Шаг 3: Создаем JSON объект:")
-
-#         # Создаем пример JSON объекта
-#         json_obj = deepcopy(self.json_template)
-#         self.fill_json_object(json_obj, csv_sample)
-
-#         logger.info("  Структура JSON:")
-#         sample_json_str = (
-#             json.dumps(json_obj, ensure_ascii=False, indent=2)[:500] + "..."
-#         )
-#         logger.info(f"  {sample_json_str}")
-
-#         logger.info("=== КОНЕЦ ДЕМОНСТРАЦИИ ===")
-#         return json_obj
-
-
-# # Пример использования
-# if __name__ == "__main__":
-#     # СПОСОБ 1: Создаем маппер с защищенными полями в коде
-#     mapper = AdvancedCSVToJSONMapper(protected_fields=["success", "active"])
-
-#     # СПОСОБ 2: Добавляем защищенные поля программно
-#     mapper.add_protected_fields("same_offers_id", "same_offers_count")
-
-#     # СПОСОБ 3: Можно также использовать файл с защищенными полями
-#     # Создадим пример файла protected_fields.json:
-#     protected_example = {
-#         "success": "Статус успеха операции",
-#         "active": "Активность записи",
-#         "same_offers_id": "ID похожих предложений",
-#         "same_offers_count": "Количество похожих предложений",
-#         "reviews_rating": "Рейтинг отзывов",
-#     }
-
-#     # Сохраняем пример файла защищенных полей
-#     import os
-
-#     if not os.path.exists("protected_fields.json"):
-#         import json
-
-#         with open("protected_fields.json", "w", encoding="utf-8") as f:
-#             json.dump(protected_example, f, ensure_ascii=False, indent=2)
-#         print("Создан файл protected_fields.json")
-
-#     # Обрабатываем файлы с защищенными полями
-#     print("=== Сохранение в отдельные файлы с защищенными полями ===")
-#     success = mapper.process_files(
-#         template_file="template.json",
-#         csv_file="data.csv",
-#         mapping_file="field_mapping.json",
-#         output_directory="json_files",
-#         save_as_individual_files=True,
-#         protected_fields_file="protected_fields.json",  # Файл с защищенными полями
-#     )
-
-#     if success:
-#         logger.info("Все файлы обработаны успешно!")
-#     else:
-#         logger.error("Произошла ошибка при обработке файлов")
-
 import csv
 import json
 from copy import deepcopy
@@ -841,7 +31,7 @@ class AdvancedCSVToJSONMapper:
         try:
             with open(template_file_path, "r", encoding="utf-8") as file:
                 self.json_template = json.load(file)
-                logger.info(f"Шаблон JSON загружен из {template_file_path}")
+                # logger.info(f"Шаблон JSON загружен из {template_file_path}")
                 return self.json_template
         except FileNotFoundError:
             logger.error(f"Файл шаблона {template_file_path} не найден")
@@ -878,10 +68,10 @@ class AdvancedCSVToJSONMapper:
                     # Объект с описаниями: {"success": "Статус успеха", "active": "Активность"}
                     self.protected_fields.update(protected_data.keys())
 
-                logger.info(
-                    f"Загружено {len(protected_data)} защищенных полей из {protected_fields_file}"
-                )
-                logger.info(f"Защищенные поля: {list(self.protected_fields)}")
+                # logger.info(
+                #     f"Загружено {len(protected_data)} защищенных полей из {protected_fields_file}"
+                # )
+                # logger.info(f"Защищенные поля: {list(self.protected_fields)}")
                 return self.protected_fields
 
         except FileNotFoundError:
@@ -910,7 +100,7 @@ class AdvancedCSVToJSONMapper:
         try:
             with open(mapping_file_path, "r", encoding="utf-8") as file:
                 self.field_mapping = json.load(file)
-                logger.info(f"Мапинг полей загружен из {mapping_file_path}")
+                # logger.info(f"Мапинг полей загружен из {mapping_file_path}")
                 return self.field_mapping
         except FileNotFoundError:
             logger.error(f"Файл мапинга {mapping_file_path} не найден")
@@ -1003,7 +193,7 @@ class AdvancedCSVToJSONMapper:
                     f"Не удалось прочитать файл ни с одной из кодировок: {encodings_to_try}"
                 )
 
-            logger.info(f"Файл прочитан с кодировкой: {used_encoding}")
+            logger.info(f"Файл CSV прочитан с кодировкой: {used_encoding}")
 
             # Создаем StringIO для обработки содержимого
             from io import StringIO
@@ -1015,7 +205,7 @@ class AdvancedCSVToJSONMapper:
             sniffer = csv.Sniffer()
             try:
                 delimiter = sniffer.sniff(sample).delimiter
-                logger.info(f"Определен разделитель: '{delimiter}'")
+                # logger.info(f"Определен разделитель: '{delimiter}'")
             except:
                 delimiter = delimiter  # используем переданный разделитель
                 logger.info(f"Используем разделитель по умолчанию: '{delimiter}'")
@@ -1035,12 +225,12 @@ class AdvancedCSVToJSONMapper:
                             cleaned_row[key] = value
                 data.append(cleaned_row)
 
-                # Логируем первую строку для проверки
-                if row_num == 1:
-                    logger.info(f"Первая строка (ключи): {list(cleaned_row.keys())}")
-                    logger.info(
-                        f"Первая строка (данные): {dict(list(cleaned_row.items())[:3])}..."
-                    )
+                # # Логируем первую строку для проверки
+                # if row_num == 1:
+                #     logger.info(f"Первая строка (ключи): {list(cleaned_row.keys())}")
+                #     logger.info(
+                #         f"Первая строка (данные): {dict(list(cleaned_row.items())[:3])}..."
+                #     )
 
             logger.info(f"Загружено {len(data)} записей из {csv_file_path}")
 
@@ -1162,7 +352,7 @@ class AdvancedCSVToJSONMapper:
 
             # ПРОВЕРЯЕМ ЗАЩИЩЕННОЕ ЛИ ПОЛЕ
             if self.is_protected_field(current_field):
-                logger.debug(f"Поле '{current_field}' защищено, пропускаем")
+                # logger.debug(f"Поле '{current_field}' защищено, пропускаем")
                 continue  # Пропускаем защищенные поля
 
             if isinstance(template_value, dict):
@@ -1272,9 +462,9 @@ class AdvancedCSVToJSONMapper:
                     best_split = split_result
                     best_delimiter = delimiter
 
-            logger.debug(
-                f"Строка '{csv_value[:50]}...': разделитель '{best_delimiter}', частей: {len(best_split)}"
-            )
+            # logger.debug(
+            #     f"Строка '{csv_value[:50]}...': разделитель '{best_delimiter}', частей: {len(best_split)}"
+            # )
 
             # Создаем объекты для каждой части
             for value in best_split:
@@ -1283,9 +473,9 @@ class AdvancedCSVToJSONMapper:
                     new_obj[target_field] = value
                 all_items.append(new_obj)
 
-        logger.info(
-            f"Поле '{field_path}': создано {len(all_items)} объектов из {len(csv_values)} колонок"
-        )
+        # logger.info(
+        #     f"Поле '{field_path}': создано {len(all_items)} объектов из {len(csv_values)} колонок"
+        # )
         return all_items
 
     def _find_numbered_columns(
@@ -1302,9 +492,9 @@ class AdvancedCSVToJSONMapper:
             if numbered_field in csv_row and csv_row[numbered_field]:
                 numbered_values.append(csv_row[numbered_field])
 
-        logger.debug(
-            f"Найдено {len(numbered_values)} пронумерованных колонок для '{base_field}'"
-        )
+        # logger.debug(
+        #     f"Найдено {len(numbered_values)} пронумерованных колонок для '{base_field}'"
+        # )
         return numbered_values
 
     def _collect_all_csv_values(
@@ -1336,9 +526,9 @@ class AdvancedCSVToJSONMapper:
                 numbered_values = self._find_numbered_columns(csv_row, csv_field)
                 all_values.extend(numbered_values)
 
-        logger.debug(
-            f"Поле '{json_field}': найдено {len(all_values)} значений из колонок"
-        )
+        # logger.debug(
+        #     f"Поле '{json_field}': найдено {len(all_values)} значений из колонок"
+        # )
         return all_values
 
     def _handle_array_of_values(
@@ -1553,11 +743,11 @@ class AdvancedCSVToJSONMapper:
             logger.error("Не удалось загрузить мапинг полей")
             return False
 
-        # Показываем информацию о защищенных полях
-        if self.protected_fields:
-            logger.info(
-                f"Защищенные поля (не изменяются): {list(self.protected_fields)}"
-            )
+        # # Показываем информацию о защищенных полях
+        # if self.protected_fields:
+        #     logger.info(
+        #         f"Защищенные поля (не изменяются): {list(self.protected_fields)}"
+        #     )
 
         # Читаем CSV данные
         csv_data = self.read_csv(csv_file)
@@ -1566,10 +756,10 @@ class AdvancedCSVToJSONMapper:
             return False
 
         # Показываем как работает мапинг на первой строке
-        if csv_data:
-            logger.info("=== ДЕМОНСТРАЦИЯ МАПИНГА ===")
-            self.show_processing_flow(csv_data[0])
-            logger.info("")
+        # if csv_data:
+        #     logger.info("=== ДЕМОНСТРАЦИЯ МАПИНГА ===")
+        #     self.show_processing_flow(csv_data[0])
+        #     logger.info("")
 
         # Преобразуем данные
         json_data = self.map_csv_to_json(csv_data)
@@ -1621,16 +811,16 @@ class AdvancedCSVToJSONMapper:
         Args:
             csv_sample: Пример строки из CSV для демонстрации
         """
-        logger.info("=== ДЕМОНСТРАЦИЯ ПРОЦЕССА МАПИНГА ===")
-        logger.info(f"Пример CSV строки: {csv_sample}")
-        logger.info("")
+        # logger.info("=== ДЕМОНСТРАЦИЯ ПРОЦЕССА МАПИНГА ===")
+        # logger.info(f"Пример CSV строки: {csv_sample}")
+        # logger.info("")
 
-        logger.info("Шаг 1: Читаем CSV колонки:")
-        for i, (csv_key, csv_value) in enumerate(csv_sample.items(), 1):
-            logger.info(f"  {i}. '{csv_key}' = '{csv_value}'")
+        # logger.info("Шаг 1: Читаем CSV колонки:")
+        # for i, (csv_key, csv_value) in enumerate(csv_sample.items(), 1):
+        #     logger.info(f"  {i}. '{csv_key}' = '{csv_value}'")
 
-        logger.info("")
-        logger.info("Шаг 2: Применяем мапинг (CSV колонка → JSON поле):")
+        # logger.info("")
+        # logger.info("Шаг 2: Применяем мапинг (CSV колонка → JSON поле):")
 
         mapped_fields = []
         for json_field, csv_variants in self.field_mapping.items():
@@ -1678,31 +868,8 @@ if __name__ == "__main__":
     # СПОСОБ 1: Создаем маппер с защищенными полями в коде
     mapper = AdvancedCSVToJSONMapper(protected_fields=["success", "active"])
 
-    # СПОСОБ 2: Добавляем защищенные поля программно
-    mapper.add_protected_fields("same_offers_id", "same_offers_count")
-
-    # СПОСОБ 3: Можно также использовать файл с защищенными полями
-    # Создадим пример файла protected_fields.json:
-    protected_example = {
-        "success": "Статус успеха операции",
-        "active": "Активность записи",
-        "same_offers_id": "ID похожих предложений",
-        "same_offers_count": "Количество похожих предложений",
-        "reviews_rating": "Рейтинг отзывов",
-    }
-
-    # Сохраняем пример файла защищенных полей
-    import os
-
-    if not os.path.exists("protected_fields.json"):
-        import json
-
-        with open("protected_fields.json", "w", encoding="utf-8") as f:
-            json.dump(protected_example, f, ensure_ascii=False, indent=2)
-        print("Создан файл protected_fields.json")
-
     # Обрабатываем файлы с защищенными полями
-    print("=== Сохранение в отдельные файлы с защищенными полями ===")
+    logger.info("=== Сохранение в отдельные файлы с защищенными полями ===")
     success = mapper.process_files(
         template_file="template.json",
         csv_file="data.csv",

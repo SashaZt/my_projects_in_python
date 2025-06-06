@@ -51,6 +51,60 @@ class KlarsteinProductLoader:
             # Если не найдено число, используем хеш от SKU
             return abs(hash(sku)) % (2**31)
 
+    def get_all_categories(self) -> List[Dict[str, Any]]:
+        """
+        Получает все категории из БД для построения дерева
+        Возвращает список категорий с правильной структурой для XML
+        """
+        try:
+            if not self.connect_to_db():
+                return []
+
+            cursor = self.connection.cursor(cursor_factory=RealDictCursor)
+
+            query = """
+            SELECT 
+                category_id,
+                parent_id,
+                name_pl,
+                name,
+                name_ua,
+                created_at
+            FROM categories 
+            ORDER BY 
+                CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END,  -- Сначала родительские
+                parent_id NULLS FIRST,                          -- Потом по parent_id
+                category_id                                     -- Потом по id
+            """
+
+            cursor.execute(query)
+            rows = cursor.fetchall()
+
+            if not rows:
+                logger.warning("Категории не найдены в БД")
+                return []
+
+            categories = []
+            for row in rows:
+                category = {
+                    "category_id": row["category_id"],  # Для XML: id
+                    "parent_id": row["parent_id"],  # Для XML: parentId
+                    "name_pl": row["name_pl"] or "",  # польское название
+                    "name": row["name"] or "",  # русское название
+                    "name_ua": row["name_ua"] or "",  # украинское название
+                    "created_at": row["created_at"],
+                }
+                categories.append(category)
+
+            logger.info(f"Загружено {len(categories)} категорий из БД")
+            return categories
+
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке категорий: {e}")
+            return []
+        finally:
+            self.close_connection()
+
     def get_products_for_export(self) -> List[Dict[str, Any]]:
         """Получает товары с export_xml = false (НЕ выгруженные в XML)"""
         try:
@@ -63,7 +117,7 @@ class KlarsteinProductLoader:
             query = """
             SELECT 
                 p.id, p.product_id, p.vendor_code, p.available, p.selling_type, 
-                p.price, p.price_opt, p.quantity, p.currency_id, p.category_id, 
+                p.price, p.price_opt1,p.price_opt2, p.quantity1,p.quantity2,p.discount, p.currency_id, p.category_id, 
                 p.name_pl, p.name, p.name_ua, p.vendor, p.country_of_origin,
                 p.keywords_pl, p.keywords, p.keywords_ua,
                 p.description_pl, p.description, p.description_ua,
@@ -262,7 +316,9 @@ class KlarsteinProductLoader:
                 vendor_code = self.extract_vendor_code_from_sku(product_id)
 
             # Конвертируем цену в число
-            quantity = offer_data.get("quantity")
+            quantity1 = offer_data.get("quantity1")
+            quantity2 = offer_data.get("quantity2")
+            discount = offer_data.get("discount")
 
             price = offer_data.get("price")
             if price:
@@ -270,13 +326,20 @@ class KlarsteinProductLoader:
                     price = float(str(price).replace(",", "."))
                 except (ValueError, TypeError):
                     price = 0.0
-            price_opt = offer_data.get("price_opt")
-            logger.info(price_opt)
-            if price_opt:
+            price_opt1 = offer_data.get("price_opt1")
+            logger.info(price_opt1)
+            if price_opt1:
                 try:
-                    price_opt = float(str(price_opt).replace(",", "."))
+                    price_opt1 = float(str(price_opt1).replace(",", "."))
                 except (ValueError, TypeError):
-                    price_opt = 0.0
+                    price_opt1 = 0.0
+            price_opt2 = offer_data.get("price_opt2")
+            logger.info(price_opt2)
+            if price_opt2:
+                try:
+                    price_opt2 = float(str(price_opt2).replace(",", "."))
+                except (ValueError, TypeError):
+                    price_opt2 = 0.0
 
             # Проверяем, существует ли продукт
             cursor.execute(
@@ -292,8 +355,11 @@ class KlarsteinProductLoader:
                         available = %s,
                         selling_type = %s,
                         price = %s,
-                        price_opt = %s,
-                        quantity = %s,
+                        price_opt1 = %s,
+                        price_opt2 = %s,
+                        discount = %s,
+                        quantity1 = %s,
+                        quantity2 = %s,
                         currency_id = %s,
                         category_id = %s,
                         name_pl = %s,
@@ -301,9 +367,6 @@ class KlarsteinProductLoader:
                         name_ua = %s,
                         vendor = %s,
                         country_of_origin = %s,
-                        model_pl = %s,
-                        model = %s,
-                        model_ua = %s,
                         keywords_pl = %s,
                         keywords = %s,
                         keywords_ua = %s,
@@ -321,8 +384,11 @@ class KlarsteinProductLoader:
                         offer_data.get("available", "true") == "true",
                         offer_data.get("selling_type", "u"),
                         price,
-                        price_opt,
-                        quantity,
+                        price_opt1,
+                        price_opt2,
+                        discount,
+                        quantity1,
+                        quantity2,
                         offer_data.get("currencyId", "UAH"),
                         int(offer_data.get("categoryId", 1)),
                         offer_data.get("name_pl", ""),
@@ -346,12 +412,12 @@ class KlarsteinProductLoader:
                 # Вставляем новый продукт
                 insert_query = """
                     INSERT INTO products (
-                        product_id, vendor_code, available, selling_type, price,price_opt,quantity, currency_id,
+                        product_id, vendor_code, available, selling_type, price,price_opt1,price_opt2,discount,quantity1,quantity2, currency_id,
                         category_id, name_pl, name, name_ua, vendor, country_of_origin,keywords_pl, keywords, keywords_ua,
                         description_pl, description, description_ua
                     )
                     VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s,%s,%s,%s,%s
                     )
                     RETURNING product_id
                 """
@@ -363,8 +429,11 @@ class KlarsteinProductLoader:
                         offer_data.get("available", "true") == "true",
                         offer_data.get("selling_type", "u"),
                         price,
-                        price_opt,
-                        quantity,
+                        price_opt1,
+                        price_opt2,
+                        discount,
+                        quantity1,
+                        quantity2,
                         offer_data.get("currencyId", "UAH"),
                         int(offer_data.get("categoryId", 1)),
                         offer_data.get("name_pl", ""),
@@ -464,14 +533,16 @@ class KlarsteinProductLoader:
             logger.error(f"Ошибка при вставке размеров для продукта {product_id}: {e}")
             return False
 
-    def _safe_float(self, value) -> Optional[float]:
-        """Безопасное преобразование в float"""
-        if value is None:
-            return None
+    def _safe_float(self, value) -> float:
+        """Безопасное преобразование в float с значением по умолчанию 0"""
+        if value is None or value == "":
+            return 0.0
         try:
-            return float(str(value).replace(",", "."))
+            # Убираем пробелы и заменяем запятую на точку
+            clean_value = str(value).strip().replace(",", ".")
+            return float(clean_value)
         except (ValueError, TypeError):
-            return None
+            return 0.0
 
     def process_yml_structure(self, cursor, yml_data: Dict[str, Any]) -> bool:
         """Обрабатывает данные в YML структуре"""
@@ -556,8 +627,11 @@ class KlarsteinProductLoader:
                     "available": "true",
                     "selling_type": "u",
                     "price": product_info.get("price", "0"),
-                    "price_opt": product_info.get("price_opt", "0"),
-                    "quantity": product_info.get("quantity", "0"),
+                    "price_opt1": product_info.get("price_opt1", "0"),
+                    "price_opt2": product_info.get("price_opt2", "0"),
+                    "quantity1": product_info.get("quantity1", "0"),
+                    "quantity2": product_info.get("quantity2", "0"),
+                    "discount": product_info.get("discount", "0"),
                     "currencyId": "UAH",
                     "categoryId": str(len(categories)) if categories else "1",
                     "name_pl": product_info.get("name_pl", ""),
