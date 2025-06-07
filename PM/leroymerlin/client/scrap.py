@@ -2,15 +2,8 @@ import json
 from pathlib import Path
 
 from bs4 import BeautifulSoup
-from config.logger import logger
 
-current_directory = Path.cwd()
-data_directory = current_directory / "data"
-data_directory.mkdir(parents=True, exist_ok=True)
-output_csv_file = data_directory / "output.csv"
-html_directory = current_directory / "html"
-html_directory.mkdir(parents=True, exist_ok=True)
-output_html_file = html_directory / "easy.html"
+from config import logger, paths
 
 
 def extract_product_data(product_json):
@@ -80,7 +73,7 @@ def scrap_htmls():
     # Список для хранения данных
     all_data = []
     # Проверяем наличие HTML-файлов
-    html_files = list(html_directory.glob("*.html"))
+    html_files = list(paths.html.glob("*.html"))
     # Проходим по всем HTML-файлам в папке
     for html_file in html_files:
         with html_file.open(encoding="utf-8") as file:
