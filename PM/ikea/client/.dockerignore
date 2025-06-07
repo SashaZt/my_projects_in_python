@@ -1,0 +1,9 @@
+# client/.dockerignore
+temp/
+log/
+temp/*
+log/*
+__pycache__/
+*.pyc
+.git/
+.DS_Store
