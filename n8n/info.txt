@@ -1,0 +1,28 @@
+Создай сеть
+docker network create n8n_net
+
+
+Запускаем контейнер
+docker run -d --name ngrok \
+  --network n8n_net \
+  -e NGROK_AUTHTOKEN=2yDcz8stDzZVSzPxoCdt1pqJZdy_78Ce6TNwJrZj9X3oKY3Rj \
+  -p 4040:4040 \
+  ngrok/ngrok http n8n:5678
+
+ngrok работает на 4040 порту
+http://localhost:4040/inspect/http
+
+
+Получаем 
+To get started, make a request to one of your tunnel URLs
+https://4b71-91-229-123-216.ngrok-free.app
+и его передаем аргументом в запуск n8n
+
+docker run -d --name n8n \
+  --network n8n_net \
+  -p 5678:5678 \
+  -v n8n_data:/home/node/.n8n \
+  -e WEBHOOK_URL=https://4b71-91-229-123-216.ngrok-free.app \
+  docker.n8n.io/n8nio/n8n
+
+start_n8n_ngrok.sh Все делает автоматически

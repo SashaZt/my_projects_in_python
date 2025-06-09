@@ -162,6 +162,8 @@ def scrap_json(json_string):
         active = True
     else:
         active = False
+    sku = json_data.get("sku", "")
+    id_value = int(sku.replace(".", ""))
     images = json_data.get("image", [])
     transformed_images = transform_images(images)
     descriptions = json_data.get("description", "")
@@ -170,7 +172,7 @@ def scrap_json(json_string):
     reviews_rating = transform_reviews_rating(reviews)
     product = {
         "success": True,
-        "id": json_data.get("sku", ""),  # SKU как уникальный идентификатор
+        "id": id_value,  # SKU как уникальный идентификатор
         "title": json_data.get("name", ""),  # Название на польском
         "url": json_data.get("url", ""),  # URL продукта
         "active": active,
@@ -204,7 +206,7 @@ def scrap_json(json_string):
                 "EAN (GTIN)": "",
                 "Marka": json_data.get("brand", {}).get("name", ""),  # Бренд
                 "Typ": "",
-                "Parametry": "",
+                "Kod producenta": sku,
             }
         },
         "description": {
@@ -213,6 +215,8 @@ def scrap_json(json_string):
         "images": transformed_images,  # Список URL изображений
         "reviews": transformed_reviews,  # Список отзывов
         "reviews_rating": reviews_rating,  # Список отзывов
+        "seller_positive_count": 0,
+        "seller_negative_count": 0,
     }
     # logger.info(json.dumps(product))
     return product
@@ -257,8 +261,8 @@ def transform_reviews(reviews):
     return [
         {
             "text": review.get("reviewBody", ""),
-            "score": review.get("reviewRating", {}).get("ratingValue", ""),
-            "date": None,
+            "score": str(review.get("reviewRating", {}).get("ratingValue", "")),
+            "date": "",
         }
         for review in reviews
     ]
@@ -282,10 +286,7 @@ def transform_reviews_rating(reviews):
     average_rating = sum_ratings / total_ratings if total_ratings > 0 else 0
 
     # Добавляем среднюю оценку в результат
-    result = {
-        "rating_counts": rating_counts,
-        "average_rating": round(average_rating, 1),
-    }
+    result = rating_counts
     return result
 
 
