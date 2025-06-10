@@ -23,20 +23,22 @@ from config import logger, paths
 headers = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
     "accept-language": "ru,en;q=0.9,uk;q=0.8",
-    "cache-control": "no-cache",
+    "cache-control": "max-age=0",
+    "content-type": "multipart/form-data; boundary=----WebKitFormBoundarysLhnsihy315Bqzxr",
     "dnt": "1",
-    "pragma": "no-cache",
+    "origin": "https://dracar.com.ua",
     "priority": "u=0, i",
-    "referer": "https://restal-auto.com.ua/my-account",
-    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "referer": "https://dracar.com.ua/login",
+    "sec-ch-ua": '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
     "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
+    "sec-ch-ua-platform": '"macOS"',
     "sec-fetch-dest": "document",
     "sec-fetch-mode": "navigate",
     "sec-fetch-site": "same-origin",
     "sec-fetch-user": "?1",
+    "sec-gpc": "1",
     "upgrade-insecure-requests": "1",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
 }
 
 index_xml = paths.data / "index.xml"
@@ -48,43 +50,45 @@ def get_authenticated_session():
     session = requests.Session()
 
     # Добавляем куки в сессию
+
     cookies = {
-        "OCSESSID": "a10377cb59471ba60d5fb17dd3",
-        "language": "uk-ua",
+        "PHPSESSID": "g7nchr9kr7bce8q8sblgqchrv3",
+        "language": "ru",
         "currency": "UAH",
-        "biatv-cookie": "{%22firstVisitAt%22:1737876101%2C%22visitsCount%22:4%2C%22currentVisitStartedAt%22:1738244401%2C%22currentVisitLandingPage%22:%22https://restal-auto.com.ua/%22%2C%22currentVisitUpdatedAt%22:1738244450%2C%22currentVisitOpenPages%22:4%2C%22campaignTime%22:1737876101%2C%22campaignCount%22:1%2C%22utmDataCurrent%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}%2C%22utmDataFirst%22:{%22utm_source%22:%22(direct)%22%2C%22utm_medium%22:%22(none)%22%2C%22utm_campaign%22:%22(direct)%22%2C%22utm_content%22:%22(not%20set)%22%2C%22utm_term%22:%22(not%20set)%22%2C%22beginning_at%22:1737876101}}",
-        "bingc-activity-data": "{%22numberOfImpressions%22:0%2C%22activeFormSinceLastDisplayed%22:51%2C%22pageviews%22:3%2C%22callWasMade%22:0%2C%22updatedAt%22:1738244459}",
     }
 
     # Устанавливаем куки
     for name, value in cookies.items():
         session.cookies.set(name, value)
 
-    login_url = "https://restal-auto.com.ua/login"
+    login_url = "https://dracar.com.ua/login"
 
-    login_payload = {"email": "zhuravskyiii@gmail.com", "password": "Mama52418"}
+    files = {
+        "email": (None, "zhuravskyiii@gmail.com"),
+        "password": (None, "Vepota98"),
+    }
 
     login_headers = {
         "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
         "content-type": "multipart/form-data; boundary=----WebKitFormBoundaryRsZcF6bZ0vmyw5MH",
-        "origin": "https://restal-auto.com.ua",
-        "referer": "https://restal-auto.com.ua/login",
+        "origin": "https://dracar.com.ua",
+        "referer": "https://dracar.com.ua/login",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     }
 
     # Выполняем авторизацию с установленными куки
-    response = session.post(login_url, data=login_payload, headers=login_headers)
+    response = session.post(login_url, files=files, headers=login_headers)
     response.raise_for_status()
 
     return session
 
 
 def main_xml():
-    if paths.temp:
-        shutil.rmtree(paths.temp)
+    # if paths.temp:
+    #     shutil.rmtree(paths.temp)
     session = get_authenticated_session()
     # Укажите URL для скачивания XML
-    url = "https://restal-auto.com.ua/index.php?route=extension/feed/unixml/prom"
+    url = "https://dracar.com.ua/index.php?route=feed/user_prom&token=QGXhH6JWDvnaV5oWtmAZt3sSe_mUXBPQk5RwVoqIDB8&format=xml"
 
     # Выполняем запрос
     response = session.get(url, headers=headers, timeout=30)
@@ -129,33 +133,48 @@ def parse_xml_to_json(xml_file_path):
             for offer in offers_section.findall("offer"):
                 offer_data = {}
 
-                # Получаем только нужные атрибуты товара
+                # Получаем только нужный атрибут
                 offer_id = offer.get("id")
                 if offer_id:
                     offer_data["id"] = offer_id
 
-                # Получаем дочерние элементы
+                available = offer.get("available")
+                if available:
+                    offer_data["available"] = available
+
+                # Получаем только нужные дочерние элементы
                 for child in offer:
-                    if child.tag == "name":
-                        offer_data["name"] = child.text
-                    elif child.tag == "vendorCode":
-                        offer_data["vendorCode"] = child.text
-                    elif child.tag == "url":
+                    if child.tag == "url":
                         offer_data["url"] = child.text
+                    elif child.tag == "wholesale_price":
+                        offer_data["price"] = child.text
                     elif child.tag == "categoryId":
                         # Заменяем ID категории на название
                         cat_id = child.text
                         category_name = categories_map.get(cat_id, cat_id)
                         offer_data["category"] = category_name
-                    elif child.tag == "price":
-                        offer_data["price"] = child.text
+                        offer_data["categoryId"] = child.text
+                    elif child.tag == "name":
+                        # Обрабатываем имена с разными языками
+                        lang = child.get("lang")
+                        if lang == "ua":
+                            offer_data["name"] = child.text
+                    elif child.tag == "vendor":
+                        offer_data["vendor"] = child.text
+                    elif child.tag == "quantity":
+                        offer_data["quantity"] = child.text
+                    elif child.tag == "barcode":
+                        offer_data["barcode"] = child.text
                     elif child.tag == "picture":
                         # Обрабатываем множественные изображения
                         if "pictures" not in offer_data:
                             offer_data["pictures"] = []
                         offer_data["pictures"].append(child.text)
-                    elif child.tag == "quantity_in_stock":
-                        offer_data["quantity_in_stock"] = child.text
+                    elif child.tag == "param":
+                        # Обрабатываем параметры - каждый параметр как отдельный ключ
+                        param_name = child.get("name")
+                        if param_name:
+                            offer_data[param_name] = child.text
 
                 offers.append(offer_data)
 
@@ -163,7 +182,7 @@ def parse_xml_to_json(xml_file_path):
         return offers
 
     except Exception as e:
-        logger.error(f"Ошибка при обработке XML: {e}")
+        print(f"Ошибка при обработке XML: {e}")
         return []
 
 
@@ -211,7 +230,7 @@ def parsing_page():
 
     # Сортировка по указанным колонкам (если они есть)
     sort_columns = []
-    for col in ["category", "name", "vendorCode"]:
+    for col in ["Марка", "Модель", "name"]:
         if col in df.columns:
             sort_columns.append(col)
 
@@ -327,6 +346,6 @@ def parsing_page():
 
 
 if __name__ == "__main__":
-    main_xml()
-    scrap_xml()
+    # main_xml()
+    # scrap_xml()
     parsing_page()

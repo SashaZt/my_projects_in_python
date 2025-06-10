@@ -7,15 +7,20 @@ import re
 import subprocess
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import openpyxl
 import pandas as pd
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from PIL import Image
+from requests.exceptions import HTTPError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 current_directory = os.getcwd()
 temp_path = os.path.join(current_directory, "temp")
@@ -69,133 +74,150 @@ headers = {
 }
 
 
-def download_file(url, output_dir="downloads"):
-    """
-    Универсальная функция для скачивания файлов по URL с использованием curl.
+# def download_file(url, output_dir="downloads"):
+#     """
+#     Универсальная функция для скачивания файлов по URL с использованием curl.
 
-    Args:
-        url (str): URL файла для скачивания.
-        output_dir (str): Папка для сохранения файлов.
+#     Args:
+#         url (str): URL файла для скачивания.
+#         output_dir (str): Папка для сохранения файлов.
 
-    Returns:
-        bool: True если скачивание успешно, False в случае ошибки.
-    """
-    # Создаем папку для сохранения, если она не существует
-    os.makedirs(output_dir, exist_ok=True)
+#     Returns:
+#         bool: True если скачивание успешно, False в случае ошибки.
+#     """
+#     # Создаем папку для сохранения, если она не существует
+#     os.makedirs(output_dir, exist_ok=True)
 
-    # Получаем имя файла из URL
-    parsed_url = urlparse(url)
-    file_name = os.path.basename(parsed_url.path)
-    if not file_name:
-        file_name = "downloaded_file"
+#     # Получаем имя файла из URL
+#     parsed_url = urlparse(url)
+#     file_name = os.path.basename(parsed_url.path)
+#     if not file_name:
+#         file_name = "downloaded_file"
 
-    output_path = os.path.join(output_dir, file_name)
+#     output_path = os.path.join(output_dir, file_name)
 
-    # Формируем команду curl с заголовками и куками
-    command = [
-        "curl",
-        "-o",
-        output_path,  # Выходной файл
-        "-L",  # Следовать редиректам
-        "-A",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",  # User-Agent
-        "--max-redirs",
-        "10",  # Максимальное количество редиректов
-        "--connect-timeout",
-        "30",  # Тайм-аут соединения
-        "-H",
-        "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "-H",
-        "Accept-Language: ru,en;q=0.9,uk;q=0.8",
-        "-H",
-        "Cache-Control: max-age=0",
-        "-H",
-        "DNT: 1",
-        "-H",
-        "Priority: u=0, i",
-        "-H",
-        'Sec-Ch-Ua: "Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
-        "-H",
-        "Sec-Ch-Ua-Mobile: ?0",
-        "-H",
-        'Sec-Ch-Ua-Platform: "macOS"',
-        "-H",
-        "Sec-Fetch-Dest: document",
-        "-H",
-        "Sec-Fetch-Mode: navigate",
-        "-H",
-        "Sec-Fetch-Site: none",
-        "-H",
-        "Sec-Fetch-User: ?1",
-        "-H",
-        "Upgrade-Insecure-Requests: 1",
-        "-b",
-        (
-            "sbjs_migrations=1418474375998=1;"
-            "sbjs_current_add=fd=2025-05-20 14:19:41|||ep=https://kik-tuning.com.ua/product-category/audi/a4-b9/vsi-tovary-audi-a4-b9/|||rf=(none);"
-            "sbjs_first_add=fd=2025-05-20 14:19:41|||ep=https://kik-tuning.com.ua/product-category/audi/a4-b9/vsi-tovary-audi-a4-b9/|||rf=(none);"
-            "sbjs_current=typ=typein|||src=(direct)|||mdm=(none)|||cmp=(none)|||cnt=(none)|||trm=(none)|||id=(none)|||plt=(none)|||fmt=(none)|||tct=(none);"
-            "sbjs_first=typ=typein|||src=(direct)|||mdm=(none)|||cmp=(none)|||cnt=(none)|||trm=(none)|||id=(none)|||plt=(none)|||fmt=(none)|||tct=(none);"
-            'tk_or="";'
-            'tk_lr="";'
-            "_ga=GA1.1.1907690628.1747750782;"
-            'rngstHash={"hash":"7eac036a0ac3c55178a3c7dad0509fe809d495c8"};'
-            'rngst={"clientId":"b557eeac-6374-463a-a04e-2f90468c3627"};'
-            "tk_ai=/xuHlqctexb2m6SDA9+oIHuY;"
-            "woocommerce_recently_viewed=37744;"
-            "sbjs_udata=vst=2|||uip=(none)|||uag=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36;"
-            'tk_r3d="";'
-            'rngst2={"utmz":{"utm_source":"(direct)","utm_medium":"(none)","utm_campaign":"(direct)","utm_content":"(not set)","utm_term":"(none)"},"sl":"a9068767-b4a8-4265-a989-f8347d928557"};'
-            "_ga_874TJFFQRE=GS2.1.s1748109974$o3$g1$t1748111719$j0$l0$h0"
-        ),
-        url,
-    ]
+#     # Формируем команду curl с заголовками и куками
+#     command = [
+#         "curl",
+#         "-o",
+#         output_path,  # Выходной файл
+#         "-L",  # Следовать редиректам
+#         "-A",
+#         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",  # User-Agent
+#         "--max-redirs",
+#         "10",  # Максимальное количество редиректов
+#         "--connect-timeout",
+#         "30",  # Тайм-аут соединения
+#         "-H",
+#         "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+#         "-H",
+#         "Accept-Language: ru,en;q=0.9,uk;q=0.8",
+#         "-H",
+#         "Cache-Control: max-age=0",
+#         "-H",
+#         "DNT: 1",
+#         "-H",
+#         "Priority: u=0, i",
+#         "-H",
+#         'Sec-Ch-Ua: "Chromium";v="136", "Google Chrome";v="136", "Not.A/Brand";v="99"',
+#         "-H",
+#         "Sec-Ch-Ua-Mobile: ?0",
+#         "-H",
+#         'Sec-Ch-Ua-Platform: "macOS"',
+#         "-H",
+#         "Sec-Fetch-Dest: document",
+#         "-H",
+#         "Sec-Fetch-Mode: navigate",
+#         "-H",
+#         "Sec-Fetch-Site: none",
+#         "-H",
+#         "Sec-Fetch-User: ?1",
+#         "-H",
+#         "Upgrade-Insecure-Requests: 1",
+#         "-b",
+#         (
+#             "sbjs_migrations=1418474375998=1;"
+#             "sbjs_current_add=fd=2025-05-20 14:19:41|||ep=https://kik-tuning.com.ua/product-category/audi/a4-b9/vsi-tovary-audi-a4-b9/|||rf=(none);"
+#             "sbjs_first_add=fd=2025-05-20 14:19:41|||ep=https://kik-tuning.com.ua/product-category/audi/a4-b9/vsi-tovary-audi-a4-b9/|||rf=(none);"
+#             "sbjs_current=typ=typein|||src=(direct)|||mdm=(none)|||cmp=(none)|||cnt=(none)|||trm=(none)|||id=(none)|||plt=(none)|||fmt=(none)|||tct=(none);"
+#             "sbjs_first=typ=typein|||src=(direct)|||mdm=(none)|||cmp=(none)|||cnt=(none)|||trm=(none)|||id=(none)|||plt=(none)|||fmt=(none)|||tct=(none);"
+#             'tk_or="";'
+#             'tk_lr="";'
+#             "_ga=GA1.1.1907690628.1747750782;"
+#             'rngstHash={"hash":"7eac036a0ac3c55178a3c7dad0509fe809d495c8"};'
+#             'rngst={"clientId":"b557eeac-6374-463a-a04e-2f90468c3627"};'
+#             "tk_ai=/xuHlqctexb2m6SDA9+oIHuY;"
+#             "woocommerce_recently_viewed=37744;"
+#             "sbjs_udata=vst=2|||uip=(none)|||uag=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36;"
+#             'tk_r3d="";'
+#             'rngst2={"utmz":{"utm_source":"(direct)","utm_medium":"(none)","utm_campaign":"(direct)","utm_content":"(not set)","utm_term":"(none)"},"sl":"a9068767-b4a8-4265-a989-f8347d928557"};'
+#             "_ga_874TJFFQRE=GS2.1.s1748109974$o3$g1$t1748111719$j0$l0$h0"
+#         ),
+#         url,
+#     ]
 
-    try:
-        # Выполняем команду
-        result = subprocess.run(command, capture_output=True, text=True, check=True)
-        print(f"Файл успешно сохранен: {output_path}")
-        return True
-    except subprocess.CalledProcessError as e:
-        print(f"Ошибка при скачивании {url}: {e.stderr}")
-        return False
-    except Exception as e:
-        print(f"Неизвестная ошибка при скачивании {url}: {e}")
-        return False
+#     try:
+#         # Выполняем команду
+#         result = subprocess.run(command, capture_output=True, text=True, check=True)
+#         print(f"Файл успешно сохранен: {output_path}")
+#         return True
+#     except subprocess.CalledProcessError as e:
+#         print(f"Ошибка при скачивании {url}: {e.stderr}")
+#         return False
+#     except Exception as e:
+#         print(f"Неизвестная ошибка при скачивании {url}: {e}")
+#         return False
 
 
-def get_xml():
+# def get_xml():
 
-    # Ссылки на файлы Sitemap
-    sitemaps = [
-        "https://kik-tuning.com.ua/wp-sitemap-posts-product-1.xml",
-        "https://kik-tuning.com.ua/wp-sitemap-posts-product-2.xml",
-    ]
+#     # Ссылки на файлы Sitemap
+#     sitemaps = [
+#         "https://kik-tuning.com.ua/wp-sitemap-posts-product-1.xml",
+#         "https://kik-tuning.com.ua/wp-sitemap-posts-product-2.xml",
+#     ]
 
-    # Список для хранения URL
-    product_urls = []
+#     # Список для хранения URL
+#     product_urls = []
 
-    for sitemap in sitemaps:
-        # Скачиваем XML
-        response = requests.get(sitemap, cookies=cookies, headers=headers, timeout=30)
-        print(response.content)
-        # if response.status_code == 200:
-        # Парсим XML
-        root = ET.fromstring(response.content)
-        # Извлекаем URL из тегов <loc>
-        for url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
-            loc = url.text
-            # Фильтруем только нужные ссылки
-            if loc and "https://kik-tuning.com.ua/product/" in loc:
-                product_urls.append(loc)
-        # else:
-        #     print(f"Не удалось загрузить {sitemap}. Код ответа: {response.status_code}")
+#     for sitemap in sitemaps:
+#         # Скачиваем XML
+#         response = requests.get(sitemap, cookies=cookies, headers=headers, timeout=30)
+#         print(response.content)
+#         # if response.status_code == 200:
+#         # Парсим XML
+#         root = ET.fromstring(response.content)
+#         # Извлекаем URL из тегов <loc>
+#         for url in root.findall(".//{http://www.sitemaps.org/schemas/sitemap/0.9}loc"):
+#             loc = url.text
+#             # Фильтруем только нужные ссылки
+#             if loc and "https://kik-tuning.com.ua/product/" in loc:
+#                 product_urls.append(loc)
+#         # else:
+#         #     print(f"Не удалось загрузить {sitemap}. Код ответа: {response.status_code}")
 
-    # Создаем DataFrame и сохраняем в CSV
-    df = pd.DataFrame(product_urls, columns=["url"])
-    df.to_csv("urls.csv", index=False, encoding="utf-8")
+#     # Создаем DataFrame и сохраняем в CSV
+#     df = pd.DataFrame(product_urls, columns=["url"])
+#     df.to_csv("urls.csv", index=False, encoding="utf-8")
 
-    print("Ссылки успешно сохранены в urls.csv")
+#     print("Ссылки успешно сохранены в urls.csv")
+
+
+def remove_duplicate_urls(urls):
+    def normalize_url(url):
+        parsed = urlparse(url)
+        path = parsed.path.rstrip("/")
+        return urlunparse((parsed.scheme, parsed.netloc, path, "", "", ""))
+
+    # Создаем множество нормализованных URL, сохраняя оригинальный URL
+    seen = {}
+    for url in urls:
+        normalized = normalize_url(url)
+        if normalized not in seen:
+            seen[normalized] = url
+
+    # Возвращаем список уникальных URL
+    return list(seen.values())
 
 
 def main():
@@ -204,10 +226,10 @@ def main():
         reader = csv.DictReader(csvfile)
         for row in reader:
             urls.append(row["url"])
-
+    unique_urls = remove_duplicate_urls(urls)
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = []
-        for url in urls:
+        for url in unique_urls:
             filename_json = os.path.join(
                 json_path, f"data_{hashlib.md5(url.encode()).hexdigest()}.json"
             )
@@ -232,6 +254,13 @@ def parse_url(url, headers, filename_json):
     return json_data
 
 
+@retry(
+    stop=stop_after_attempt(10),
+    wait=wait_fixed(10),
+    retry=retry_if_exception_type(
+        (HTTPError, requests.exceptions.ConnectionError, requests.exceptions.Timeout)
+    ),
+)
 def fetch(url, headers):
     response = requests.get(url, headers=headers, timeout=30)
     response.raise_for_status()
@@ -248,55 +277,76 @@ def parsing(soup):
     product_sku = ""
     product_price = ""
 
-    # Парсинг HTML с помощью BeautifulSoup
-    script_tag = soup.find("script", type="application/ld+json")
+    # Извлечение данных из breadcrumb (хлебных крошек)
+    breadcrumb_list = soup.find("ul", class_="breadcrumb")
+    if breadcrumb_list:
+        breadcrumb_items = breadcrumb_list.find_all("li")
+        for i, item in enumerate(breadcrumb_items):
+            link = item.find("a")
+            if link:
+                name = link.get_text(strip=True)
+                # Соответствие старой логике: position = index + 1
+                position = i + 1
+                if position == 2:  # Каталог - пропускаем
+                    continue
+                elif position == 3:  # BMW - бренд
+                    brand_product = name
+                elif position == 4:  # BMW 5 (G30/G31) - категория
+                    category_product = name
+                elif position == 5:  # Передні монтажні панелі - breadcrumb
+                    breadcrumb = name
 
-    if script_tag:
-        try:
-            # Парсинг JSON
-            json_data = json.loads(script_tag.string)
+    # Извлечение названия продукта
+    product_name_elem = soup.find("h1")
+    if product_name_elem:
+        product_name = product_name_elem.get_text(strip=True)
 
-            if "@graph" in json_data:
-                for item in json_data["@graph"]:
-                    # Извлечение данных из BreadcrumbList
-                    if item.get("@type") == "BreadcrumbList":
-                        for element in item.get("itemListElement", []):
-                            position = element.get("position")
-                            name = element.get("item", {}).get("name", "")
-                            if position == 2:
-                                brand_product = name
-                            elif position == 3:
-                                category_product = name
-                            elif position == 4:
-                                breadcrumb = name
+    # Извлечение URL продукта из canonical link
+    canonical_link = soup.find("link", rel="canonical")
+    if canonical_link:
+        product_url = canonical_link.get("href", "")
 
-                    # Извлечение данных о продукте
-                    if item.get("@type") == "Product":
-                        product_name = item.get("name", "")
-                        product_url = item.get("url", "")
-                        product_image = item.get("image", "")
-                        product_sku = item.get("sku", "")
+    # Извлечение главного изображения продукта
+    main_image = soup.find("img", id="zoom")
+    if main_image:
+        product_image = main_image.get("src", "")
+        # Если нет src, попробуем data-zoom-image
+        if not product_image:
+            product_image = main_image.get("data-zoom-image", "")
 
-                        if "offers" in item and item["offers"]:
-                            offers = (
-                                item["offers"][0]
-                                if isinstance(item["offers"], list)
-                                else item["offers"]
-                            )
+    # Извлечение SKU (артикула) из описания
+    description_short = soup.find("div", class_="product-description-short")
+    if description_short:
+        # Сначала ищем в параграфах
+        paragraphs = description_short.find_all("p")
+        for p in paragraphs:
+            text = p.get_text(strip=True)
+            if "Код оригіналу:" in text:
+                product_sku = text.replace("Код оригіналу:", "").strip()
+                break
+        else:
+            # Если не найден в параграфах, ищем в тексте самого div
+            # Добавляем пробел как разделитель при извлечении текста
+            div_text = description_short.get_text(separator=" ", strip=True)
+            if "Код оригіналу:" in div_text:
+                start_index = div_text.find("Код оригіналу:") + len("Код оригіналу:")
+                remaining_text = div_text[start_index:].strip()
 
-                            # Получаем цену из priceSpecification
-                            if (
-                                "priceSpecification" in offers
-                                and offers["priceSpecification"]
-                            ):
-                                price_spec = (
-                                    offers["priceSpecification"][0]
-                                    if isinstance(offers["priceSpecification"], list)
-                                    else offers["priceSpecification"]
-                                )
-                                product_price = price_spec.get("price", "")
-        except json.JSONDecodeError:
-            pass  # Если JSON некорректный, оставляем пустые значения
+                # Берем все до первого пробела
+                product_sku = (
+                    remaining_text.split()[0] if remaining_text.split() else ""
+                )
+
+    # Извлечение цены
+    price_elem = soup.find("span", class_="pro_price")
+    if price_elem:
+        price_text = price_elem.get_text(strip=True)
+        # Убираем валюту и оставляем только числа
+        product_price = price_text.replace("₴", "").strip()
+
+    # Если breadcrumb пустой, используем название продукта
+    if not breadcrumb and product_name:
+        breadcrumb = product_name
 
     all_data = {
         "breadcrumb": breadcrumb,
@@ -308,6 +358,7 @@ def parsing(soup):
         "name_product": product_name,
         "url_product": product_url,
     }
+
     return all_data
 
 
@@ -397,7 +448,15 @@ async def parsing_page():
 
 if __name__ == "__main__":
     # get_xml()
-    # main()
+    # urls = [
+    #     "https://kik-tuning.com.ua/wp-sitemap-posts-product-1.xml",
+    #     "https://kik-tuning.com.ua/wp-sitemap-posts-product-2.xml",
+    # ]
+
+    # for url in urls:
+    #     download_file(url, output_dir="downloaded_files")
+
+    main()
     asyncio.run(parsing_page())
     # Пример использования
     # urls = [
