@@ -148,6 +148,8 @@ def parse_xml_to_json(xml_file_path):
                     if child.tag == "url":
                         offer_data["url"] = child.text
                     elif child.tag == "wholesale_price":
+                        offer_data["wholesale_price"] = child.text
+                    elif child.tag == "price":
                         offer_data["price"] = child.text
                     elif child.tag == "categoryId":
                         # Заменяем ID категории на название

@@ -1,6 +1,7 @@
 import csv
 import json
 from copy import deepcopy
+from io import StringIO
 from typing import Any, Dict, List, Set, Union
 
 from config.logger import logger
@@ -158,26 +159,166 @@ class AdvancedCSVToJSONMapper:
 
         return False
 
+    def detect_delimiter_smart(self, file_content: str, sample_size: int = 2048) -> str:
+        """
+        Умное определение разделителя CSV файла
+
+        Args:
+            file_content: Содержимое файла
+            sample_size: Размер выборки для анализа
+
+        Returns:
+            Определенный разделитель
+        """
+        sample = file_content[:sample_size]
+
+        # Метод 1: Стандартный csv.Sniffer
+        sniffer = csv.Sniffer()
+        try:
+            # Расширенный список разделителей для проверки
+            delimiter = sniffer.sniff(sample, delimiters=",;\t|:").delimiter
+            logger.debug(f"Sniffer определил разделитель: {repr(delimiter)}")
+            return delimiter
+        except Exception as e:
+            logger.debug(f"Sniffer не смог определить разделитель: {e}")
+
+        # Метод 2: Анализ частотности и консистентности
+        possible_delimiters = [",", ";", "\t", "|", ":", " "]
+        best_delimiter = ","
+        best_score = 0
+
+        lines = [line.strip() for line in sample.split("\n")[:10] if line.strip()]
+
+        if not lines:
+            return ","
+
+        for delimiter in possible_delimiters:
+            try:
+                field_counts = []
+                valid_lines = 0
+
+                for line in lines:
+                    if line:
+                        # Разбиваем строку по разделителю
+                        fields = line.split(delimiter)
+
+                        # Проверяем что поля разумного размера
+                        valid_fields = [
+                            f.strip()
+                            for f in fields
+                            if f.strip() and len(f.strip()) <= 200
+                        ]
+
+                        # Минимум 2 поля для валидного CSV
+                        if len(valid_fields) >= 2:
+                            field_counts.append(len(valid_fields))
+                            valid_lines += 1
+
+                if not field_counts or valid_lines < 2:
+                    continue
+
+                # Оценка консистентности (одинаковое количество полей)
+                unique_counts = set(field_counts)
+                consistency = (
+                    1.0
+                    if len(unique_counts) == 1
+                    else 0.7 if len(unique_counts) <= 2 else 0.3
+                )
+
+                # Средние количество полей
+                avg_fields = sum(field_counts) / len(field_counts)
+
+                # Процент валидных строк
+                validity = valid_lines / len(lines)
+
+                # Общий скор
+                score = avg_fields * consistency * validity
+
+                logger.debug(
+                    f"Разделитель {repr(delimiter)}: поля={avg_fields:.1f}, "
+                    f"консистентность={consistency:.1f}, валидность={validity:.1f}, "
+                    f"скор={score:.2f}"
+                )
+
+                if score > best_score:
+                    best_score = score
+                    best_delimiter = delimiter
+
+            except Exception as e:
+                logger.debug(f"Ошибка при анализе разделителя {repr(delimiter)}: {e}")
+                continue
+
+        logger.info(
+            f"Определен разделитель: {repr(best_delimiter)} (скор: {best_score:.2f})"
+        )
+        return best_delimiter
+
+    def validate_csv_structure(
+        self, file_content: str, delimiter: str, max_lines: int = 5
+    ) -> bool:
+        """
+        Проверка корректности структуры CSV с данным разделителем
+
+        Args:
+            file_content: Содержимое файла
+            delimiter: Разделитель для проверки
+            max_lines: Количество строк для проверки
+
+        Returns:
+            True если структура корректная
+        """
+        try:
+            file_like = StringIO(file_content)
+            reader = csv.reader(file_like, delimiter=delimiter)
+
+            field_counts = []
+            for i, row in enumerate(reader):
+                if i >= max_lines:
+                    break
+                if row and any(field.strip() for field in row):  # Не пустая строка
+                    field_counts.append(len(row))
+
+            # Проверяем что количество полей консистентно
+            if field_counts:
+                unique_counts = set(field_counts)
+                return len(unique_counts) <= 2 and max(field_counts) >= 2
+
+            return False
+
+        except Exception:
+            return False
+
     def read_csv(
         self, csv_file_path: str, encoding="utf-8", delimiter=","
     ) -> List[Dict[str, Any]]:
         """
-        Чтение данных из CSV файла с обработкой BOM
+        Чтение данных из CSV файла с улучшенным автоопределением разделителя
 
         Args:
             csv_file_path: Путь к CSV файлу
             encoding: Кодировка файла
-            delimiter: Разделитель CSV
+            delimiter: Разделитель CSV (используется как fallback)
 
         Returns:
             Список словарей с данными из CSV
         """
         data = []
+        original_delimiter = delimiter  # Сохраняем оригинальный разделитель
+
         try:
             # Пробуем разные кодировки для обработки BOM
-            encodings_to_try = ["utf-8-sig", "utf-8", "cp1251", "latin1"]
+            encodings_to_try = ["utf-8-sig", "utf-8", "cp1251", "latin1", "iso-8859-1"]
+
+            # Если задана конкретная кодировка, пробуем её первой
+            if encoding and encoding not in encodings_to_try:
+                encodings_to_try.insert(0, encoding)
+            elif encoding in encodings_to_try:
+                # Перемещаем заданную кодировку в начало списка
+                encodings_to_try.remove(encoding)
+                encodings_to_try.insert(0, encoding)
+
             file_content = None
-            used_encoding = encoding
+            used_encoding = None
 
             for enc in encodings_to_try:
                 try:
@@ -195,51 +336,273 @@ class AdvancedCSVToJSONMapper:
 
             logger.info(f"Файл CSV прочитан с кодировкой: {used_encoding}")
 
-            # Создаем StringIO для обработки содержимого
-            from io import StringIO
-
-            file_like = StringIO(file_content)
-
             # Автоматическое определение разделителя
-            sample = file_content[:1024]
-            sniffer = csv.Sniffer()
-            try:
-                delimiter = sniffer.sniff(sample).delimiter
-                # logger.info(f"Определен разделитель: '{delimiter}'")
-            except:
-                delimiter = delimiter  # используем переданный разделитель
-                logger.info(f"Используем разделитель по умолчанию: '{delimiter}'")
+            detected_delimiter = self.detect_delimiter_smart(file_content)
 
+            # Проверяем качество автоопределения
+            if self.validate_csv_structure(file_content, detected_delimiter):
+                delimiter = detected_delimiter
+                logger.info(
+                    f"Используется автоопределенный разделитель: {repr(delimiter)}"
+                )
+            else:
+                # Если автоопределение не сработало, пробуем исходный разделитель
+                if self.validate_csv_structure(file_content, original_delimiter):
+                    delimiter = original_delimiter
+                    logger.info(f"Используется заданный разделитель: {repr(delimiter)}")
+                else:
+                    # В крайнем случае пробуем популярные разделители
+                    fallback_delimiters = [",", ";", "\t", "|"]
+                    delimiter_found = False
+
+                    for fallback_del in fallback_delimiters:
+                        if self.validate_csv_structure(file_content, fallback_del):
+                            delimiter = fallback_del
+                            logger.info(
+                                f"Используется fallback разделитель: {repr(delimiter)}"
+                            )
+                            delimiter_found = True
+                            break
+
+                    if not delimiter_found:
+                        delimiter = original_delimiter
+                        logger.warning(
+                            f"Не удалось определить разделитель, используется: {repr(delimiter)}"
+                        )
+
+            # Создаем StringIO для обработки содержимого
+            file_like = StringIO(file_content)
             csv_reader = csv.DictReader(file_like, delimiter=delimiter)
 
             for row_num, row in enumerate(csv_reader, 1):
                 # Удаляем BOM и пустые значения
                 cleaned_row = {}
+                has_data = False
+
                 for k, v in row.items():
                     if k:  # проверяем что ключ не пустой
                         # Удаляем BOM из ключа если есть
                         key = k.replace("\ufeff", "").strip()
                         # Удаляем BOM из значения если есть
                         value = v.replace("\ufeff", "").strip() if v else ""
+
                         if key:  # добавляем только если ключ не пустой после очистки
                             cleaned_row[key] = value
-                data.append(cleaned_row)
+                            if value:  # Проверяем есть ли данные в строке
+                                has_data = True
 
-                # # Логируем первую строку для проверки
-                # if row_num == 1:
-                #     logger.info(f"Первая строка (ключи): {list(cleaned_row.keys())}")
-                #     logger.info(
-                #         f"Первая строка (данные): {dict(list(cleaned_row.items())[:3])}..."
-                #     )
+                # Добавляем строку только если в ней есть данные
+                if cleaned_row and has_data:
+                    data.append(cleaned_row)
 
             logger.info(f"Загружено {len(data)} записей из {csv_file_path}")
+
+            # Логируем информацию о структуре
+            if data:
+                logger.info(f"Колонки: {list(data[0].keys())}")
+                sample_data = {k: v for k, v in list(data[0].items())[:3]}
+                logger.debug(f"Пример данных: {sample_data}")
 
         except FileNotFoundError:
             logger.error(f"CSV файл {csv_file_path} не найден")
         except Exception as e:
             logger.error(f"Ошибка при чтении CSV файла: {e}")
+            # В случае критической ошибки можно попробовать простое чтение
+            try:
+                logger.info("Попытка простого чтения с заданным разделителем...")
+                with open(csv_file_path, "r", encoding="utf-8-sig") as file:
+                    csv_reader = csv.DictReader(file, delimiter=original_delimiter)
+                    for row in csv_reader:
+                        cleaned_row = {
+                            k.replace("\ufeff", "").strip(): v.strip() if v else ""
+                            for k, v in row.items()
+                            if k and k.strip()
+                        }
+                        if any(cleaned_row.values()):
+                            data.append(cleaned_row)
+                logger.info(f"Простое чтение: загружено {len(data)} записей")
+            except Exception as e2:
+                logger.error(f"Простое чтение также не сработало: {e2}")
 
         return data
+
+    # def read_csv(
+    #     self, csv_file_path: str, encoding="utf-8", delimiter=","
+    # ) -> List[Dict[str, Any]]:
+    #     """
+    #     Чтение данных из CSV файла с обработкой BOM
+
+    #     Args:
+    #         csv_file_path: Путь к CSV файлу
+    #         encoding: Кодировка файла
+    #         delimiter: Разделитель CSV
+
+    #     Returns:
+    #         Список словарей с данными из CSV
+    #     """
+    #     data = []
+    #     try:
+    #         # Пробуем разные кодировки для обработки BOM
+    #         encodings_to_try = ["utf-8-sig", "utf-8", "cp1251", "latin1"]
+    #         file_content = None
+    #         used_encoding = encoding
+
+    #         for enc in encodings_to_try:
+    #             try:
+    #                 with open(csv_file_path, "r", encoding=enc) as file:
+    #                     file_content = file.read()
+    #                     used_encoding = enc
+    #                     break
+    #             except UnicodeDecodeError:
+    #                 continue
+
+    #         if file_content is None:
+    #             raise Exception(
+    #                 f"Не удалось прочитать файл ни с одной из кодировок: {encodings_to_try}"
+    #             )
+
+    #         logger.info(f"Файл CSV прочитан с кодировкой: {used_encoding}")
+
+    #         # Создаем StringIO для обработки содержимого
+    #         from io import StringIO
+
+    #         file_like = StringIO(file_content)
+
+    #         # Автоматическое определение разделителя
+    #         sample = file_content[:1024]
+    #         sniffer = csv.Sniffer()
+    #         try:
+    #             delimiter = sniffer.sniff(sample).delimiter
+    #             # logger.info(f"Определен разделитель: '{delimiter}'")
+    #         except:
+    #             delimiter = delimiter  # используем переданный разделитель
+    #             logger.info(f"Используем разделитель по умолчанию: '{delimiter}'")
+
+    #         csv_reader = csv.DictReader(file_like, delimiter=delimiter)
+
+    #         for row_num, row in enumerate(csv_reader, 1):
+    #             # Удаляем BOM и пустые значения
+    #             cleaned_row = {}
+    #             for k, v in row.items():
+    #                 if k:  # проверяем что ключ не пустой
+    #                     # Удаляем BOM из ключа если есть
+    #                     key = k.replace("\ufeff", "").strip()
+    #                     # Удаляем BOM из значения если есть
+    #                     value = v.replace("\ufeff", "").strip() if v else ""
+    #                     if key:  # добавляем только если ключ не пустой после очистки
+    #                         cleaned_row[key] = value
+    #             data.append(cleaned_row)
+
+    #             # # Логируем первую строку для проверки
+    #             # if row_num == 1:
+    #             #     logger.info(f"Первая строка (ключи): {list(cleaned_row.keys())}")
+    #             #     logger.info(
+    #             #         f"Первая строка (данные): {dict(list(cleaned_row.items())[:3])}..."
+    #             #     )
+
+    #         logger.info(f"Загружено {len(data)} записей из {csv_file_path}")
+
+    #     except FileNotFoundError:
+    #         logger.error(f"CSV файл {csv_file_path} не найден")
+    #     except Exception as e:
+    #         logger.error(f"Ошибка при чтении CSV файла: {e}")
+
+    #     return data
+
+    # def read_csv(
+    #     self, csv_file_path: str, encoding="utf-8", delimiter=None
+    # ) -> List[Dict[str, Any]]:
+    #     """
+    #     Чтение данных из CSV файла с автоматическим определением разделителя через pandas
+
+    #     Args:
+    #         csv_file_path: Путь к CSV файлу
+    #         encoding: Кодировка файла
+    #         delimiter: Разделитель CSV (None для автоопределения)
+
+    #     Returns:
+    #         Список словарей с данными из CSV
+    #     """
+    #     data = []
+
+    #     try:
+    #         # Список кодировок для попытки чтения
+    #         encodings_to_try = ["utf-8-sig", "utf-8", "cp1251", "latin1", "iso-8859-1"]
+
+    #         df = None
+    #         used_encoding = encoding
+
+    #         # Если кодировка не задана, пробуем разные
+    #         if encoding == "utf-8":
+    #             encodings_list = encodings_to_try
+    #         else:
+    #             encodings_list = [encoding] + [
+    #                 enc for enc in encodings_to_try if enc != encoding
+    #             ]
+
+    #         for enc in encodings_list:
+    #             try:
+    #                 # pandas автоматически определяет разделитель с sep=None
+    #                 df = pd.read_csv(
+    #                     csv_file_path,
+    #                     sep=(
+    #                         delimiter if delimiter else None
+    #                     ),  # None для автоопределения
+    #                     engine="python",  # Необходимо для автоопределения разделителя
+    #                     encoding=enc,
+    #                     encoding_errors="ignore",
+    #                     skipinitialspace=True,  # Убирает пробелы после разделителя
+    #                     na_filter=False,  # Не преобразовывать пустые значения в NaN
+    #                     dtype=str,  # Все колонки как строки
+    #                     keep_default_na=False,  # Не интерпретировать строки как NaN
+    #                 )
+    #                 used_encoding = enc
+    #                 logger.info(f"Файл CSV прочитан с кодировкой: {used_encoding}")
+    #                 break
+
+    #             except (UnicodeDecodeError, pd.errors.ParserError) as e:
+    #                 logger.debug(f"Не удалось прочитать с кодировкой {enc}: {e}")
+    #                 continue
+
+    #         if df is None:
+    #             raise Exception(
+    #                 f"Не удалось прочитать файл ни с одной из кодировок: {encodings_list}"
+    #             )
+
+    #         # Очистка данных от BOM и лишних пробелов
+    #         # Очищаем названия колонок
+    #         df.columns = [col.replace("\ufeff", "").strip() for col in df.columns]
+
+    #         # Очищаем данные в ячейках
+    #         for col in df.columns:
+    #             if df[col].dtype == "object":  # Только для строковых колонок
+    #                 df[col] = df[col].astype(str).str.replace("\ufeff", "").str.strip()
+
+    #         # Удаляем полностью пустые строки
+    #         df = df.dropna(how="all")
+
+    #         # Заменяем NaN на пустые строки
+    #         df = df.fillna("")
+
+    #         # Конвертируем в список словарей
+    #         data = df.to_dict("records")
+
+    #         # Дополнительная очистка: удаляем записи где все значения пустые
+    #         data = [row for row in data if any(str(v).strip() for v in row.values())]
+
+    #         logger.info(f"Загружено {len(data)} записей из {csv_file_path}")
+
+    #         # Логируем информацию о первой строке
+    #         if data:
+    #             logger.info(f"Колонки: {list(data[0].keys())}")
+    #             logger.debug(f"Пример данных: {dict(list(data[0].items())[:3])}")
+
+    #     except FileNotFoundError:
+    #         logger.error(f"CSV файл {csv_file_path} не найден")
+    #     except Exception as e:
+    #         logger.error(f"Ошибка при чтении CSV файла: {e}")
+
+    #     return data
 
     def get_default_value(self, template_value: Any) -> Any:
         """
@@ -756,10 +1119,10 @@ class AdvancedCSVToJSONMapper:
             return False
 
         # Показываем как работает мапинг на первой строке
-        # if csv_data:
-        #     logger.info("=== ДЕМОНСТРАЦИЯ МАПИНГА ===")
-        #     self.show_processing_flow(csv_data[0])
-        #     logger.info("")
+        if csv_data:
+            logger.info("=== ДЕМОНСТРАЦИЯ МАПИНГА ===")
+            self.show_processing_flow(csv_data[0])
+            logger.info("")
 
         # Преобразуем данные
         json_data = self.map_csv_to_json(csv_data)
@@ -811,16 +1174,16 @@ class AdvancedCSVToJSONMapper:
         Args:
             csv_sample: Пример строки из CSV для демонстрации
         """
-        # logger.info("=== ДЕМОНСТРАЦИЯ ПРОЦЕССА МАПИНГА ===")
-        # logger.info(f"Пример CSV строки: {csv_sample}")
-        # logger.info("")
+        logger.info("=== ДЕМОНСТРАЦИЯ ПРОЦЕССА МАПИНГА ===")
+        logger.info(f"Пример CSV строки: {csv_sample}")
+        logger.info("")
 
-        # logger.info("Шаг 1: Читаем CSV колонки:")
-        # for i, (csv_key, csv_value) in enumerate(csv_sample.items(), 1):
-        #     logger.info(f"  {i}. '{csv_key}' = '{csv_value}'")
+        logger.info("Шаг 1: Читаем CSV колонки:")
+        for i, (csv_key, csv_value) in enumerate(csv_sample.items(), 1):
+            logger.info(f"  {i}. '{csv_key}' = '{csv_value}'")
 
-        # logger.info("")
-        # logger.info("Шаг 2: Применяем мапинг (CSV колонка → JSON поле):")
+        logger.info("")
+        logger.info("Шаг 2: Применяем мапинг (CSV колонка → JSON поле):")
 
         mapped_fields = []
         for json_field, csv_variants in self.field_mapping.items():
