@@ -84,14 +84,15 @@ def get_authenticated_session():
 
 
 def main_xml():
-    # if paths.temp:
-    #     shutil.rmtree(paths.temp)
+    if paths.img:
+        shutil.rmtree(paths.img)
+    paths.img.mkdir(parents=True, exist_ok=True)
     session = get_authenticated_session()
     # Укажите URL для скачивания XML
     url = "https://dracar.com.ua/index.php?route=feed/user_prom&token=QGXhH6JWDvnaV5oWtmAZt3sSe_mUXBPQk5RwVoqIDB8&format=xml"
 
     # Выполняем запрос
-    response = session.get(url, headers=headers, timeout=30)
+    response = session.get(url, headers=headers, timeout=60)
 
     # Проверяем успешность запроса
     if response.status_code == 200:
@@ -346,6 +347,6 @@ def parsing_page():
 
 
 if __name__ == "__main__":
-    # main_xml()
-    # scrap_xml()
+    main_xml()
+    scrap_xml()
     parsing_page()

@@ -1,18 +1,12 @@
-import html
 import json
 import os
-import re
 import shutil
-import time
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from pathlib import Path
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 
 import openpyxl
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup
 from openpyxl import Workbook
 from openpyxl.drawing.image import Image
 from openpyxl.utils import get_column_letter
@@ -80,8 +74,9 @@ def get_authenticated_session():
 
 
 def main_xml():
-    if paths.temp:
-        shutil.rmtree(paths.temp)
+    if paths.img:
+        shutil.rmtree(paths.img)
+    paths.img.mkdir(parents=True, exist_ok=True)
     session = get_authenticated_session()
     # Укажите URL для скачивания XML
     url = "https://restal-auto.com.ua/index.php?route=extension/feed/unixml/prom"
