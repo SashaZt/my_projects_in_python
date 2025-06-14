@@ -335,6 +335,149 @@ class KauflandAPI:
         # Возврат данных
         return response.json()
 
+    def find_category_by_keywords(self, title, storefront="de"):
+        """
+        Поиск категории по ключевым словам из названия товара
+        """
+        # Извлекаем ключевые слова из названия
+        keywords = self.extract_keywords(title)
+
+        for keyword in keywords:
+            try:
+                categories = self.get_categories(query=keyword, storefront=storefront)
+                if categories.get("data"):
+                    logger.info(
+                        f"Найдены категории для ключевого слова '{keyword}': {len(categories.get('data', []))}"
+                    )
+                    return categories.get("data", [])
+            except Exception as e:
+                logger.warning(f"Ошибка при поиске по ключевому слову '{keyword}': {e}")
+                continue
+
+        return []
+
+    def extract_keywords(self, title):
+        """
+        Извлечение ключевых слов из названия товара
+        """
+        # Для вашего примера "2 x Teesa New Clean R13 5,7L Doppelkammer-Rotationsmopp"
+        # Ключевые слова: Mopp, Rotationsmopp, Clean, Reinigung
+
+        # Удаляем цифры, размеры и служебные слова
+        import re
+
+        # Убираем размеры, количества, артикулы
+        title_clean = re.sub(r"\d+[.,]?\d*[LlMmGgKk]*", "", title)
+        title_clean = re.sub(r"\d+\s*x\s*", "", title_clean)
+        title_clean = re.sub(r"[A-Z]\d+", "", title_clean)
+
+        # Разбиваем на слова
+        words = re.findall(r"[A-Za-zА-Яа-яäöüß]+", title_clean)
+
+        # Фильтруем служебные слова
+        stopwords = [
+            "x",
+            "new",
+            "neu",
+            "mit",
+            "für",
+            "und",
+            "oder",
+            "der",
+            "die",
+            "das",
+        ]
+        keywords = [
+            word.lower()
+            for word in words
+            if len(word) > 2 and word.lower() not in stopwords
+        ]
+
+        # Специальные правила для составных слов немецкого языка
+        compound_keywords = []
+        for word in words:
+            if len(word) > 6:  # Возможно составное слово
+                # Ищем известные окончания
+                if word.lower().endswith("mopp"):
+                    compound_keywords.append("mopp")
+                elif word.lower().endswith("reinigung"):
+                    compound_keywords.append("reinigung")
+                elif word.lower().endswith("putzen"):
+                    compound_keywords.append("putzen")
+
+        return keywords + compound_keywords
+
+    def find_best_category(self, title, storefront="de"):
+        """
+        Комплексный поиск наилучшей категории для товара
+        """
+        title = "2 x Teesa New Clean R13 5,7L Doppelkammer-Rotationsmopp"
+
+        # Стратегия 1: Поиск по ключевым словам
+        logger.info("Попытка 1: Поиск по ключевым словам")
+        categories = self.find_category_by_keywords(title, storefront)
+        if categories:
+            return categories[0]  # Возвращаем первую найденную
+
+        # Стратегия 2: Поиск по известным категориям для типа товара
+        logger.info("Попытка 2: Поиск по типу товара")
+        household_keywords = [
+            "mopp",
+            "wischmopp",
+            "bodenreinigung",
+            "putzen",
+            "reinigung",
+        ]
+        for keyword in household_keywords:
+            try:
+                categories = self.get_categories(query=keyword, storefront=storefront)
+                if categories.get("data"):
+                    logger.info(
+                        f"Найдена категория для '{keyword}': {categories['data'][0].get('title_plural')}"
+                    )
+                    return categories["data"][0]
+            except Exception as e:
+                continue
+
+        # Стратегия 3: Поиск в родительских категориях
+        logger.info("Попытка 3: Поиск в родительских категориях")
+        try:
+            household_cats = self.get_categories(
+                query="haushalt", storefront=storefront
+            )
+            if household_cats.get("data"):
+                # Ищем подкатегории
+                for cat in household_cats["data"]:
+                    subcats = self.get_categories(
+                        parent_id=cat["id_category"], storefront=storefront
+                    )
+                    if subcats.get("data"):
+                        return subcats["data"][0]  # Возвращаем первую подкатегорию
+        except Exception as e:
+            logger.error(f"Ошибка при поиске в родительских категориях: {e}")
+
+        # Стратегия 4: Fallback - возвращаем общую категорию
+        logger.info("Попытка 4: Fallback на общую категорию")
+        try:
+            general_cats = self.get_categories(storefront=storefront, limit=50)
+            if general_cats.get("data"):
+                return general_cats["data"][0]
+        except Exception as e:
+            logger.error(f"Ошибка при получении общих категорий: {e}")
+
+        return None
+
+
+def load_product_data():
+    """Загрузка данных из JSON файла"""
+    try:
+        file_path = "17241140591.json"
+        with open(file_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Ошибка при загрузке данных из {file_path}: {e}")
+        return None
+
 
 # Пример использования
 if __name__ == "__main__":
@@ -351,19 +494,32 @@ if __name__ == "__main__":
     #     logger.info(f"Получен товар: {product['data']['title']}")
     # except Exception as e:
     #     logger.error(f"Ошибка при получении товара: {e}")
-
-    # Получение id категории
+    load_product_data = load_product_data()
+    title = load_product_data.get("title", "")
+    logger.info(f"Загружено название товара: {title}")
+    # # Тестирую
     # try:
-    #     categories = api.get_categories(query="Lasermessgeräte")
-    #     logger.info(f"Получено категорий: {len(categories.get('data', []))}")
-
-    #     # Вывод найденных категорий
-    #     for category in categories.get("data", []):
+    #     best_category = api.find_best_category(title)
+    #     if best_category:
     #         logger.info(
-    #             f"Категория: {category.get('title_plural')} (ID: {category.get('id_category')})"
+    #             f"Найдена лучшая категория: {best_category.get('title_plural')} (ID: {best_category.get('id_category')})"
     #         )
+    #     else:
+    #         logger.warning("Категория не найдена")
     # except Exception as e:
-    #     logger.error(f"Ошибка при получении категорий: {e}")
+    #     logger.error(f"Ошибка при поиске категории: {e}")
+    # # Получение id категории
+    try:
+        categories = api.get_categories(query="Mop")
+        logger.info(f"Получено категорий: {len(categories.get('data', []))}")
+
+        # Вывод найденных категорий
+        for category in categories.get("data", []):
+            logger.info(
+                f"Категория: {category.get('title_plural')} (ID: {category.get('id_category')})"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при получении категорий: {e}")
 
     # Получение атрибутов категории по id категории
     # try:
@@ -401,8 +557,9 @@ if __name__ == "__main__":
 
     #         ean = product_data["ean"][0]
     #         attributes = product_data["attributes"]
+    #         logger.info(f"Загружено EAN: {ean}")
+    #         logger.info(f"Загружены атрибуты: {attributes}")
 
-    #         logger.info(f"Загрузка товара с EAN: {ean}")
     #         response = api.upload_product_data(ean, attributes)
     #         logger.info(f"Результат загрузки товара: {response}")
     # except Exception as e:
@@ -419,17 +576,17 @@ if __name__ == "__main__":
     #         response = api.get_id_offer(ean)
     #         logger.info(f"Результат загрузки товара: {response}")
     # except Exception as e:
-    # logger.error(f"Ошибка при загрузке товара: {e}")
+    #     logger.error(f"Ошибка при загрузке товара: {e}")
 
     # Данные для добавления единицы товара
     unit_data = {
-        "ean": "3165140850247",  # EAN товара (обязательно либо ean, либо id_product)
+        "ean": "3664012794066",  # EAN товара (обязательно либо ean, либо id_product)
         "condition": "NEW",  # Состояние товара (NEW, USED___GOOD и т.д.)
         "listing_price": 6000,  # Цена в центах (обязательно > 0)
         "minimum_price": 5000,  # Минимальная цена для Smart Pricing (необязательно)
         "amount": 10,  # Количество товара на складе (ограничено до 99999)
         "note": "",  # Примечание (до 250 символов)
-        "id_offer": "316741741",  # Получаем через products/ean/{ean} указываем ean
+        "id_offer": "536460674",  # Получаем через products/ean/{ean} указываем ean
         "handling_time": 2,  # Количество рабочих дней на обработку заказа
         "vat_indicator": "standard_rate",  # Индикатор НДС
     }

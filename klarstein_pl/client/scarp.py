@@ -114,7 +114,7 @@ def extract_product_params(html_file_path: str, output_json_path: str = None) ->
         if not output_json_path:
             # Создаем имя файла на основе SKU
             sku_clean = (
-                product_params["product"].get("sku", "unknown").replace("Kla", "")
+                product_params["product"].get("sku", "").replace("Kla", "")
             )
             output_json_path = f"Kla{sku_clean}.json"
 

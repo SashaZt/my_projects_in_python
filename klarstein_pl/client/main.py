@@ -5,9 +5,10 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 
 from bs4 import BeautifulSoup
-from config.logger import logger
 from main_db import loader
 from translation import translate_text
+
+from config import Config, logger, paths
 
 current_directory = Path.cwd()
 data_directory = current_directory / "data"

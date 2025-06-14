@@ -5,31 +5,16 @@ services:
       context: ./db
       dockerfile: Dockerfile
       args:
-        TIMEZONE: ${TIMEZONE} 
+        TIMEZONE: ${PG_PROJECT_TIMEZONE} 
     container_name: ${PROJECT_NAME}_db
     restart: unless-stopped
     
+    # Загрузка всех переменных из .env файлов
+    env_file:
+      - .env                    # Основной файл со всеми переменными
+    
     environment:
-      TZ: ${TIMEZONE}
-      PGTZ: ${TIMEZONE}
-      # Основные параметры PostgreSQL
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      PGDATA: ${PGDATA}
-      # Параметры настройки производительности
-      PG_MAX_CONNECTIONS: ${PG_MAX_CONNECTIONS}
-      PG_SHARED_BUFFERS: ${PG_SHARED_BUFFERS}
-      PG_EFFECTIVE_CACHE_SIZE: ${PG_EFFECTIVE_CACHE_SIZE}
-      PG_MAINTENANCE_WORK_MEM: ${PG_MAINTENANCE_WORK_MEM}
-      PG_CHECKPOINT_COMPLETION_TARGET: ${PG_CHECKPOINT_COMPLETION_TARGET}
-      PG_WAL_BUFFERS: ${PG_WAL_BUFFERS}
-      PG_DEFAULT_STATISTICS_TARGET: ${PG_DEFAULT_STATISTICS_TARGET}
-      PG_RANDOM_PAGE_COST: ${PG_RANDOM_PAGE_COST}
-      PG_EFFECTIVE_IO_CONCURRENCY: ${PG_EFFECTIVE_IO_CONCURRENCY}
-      PG_WORK_MEM: ${PG_WORK_MEM}
-      PG_MIN_WAL_SIZE: ${PG_MIN_WAL_SIZE}
-      PG_MAX_WAL_SIZE: ${PG_MAX_WAL_SIZE}
+      - TZ=${PG_PROJECT_TIMEZONE}
     volumes:
       # Монтирование директории данных
       - ${POSTGRES_DATA_DIR:-./pgdata}:${PGDATA:-/var/lib/postgresql/data/pgdata}

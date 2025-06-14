@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 from copy import deepcopy
 from io import StringIO
 from typing import Any, Dict, List, Set, Union
@@ -426,184 +427,6 @@ class AdvancedCSVToJSONMapper:
 
         return data
 
-    # def read_csv(
-    #     self, csv_file_path: str, encoding="utf-8", delimiter=","
-    # ) -> List[Dict[str, Any]]:
-    #     """
-    #     Чтение данных из CSV файла с обработкой BOM
-
-    #     Args:
-    #         csv_file_path: Путь к CSV файлу
-    #         encoding: Кодировка файла
-    #         delimiter: Разделитель CSV
-
-    #     Returns:
-    #         Список словарей с данными из CSV
-    #     """
-    #     data = []
-    #     try:
-    #         # Пробуем разные кодировки для обработки BOM
-    #         encodings_to_try = ["utf-8-sig", "utf-8", "cp1251", "latin1"]
-    #         file_content = None
-    #         used_encoding = encoding
-
-    #         for enc in encodings_to_try:
-    #             try:
-    #                 with open(csv_file_path, "r", encoding=enc) as file:
-    #                     file_content = file.read()
-    #                     used_encoding = enc
-    #                     break
-    #             except UnicodeDecodeError:
-    #                 continue
-
-    #         if file_content is None:
-    #             raise Exception(
-    #                 f"Не удалось прочитать файл ни с одной из кодировок: {encodings_to_try}"
-    #             )
-
-    #         logger.info(f"Файл CSV прочитан с кодировкой: {used_encoding}")
-
-    #         # Создаем StringIO для обработки содержимого
-    #         from io import StringIO
-
-    #         file_like = StringIO(file_content)
-
-    #         # Автоматическое определение разделителя
-    #         sample = file_content[:1024]
-    #         sniffer = csv.Sniffer()
-    #         try:
-    #             delimiter = sniffer.sniff(sample).delimiter
-    #             # logger.info(f"Определен разделитель: '{delimiter}'")
-    #         except:
-    #             delimiter = delimiter  # используем переданный разделитель
-    #             logger.info(f"Используем разделитель по умолчанию: '{delimiter}'")
-
-    #         csv_reader = csv.DictReader(file_like, delimiter=delimiter)
-
-    #         for row_num, row in enumerate(csv_reader, 1):
-    #             # Удаляем BOM и пустые значения
-    #             cleaned_row = {}
-    #             for k, v in row.items():
-    #                 if k:  # проверяем что ключ не пустой
-    #                     # Удаляем BOM из ключа если есть
-    #                     key = k.replace("\ufeff", "").strip()
-    #                     # Удаляем BOM из значения если есть
-    #                     value = v.replace("\ufeff", "").strip() if v else ""
-    #                     if key:  # добавляем только если ключ не пустой после очистки
-    #                         cleaned_row[key] = value
-    #             data.append(cleaned_row)
-
-    #             # # Логируем первую строку для проверки
-    #             # if row_num == 1:
-    #             #     logger.info(f"Первая строка (ключи): {list(cleaned_row.keys())}")
-    #             #     logger.info(
-    #             #         f"Первая строка (данные): {dict(list(cleaned_row.items())[:3])}..."
-    #             #     )
-
-    #         logger.info(f"Загружено {len(data)} записей из {csv_file_path}")
-
-    #     except FileNotFoundError:
-    #         logger.error(f"CSV файл {csv_file_path} не найден")
-    #     except Exception as e:
-    #         logger.error(f"Ошибка при чтении CSV файла: {e}")
-
-    #     return data
-
-    # def read_csv(
-    #     self, csv_file_path: str, encoding="utf-8", delimiter=None
-    # ) -> List[Dict[str, Any]]:
-    #     """
-    #     Чтение данных из CSV файла с автоматическим определением разделителя через pandas
-
-    #     Args:
-    #         csv_file_path: Путь к CSV файлу
-    #         encoding: Кодировка файла
-    #         delimiter: Разделитель CSV (None для автоопределения)
-
-    #     Returns:
-    #         Список словарей с данными из CSV
-    #     """
-    #     data = []
-
-    #     try:
-    #         # Список кодировок для попытки чтения
-    #         encodings_to_try = ["utf-8-sig", "utf-8", "cp1251", "latin1", "iso-8859-1"]
-
-    #         df = None
-    #         used_encoding = encoding
-
-    #         # Если кодировка не задана, пробуем разные
-    #         if encoding == "utf-8":
-    #             encodings_list = encodings_to_try
-    #         else:
-    #             encodings_list = [encoding] + [
-    #                 enc for enc in encodings_to_try if enc != encoding
-    #             ]
-
-    #         for enc in encodings_list:
-    #             try:
-    #                 # pandas автоматически определяет разделитель с sep=None
-    #                 df = pd.read_csv(
-    #                     csv_file_path,
-    #                     sep=(
-    #                         delimiter if delimiter else None
-    #                     ),  # None для автоопределения
-    #                     engine="python",  # Необходимо для автоопределения разделителя
-    #                     encoding=enc,
-    #                     encoding_errors="ignore",
-    #                     skipinitialspace=True,  # Убирает пробелы после разделителя
-    #                     na_filter=False,  # Не преобразовывать пустые значения в NaN
-    #                     dtype=str,  # Все колонки как строки
-    #                     keep_default_na=False,  # Не интерпретировать строки как NaN
-    #                 )
-    #                 used_encoding = enc
-    #                 logger.info(f"Файл CSV прочитан с кодировкой: {used_encoding}")
-    #                 break
-
-    #             except (UnicodeDecodeError, pd.errors.ParserError) as e:
-    #                 logger.debug(f"Не удалось прочитать с кодировкой {enc}: {e}")
-    #                 continue
-
-    #         if df is None:
-    #             raise Exception(
-    #                 f"Не удалось прочитать файл ни с одной из кодировок: {encodings_list}"
-    #             )
-
-    #         # Очистка данных от BOM и лишних пробелов
-    #         # Очищаем названия колонок
-    #         df.columns = [col.replace("\ufeff", "").strip() for col in df.columns]
-
-    #         # Очищаем данные в ячейках
-    #         for col in df.columns:
-    #             if df[col].dtype == "object":  # Только для строковых колонок
-    #                 df[col] = df[col].astype(str).str.replace("\ufeff", "").str.strip()
-
-    #         # Удаляем полностью пустые строки
-    #         df = df.dropna(how="all")
-
-    #         # Заменяем NaN на пустые строки
-    #         df = df.fillna("")
-
-    #         # Конвертируем в список словарей
-    #         data = df.to_dict("records")
-
-    #         # Дополнительная очистка: удаляем записи где все значения пустые
-    #         data = [row for row in data if any(str(v).strip() for v in row.values())]
-
-    #         logger.info(f"Загружено {len(data)} записей из {csv_file_path}")
-
-    #         # Логируем информацию о первой строке
-    #         if data:
-    #             logger.info(f"Колонки: {list(data[0].keys())}")
-    #             logger.debug(f"Пример данных: {dict(list(data[0].items())[:3])}")
-
-    #     except FileNotFoundError:
-    #         logger.error(f"CSV файл {csv_file_path} не найден")
-    #     except Exception as e:
-    #         logger.error(f"Ошибка при чтении CSV файла: {e}")
-
-    #     return data
-
     def get_default_value(self, template_value: Any) -> Any:
         """
         Получение значения по умолчанию на основе типа из шаблона
@@ -682,22 +505,87 @@ class AdvancedCSVToJSONMapper:
             if isinstance(template_value, bool):
                 return value.lower() in ["true", "1", "yes", "да", "истина"]
             elif isinstance(template_value, (int, float)):
-                # НОВАЯ ЛОГИКА: Сохраняем исходное число из CSV
-                # Сначала пробуем как число с плавающей точкой
-                float_value = float(value)
+                # СТАРЫЙ КОД:
+                # float_value = float(value)
 
-                # Если это целое число (например 12.0), возвращаем int
-                if float_value.is_integer():
-                    return int(float_value)
-                else:
-                    # Иначе возвращаем float с исходной точностью
-                    return float_value
+                # НОВЫЙ КОД:
+                normalized_value = self.normalize_number_string(value)
+                # logger.debug(
+                #     f"Конвертация поля {field_path}: '{value}' -> '{normalized_value}'"
+                # )
+
+                try:
+                    float_value = float(normalized_value)
+
+                    if float_value.is_integer():
+                        return int(float_value)
+                    else:
+                        return float_value
+                except ValueError as ve:
+                    logger.warning(
+                        f"Не удалось конвертировать '{normalized_value}' в число: {ve}"
+                    )
+                    return self.get_default_value(template_value)
+            # elif isinstance(template_value, (int, float)):
+            #     # НОВАЯ ЛОГИКА: Сохраняем исходное число из CSV
+            #     # Сначала пробуем как число с плавающей точкой
+            #     float_value = float(value)
+
+            #     # Если это целое число (например 12.0), возвращаем int
+            #     if float_value.is_integer():
+            #         return int(float_value)
+            #     else:
+            #         # Иначе возвращаем float с исходной точностью
+            #         return float_value
             elif isinstance(template_value, str):
                 return str(value)
             else:
                 return value
         except (ValueError, TypeError):
             return self.get_default_value(template_value)
+
+    def normalize_number_string(self, value: str) -> str:
+        """
+        Нормализация числовой строки для разных локалей
+
+        Обрабатывает:
+        - 49,03 (польская локаль) -> 49.03
+        - 1 234,56 -> 1234.56
+        - 1,234.56 (американская) -> 1234.56
+        - 1.234,56 (европейская) -> 1234.56
+        """
+        if not value or not isinstance(value, str):
+            return value
+
+        # Удаляем все пробелы
+        cleaned = value.strip().replace(" ", "")
+
+        # Если нет цифр - возвращаем как есть
+        if not re.search(r"\d", cleaned):
+            return value
+
+        # Паттерн для польской локали: цифры,цифры (например 49,03)
+        polish_pattern = r"^(\d+),(\d{1,2})$"
+
+        # Проверяем польский формат (49,03)
+        if re.match(polish_pattern, cleaned):
+            result = cleaned.replace(",", ".")
+            logger.debug(f"Польский формат: {value} -> {result}")
+            return result
+
+        # Если содержит только одну запятую в конце - считаем десятичной запятой
+        if "," in cleaned and cleaned.count(",") == 1:
+            comma_pos = cleaned.find(",")
+            after_comma = cleaned[comma_pos + 1 :]
+
+            # Если после запятой 1-2 цифры, считаем это десятичной запятой
+            if len(after_comma) <= 2 and after_comma.isdigit():
+                result = cleaned.replace(",", ".")
+                logger.debug(f"Десятичная запятая: {value} -> {result}")
+                return result
+
+        # Возвращаем как есть, если не удалось распознать
+        return cleaned
 
     def fill_json_object(
         self, json_obj: Dict[str, Any], csv_row: Dict[str, str], prefix: str = ""
@@ -738,6 +626,8 @@ class AdvancedCSVToJSONMapper:
                 # Простое поле
                 csv_value = self.find_csv_value(csv_row, current_field)
                 json_obj[key] = self.convert_value_type(csv_value, template_value)
+        if not prefix:
+            self.handle_description_structure(json_obj, csv_row)
 
     def _handle_array_of_objects(
         self,
@@ -1067,6 +957,129 @@ class AdvancedCSVToJSONMapper:
         except Exception as e:
             logger.error(f"Ошибка при создании папки или сохранении файлов: {e}")
             return 0
+
+    def handle_description_structure(
+        self, json_obj: Dict[str, Any], csv_row: Dict[str, str]
+    ) -> None:
+        """
+        Специальная обработка структуры description с автоматическим созданием секций и элементов
+
+        Обрабатывает поля вида:
+        - description.sections.0.items.0.content
+        - description.sections.1.items.0.content
+        И автоматически устанавливает type: "TEXT" если есть content
+
+        Если нет данных - сохраняет пустую структуру из шаблона
+
+        Args:
+            json_obj: JSON объект для заполнения
+            csv_row: Строка данных из CSV
+        """
+        if "description" not in json_obj:
+            return
+
+        # Ищем все description поля в мапинге
+        description_fields = {
+            field: mapping
+            for field, mapping in self.field_mapping.items()
+            if field.startswith("description.sections.") and field.endswith(".content")
+        }
+
+        # Если в мапинге нет description полей, оставляем структуру как в шаблоне
+        if not description_fields:
+            logger.debug(
+                "Нет description полей в мапинге, оставляем структуру из шаблона"
+            )
+            return
+
+        # Инициализируем структуру description если нужно
+        if "sections" not in json_obj["description"]:
+            json_obj["description"]["sections"] = []
+
+        logger.debug(
+            f"Найдено {len(description_fields)} description полей для обработки"
+        )
+
+        # Флаг для отслеживания есть ли хоть какие-то данные
+        has_any_data = False
+
+        # Обрабатываем каждое поле
+        for field_path, csv_mapping in description_fields.items():
+            try:
+                # Извлекаем индекс секции из пути (например, description.sections.0.items.0.content -> 0)
+                path_parts = field_path.split(".")
+                if len(path_parts) >= 4 and path_parts[2].isdigit():
+                    section_index = int(path_parts[2])
+
+                    # Находим значение в CSV
+                    content_value = self.find_csv_value(csv_row, field_path)
+
+                    if content_value and content_value.strip():
+                        # Проверяем защищенность поля
+                        if self.is_protected_field(field_path):
+                            logger.debug(f"Поле '{field_path}' защищено, пропускаем")
+                            continue
+
+                        # Убеждаемся что у нас достаточно секций
+                        while len(json_obj["description"]["sections"]) <= section_index:
+                            json_obj["description"]["sections"].append({"items": []})
+
+                        # Получаем нужную секцию
+                        target_section = json_obj["description"]["sections"][
+                            section_index
+                        ]
+
+                        # Инициализируем items если нужно
+                        if "items" not in target_section:
+                            target_section["items"] = []
+
+                        # Убеждаемся что есть хотя бы один элемент
+                        if len(target_section["items"]) == 0:
+                            target_section["items"].append({"type": "", "content": ""})
+
+                        # Записываем content и автоматически устанавливаем type
+                        target_section["items"][0]["content"] = content_value.strip()
+                        target_section["items"][0]["type"] = "TEXT"
+
+                        has_any_data = True
+                        logger.debug(
+                            f"Установлено description.sections[{section_index}].items[0]: content='{content_value[:50]}...', type='TEXT'"
+                        )
+                    else:
+                        logger.debug(f"Нет данных для поля '{field_path}'")
+
+            except (ValueError, IndexError, KeyError) as e:
+                logger.error(
+                    f"Ошибка при обработке description поля '{field_path}': {e}"
+                )
+                continue
+
+        # Если не найдено никаких данных, но в шаблоне была структура - сохраняем пустую структуру из шаблона
+        if not has_any_data:
+            # Проверяем есть ли в шаблоне базовая структура sections
+            if (
+                json_obj["description"].get("sections") is None
+                or len(json_obj["description"]["sections"]) == 0
+            ):
+                logger.debug(
+                    "Нет данных для description, создаем пустую структуру из шаблона"
+                )
+                json_obj["description"]["sections"] = [
+                    {"items": [{"type": "", "content": ""}]}
+                ]
+            else:
+                # Если структура уже есть, просто убеждаемся что у нее правильный формат
+                for section in json_obj["description"]["sections"]:
+                    if "items" not in section:
+                        section["items"] = []
+                    if len(section["items"]) == 0:
+                        section["items"].append({"type": "", "content": ""})
+                    # Убеждаемся что пустые поля действительно пустые
+                    for item in section["items"]:
+                        if "type" not in item or not item["type"]:
+                            item["type"] = ""
+                        if "content" not in item or not item["content"]:
+                            item["content"] = ""
 
     def process_files(
         self,
