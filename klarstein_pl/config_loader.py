@@ -498,7 +498,7 @@ def main():
                 if idx + 1 < len(sys.argv):
                     output_dir = sys.argv[idx + 1]
 
-            processor.generate_component_config(component, output_format, output_dir)
+            # processor.generate_component_config(component, output_format, output_dir)
 
         elif command == "generate-service-envs":
             processor.generate_service_env_files()

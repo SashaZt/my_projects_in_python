@@ -38,6 +38,9 @@ if [ $? -ne 0 ]; then
     echo -e "${RED}❌ Ошибка при генерации конфигураций!${NC}"
     exit 1
 fi
+# Генерация config.py
+echo -e "${BLUE}🔄 Генерация config.py...${NC}"
+python3 generate_config.py 
 
 echo -e "${PURPLE}═══════════════════════════════════════════════════${NC}"
 

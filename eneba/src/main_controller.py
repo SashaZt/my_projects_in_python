@@ -6,40 +6,37 @@ from pathlib import Path
 
 from config_utils import load_config
 from logger import logger
-from main_bd import get_product_data, update_prices_and_images
+from main_bd import (
+    get_product_data,
+    update_prices_and_images,
+    update_rozetka_prices_and_images,
+)
 from main_page import (
     download_pages,
     extract_ids_from_excel,
     process_html_files,
     update_prices_from_config,
+    update_prices_from_config_rozetka,
 )
 from main_pl import run as run_playwright
-from main_product import export_data_to_excel, parse_json_and_html_files
+from main_product import (
+    export_data_to_excel,
+    export_data_to_excel_rozetka,
+    parse_json_and_html_files,
+    parse_json_and_html_files_rozetka,
+)
 from path_manager import get_path, is_initialized, select_category_and_init_paths
 from playwright.async_api import async_playwright
+from rozetka_page import process_rozetka_html_files
+from rozetka_path_manager import (
+    get_rozetka_path,
+    select_rozetka_category_and_init_paths,
+)
 
 config = load_config()
 BASE_DIR = Path(__file__).parent.parent
 cookies = config["cookies"]
 headers = config["headers"]
-
-
-def display_menu():
-    """Отображает основное меню"""
-    print("\n" + "=" * 50)
-    print("ENEBA - УПРАВЛЕНИЕ КАТЕГОРИЯМИ ТОВАРОВ")
-    print("=" * 50)
-    print("1. Полный цикл (скачать HTML -> обработать товары -> обновить цены)")
-    print("2. Только скачать HTML-страницы")
-    print("3. Только обработать существующие HTML-страницы")
-    print("4. Скачать данные о товарах")
-    print("5. Только обработать JSON и HTML файлы товаров")
-    print("6. Только обновить цены")
-    print("7. Загрузить уникальные ID товаров из Excel")
-    print("8. Очистить временные файлы для категории")
-    print("0. Выход")
-    print("=" * 50)
-    time.sleep(2)
 
 
 async def run_playwright_process():
@@ -142,74 +139,91 @@ def clean_temp_files():
     logger.info(f"Временные файлы для категории {category_name} успешно очищены")
 
 
-def main():
-    from main_bd import get_product_data, update_prices_and_images
-    from main_page import (
-        download_pages,
-        extract_ids_from_excel,
-        process_html_files,
-        update_prices_from_config,
-    )
-    from main_pl import run as run_playwright
-    from main_product import export_data_to_excel, parse_json_and_html_files
+def display_menu():
+    """Отображает основное меню"""
+    print("\n" + "=" * 50)
+    print("ENEBA - УПРАВЛЕНИЕ КАТЕГОРИЯМИ ТОВАРОВ")
+    print("=" * 50)
+    print("1. Полный цикл (скачать HTML -> обработать товары -> обновить цены)")
+    print("2. Только скачать HTML-страницы")
+    print("3. Только обработать существующие HTML-страницы")
+    print("4. Скачать данные о товарах")
+    print("5. Только обработать JSON и HTML файлы товаров")
+    print("6. Только обновить цены")
+    print("7. Загрузить уникальные ID товаров из Excel")
+    print("8. Очистить временные файлы для категории")
+    print("0. Выход")
+    print("=" * 50)
+    time.sleep(2)
 
+
+def main():
     while True:
         display_menu()
-
         choice = input("Выберите действие (0-8): ").strip()
 
         if choice == "0":
             logger.info("Выход из программы")
             break
 
-        # Для всех пунктов, кроме выхода, нужно выбрать категорию
-        if (
-            not is_initialized() or choice == "9"
-        ):  # Добавляем скрытую опцию для смены категории
-            category_info = select_category_and_init_paths()
-            if not category_info:
-                print("Для продолжения работы необходимо выбрать категорию")
-                continue
+        if choice in {"2", "3", "4", "5", "6"}:
+            marketpalses = input("Выберите Пром - 1, Розетка - 2: ").strip()
+            if marketpalses == "1":
+                if not is_initialized():
+                    category_info = select_category_and_init_paths()
+                    if not category_info:
+                        print("Для продолжения работы необходимо выбрать категорию")
+                        continue
+            else:
+                category_info = select_rozetka_category_and_init_paths()
 
         if choice == "1":
-            # Полный цикл
             run_full_cycle()
 
         elif choice == "2":
-            # Только скачать HTML-страницы
             url = get_path("url")
             download_pages(url, cookies, headers)
 
         elif choice == "3":
-            # Только обработать существующие HTML-страницы
-            process_html_files()
+            if marketpalses == "1":
+                process_html_files()
+            else:
+                process_rozetka_html_files()
 
         elif choice == "4":
-            # Только загрузить данные о товарах из API
             asyncio.run(run_playwright_process())
 
         elif choice == "5":
-            # Только обработать JSON и HTML файлы товаров
-            all_data, bd_json_path = parse_json_and_html_files()
-            if all_data:
-                category_id = get_path("category_id")
-                updated_prices, updated_images, errors = update_prices_and_images(
-                    bd_json_path, category_id=category_id
-                )
-                export_data_to_excel(category_id=category_id)
+            if marketpalses == "1":
+                all_data, bd_json_path = parse_json_and_html_files()
+                if all_data:
+                    category_id = get_path("category_id")
+                    updated_prices, updated_images, errors = update_prices_and_images(
+                        bd_json_path, category_id=category_id
+                    )
+                    export_data_to_excel(category_id=category_id)
+                else:
+                    logger.error("Нет данных для обновления")
             else:
-                logger.error("Нет данных для обновления")
+                all_data, bd_json_path = parse_json_and_html_files_rozetka()
+                if all_data:
+                    category_id = get_rozetka_path("category_id")
+                    updated_prices, updated_images, errors = (
+                        update_rozetka_prices_and_images(
+                            bd_json_path, category_id=category_id
+                        )
+                    )
+                    export_data_to_excel_rozetka(category_id=category_id)
 
         elif choice == "6":
-            # Только обновить цены
-            update_prices_from_config()
-
+            if marketpalses == "1":
+                update_prices_from_config()
+            else:
+                update_prices_from_config_rozetka()
         elif choice == "7":
-            # Загрузить уникальные ID товаров из Excel
             extract_ids_from_excel()
 
         elif choice == "8":
-            # Очистить временные файлы
             clean_temp_files()
 
         else:

@@ -75,7 +75,7 @@ class TranslationService:
             if not polish_text or not polish_text.strip():
                 return "", ""
 
-            logger.info(f"Переводим текст (длина: {len(polish_text)} символов)")
+            # logger.info(f"Переводим текст (длина: {len(polish_text)} символов)")
 
             # Переводим на русский
             russian_text = self._make_translation_request(polish_text, "ru")
@@ -92,7 +92,7 @@ class TranslationService:
                 logger.error("Не удалось перевести на украинский")
                 return russian_text, None
 
-            logger.info("Перевод выполнен успешно")
+            # logger.info("Перевод выполнен успешно")
             return russian_text, ukrainian_text
 
         except Exception as e:
@@ -246,22 +246,22 @@ def translate_yml_data(yml_data: Dict) -> Dict:
     return translator.translate_product_data(yml_data)
 
 
-# Пример использования
-if __name__ == "__main__":
-    # Тест простого перевода
-    test_text = "Kraftprotz, maszynka do mielenia mięsa, 700 W"
-    russian, ukrainian = translate_text(test_text)
+# # Пример использования
+# if __name__ == "__main__":
+#     # Тест простого перевода
+#     test_text = "Kraftprotz, maszynka do mielenia mięsa, 700 W"
+#     russian, ukrainian = translate_text(test_text)
 
-    print(f"Польский: {test_text}")
-    print(f"Русский: {russian}")
-    print(f"Украинский: {ukrainian}")
+#     print(f"Польский: {test_text}")
+#     print(f"Русский: {russian}")
+#     print(f"Украинский: {ukrainian}")
 
-    # Тест HTML перевода
-    html_text = """<ul class="list--no-style">
-<li><h3><strong>Po prostu lepszy smak: </strong>elektryczna maszynka do mięsa</h3></li>
-</ul>"""
+#     # Тест HTML перевода
+#     html_text = """<ul class="list--no-style">
+# <li><h3><strong>Po prostu lepszy smak: </strong>elektryczna maszynka do mięsa</h3></li>
+# </ul>"""
 
-    russian_html, ukrainian_html = translate_text(html_text)
-    print(f"\nHTML перевод:")
-    print(f"Русский HTML: {russian_html}")
-    print(f"Украинский HTML: {ukrainian_html}")
+#     russian_html, ukrainian_html = translate_text(html_text)
+#     print(f"\nHTML перевод:")
+#     print(f"Русский HTML: {russian_html}")
+#     print(f"Украинский HTML: {ukrainian_html}")

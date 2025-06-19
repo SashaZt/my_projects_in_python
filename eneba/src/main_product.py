@@ -8,8 +8,13 @@ from bs4 import BeautifulSoup
 from category_manager import category_manager
 from config_utils import load_config
 from logger import logger
-from main_bd import get_all_data_ukrainian_headers, update_prices_and_images
+from main_bd import (
+    get_all_data_ukrainian_headers,
+    get_all_rozetka_data_ukrainian_headers,
+    update_prices_and_images,
+)
 from path_manager import get_path, is_initialized, select_category_and_init_paths
+from rozetka_path_manager import get_rozetka_path
 
 # Базовая директория
 BASE_DIR = Path(__file__).parent.parent
@@ -170,6 +175,103 @@ def parse_json_and_html_files():
     return all_data, bd_json
 
 
+def parse_json_and_html_files_rozetka():
+    """Обрабатывает JSON и HTML файлы для текущей категории"""
+    # Получаем пути для текущей категории
+    html_product = get_rozetka_path("html_product")
+    json_dir = get_rozetka_path("json_dir")
+    bd_json = get_rozetka_path("bd_json")
+    output_path = get_rozetka_path("output_xlsx")
+    category_id = get_rozetka_path("category_id")
+    all_data = []
+    json_files = list(json_dir.glob("*_price.json"))
+    logger.info(f"Найдено {len(json_files)} JSON файлов для обработки")
+
+    for json_file in json_files:
+        filename = json_file.stem
+        # logger.debug(f"Обрабатываем файл: {filename}")
+
+        # Разделяем имя файла по '_'
+        parts = filename.split("_")
+        if len(parts) < 2 or parts[-1] != "price":
+            logger.warning(f"Некорректное имя файла: {filename}, пропускаем")
+            continue
+
+        # Убираем '_price' из имени для получения slug
+        slug = "_".join(parts[:-1])
+
+        # Открываем файл и загружаем данные
+        try:
+            with open(json_file, "r", encoding="utf-8") as f:
+                data_json = json.load(f)
+        except Exception as e:
+            logger.error(f"Ошибка при чтении файла {json_file}: {str(e)}")
+            continue
+
+        # Извлекаем цену
+        price = process_price_data(data_json)
+        # Преобразуем в число с плавающей точкой
+        if not price:
+            price = 0
+        price_uah_float = float(price)
+        # Округляем в большую сторону до целого
+        price_uah_rounded = math.ceil(price_uah_float)
+        price_uah = str(price_uah_rounded).replace(".", ",")
+
+        # Ищем соответствующий HTML-файл по slug
+        html_file = html_product / f"{slug}.html"
+
+        if not html_file.exists():
+            # Пробуем альтернативное имя
+            html_file = html_product / f"{slug.replace('/', '_')}.html"
+            if not html_file.exists():
+                logger.warning(f"HTML-файл для {slug} не найден")
+                # Добавляем запись без изображений
+                result = {"slug": slug, "price": price_uah, "images": []}
+                all_data.append(result)
+                logger.info(
+                    f"Обработан {slug}: цена={price_uah}, изображений=0 (HTML не найден)"
+                )
+                continue
+
+        # Извлекаем данные Apollo State из HTML-файла
+        apollo_data = scrap_html(html_file)
+
+        if not apollo_data:
+            logger.error(f"Не удалось извлечь данные Apollo State из {html_file}")
+            # Добавляем запись без изображений
+            result = {"slug": slug, "price": price_uah, "images": []}
+            all_data.append(result)
+            logger.info(
+                f"Обработан {slug}: цена={price_uah}, изображений=0 (ошибка Apollo)"
+            )
+            continue
+
+        # Извлекаем URL-адреса изображений
+        image_urls = extract_media_urls(apollo_data)
+        if not image_urls:
+            image_urls = []
+
+        # Формируем результат с ценой и URL-адресами изображений
+        result = {"slug": slug, "price": price_uah, "images": image_urls}
+        # logger.info(html_file)
+        # logger.info(result)
+        # exit(1)
+        all_data.append(result)
+        # logger.info(
+        #     f"Обработан {slug}: цена={price_uah}, изображений={len(image_urls)}"
+        # )
+
+    # Сохраняем все данные в JSON-файл
+    with open(bd_json, "w", encoding="utf-8") as out_file:
+        json.dump(all_data, out_file, ensure_ascii=False, indent=4)
+
+    logger.info(
+        f"Данные сохранены в {bd_json}, всего обработано {len(all_data)} товаров"
+    )
+    return all_data, bd_json
+
+
 def extract_media_urls(apollo_data):
     """
     Извлекает URL-адреса изображений из данных Apollo State
@@ -274,6 +376,39 @@ def save_to_excel(data, output_path):
         return False
 
 
+def save_to_excel_rozetka(data, output_path):
+    """
+    Сохраняет данные в Excel файл
+
+    Args:
+        data (list): Список словарей с данными
+        output_path (str or Path): Путь для сохранения Excel файла
+
+    Returns:
+        bool: True, если сохранение успешно, иначе False
+    """
+    html_product = get_rozetka_path("html_product")
+    json_dir = get_rozetka_path("json_dir")
+    bd_json = get_rozetka_path("bd_json")
+    output_path = get_rozetka_path("output_xlsx")
+    category_id = get_rozetka_path("category_id")
+    try:
+        import pandas as pd
+
+        # Создаем DataFrame из списка словарей
+        df = pd.DataFrame(data)
+
+        # Сохраняем в Excel
+        df.to_excel(output_path, index=False)
+
+        logger.info(f"Данные успешно сохранены в {output_path}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Ошибка при сохранении в Excel: {str(e)}")
+        return False
+
+
 def export_data_to_excel(category_id=None):
     """
     Экспортирует данные из базы в Excel файл
@@ -293,6 +428,50 @@ def export_data_to_excel(category_id=None):
     if data:
         # Сохраняем данные в Excel
         success = save_to_excel(data, output_path)
+
+        if success:
+            logger.info(f"Данные успешно экспортированы в {output_path}")
+        else:
+            logger.error("Не удалось экспортировать данные в Excel")
+    else:
+        logger.warning("Нет данных для экспорта")
+
+
+def remove_keys_from_dicts_list(dicts_list, keys_to_remove):
+    """
+    Удаляет указанные ключи из списка словарей
+    """
+    return [remove_keys_from_dict(d, keys_to_remove) for d in dicts_list]
+
+
+def remove_keys_from_dict(dictionary, keys_to_remove):
+    """
+    Удаляет указанные ключи из словаря
+    """
+    return {k: v for k, v in dictionary.items() if k not in keys_to_remove}
+
+
+def export_data_to_excel_rozetka(category_id=None):
+    """
+    Экспортирует данные из базы в Excel файл
+
+    Args:
+        category_id (str, optional): ID категории для фильтрации
+    """
+    # Получаем пути для текущей категории
+
+    # Получаем данные из базы с украинскими заголовками
+    data = get_all_rozetka_data_ukrainian_headers(category_id=category_id)
+    html_product = get_rozetka_path("html_product")
+    json_dir = get_rozetka_path("json_dir")
+    bd_json = get_rozetka_path("bd_json")
+    output_path = get_rozetka_path("output_xlsx")
+    category_id = get_rozetka_path("category_id")
+
+    if data:
+        data_without_slug = remove_keys_from_dicts_list(data, ["product_slug"])
+        # Сохраняем данные в Excel
+        success = save_to_excel_rozetka(data_without_slug, output_path)
 
         if success:
             logger.info(f"Данные успешно экспортированы в {output_path}")

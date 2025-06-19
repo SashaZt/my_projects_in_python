@@ -626,3 +626,517 @@ def update_unique_ids_in_db(id_mapping):
     logger.info(f"- Ошибок: {errors}")
 
     return updated, errors
+
+
+"""
+Блок для Розетки
+"""
+
+ROZETKA_FIELD_MAPPING = {
+    "product_slug": "product_slug",
+    "ID": "id_rozetka",
+    "OFFERID": "offer_id",
+    "CID": "category_id",
+    "Категорія": "category",
+    "Артикул": "article",
+    "Назва": "name",
+    "Назва (укр)": "name_ukr",
+    "Серія": "series",
+    "Ціна": "price",
+    "Стара ціна": "old_price",
+    "Ціна промо": "promo_price",
+    "Акція до": "promo_until",
+    "Залишки": "stock",
+    "Мінімальна кількість при замовленні": "min_order_qty",
+    "Максимальна кількість при замовленні": "max_order_qty",
+    "Виробник": "manufacturer",
+    "Наявність": "availability",
+    "Статус": "status",
+    "Повний опис (UA/RU)": "full_description_ua_ru",
+    "Повний опис (UA)": "full_description_ua",
+    "Зображення": "images",
+    "Доставка/Оплата;RU|2019": "delivery_payment_ru",
+    "Доставка/Оплата;UA|2019": "delivery_payment_ua",
+    "Жанр|21215": "genre",
+    "Видавець|22052": "publisher",
+    "Локалізація|21217": "localization",
+    "Платформа|21213": "platform",
+    "Розробник|22051": "developer",
+    "Країна реєстрації бренду|87790": "brand_country",
+    "Країна-виробник товару|98900": "manufacturer_country",
+    "Носій|21214": "media_type",
+    "дата_загрузки": "upload_date",
+}
+
+
+def create_rozetka_database():
+    """
+    Создает таблицу products_rozetka с англоязычными именами колонок
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Создаем таблицу products_rozetka с англоязычными именами колонок
+    cursor.execute(
+        """
+    CREATE TABLE IF NOT EXISTS products_rozetka (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_rozetka TEXT,
+        offer_id TEXT,
+        product_slug TEXT UNIQUE,
+        category_id TEXT,
+        category TEXT,
+        article TEXT,
+        name TEXT,
+        name_ukr TEXT,
+        series TEXT,
+        price TEXT,
+        old_price TEXT,
+        promo_price TEXT,
+        promo_until TEXT,
+        stock TEXT,
+        min_order_qty TEXT,
+        max_order_qty TEXT,
+        manufacturer TEXT,
+        availability TEXT,
+        status TEXT,
+        full_description_ua_ru TEXT,
+        full_description_ua TEXT,
+        images TEXT,
+        delivery_payment_ru TEXT,
+        delivery_payment_ua TEXT,
+        genre TEXT,
+        publisher TEXT,
+        localization TEXT,
+        platform TEXT,
+        developer TEXT,
+        brand_country TEXT,
+        manufacturer_country TEXT,
+        media_type TEXT,
+        upload_date DATETIME
+    )
+    """
+    )
+
+    conn.commit()
+    conn.close()
+    logger.info("Таблица products_rozetka с англоязычными колонками успешно создана")
+
+
+def insert_rozetka_data_from_json(json_data):
+    """
+    Записывает данные Rozetka из JSON в базу данных с преобразованием имен полей
+    Если запись с id_rozetka уже существует, обновляет все данные
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Получаем текущую дату и время
+    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Если json_data - строка, преобразуем в объект Python
+    if isinstance(json_data, str):
+        data = json.loads(json_data)
+    else:
+        data = json_data
+
+    # Счетчики для статистики
+    inserted_count = 0
+    updated_count = 0
+    error_count = 0
+
+    for item in data:
+        try:
+            # Преобразуем ключи с украинского на английский
+            item_eng = {}
+            for key, value in item.items():
+                # Преобразуем ключ в английский эквивалент или используем оригинальный ключ
+                eng_key = ROZETKA_FIELD_MAPPING.get(key, key)
+                # Заменяем все специальные символы в ключе
+                eng_key = re.sub(r"[^\w]", "_", eng_key)
+                item_eng[eng_key] = value
+
+            # Добавляем дату загрузки
+            item_eng["upload_date"] = current_datetime
+
+            product_slug = item_eng.get("product_slug")
+            if not product_slug:
+                logger.warning("Пропущена запись без product_slug")
+                error_count += 1
+                continue
+
+            # Проверяем, есть ли уже такой product_slug в базе
+            cursor.execute(
+                "SELECT COUNT(*) FROM products_rozetka WHERE product_slug = ?",
+                (product_slug,),
+            )
+            exists = cursor.fetchone()[0] > 0
+
+            if exists:
+                # Если запись существует, обновляем все данные
+                update_parts = []
+                update_values = []
+
+                for key, value in item_eng.items():
+                    if key != "product_slug":  # Не обновляем сам product_slug
+                        update_parts.append(f'"{key}" = ?')
+                        update_values.append(value)
+
+                # Добавляем product_slug для условия WHERE
+                update_values.append(product_slug)
+
+                # Создаем SQL запрос для обновления
+                update_query = f"""
+                UPDATE products_rozetka 
+                SET {", ".join(update_parts)}
+                WHERE product_slug = ?
+                """
+
+                cursor.execute(update_query, update_values)
+                updated_count += 1
+                # logger.debug(f"Обновлена запись с product_slug: {product_slug}")
+            else:
+                # Если записи нет, добавляем новую
+                columns = ", ".join([f'"{k}"' for k in item_eng.keys()])
+                placeholders = ", ".join(["?"] * len(item_eng))
+                values = list(item_eng.values())
+
+                insert_query = (
+                    f"INSERT INTO products_rozetka ({columns}) VALUES ({placeholders})"
+                )
+                cursor.execute(insert_query, values)
+                inserted_count += 1
+                # logger.debug(
+                #     f"Добавлена новая запись Rozetka с product_slug: {product_slug}"
+                # )
+
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка при обработке записи Rozetka: {e}")
+            error_count += 1
+            continue
+
+    conn.commit()
+    conn.close()
+
+    logger.info("Обработка JSON данных Rozetka завершена")
+    logger.info(f"- Новых записей добавлено: {inserted_count}")
+    logger.info(f"- Существующих записей обновлено: {updated_count}")
+    logger.info(f"- Записей с ошибками: {error_count}")
+    logger.info(f"- Всего обработано записей: {len(data)}")
+
+
+def get_rozetka_product_data(category_id=None):
+    """
+    Возвращает id_rozetka, article и price из базы данных Rozetka
+
+    Args:
+        category_id (str, optional): ID категории для фильтрации
+
+    Returns:
+        list: Список словарей с id_rozetka, article и price
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Если указан category_id, добавляем условие фильтрации
+    if category_id:
+        query = "SELECT product_slug, article, price FROM products_rozetka WHERE category_id = ?"
+        cursor.execute(query, (category_id,))
+    else:
+        # Иначе выбираем все записи
+        cursor.execute("SELECT product_slug, article, price FROM products_rozetka")
+
+    result = cursor.fetchall()
+
+    # Преобразуем результат в список словарей
+    data = [
+        {"product_slug": row[0], "article": row[1], "price": row[2]} for row in result
+    ]
+
+    conn.close()
+    logger.info(f"Получено {len(data)} записей товаров Rozetka из базы данных")
+
+    return data
+
+
+def update_rozetka_prices_and_images(json_file_path, category_id=None):
+    """
+    Обновляет цены и добавляет изображения в базу данных Rozetka на основе предоставленных данных
+
+    Args:
+        json_file_path (str or Path): Путь к JSON-файлу с данными
+        category_id (str, optional): ID категории для фильтрации
+
+    Returns:
+        tuple: (updated_prices, updated_images, errors) - количество обновлений цен, изображений и ошибок
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    updated_prices = 0
+    updated_images = 0
+    errors = 0
+
+    # Загружаем данные из JSON-файла
+    with open(json_file_path, "r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    for item in data:
+        # ИСПРАВЛЕНО: Используем product_slug ИЛИ slug для Rozetka
+        product_slug = item.get("product_slug") or item.get("slug")
+        price = item.get("price") or item.get("Ціна")
+        images = item.get("images", []) or item.get("Зображення", [])
+
+        if not product_slug:
+            logger.error("Пропущена запись Rozetka без product_slug/slug")
+            logger.debug(f"Проблемная запись: {item}")
+            errors += 1
+            continue
+
+        try:
+            # # Проверяем существование записи (с учетом категории, если указана)
+            # if category_id:
+            #     query = "SELECT product_slug, images FROM products_rozetka WHERE product_slug = ? AND category_id = ?"
+            #     cursor.execute(query, (product_slug, category_id))
+            # else:
+            #     cursor.execute(
+            #         "SELECT product_slug, images FROM products_rozetka WHERE product_slug = ?",
+            #         (product_slug,),
+            #     )
+            cursor.execute(
+                "SELECT product_slug, images FROM products_rozetka WHERE product_slug = ?",
+                (product_slug,),
+            )
+            result = cursor.fetchone()
+
+            if not result:
+                logger.warning(
+                    f"Запись Rozetka с product_slug={product_slug} не найдена в базе данных"
+                )
+                errors += 1
+                continue
+
+            # Получаем текущее значение images
+            current_images = result[1] or ""
+
+            # Обработка цены
+            if price is not None:
+                price_str = str(price).replace(".", ",")
+            else:
+                price_str = "0"
+
+            # Если цена "0", также обновляем availability на "Відсутній"
+            if price_str == "0":
+                cursor.execute(
+                    "UPDATE products_rozetka SET price = ?, availability = ? WHERE product_slug = ?",
+                    (price_str, "немає в наявності", product_slug),
+                )
+                # logger.debug(
+                #     f"Обновлена цена для Rozetka {product_slug}: {price_str} и availability: 'Відсутній'"
+                # )
+            else:
+                cursor.execute(
+                    "UPDATE products_rozetka SET price = ? WHERE product_slug = ?",
+                    (price_str, product_slug),
+                )
+                # logger.debug(f"Обновлена цена для Rozetka {product_slug}: {price_str}")
+
+            updated_prices += 1
+
+            # ИСПРАВЛЕНО: Обработка изображений с разделителем ";"
+            if images:
+                # Преобразуем в строку если это не строка
+                if isinstance(images, list):
+                    images_str = ";".join(images)
+                else:
+                    images_str = str(images)
+
+                # ИСПРАВЛЕНО: Проверяем существующие изображения по разделителю ";"
+                if current_images and current_images.strip():
+                    # Обрабатываем и старые разделители (,) и новые (;)
+                    if ";" in current_images:
+                        existing_urls = [
+                            url.strip() for url in current_images.split(";")
+                        ]
+                    else:
+                        # Если старый формат с запятыми, преобразуем
+                        existing_urls = [
+                            url.strip() for url in current_images.split(",")
+                        ]
+
+                    new_urls = []
+
+                    if isinstance(images, list):
+                        for url in images:
+                            if url not in existing_urls:
+                                new_urls.append(url)
+                    else:
+                        if images_str not in existing_urls:
+                            new_urls.append(images_str)
+
+                    if new_urls:
+                        # ИСПРАВЛЕНО: Объединяем существующие и новые изображения через ";"
+                        # Сначала преобразуем старые к новому формату
+                        existing_clean = ";".join(existing_urls)
+                        combined_urls = existing_clean + ";" + ";".join(new_urls)
+
+                        cursor.execute(
+                            "UPDATE products_rozetka SET images = ? WHERE product_slug = ?",
+                            (combined_urls, product_slug),
+                        )
+                        updated_images += 1
+                        # logger.debug(
+                        #     f"Добавлены новые изображения для Rozetka {product_slug}: {len(new_urls)} шт."
+                        # )
+                    else:
+                        # Если новых URL нет, но нужно обновить формат разделителя
+                        if "," in current_images and ";" not in current_images:
+                            # Преобразуем старый формат в новый
+                            existing_clean = ";".join(existing_urls)
+                            cursor.execute(
+                                "UPDATE products_rozetka SET images = ? WHERE product_slug = ?",
+                                (existing_clean, product_slug),
+                            )
+                            logger.debug(
+                                f"Обновлен формат разделителей изображений для {product_slug}"
+                            )
+                else:
+                    # Если изображений нет, просто устанавливаем новые
+                    cursor.execute(
+                        "UPDATE products_rozetka SET images = ? WHERE product_slug = ?",
+                        (images_str, product_slug),
+                    )
+                    updated_images += 1
+                    logger.debug(f"Установлены изображения для Rozetka {product_slug}")
+
+        except sqlite3.Error as e:
+            logger.error(
+                f"Ошибка при обновлении записи Rozetka {product_slug}: {str(e)}"
+            )
+            errors += 1
+            continue
+
+    conn.commit()
+    conn.close()
+
+    logger.info(f"Обновление данных Rozetka завершено:")
+    logger.info(f"- Обновлено цен: {updated_prices}")
+    logger.info(f"- Обновлено изображений: {updated_images}")
+    logger.info(f"- Ошибок: {errors}")
+
+    return updated_prices, updated_images, errors
+
+
+def get_all_rozetka_data_ukrainian_headers(category_id=None):
+    """
+    Возвращает все данные из базы данных Rozetka, кроме id и upload_date,
+    с украинскими названиями заголовков
+
+    Args:
+        category_id (str, optional): ID категории для фильтрации
+
+    Returns:
+        list: Список словарей с данными с украинскими ключами
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Получаем информацию о структуре таблицы products_rozetka
+    cursor.execute("PRAGMA table_info(products_rozetka)")
+    columns_info = cursor.fetchall()
+
+    # Формируем список колонок, исключая id и upload_date
+    columns = [
+        column[1] for column in columns_info if column[1] not in ["id", "upload_date"]
+    ]
+
+    # Создаем обратное отображение (с английского на украинский)
+    reverse_mapping = {v: k for k, v in ROZETKA_FIELD_MAPPING.items()}
+
+    # # Выполняем запрос с возможной фильтрацией по категории
+    # if category_id:
+    #     query = (
+    #         f"SELECT {', '.join(columns)} FROM products_rozetka WHERE category_id = ?"
+    #     )
+    #     cursor.execute(query, (category_id,))
+    # else:
+    query = f"SELECT {', '.join(columns)} FROM products_rozetka"
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+
+    # Преобразуем результат в список словарей с украинскими ключами
+    result = []
+    for row in rows:
+        item = {}
+        for i, column in enumerate(columns):
+            # Если есть соответствующий украинский ключ, используем его
+            ukrainian_key = reverse_mapping.get(column, column)
+            item[ukrainian_key] = row[i]
+
+        result.append(item)
+
+    conn.close()
+
+    logger.info(
+        f"Получено {len(result)} записей Rozetka из базы данных с украинскими заголовками"
+    )
+    return result
+
+
+def map_rozetka_json_to_english(json_data):
+    """
+    Преобразует JSON Rozetka с украинскими ключами в JSON с английскими ключами
+    """
+    # Если json_data - строка, преобразуем в объект Python
+    if isinstance(json_data, str):
+        data = json.loads(json_data)
+    else:
+        data = json_data
+
+    result = []
+    for item in data:
+        item_eng = {}
+        for key, value in item.items():
+            # Ищем английский эквивалент для ключа
+            eng_key = ROZETKA_FIELD_MAPPING.get(key, key)
+            item_eng[eng_key] = value
+        result.append(item_eng)
+
+    return result
+
+
+def reverse_map_rozetka_to_ukrainian(data):
+    """
+    Преобразует данные Rozetka с английскими ключами обратно в данные с украинскими ключами
+    """
+    # Создаем обратное отображение (с английского на украинский)
+    reverse_mapping = {v: k for k, v in ROZETKA_FIELD_MAPPING.items()}
+
+    result = []
+    for item in data:
+        item_ukr = {}
+        for key, value in item.items():
+            # Ищем украинский эквивалент для ключа
+            ukr_key = reverse_mapping.get(key, key)
+            item_ukr[ukr_key] = value
+        result.append(item_ukr)
+
+    return result
+
+
+def load_and_save_rozetka_data(json_file_path):
+    """
+    Загружает данные Rozetka из JSON-файла и сохраняет их в базу данных
+    """
+    # Создаем базу данных, если не существует
+    create_rozetka_database()
+
+    # Загружаем данные из JSON-файла
+    with open(json_file_path, "r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    # Вставляем данные в базу данных
+    insert_rozetka_data_from_json(data)
+
+    logger.info(f"Данные Rozetka из {json_file_path} успешно загружены в базу данных")

@@ -1,7 +1,9 @@
 import json
+import math
 import random
 import re
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 from xml.etree import ElementTree as ET
 
 from bs4 import BeautifulSoup
@@ -9,16 +11,6 @@ from main_db import loader
 from translation import translate_text
 
 from config import Config, logger, paths
-
-current_directory = Path.cwd()
-data_directory = current_directory / "data"
-data_directory.mkdir(parents=True, exist_ok=True)
-output_csv_file = data_directory / "output.csv"
-html_directory = current_directory / "html"
-html_directory.mkdir(parents=True, exist_ok=True)
-output_html_file = html_directory / "easy.html"
-
-file_name = "10035233"
 
 
 class CategoriesManager:
@@ -149,7 +141,7 @@ class CategoriesManager:
 
 
 categories_manager = CategoriesManager()
-
+config = Config.load()
 
 # def scrap_html_file():
 #     all_data = []
@@ -314,162 +306,160 @@ categories_manager = CategoriesManager()
 #     # return success
 def scrap_html_file():
     """ИСПРАВЛЕННАЯ версия - корректное управление категориями"""
-    # global categories_manager
+    global categories_manager
 
-    # all_products = []
-    # html_files = list(html_directory.glob("*.html"))
+    all_products = []
+    html_files = list(paths.html.glob("*.html"))
 
-    # logger.info(f"Найдено {len(html_files)} HTML файлов для обработки")
+    logger.info(f"Найдено {len(html_files)} HTML файлов для обработки")
 
-    # # ЭТАП 1: Сначала собираем ВСЕ категории из всех файлов
-    # logger.info("=== ЭТАП 1: Сбор всех категорий ===")
+    # ЭТАП 1: Сначала собираем ВСЕ категории из всех файлов
+    logger.info("=== ЭТАП 1: Сбор всех категорий ===")
 
-    # for html_file in html_files:
-    #     logger.info(f"Сканируем категории в файле: {html_file.name}")
+    for html_file in html_files:
+        logger.info(f"Сканируем категории в файле: {html_file.name}")
 
-    #     try:
-    #         with open(html_file, "r", encoding="utf-8") as file:
-    #             content = file.read()
+        try:
+            with open(html_file, "r", encoding="utf-8") as file:
+                content = file.read()
 
-    #         soup = BeautifulSoup(content, "lxml")
-    #         script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
+            soup = BeautifulSoup(content, "lxml")
+            script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
 
-    #         # Ищем breadcrumbs
-    #         breadcrumb_script = None
-    #         for script in script_tags:
-    #             try:
-    #                 json_data = json.loads(script.string)
-    #                 if json_data.get("@type") == "BreadcrumbList":
-    #                     breadcrumb_script = json_data
-    #                     break
-    #             except (json.JSONDecodeError, TypeError):
-    #                 continue
+            # Ищем breadcrumbs
+            breadcrumb_script = None
+            for script in script_tags:
+                try:
+                    json_data = json.loads(script.string)
+                    if json_data.get("@type") == "BreadcrumbList":
+                        breadcrumb_script = json_data
+                        break
+                except (json.JSONDecodeError, TypeError):
+                    continue
 
-    #         if breadcrumb_script:
-    #             # Извлекаем breadcrumbs
-    #             itemListElement = breadcrumb_script.get("itemListElement", [])
-    #             breadcrumbs_pl = []
-    #             for item in itemListElement[
-    #                 :-1
-    #             ]:  # Исключаем последний элемент (сам товар)
-    #                 if isinstance(item, dict):
-    #                     breadcrumbs_pl.append(item.get("name"))
+            if breadcrumb_script:
+                # Извлекаем breadcrumbs
+                itemListElement = breadcrumb_script.get("itemListElement", [])
+                breadcrumbs_pl = []
+                for item in itemListElement[:-1]:
+                    if isinstance(item, dict):
+                        breadcrumbs_pl.append(item.get("name"))
 
-    #             if breadcrumbs_pl:
-    #                 # ВАЖНО: Регистрируем категории, но пока не обрабатываем товары
-    #                 categories_manager.add_breadcrumbs(breadcrumbs_pl)
-    #                 logger.info(
-    #                     f"Зарегистрированы категории: {' > '.join(breadcrumbs_pl)}"
-    #                 )
+                if breadcrumbs_pl:
+                    # ВАЖНО: Регистрируем категории, но пока не обрабатываем товары
+                    categories_manager.add_breadcrumbs(breadcrumbs_pl)
+                    logger.info(
+                        f"Зарегистрированы категории: {' > '.join(breadcrumbs_pl)}"
+                    )
 
-    #     except Exception as e:
-    #         logger.error(f"Ошибка сканирования категорий в файле {html_file.name}: {e}")
-    #         continue
+        except Exception as e:
+            logger.error(f"Ошибка сканирования категорий в файле {html_file.name}: {e}")
+            continue
 
-    # # Выводим отладочную информацию о собранных категориях
-    # categories_manager.print_debug_info()
+    # Выводим отладочную информацию о собранных категориях
+    categories_manager.print_debug_info()
 
-    # # ЭТАП 2: Теперь обрабатываем товары с уже готовыми категориями
-    # logger.info("=== ЭТАП 2: Обработка товаров ===")
+    # ЭТАП 2: Теперь обрабатываем товары с уже готовыми категориями
+    logger.info("=== ЭТАП 2: Обработка товаров ===")
 
-    # for html_file in html_files:
-    #     logger.info(f"Обрабатываем товар в файле: {html_file.name}")
+    for html_file in html_files:
+        logger.info(f"Обрабатываем товар в файле: {html_file.name}")
 
-    #     try:
-    #         with open(html_file, "r", encoding="utf-8") as file:
-    #             content = file.read()
+        try:
+            with open(html_file, "r", encoding="utf-8") as file:
+                content = file.read()
 
-    #         soup = BeautifulSoup(content, "lxml")
-    #         script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
+            soup = BeautifulSoup(content, "lxml")
+            script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
 
-    #         # Ищем данные товара и breadcrumbs
-    #         breadcrumb_script = None
-    #         product_script = None
-    #         for script in script_tags:
-    #             try:
-    #                 json_data = json.loads(script.string)
-    #                 if (
-    #                     json_data.get("@type") == "BreadcrumbList"
-    #                     and not breadcrumb_script
-    #                 ):
-    #                     breadcrumb_script = json_data
-    #                 elif json_data.get("@type") == "Product" and not product_script:
-    #                     product_script = json_data
+            # Ищем данные товара и breadcrumbs
+            breadcrumb_script = None
+            product_script = None
+            for script in script_tags:
+                try:
+                    json_data = json.loads(script.string)
+                    if (
+                        json_data.get("@type") == "BreadcrumbList"
+                        and not breadcrumb_script
+                    ):
+                        breadcrumb_script = json_data
+                    elif json_data.get("@type") == "Product" and not product_script:
+                        product_script = json_data
 
-    #                 if breadcrumb_script and product_script:
-    #                     break
-    #             except (json.JSONDecodeError, TypeError):
-    #                 continue
+                    if breadcrumb_script and product_script:
+                        break
+                except (json.JSONDecodeError, TypeError):
+                    continue
 
-    #         if not product_script or not breadcrumb_script:
-    #             logger.warning(
-    #                 f"Не найдены необходимые данные в файле {html_file.name}"
-    #             )
-    #             continue
+            if not product_script or not breadcrumb_script:
+                logger.warning(
+                    f"Не найдены необходимые данные в файле {html_file.name}"
+                )
+                continue
 
-    #         # Получаем данные продукта
-    #         product_data = scrap_json_product(product_script, breadcrumb_script)
-    #         product_data_description = scrap_html_product(soup)
+            # Получаем данные продукта
+            product_data = scrap_json_product(product_script, breadcrumb_script)
+            product_data_description = scrap_html_product(soup)
 
-    #         # Объединяем данные
-    #         product_data.update(product_data_description)
+            # Объединяем данные
+            product_data.update(product_data_description)
 
-    #         # ВАЖНО: Определяем category_id по полному пути breadcrumbs
-    #         breadcrumbs_pl = product_data.get("breadcrumbs_pl", [])
-    #         if breadcrumbs_pl:
-    #             category_id = categories_manager.get_category_id_by_path(breadcrumbs_pl)
-    #         else:
-    #             category_id = 1
+            # ВАЖНО: Определяем category_id по полному пути breadcrumbs
+            breadcrumbs_pl = product_data.get("breadcrumbs_pl", [])
+            if breadcrumbs_pl:
+                category_id = categories_manager.get_category_id_by_path(breadcrumbs_pl)
+            else:
+                category_id = 1
 
-    #         # Добавляем ID категории к данным товара
-    #         product_data["category_id"] = category_id
+            # Добавляем ID категории к данным товара
+            product_data["category_id"] = category_id
 
-    #         logger.info(
-    #             f"Товар: {product_data.get('product', {}).get('sku', 'unknown')}"
-    #         )
-    #         logger.info(f"Путь категорий: {' > '.join(breadcrumbs_pl)}")
-    #         logger.info(f"Назначен category_id: {category_id}")
+            logger.info(
+                f"Товар: {product_data.get('product', {}).get('sku', 'unknown')}"
+            )
+            logger.info(f"Путь категорий: {' > '.join(breadcrumbs_pl)}")
+            logger.info(f"Назначен category_id: {category_id}")
 
-    #         all_products.append(product_data)
+            all_products.append(product_data)
 
-    #     except Exception as e:
-    #         logger.error(f"Ошибка обработки файла {html_file.name}: {e}")
-    #         continue
+        except Exception as e:
+            logger.error(f"Ошибка обработки файла {html_file.name}: {e}")
+            continue
 
-    # if not all_products:
-    #     logger.error("Не удалось обработать ни одного товара")
-    #     return False
+    if not all_products:
+        logger.error("Не удалось обработать ни одного товара")
+        return False
 
-    # # Формируем финальную YML структуру со всеми товарами
-    # yml_structure = {
-    #     "shop_info": {
-    #         "name": "Klarstein Ukraine",
-    #         "company": "Klarstein UA",
-    #         "url": "https://klarstein.ua",
-    #     },
-    #     "categories": categories_manager.get_all_categories(),  # Все уникальные категории
-    #     "offers": [],
-    # }
+    # Формируем финальную YML структуру со всеми товарами
+    yml_structure = {
+        "shop_info": {
+            "name": "Klarstein Ukraine",
+            "company": "Klarstein UA",
+            "url": "https://klarstein.ua",
+        },
+        "categories": categories_manager.get_all_categories(),  # Все уникальные категории
+        "offers": [],
+    }
 
-    # # Генерируем offers для всех товаров
-    # for product_data in all_products:
-    #     offer = generate_offer_with_category_id(product_data)
-    #     yml_structure["offers"].append(offer)
+    # Генерируем offers для всех товаров
+    for product_data in all_products:
+        offer = generate_offer_with_category_id(product_data)
+        yml_structure["offers"].append(offer)
 
-    # # Сохраняем результат
-    # with open("result_all_products.json", "w", encoding="utf-8") as f:
-    #     json.dump(yml_structure, f, ensure_ascii=False, indent=4)
+    # Сохраняем результат
+    with open("result_all_products.json", "w", encoding="utf-8") as f:
+        json.dump(yml_structure, f, ensure_ascii=False, indent=4)
 
-    # logger.info("=== ФИНАЛЬНАЯ СТАТИСТИКА ===")
-    # logger.info(f"Обработано товаров: {len(all_products)}")
-    # logger.info(f"Уникальных категорий: {len(yml_structure['categories'])}")
+    logger.info("=== ФИНАЛЬНАЯ СТАТИСТИКА ===")
+    logger.info(f"Обработано товаров: {len(all_products)}")
+    logger.info(f"Уникальных категорий: {len(yml_structure['categories'])}")
 
-    # # Показываем финальную структуру категорий
-    # logger.info("=== ФИНАЛЬНЫЕ КАТЕГОРИИ ===")
-    # for cat in yml_structure["categories"]:
-    #     parent_info = (
-    #         f" (родитель: {cat['parentId']})" if "parentId" in cat else " (корневая)"
-    #     )
+    # Показываем финальную структуру категорий
+    logger.info("=== ФИНАЛЬНЫЕ КАТЕГОРИИ ===")
+    for cat in yml_structure["categories"]:
+        parent_info = (
+            f" (родитель: {cat['parentId']})" if "parentId" in cat else " (корневая)"
+        )
     #     logger.info(f"ID {cat['id']}: {cat['name_pl']}{parent_info}")
     with open("result_all_products.json", "r", encoding="utf-8") as f:
         yml_structure = json.load(f)
@@ -565,7 +555,22 @@ def generate_offer_with_category_id(raw_data):
     # Извлекаем размеры и вес
     dimensions = extract_dimensions_and_weight(description_pl)
 
-    # ИСПРАВЛЕНО: Используем category_id, который уже определен правильно
+    # Безопасное получение ширины
+    try:
+        weight = float(dimensions.get("weight") or 0)
+        if weight <= 0:  # Если ширина 0 или отрицательная
+            weight = config.client.shipping.default_weight_kg
+    except (ValueError, TypeError):
+        weight = config.client.shipping.default_weight_kg
+
+    # Безопасное получение цены
+    try:
+        price = float(product.get("price", "0"))
+    except (ValueError, TypeError):
+        price = 0.0
+
+    prise_result = calculate_prices(price, weight)
+
     category_id = raw_data.get("category_id", 1)
 
     # Определяем категории для ключевых слов
@@ -588,12 +593,12 @@ def generate_offer_with_category_id(raw_data):
         "available": "true",
         "selling_type": "u",
         # Обязательные элементы
-        "price": product.get("price", "0"),
-        "price_opt1": "",
-        "price_opt2": "",
-        "quantity1": "",
-        "quantity2": "",
-        "discount": "",
+        "price": prise_result["price_retail"],
+        "price_opt1": prise_result["price_opt1"],
+        "price_opt2": prise_result["price_opt2"],
+        "quantity1": prise_result["quantity1"],
+        "quantity2": prise_result["quantity2"],
+        "discount": None,
         "currencyId": "UAH",
         "categoryId": str(category_id),  # ИСПРАВЛЕНО: используем правильный ID
         # Название товара
@@ -724,36 +729,276 @@ def generate_complete_description_html(descriptions, images):
     return description_text, description_text_ua, description_text_pl
 
 
+def calculate_prices(
+    supplier_price: float,
+    weight: float,
+) -> Dict[str, Any]:
+    """
+    Рассчитывает цены с наценками на основе правил ценообразования
+
+    Args:
+        supplier_price: Цена поставщика (в EUR/PLN)
+        currency_rate: Курс валюты к UAH
+        weight: Вес товара в кг
+        shipping_cost_per_kg: Стоимость доставки за кг в UAH
+        markup_rules: Правила наценки
+        rounding_precision: Точность округления
+
+    Returns:
+        Словарь с рассчитанными ценами и правилом
+    """
+    markup_rules = config.client.price_rules.markup_rules
+    rounding_precision = config.client.price_rules.rounding_precision
+
+    eur_to_uah = config.client.exchange_rates.eur_to_uah
+    pln_to_uah = config.client.exchange_rates.pln_to_uah
+    cost_per_kg_uah = config.client.shipping.cost_per_kg_uah
+    # 1. Конвертируем цену в UAH
+
+    base_price_uah = supplier_price * (eur_to_uah / pln_to_uah)
+
+    # 2. Добавляем стоимость доставки
+    shipping_cost = weight * cost_per_kg_uah
+    total_base_price = base_price_uah + shipping_cost
+
+    # 3. Находим подходящее правило наценки
+    markup_rule = find_markup_rule(total_base_price, markup_rules)
+    if not markup_rule:
+        return {
+            "error": f"Не найдено правило для цены {total_base_price:.2f} UAH",
+            "base_price_uah": total_base_price,
+            "shipping_cost": shipping_cost,
+        }
+
+    # 4. Рассчитываем цены с наценками
+    retail_price = round(total_base_price * markup_rule["retail"], rounding_precision)
+    opt1_price = (
+        round(total_base_price * markup_rule["opt1"], rounding_precision)
+        if markup_rule["opt1"]
+        else None
+    )
+    opt2_price = (
+        round(total_base_price * markup_rule["opt2"], rounding_precision)
+        if markup_rule["opt2"]
+        else None
+    )
+    all_data = {
+        # Рассчитанные цены
+        "price_retail": retail_price,
+        "price_opt1": opt1_price,
+        "price_opt2": opt2_price,
+        # Количества для оптовых цен
+        "quantity1": markup_rule["quantity1"],
+        "quantity2": markup_rule["quantity2"],
+    }
+    # logger.info(all_data)
+    return all_data
+
+
+def find_markup_rule(
+    price: float, markup_rules: List[Dict[str, Any]]
+) -> Optional[Dict[str, Any]]:
+    """
+    Находит подходящее правило наценки для указанной цены
+
+    Args:
+        price: Цена для поиска правила
+        markup_rules: Список правил наценки
+
+    Returns:
+        Подходящее правило или None
+    """
+    for rule in markup_rules:
+        if rule["min"] <= price < rule["max"]:
+            return rule
+
+    # Если цена больше максимального диапазона, берем последнее правило
+    if price >= markup_rules[-1]["min"]:
+        return markup_rules[-1]
+
+    return None
+
+
+# def extract_dimensions_and_weight(descriptions):
+#     """
+#     Извлекает размеры и вес из технических характеристик
+#     """
+#     dimensions = {}
+
+#     for desc in descriptions:
+#         if (
+#             "wymiary" in desc.get("title_pl", "").lower()
+#             or "techniczne" in desc.get("title_pl", "").lower()
+#         ):
+#             tech_desc = desc.get("description_pl", "")
+
+#             # Поиск размеров (ширина x высота x глубина)
+#             dimensions_match = re.search(
+#                 r"wymiary: ok\. (\d+) x (\d+) x (\d+) cm", tech_desc, re.IGNORECASE
+#             )
+#             if dimensions_match:
+#                 dimensions["width"] = dimensions_match.group(1)
+#                 dimensions["height"] = dimensions_match.group(2)
+#                 dimensions["length"] = dimensions_match.group(3)
+
+#             # Поиск веса
+#             weight_match = re.search(
+#                 r"waga: ok\. ([\d,]+) kg", tech_desc, re.IGNORECASE
+#             )
+#             if weight_match:
+#                 dimensions["weight"] = weight_match.group(1).replace(",", ".")
+
+#             break
+
+
+#     return dimensions
 def extract_dimensions_and_weight(descriptions):
     """
     Извлекает размеры и вес из технических характеристик
+    Ищет во всех блоках описания, чтобы найти все 4 параметра
     """
-    dimensions = {}
+    dimensions = {"width": None, "height": None, "length": None, "weight": None}
 
+    # Объединяем все описания в один текст для поиска
+    all_text = ""
     for desc in descriptions:
-        if (
-            "wymiary" in desc.get("title_pl", "").lower()
-            or "techniczne" in desc.get("title_pl", "").lower()
-        ):
-            tech_desc = desc.get("description_pl", "")
+        title = desc.get("title_pl", "")
+        description = desc.get("description_pl", "")
+        all_text += f" {title} {description}"
 
-            # Поиск размеров (ширина x высота x глубина)
-            dimensions_match = re.search(
-                r"wymiary: ok\. (\d+) x (\d+) x (\d+) cm", tech_desc, re.IGNORECASE
-            )
-            if dimensions_match:
-                dimensions["width"] = dimensions_match.group(1)
-                dimensions["height"] = dimensions_match.group(2)
-                dimensions["length"] = dimensions_match.group(3)
+    # Различные паттерны для поиска размеров
+    dimension_patterns = [
+        # Стандартный формат: wymiary: ok. X x Y x Z cm
+        r"wymiary:\s*ok\.\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*cm",
+        # Формат: wymiary: X x Y x Z cm
+        r"wymiary:\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*cm",
+        # Формат с указанием координат: (szer. x wys. x gł.)
+        r"(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*cm\s*\([^)]*szer[^)]*wys[^)]*gł[^)]*\)",
+        # Формат с указанием координат: (wys. x szer. x gł.)
+        r"(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*cm\s*\([^)]*wys[^)]*szer[^)]*gł[^)]*\)",
+        # Формат с указанием координат: (dł. x szer. x wys.)
+        r"(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)\s*cm\s*\([^)]*dł[^)]*szer[^)]*wys[^)]*\)",
+    ]
 
-            # Поиск веса
-            weight_match = re.search(
-                r"waga: ok\. ([\d,]+) kg", tech_desc, re.IGNORECASE
-            )
-            if weight_match:
-                dimensions["weight"] = weight_match.group(1).replace(",", ".")
+    # Поиск размеров по всем паттернам
+    for pattern in dimension_patterns:
+        match = re.search(pattern, all_text, re.IGNORECASE)
+        if match:
+            dim1, dim2, dim3 = match.groups()
 
+            # Определяем порядок размеров по контексту
+            context = match.group(0).lower()
+
+            if "szer" in context and "wys" in context and "gł" in context:
+                # Формат (szer. x wys. x gł.) - ширина x высота x глубина
+                if context.find("szer") < context.find("wys") < context.find("gł"):
+                    dimensions["width"] = dim1.replace(",", ".")
+                    dimensions["height"] = dim2.replace(",", ".")
+                    dimensions["length"] = dim3.replace(",", ".")
+                # Формат (wys. x szer. x gł.) - высота x ширина x глубина
+                elif context.find("wys") < context.find("szer") < context.find("gł"):
+                    dimensions["height"] = dim1.replace(",", ".")
+                    dimensions["width"] = dim2.replace(",", ".")
+                    dimensions["length"] = dim3.replace(",", ".")
+            elif "dł" in context and "szer" in context:
+                # Формат (dł. x szer. x wys.) - длина x ширина x высота
+                if context.find("dł") < context.find("szer") < context.find("wys"):
+                    dimensions["length"] = dim1.replace(",", ".")
+                    dimensions["width"] = dim2.replace(",", ".")
+                    dimensions["height"] = dim3.replace(",", ".")
+            else:
+                # Стандартный порядок без явного указания - предполагаем ширина x высота x длина
+                dimensions["width"] = dim1.replace(",", ".")
+                dimensions["height"] = dim2.replace(",", ".")
+                dimensions["length"] = dim3.replace(",", ".")
             break
+
+    # Дополнительные паттерны для отдельных размеров
+    if not all([dimensions["width"], dimensions["height"], dimensions["length"]]):
+        # Поиск отдельных размеров
+        separate_patterns = {
+            "width": [
+                r"szerokość:\s*(\d+(?:,\d+)?)\s*cm",
+                r"szer\.?\s*(\d+(?:,\d+)?)\s*cm",
+            ],
+            "height": [
+                r"wysokość:\s*(\d+(?:,\d+)?)\s*cm",
+                r"wys\.?\s*(\d+(?:,\d+)?)\s*cm",
+            ],
+            "length": [
+                r"długość:\s*(\d+(?:,\d+)?)\s*cm",
+                r"głębokość:\s*(\d+(?:,\d+)?)\s*cm",
+                r"dł\.?\s*(\d+(?:,\d+)?)\s*cm",
+                r"gł\.?\s*(\d+(?:,\d+)?)\s*cm",
+            ],
+        }
+
+        for dim_type, patterns in separate_patterns.items():
+            if not dimensions[dim_type]:
+                for pattern in patterns:
+                    match = re.search(pattern, all_text, re.IGNORECASE)
+                    if match:
+                        dimensions[dim_type] = match.group(1).replace(",", ".")
+                        break
+
+    # Поиск веса
+    weight_patterns = [
+        r"waga:\s*ok\.\s*([\d,]+)\s*kg",
+        r"waga:\s*([\d,]+)\s*kg",
+        r"masa:\s*([\d,]+)\s*kg",
+        r"ciężar:\s*([\d,]+)\s*kg",
+    ]
+
+    for pattern in weight_patterns:
+        match = re.search(pattern, all_text, re.IGNORECASE)
+        if match:
+            dimensions["weight"] = match.group(1).replace(",", ".")
+            break
+
+    # Поиск размеров внутренних/внешних (для раковин, холодильников и т.д.)
+    if not all([dimensions["width"], dimensions["height"], dimensions["length"]]):
+        internal_external_patterns = [
+            r"wymiary\s+wewnętrzne:\s*ok\.\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)",
+            r"wymiary\s+zewnętrzne:\s*ok\.\s*(\d+(?:,\d+)?)\s*x\s*(\d+(?:,\d+)?)",
+        ]
+
+        for pattern in internal_external_patterns:
+            match = re.search(pattern, all_text, re.IGNORECASE)
+            if match and not dimensions["width"]:
+                dimensions["width"] = match.group(1).replace(",", ".")
+                dimensions["length"] = match.group(2).replace(",", ".")
+                break
+
+    # Если нашли только 2 размера, попробуем найти третий
+    if (
+        sum(
+            1
+            for v in [dimensions["width"], dimensions["height"], dimensions["length"]]
+            if v
+        )
+        == 2
+    ):
+        missing_dim_patterns = [
+            r"grubość:\s*(\d+(?:,\d+)?)\s*(?:mm|cm)",
+            r"wysokość:\s*(\d+(?:,\d+)?)\s*cm",
+        ]
+
+        for pattern in missing_dim_patterns:
+            match = re.search(pattern, all_text, re.IGNORECASE)
+            if match:
+                value = match.group(1).replace(",", ".")
+                # Если это толщина в мм, конвертируем в см
+                if "mm" in match.group(0).lower():
+                    value = str(float(value) / 10)
+
+                # Присваиваем недостающему размеру
+                if not dimensions["height"]:
+                    dimensions["height"] = value
+                elif not dimensions["length"]:
+                    dimensions["length"] = value
+                elif not dimensions["width"]:
+                    dimensions["width"] = value
+                break
 
     return dimensions
 
@@ -797,3 +1042,5 @@ def add_translations(yml_data, translations):
 
 if __name__ == "__main__":
     scrap_html_file()
+
+    # calculate_prices(757.99, 8.5)

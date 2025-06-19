@@ -21,16 +21,15 @@ class ProjectPaths:
         """Создает пути из конфигурации"""
         if base_dir is None:
             base_dir = Path.cwd()
-
         # Сначала создаем базовую temp директорию
-        temp_base = base_dir / config.client.directories_temp
+        temp_base = base_dir / config.client.directories.temp
 
         # Создаем пути из конфигурации - все внутри temp
         paths = cls(
             temp=temp_base,
-            data=temp_base / config.client.directories_data,
-            json=temp_base / config.client.directories_json,
-            html=temp_base / config.client.directories_html,
+            data=temp_base / config.client.directories.data,
+            json=temp_base / config.client.directories.json,
+            html=temp_base / config.client.directories.html,
         )
 
         # Создаем все директории
