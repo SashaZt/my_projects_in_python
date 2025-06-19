@@ -3,7 +3,10 @@ import time
 from typing import Dict, Optional, Tuple
 
 import requests
-from config.logger import logger
+
+from config import Config, logger, paths
+
+config = Config.load()
 
 
 class TranslationService:
@@ -75,7 +78,7 @@ class TranslationService:
             if not polish_text or not polish_text.strip():
                 return "", ""
 
-            # logger.info(f"Переводим текст (длина: {len(polish_text)} символов)")
+            logger.info(f"Переводим текст (длина: {len(polish_text)} символов)")
 
             # Переводим на русский
             russian_text = self._make_translation_request(polish_text, "ru")
@@ -92,7 +95,7 @@ class TranslationService:
                 logger.error("Не удалось перевести на украинский")
                 return russian_text, None
 
-            # logger.info("Перевод выполнен успешно")
+            logger.info("Перевод выполнен успешно")
             return russian_text, ukrainian_text
 
         except Exception as e:
@@ -216,7 +219,7 @@ class TranslationService:
 
 
 # Инициализация сервиса
-API_KEY = "a51a820049mshb50f720dbc0b4b1p19f446jsn7aa02635e466"
+API_KEY = config.client.translator_api_key
 translator = TranslationService(API_KEY)
 
 
