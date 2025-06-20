@@ -78,7 +78,7 @@ class TranslationService:
             if not polish_text or not polish_text.strip():
                 return "", ""
 
-            logger.info(f"Переводим текст (длина: {len(polish_text)} символов)")
+            # logger.info(f"Переводим текст (длина: {len(polish_text)} символов)")
 
             # Переводим на русский
             russian_text = self._make_translation_request(polish_text, "ru")
@@ -95,7 +95,7 @@ class TranslationService:
                 logger.error("Не удалось перевести на украинский")
                 return russian_text, None
 
-            logger.info("Перевод выполнен успешно")
+            # logger.info("Перевод выполнен успешно")
             return russian_text, ukrainian_text
 
         except Exception as e:

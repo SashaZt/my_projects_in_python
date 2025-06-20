@@ -460,7 +460,7 @@ def scrap_html_file():
         parent_info = (
             f" (родитель: {cat['parentId']})" if "parentId" in cat else " (корневая)"
         )
-    #     logger.info(f"ID {cat['id']}: {cat['name_pl']}{parent_info}")
+
     with open("result_all_products.json", "r", encoding="utf-8") as f:
         yml_structure = json.load(f)
     # Загружаем в БД
@@ -598,7 +598,7 @@ def generate_offer_with_category_id(raw_data):
         "price_opt2": prise_result["price_opt2"],
         "quantity1": prise_result["quantity1"],
         "quantity2": prise_result["quantity2"],
-        "discount": None,
+        "discount": 0,
         "currencyId": "UAH",
         "categoryId": str(category_id),  # ИСПРАВЛЕНО: используем правильный ID
         # Название товара
@@ -747,41 +747,44 @@ def calculate_prices(
     Returns:
         Словарь с рассчитанными ценами и правилом
     """
+    # Правила расчета наценки markup_rules берется из config.json
     markup_rules = config.client.price_rules.markup_rules
+
+    # Округление rounding_precision берется из config.json
     rounding_precision = config.client.price_rules.rounding_precision
 
-    eur_to_uah = config.client.exchange_rates.eur_to_uah
+    # Курс Злотых pln_to_uah
     pln_to_uah = config.client.exchange_rates.pln_to_uah
+
+    # Цена доставки берется cost_per_kg_uah с config.json
     cost_per_kg_uah = config.client.shipping.cost_per_kg_uah
-    # 1. Конвертируем цену в UAH
 
-    base_price_uah = supplier_price * (eur_to_uah / pln_to_uah)
+    # Цена поставщика supplier_price * Курс Злотых pln_to_uah
+    base_price_uah = supplier_price * pln_to_uah
 
-    # 2. Добавляем стоимость доставки
+    # Вес товара  weight от поставщика  * Стоимость доставка cost_per_kg_uah
     shipping_cost = weight * cost_per_kg_uah
-    total_base_price = base_price_uah + shipping_cost
 
-    # 3. Находим подходящее правило наценки
-    markup_rule = find_markup_rule(total_base_price, markup_rules)
-    if not markup_rule:
-        return {
-            "error": f"Не найдено правило для цены {total_base_price:.2f} UAH",
-            "base_price_uah": total_base_price,
-            "shipping_cost": shipping_cost,
-        }
+    # Ищем подходящие правило для цены в гривнах base_price_uah
+    markup_rule = find_markup_rule(base_price_uah, markup_rules)
 
-    # 4. Рассчитываем цены с наценками
-    retail_price = round(total_base_price * markup_rule["retail"], rounding_precision)
-    opt1_price = (
-        round(total_base_price * markup_rule["opt1"], rounding_precision)
-        if markup_rule["opt1"]
-        else None
-    )
-    opt2_price = (
-        round(total_base_price * markup_rule["opt2"], rounding_precision)
-        if markup_rule["opt2"]
-        else None
-    )
+    # Коеэфициенты для разных цен
+    retail = markup_rule["retail"]
+    opt1 = markup_rule["opt1"]
+    opt2 = markup_rule["opt2"]
+
+    retail_price = round((base_price_uah * retail) + shipping_cost, rounding_precision)
+    opt1_price = round((base_price_uah * opt1) + shipping_cost, rounding_precision)
+    opt2_price = round((base_price_uah * opt2) + shipping_cost, rounding_precision)
+
+    logger.info(f"Стоимость доставки за 1кг {cost_per_kg_uah}")
+    logger.info(f"Курс Злотых {pln_to_uah}")
+    logger.info(f"Цена поставщика {supplier_price}")
+    logger.info(f"Цена в гривнах {base_price_uah}")
+    logger.info(f"Цена retail_price {retail_price}")
+    logger.info(f"Цена opt1_price {opt1_price}")
+    logger.info(f"Цена opt2_price {opt2_price}")
+
     all_data = {
         # Рассчитанные цены
         "price_retail": retail_price,
@@ -791,7 +794,7 @@ def calculate_prices(
         "quantity1": markup_rule["quantity1"],
         "quantity2": markup_rule["quantity2"],
     }
-    # logger.info(all_data)
+    logger.info(all_data)
     return all_data
 
 
@@ -1043,4 +1046,4 @@ def add_translations(yml_data, translations):
 if __name__ == "__main__":
     scrap_html_file()
 
-    # calculate_prices(757.99, 8.5)
+    # calculate_prices(1511.94, 23.5)

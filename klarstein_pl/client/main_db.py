@@ -6,6 +6,8 @@ import psycopg2
 from config.logger import logger
 from psycopg2.extras import RealDictCursor, execute_values
 
+from config import Config, logger, paths
+
 # Конфигурация подключения к БД
 DB_CONFIG = {
     "host": "localhost",
@@ -348,6 +350,8 @@ class KlarsteinProductLoader:
             exists = cursor.fetchone()[0] > 0
 
             if exists:
+                # Если даже есть товар в бд, сбрасываем статус выгрузки в xml
+                export_xml = False
                 # Обновляем существующий продукт
                 update_query = """
                     UPDATE products SET
@@ -373,6 +377,7 @@ class KlarsteinProductLoader:
                         description_pl = %s,
                         description = %s,
                         description_ua = %s,
+                        export_xml = %s,
                         updated_at = NOW()
                     WHERE product_id = %s
                     RETURNING product_id
@@ -402,6 +407,7 @@ class KlarsteinProductLoader:
                         offer_data.get("description_pl", ""),
                         offer_data.get("description", ""),
                         offer_data.get("description_ua", ""),
+                        export_xml,
                         product_id,
                     ),
                 )

@@ -1,19 +1,15 @@
 import json
 import re
 import xml.dom.minidom
+from datetime import datetime
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-from config.logger import logger
 from main_db import loader
 
-current_directory = Path.cwd()
-data_directory = current_directory / "data"
-data_directory.mkdir(parents=True, exist_ok=True)
-output_csv_file = data_directory / "output.csv"
-html_directory = current_directory / "html"
-html_directory.mkdir(parents=True, exist_ok=True)
-output_html_file = html_directory / "easy.html"
+from config import Config, logger, paths
+
+config = Config.load()
 
 
 # Полный обновленный код для main_xml.py
@@ -146,89 +142,15 @@ def extract_dimensions_from_descriptions(descriptions):
     return dimensions
 
 
-# def create_xml_from_yml_structure(yml_data, output_file):
-#     """
-#     Создает XML из YML структуры с полной поддержкой обязательных полей
-#     ИСПРАВЛЕНО: Правильная обработка переведенных данных
-#     """
-
-#     # Создание корневого элемента
-#     root = ET.Element("yml_catalog")
-#     root.set("date", "2025-06-02 12:00")
-
-#     shop = ET.SubElement(root, "shop")
-
-#     # === ОБЯЗАТЕЛЬНЫЕ ЭЛЕМЕНТЫ МАГАЗИНА ===
-
-#     shop_info = yml_data.get("shop_info", {})
-
-#     # 1. Название магазина (обязательно)
-#     name = ET.SubElement(shop, "name")
-#     name.text = shop_info.get("name", "Klarstein Ukraine")
-
-#     # 2. Компания (обязательно)
-#     company = ET.SubElement(shop, "company")
-#     company.text = shop_info.get("company", "Klarstein Shop")
-
-#     # 3. URL сайта (обязательно)
-#     url = ET.SubElement(shop, "url")
-#     url.text = shop_info.get("url", "https://klarstein.ua")
-
-#     # 4. Валюты (обязательно)
-#     currencies = ET.SubElement(shop, "currencies")
-#     currency = ET.SubElement(currencies, "currency", id="UAH", rate="1")
-
-#     # 5. Категории (обязательно)
-#     categories_element = ET.SubElement(shop, "categories")
-#     for category in yml_data.get("categories", []):
-#         cat_attrs = {"id": str(category["id"])}
-#         if "parentId" in category:
-#             cat_attrs["parentId"] = str(category["parentId"])
-
-#         category_element = ET.SubElement(categories_element, "category", **cat_attrs)
-
-#         # ИСПРАВЛЕНО: Приоритет украинский -> русский (БЕЗ польского)
-#         category_name = category.get("name_ua") or category.get("name", "")
-#         category_element.text = category_name
-
-#     # 6. Блок товаров (обязательно)
-#     offers = ET.SubElement(shop, "offers")
-
-#     # Создание товаров
-#     descriptions_for_cdata = []
-#     for offer_data in yml_data.get("offers", []):
-#         create_offer_element(offers, offer_data)
-#         descriptions_for_cdata.append(offer_data)
-
-#     # Создание XML строки
-#     xml_str = ET.tostring(root, encoding="utf-8").decode("utf-8")
-
-#     # Заменяем плейсхолдеры на CDATA содержимое
-#     xml_str = replace_description_placeholders(xml_str, descriptions_for_cdata)
-
-#     # Форматирование XML
-#     dom = xml.dom.minidom.parseString(xml_str)
-#     pretty_xml = dom.toprettyxml(indent="  ")
-
-#     # Добавление правильной декларации XML с DOCTYPE
-#     pretty_xml = format_final_xml(pretty_xml)
-
-#     # Запись в файл
-#     with open(output_file, "w", encoding="utf-8") as file:
-#         file.write(pretty_xml)
-
-
-#     logger.info(f"YML файл создан: {output_file}")
-#     return pretty_xml
 def create_xml_from_yml_structure(yml_data, output_file):
     """
     Создает XML из YML структуры с полной поддержкой обязательных полей
     ИСПРАВЛЕНО: Правильная обработка дерева категорий
     """
-
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
     # Создание корневого элемента
     root = ET.Element("yml_catalog")
-    root.set("date", "2025-06-02 12:00")
+    root.set("date", current_time)
 
     shop = ET.SubElement(root, "shop")
 
@@ -340,10 +262,6 @@ def create_offer_element(offers_parent, offer_data):
     quantity1 = offer_data.get("quantity1")
     price_opt2 = offer_data.get("price_opt2")
     quantity2 = offer_data.get("quantity2")
-    logger.info(price_opt1)
-    logger.info(price_opt2)
-    logger.info(quantity1)
-    logger.info(quantity2)
     # Проверяем, есть ли хотя бы одна оптовая цена
     has_opt_prices = False
 
@@ -377,9 +295,12 @@ def create_offer_element(offers_parent, offer_data):
     # 2. Валюта (обязательно)
     currencyId = ET.SubElement(offer, "currencyId")
     currencyId.text = offer_data.get("currencyId", "UAH")
+
     # Скидка
-    discount = ET.SubElement(offer, "discount")
-    discount.text = offer_data.get("discount", "")
+    discounts = config.client.price_rules.discounts
+    if discounts != 0:
+        discount = ET.SubElement(offer, "discount")
+        discount.text = offer_data.get("discount", "")
 
     # 3. Категория (обязательно)
     categoryId = ET.SubElement(offer, "categoryId")
@@ -540,89 +461,6 @@ def format_final_xml(pretty_xml):
     return "\n".join(cleaned_lines)
 
 
-# def create_xml_from_products_list(products_list, output_file):
-#     """
-#     Создает XML из списка товаров, полученных из БД
-#     """
-#     if not products_list:
-#         logger.warning("Нет товаров для создания XML")
-#         return None
-
-#     # Получаем уникальные категории из товаров
-#     categories_dict = {}
-
-#     for product in products_list:
-#         category_id = product.get("category_id")
-#         if category_id and category_id not in categories_dict:
-#             # Создаем базовую структуру категории
-#             categories_dict[category_id] = {
-#                 "id": category_id,
-#                 "name": "Категория",  # Базовое название
-#                 "name_ua": "Категорія",
-#             }
-
-#     # Преобразуем словарь категорий в список
-#     categories_list = list(categories_dict.values())
-
-#     # Формируем YML структуру
-#     yml_structure = {
-#         "shop_info": {
-#             "name": "Klarstein Ukraine",
-#             "company": "Klarstein UA",
-#             "url": "https://klarstein.ua",
-#         },
-#         "categories": categories_list,
-#         "offers": [],
-#     }
-
-#     # Преобразуем каждый товар в offer
-#     for product in products_list:
-#         offer = {
-#             "id": product.get("product_id", ""),
-#             "available": "true" if product.get("available") else "false",
-#             "selling_type": product.get("selling_type", "u"),
-#             "price": str(product.get("price", "0")),
-#             "price_opt1": str(product.get("price_opt1", "0")),
-#             "price_opt2": str(product.get("price_opt2", "0")),
-#             "quantity1": str(product.get("quantity1", "0")),
-#             "quantity2": str(product.get("quantity2", "0")),
-#             "discount": str(product.get("discount")),
-#             "currencyId": product.get("currency_id", "UAH"),
-#             "categoryId": str(product.get("category_id", 1)),
-#             # Названия товара
-#             "name": product.get("name", ""),
-#             "name_ua": product.get("name_ua", ""),
-#             # Дополнительные поля
-#             "vendor": product.get("vendor", "Klarstein"),
-#             "vendorCode": product.get("vendor_code"),
-#             "country_of_origin": product.get("country_of_origin", "Германия"),
-#             "keywords": product.get("keywords", ""),
-#             "keywords_ua": product.get("keywords_ua", ""),
-#             # Изображения
-#             "pictures": product.get("images", []),
-#             # Описания
-#             "description": product.get("description", ""),
-#             "description_ua": product.get("description_ua", ""),
-#             # Размеры
-#             "dimensions": {
-#                 "width": product.get("width"),
-#                 "height": product.get("height"),
-#                 "length": product.get("length"),
-#                 "weight": product.get("weight"),
-#             },
-#         }
-
-#         # Убираем пустые размеры
-#         offer["dimensions"] = {
-#             k: v for k, v in offer["dimensions"].items() if v is not None
-#         }
-
-#         yml_structure["offers"].append(offer)
-
-#     # Создаем XML
-#     return create_xml_from_yml_structure(yml_structure, output_file)
-
-
 def create_xml_from_products_list(products_list, output_file):
     """
     Создает XML из списка товаров, полученных из БД
@@ -706,8 +544,6 @@ def export_products_to_xml():
     try:
         # Получаем товары для экспорта
         products = loader.get_products_for_export()
-        # logger.info(products)
-        # exit()
         if not products:
             logger.info("Нет товаров для экспорта в XML")
             return False
