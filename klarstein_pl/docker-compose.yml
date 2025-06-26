@@ -11,7 +11,7 @@ services:
     
     # Загрузка всех переменных из .env файлов
     env_file:
-      - .env                    # Основной файл со всеми переменными
+      - .env
     
     environment:
       - TZ=${PG_PROJECT_TIMEZONE}
@@ -28,6 +28,23 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  web:
+    build: 
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Монтируем config.json из корня проекта в контейнер
+      - ./config.json:/app/config.json
+      - ./start.sh:/app/start.sh
+      # Опционально: монтируем папку templates для разработки
+      - ./web/templates:/web/templates
+    environment:
+      - PYTHONPATH=/web
+    restart: unless-stopped
+    networks:
+      - app_network
 
 networks:
   app_network:

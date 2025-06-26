@@ -176,13 +176,20 @@ def main():
                         continue
             else:
                 category_info = select_rozetka_category_and_init_paths()
+                if not category_info:
+                    print("Для продолжения работы необходимо выбрать категорию Rozetka")
+                    continue
 
         if choice == "1":
             run_full_cycle()
 
         elif choice == "2":
-            url = get_path("url")
-            download_pages(url, cookies, headers)
+            if marketpalses == "1":
+                url = get_path("url")
+                download_pages(url, cookies, headers)
+            else:
+                # Для Rozetka тоже нужна функция скачивания страниц
+                logger.info("Функция скачивания страниц для Rozetka в разработке")
 
         elif choice == "3":
             if marketpalses == "1":
@@ -191,7 +198,10 @@ def main():
                 process_rozetka_html_files()
 
         elif choice == "4":
-            asyncio.run(run_playwright_process())
+            if marketpalses == "1":
+                asyncio.run(run_playwright_process())
+            else:
+                logger.info("Playwright для Rozetka в разработке")
 
         elif choice == "5":
             if marketpalses == "1":
@@ -205,31 +215,73 @@ def main():
                 else:
                     logger.error("Нет данных для обновления")
             else:
+                # ИСПРАВЛЕНИЕ: Получаем category_id для Rozetka
+                category_id = get_rozetka_path("category_id")
+                logger.info(f"Обрабатываем данные для категории Rozetka: {category_id}")
+
                 all_data, bd_json_path = parse_json_and_html_files_rozetka()
                 if all_data:
-                    category_id = get_rozetka_path("category_id")
                     updated_prices, updated_images, errors = (
                         update_rozetka_prices_and_images(
                             bd_json_path, category_id=category_id
                         )
                     )
+                    # ИСПРАВЛЕНИЕ: Передаем category_id в функцию экспорта
                     export_data_to_excel_rozetka(category_id=category_id)
+                else:
+                    logger.error("Нет данных для обновления Rozetka")
 
         elif choice == "6":
             if marketpalses == "1":
                 update_prices_from_config()
             else:
                 update_prices_from_config_rozetka()
+
         elif choice == "7":
             extract_ids_from_excel()
 
         elif choice == "8":
-            clean_temp_files()
+            if marketpalses == "1":
+                clean_temp_files()
+            else:
+                # ИСПРАВЛЕНИЕ: Добавляем очистку файлов для Rozetka
+                clean_rozetka_temp_files()
 
         else:
             logger.error("Некорректный выбор операции")
 
         input("\nНажмите Enter для продолжения...")
+
+
+def clean_rozetka_temp_files():
+    """Очищает временные файлы для выбранной категории Rozetka"""
+    import shutil
+
+    from rozetka_path_manager import get_rozetka_path
+
+    html_page = get_rozetka_path("html_page")
+    html_product = get_rozetka_path("html_product")
+    json_dir = get_rozetka_path("json_dir")
+    category_name = get_rozetka_path("category_name")
+
+    if html_page and html_page.exists():
+        logger.info(f"Удаление HTML-страниц Rozetka для категории {category_name}")
+        shutil.rmtree(html_page)
+        html_page.mkdir(parents=True, exist_ok=True)
+
+    if html_product and html_product.exists():
+        logger.info(f"Удаление HTML-товаров Rozetka для категории {category_name}")
+        shutil.rmtree(html_product)
+        html_product.mkdir(parents=True, exist_ok=True)
+
+    if json_dir and json_dir.exists():
+        logger.info(f"Удаление JSON-файлов Rozetka для категории {category_name}")
+        shutil.rmtree(json_dir)
+        json_dir.mkdir(parents=True, exist_ok=True)
+
+    logger.info(
+        f"Временные файлы Rozetka для категории {category_name} успешно очищены"
+    )
 
 
 if __name__ == "__main__":

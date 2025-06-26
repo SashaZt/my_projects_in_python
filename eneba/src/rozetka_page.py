@@ -319,19 +319,15 @@ def process_rozetka_html_files():
     html_page = get_rozetka_path("html_page")
     output_json = get_rozetka_path("output_json")
     output_xlsx = get_rozetka_path("output_xlsx")
+    category_id = get_rozetka_path("category_id")  # ИСПРАВЛЕНИЕ: Получаем category_id
 
-    logger.info("Начинаем обработку HTML-файлов...")
+    logger.info("Начинаем обработку HTML-файлов Rozetka...")
 
     all_products = []
-
-    # logger.info(
-    #     f"Найдено HTML-файлов для обработки: {len(html_directory.glob("*.html"))}"
-    # )
     files = list(html_page.glob("*.html"))
     all_urls = []
-    for html_file in files:
-        # logger.info(f"Обработка файла: {html_file.name}")
 
+    for html_file in files:
         # Извлекаем данные Apollo State
         apollo_data = scrap_html(html_file)
         if apollo_data:
@@ -341,14 +337,10 @@ def process_rozetka_html_files():
             # Добавляем продукты к общему списку
             all_products.extend(page_products)
             all_urls.extend(urls)
-            # logger.info(f"Извлечено товаров из {html_file.name}: {len(page_products)}")
         else:
             logger.error(
                 f"Не удалось извлечь данные Apollo State из файла {html_file.name}"
             )
-    # url_data = pd.DataFrame(all_urls, columns=["url"])
-    # url_data.to_csv(output_csv_file, index=False)
-    # Сохраняем результат в Excel
 
     if all_products:
         all_products = remove_duplicates_by_price_json(all_products)
@@ -357,11 +349,52 @@ def process_rozetka_html_files():
         data_without_slug = remove_keys_from_dicts_list(all_products, ["product_slug"])
 
         save_products_to_excel(data_without_slug, output_xlsx)
-        load_and_save_rozetka_data(output_json)
+
+        # ИСПРАВЛЕНИЕ: Передаем category_id в функцию загрузки в БД
+        load_and_save_rozetka_data(output_json, category_id=category_id)
     else:
         logger.error("Не найдено товаров для сохранения")
 
     return all_products
+
+
+def process_rozetka_data_structure(raw_data, category_id=None):
+    """
+    Обрабатывает сырые данные специфично для структуры Rozetka
+
+    Args:
+        raw_data: Сырые данные товаров
+        category_id: ID категории для привязки
+
+    Returns:
+        list: Обработанный список товаров Rozetka
+    """
+    result = []
+
+    for item in raw_data:
+        # Создаем структуру данных Rozetka
+        rozetka_item = {
+            "product_slug": item.get("product_slug", ""),
+            "ID": item.get("id", ""),
+            "Назва (укр)": item.get("product_name", ""),
+            "Ціна": item.get("price", ""),
+            "Зображення": item.get("image_url", ""),
+            "Артикул": item.get("cleaned_name", ""),
+            "Наявність": (
+                "є в наявності"
+                if item.get("price") and item.get("price") != "0"
+                else "немає в наявності"
+            ),
+            # Добавляем category_id если передан
+        }
+
+        # Устанавливаем категорию если передана
+        if category_id:
+            rozetka_item["CID"] = category_id
+
+        result.append(rozetka_item)
+
+    return result
 
 
 def remove_duplicates_by_price_json(all_products):

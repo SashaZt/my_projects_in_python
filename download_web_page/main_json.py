@@ -12,37 +12,8 @@ current_directory = Path.cwd()
 json_directory = current_directory / "json"
 
 
-cookies = {
-    "lang": "ru_RU",
-    "PHPSESSID": "203aa3b0ae4a1f79186eaf64e7f98699",
-    "login": "evgen.bikermarket%40gmail.com",
-    "_identity": "%5B9%2Cnull%2C2592000%5D",
-    "_csrf": "OiOzsFvEdP2qiJwa92QM2FRzprtl_Fed",
-    "authSubdomain": "bikermarket",
-    "userId": "9",
-}
-
-headers = {
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
-    "Cache-Control": "no-cache",
-    "Connection": "keep-alive",
-    "DNT": "1",
-    "Pragma": "no-cache",
-    "Referer": "https://bikermarket.salesdrive.me/ru/index.html?formId=1",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-    "X-CSRF-Token": "D9FQq2Jktz0GjjZA-ge9_Z9T96f9H4wpWG1ehBuxWS1AuB_RESLBeGLeBDGTTcqcpmGm6s9Z3lMoHyroRPc8SQ==",
-    "sec-ch-ua": '"Google Chrome";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": '"Windows"',
-}
-
-
 def get_json():
-    for page in range(1, 347):
+    for page in range(1, 2):
         file_name = json_directory / f"page_{page}.json"
         if file_name.exists():
             continue
@@ -61,14 +32,34 @@ def get_json():
                 "mode": "contactList",
                 "page": page,
             }
+        cookies = {
+            "XSRF-TOKEN": "eyJpdiI6Im5RRmNBL2JPeDJscnN3UlB3ZGtNTEE9PSIsInZhbHVlIjoiUGE4QWJsSVRPZWZSSUgxTHhTOS9xUTBpSHRwSnhCcVc3Yy9BL3g2STVKbkR0NFRaUVR2eldNRzZnTFU1end5WDg0OSt6RVRybE9ucXRqaEV6NFd4bHlKWmtxaHh2djc2NlBYRXRLKzltbEV4U3FtL2doZEQyWU5ZZHFYWU5NWm0iLCJtYWMiOiJiYTBkZjMyYmRmZmJhMzA0MjlmNDZjZjY1MTk3YjAwMDMyNjRlODBkNDA4YzVhM2RmNjViODZjODRkZjhiOGNkIiwidGFnIjoiIn0%3D",
+            "tikleap_session": "eyJpdiI6IkRrbjNhN0pDc0NocVBGUUdpTU53Zmc9PSIsInZhbHVlIjoibXdDWWpPenVObjdJdGpIN3pGKzNQdlFPcnFjcEF4NTM0NDN3OTRMbTFGa0dVVm1OUVhBbHJkdTRYdDhZbnJMSHc4WnhGdE1nUlJHNTlMeG9oMG12UStIYlJqb2Y1QmhZb3NTS24yZ0orRHZwNXVKaUdLd3RZTVN1cGQ3Q0J5Y2kiLCJtYWMiOiJmMzk1YzE0MzgwYjY5MTRiMDllMTUyNWYyNTYzNWZhODQxOGYzOTRjZjc2OGIzZTkyNWQ3NjI4N2FjODUwNjBjIiwidGFnIjoiIn0%3D",
+        }
+
+        headers = {
+            "accept": "*/*",
+            "accept-language": "ru,en;q=0.9,uk;q=0.8",
+            "dnt": "1",
+            "priority": "u=1, i",
+            "referer": "https://www.tikleap.com/country/kz",
+            "sec-ch-ua": '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"macOS"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "sec-gpc": "1",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+            "x-requested-with": "XMLHttpRequest",
+        }
         response = requests.get(
-            "https://bikermarket.salesdrive.me/contacts/",
-            params=params,
+            "https://www.tikleap.com/country-load-more/kz/2",
             cookies=cookies,
             headers=headers,
             timeout=30,
         )
-
+        print(response.text)
         # Если сервер вернул корректный JSON, то выводим его:
         try:
             data = response.json()
@@ -168,5 +159,5 @@ def process_data():
 
 
 if __name__ == "__main__":
-    # get_json()
-    process_data()
+    get_json()
+    # process_data()

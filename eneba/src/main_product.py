@@ -182,25 +182,23 @@ def parse_json_and_html_files_rozetka():
     json_dir = get_rozetka_path("json_dir")
     bd_json = get_rozetka_path("bd_json")
     output_path = get_rozetka_path("output_xlsx")
-    category_id = get_rozetka_path("category_id")
+    category_id = get_rozetka_path("category_id")  # ИСПРАВЛЕНИЕ: Получаем category_id
+
+    logger.info(f"Обрабатываем данные Rozetka для категории: {category_id}")
+
     all_data = []
     json_files = list(json_dir.glob("*_price.json"))
     logger.info(f"Найдено {len(json_files)} JSON файлов для обработки")
 
     for json_file in json_files:
         filename = json_file.stem
-        # logger.debug(f"Обрабатываем файл: {filename}")
-
-        # Разделяем имя файла по '_'
         parts = filename.split("_")
         if len(parts) < 2 or parts[-1] != "price":
             logger.warning(f"Некорректное имя файла: {filename}, пропускаем")
             continue
 
-        # Убираем '_price' из имени для получения slug
         slug = "_".join(parts[:-1])
 
-        # Открываем файл и загружаем данные
         try:
             with open(json_file, "r", encoding="utf-8") as f:
                 data_json = json.load(f)
@@ -210,11 +208,9 @@ def parse_json_and_html_files_rozetka():
 
         # Извлекаем цену
         price = process_price_data(data_json)
-        # Преобразуем в число с плавающей точкой
         if not price:
             price = 0
         price_uah_float = float(price)
-        # Округляем в большую сторону до целого
         price_uah_rounded = math.ceil(price_uah_float)
         price_uah = str(price_uah_rounded).replace(".", ",")
 
@@ -222,16 +218,11 @@ def parse_json_and_html_files_rozetka():
         html_file = html_product / f"{slug}.html"
 
         if not html_file.exists():
-            # Пробуем альтернативное имя
             html_file = html_product / f"{slug.replace('/', '_')}.html"
             if not html_file.exists():
                 logger.warning(f"HTML-файл для {slug} не найден")
-                # Добавляем запись без изображений
                 result = {"slug": slug, "price": price_uah, "images": []}
                 all_data.append(result)
-                logger.info(
-                    f"Обработан {slug}: цена={price_uah}, изображений=0 (HTML не найден)"
-                )
                 continue
 
         # Извлекаем данные Apollo State из HTML-файла
@@ -239,12 +230,8 @@ def parse_json_and_html_files_rozetka():
 
         if not apollo_data:
             logger.error(f"Не удалось извлечь данные Apollo State из {html_file}")
-            # Добавляем запись без изображений
             result = {"slug": slug, "price": price_uah, "images": []}
             all_data.append(result)
-            logger.info(
-                f"Обработан {slug}: цена={price_uah}, изображений=0 (ошибка Apollo)"
-            )
             continue
 
         # Извлекаем URL-адреса изображений
@@ -254,13 +241,7 @@ def parse_json_and_html_files_rozetka():
 
         # Формируем результат с ценой и URL-адресами изображений
         result = {"slug": slug, "price": price_uah, "images": image_urls}
-        # logger.info(html_file)
-        # logger.info(result)
-        # exit(1)
         all_data.append(result)
-        # logger.info(
-        #     f"Обработан {slug}: цена={price_uah}, изображений={len(image_urls)}"
-        # )
 
     # Сохраняем все данные в JSON-файл
     with open(bd_json, "w", encoding="utf-8") as out_file:
@@ -269,6 +250,8 @@ def parse_json_and_html_files_rozetka():
     logger.info(
         f"Данные сохранены в {bd_json}, всего обработано {len(all_data)} товаров"
     )
+    logger.info(f"Все данные будут привязаны к категории: {category_id}")
+
     return all_data, bd_json
 
 
@@ -451,6 +434,42 @@ def remove_keys_from_dict(dictionary, keys_to_remove):
     return {k: v for k, v in dictionary.items() if k not in keys_to_remove}
 
 
+def clear_keys_in_dicts_list(dicts_list, keys_to_clear, default_value=""):
+    """
+    Очищает значения указанных ключей в списке словарей, но оставляет сами ключи
+
+    Args:
+        dicts_list (list): Список словарей
+        keys_to_clear (list): Список ключей для очистки значений
+        default_value: Значение по умолчанию для очищенных ключей (по умолчанию пустая строка)
+
+    Returns:
+        list: Список словарей с очищенными значениями
+    """
+    return [clear_keys_in_dict(d, keys_to_clear, default_value) for d in dicts_list]
+
+
+def clear_keys_in_dict(dictionary, keys_to_clear, default_value=""):
+    """
+    Очищает значения указанных ключей в словаре, но оставляет сами ключи
+
+    Args:
+        dictionary (dict): Словарь для обработки
+        keys_to_clear (list): Список ключей для очистки значений
+        default_value: Значение по умолчанию для очищенных ключей
+
+    Returns:
+        dict: Словарь с очищенными значениями
+    """
+    result = dictionary.copy()  # Создаем копию словаря
+
+    for key in keys_to_clear:
+        if key in result:
+            result[key] = default_value
+
+    return result
+
+
 def export_data_to_excel_rozetka(category_id=None):
     """
     Экспортирует данные из базы в Excel файл
@@ -458,27 +477,36 @@ def export_data_to_excel_rozetka(category_id=None):
     Args:
         category_id (str, optional): ID категории для фильтрации
     """
-    # Получаем пути для текущей категории
-
-    # Получаем данные из базы с украинскими заголовками
+    # ИСПРАВЛЕНИЕ: Передаем category_id в функцию получения данных
     data = get_all_rozetka_data_ukrainian_headers(category_id=category_id)
+
     html_product = get_rozetka_path("html_product")
     json_dir = get_rozetka_path("json_dir")
     bd_json = get_rozetka_path("bd_json")
     output_path = get_rozetka_path("output_xlsx")
-    category_id = get_rozetka_path("category_id")
+    current_category_id = get_rozetka_path("category_id")
+
+    # ИСПРАВЛЕНИЕ: Логируем информацию о фильтрации
+    if category_id:
+        logger.info(f"Экспортируем данные Rozetka для категории: {category_id}")
+    else:
+        logger.info("Экспортируем все данные Rozetka (без фильтрации по категории)")
 
     if data:
         data_without_slug = remove_keys_from_dicts_list(data, ["product_slug"])
+        data_without_slug = clear_keys_in_dicts_list(data_without_slug, ["CID"])
         # Сохраняем данные в Excel
         success = save_to_excel_rozetka(data_without_slug, output_path)
 
         if success:
             logger.info(f"Данные успешно экспортированы в {output_path}")
+            logger.info(f"Экспортировано записей: {len(data_without_slug)}")
         else:
             logger.error("Не удалось экспортировать данные в Excel")
     else:
         logger.warning("Нет данных для экспорта")
+        if category_id:
+            logger.warning(f"Возможно, в категории {category_id} нет данных")
 
 
 def init_category():

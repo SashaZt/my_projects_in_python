@@ -117,7 +117,6 @@ def get_rozetka_path(path_name):
                 f"Путь Rozetka '{path_name}' не инициализирован. Вызовите init_rozetka_paths() перед использованием."
             )
             logger.info(rozetka_paths[path_name])
-            exit(1)
         return rozetka_paths[path_name]
     else:
         logger.error(f"Неизвестное имя пути Rozetka: {path_name}")

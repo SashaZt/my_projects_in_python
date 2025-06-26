@@ -1,3 +1,4 @@
+import argparse
 import concurrent.futures
 import json
 import random
@@ -5,7 +6,7 @@ import re
 import time
 from pathlib import Path
 from threading import Lock
-import argparse
+
 import pandas as pd
 import requests
 import urllib3
@@ -215,7 +216,7 @@ def get_final_segment_urls(url, applied_filters=None, max_results=10000):
         max_results (int): Максимальное количество результатов в сегменте
 
     Yields:
-        tuple: (url, brand_name) - Финальные URL с товарами и название бренда
+        tuple: (url, name) - Финальные URL с товарами и название бренда
     """
     if applied_filters is None:
         applied_filters = []
@@ -238,7 +239,7 @@ def get_final_segment_urls(url, applied_filters=None, max_results=10000):
         logger.info(f"✅ Готовый сегмент: {count:,} результатов")
 
         # Определяем бренд из примененных фильтров
-        brand_name = "no_brand"
+        name = "no_brand"
         for filter_item in applied_filters:
             if filter_item.startswith("Brand: "):
                 brand_name = filter_item.replace("Brand: ", "").strip()
@@ -393,7 +394,7 @@ def scrape_page(full_url, params=None):
         return None, []
 
 
-def collect_segment_urls(base_url,threads, max_results=10000):
+def collect_segment_urls(base_url, threads, max_results=10000):
     """
     Собирает все финальные URL сегментов и обрабатывает их по одному
     Создает папки для брендов
@@ -424,14 +425,12 @@ def collect_segment_urls(base_url,threads, max_results=10000):
         logger.info(f"📁 Создана/проверена папка: {brand_directory}")
 
         # Обрабатываем сегмент сразу
-        success =  process_single_segment(
-            segment_url, segment_counter, brand_name, brand_directory,threads
+        success = process_single_segment(
+            segment_url, segment_counter, brand_name, brand_directory, threads
         )
         if success:
             logger.info(f"✅ ГОТОВО! Обработано {segment_counter} сегментов")
             break
-
-    
 
 
 def process_single_segment(
@@ -571,7 +570,7 @@ def get_product_th(urls, brand_directory, threads):
                 # count_urls = int(len(processed_urls_data))
                 # count_urls_success = int(len(processed_urls_success))
                 difference_threshold = 5
-                
+
                 logger.info(
                     f"📋 Загружено {len(processed_urls_data)} записей из {mapping_file.name}"
                 )
@@ -795,10 +794,9 @@ def main(base_url, threads):
     # Загружаем прокси
     load_proxies()
 
-
     try:
         # Собираем и обрабатываем сегменты по одному
-        collect_segment_urls(base_url,threads, max_results=10000)
+        collect_segment_urls(base_url, threads, max_results=10000)
 
         logger.info("🎉 ВСЯ ОБРАБОТКА ЗАВЕРШЕНА!")
         return False
@@ -811,7 +809,12 @@ def main(base_url, threads):
 if __name__ == "__main__":
     # Настройка аргументов командной строки
     parser = argparse.ArgumentParser(description="Скрипт для обработки URL eBay")
-    parser.add_argument("--base_url", type=str, default="https://www.ebay.com", help="Базовый URL для обработки")
+    parser.add_argument(
+        "--base_url",
+        type=str,
+        default="https://www.ebay.com",
+        help="Базовый URL для обработки",
+    )
     parser.add_argument("--threads", type=int, default=1, help="Количество потоков")
     parser.add_argument("--count", type=int, default=1, help="Количество попыток")
 

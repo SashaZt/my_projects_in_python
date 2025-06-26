@@ -426,14 +426,9 @@ def process_html_files():
     logger.info("Начинаем обработку HTML-файлов...")
 
     all_products = []
-
-    # logger.info(
-    #     f"Найдено HTML-файлов для обработки: {len(html_directory.glob("*.html"))}"
-    # )
     files = list(html_page.glob("*.html"))
     all_urls = []
     for html_file in files:
-        # logger.info(f"Обработка файла: {html_file.name}")
 
         # Извлекаем данные Apollo State
         apollo_data = scrap_html(html_file)
@@ -449,10 +444,6 @@ def process_html_files():
             logger.error(
                 f"Не удалось извлечь данные Apollo State из файла {html_file.name}"
             )
-    # url_data = pd.DataFrame(all_urls, columns=["url"])
-    # url_data.to_csv(output_csv_file, index=False)
-    # Сохраняем результат в Excel
-
     if all_products:
         all_products = remove_duplicates_by_price_json(all_products)
         with open(output_json, "w", encoding="utf-8") as json_file:
