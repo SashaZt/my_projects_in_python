@@ -243,6 +243,123 @@ async def process_country(browser, country_code):
         return False
 
 
+async def get_cookies(browser):
+    """
+    Исправленная функция извлечения cookies для nodriver
+    """
+    try:
+        # ========= ИЗВЛЕЧЕНИЕ ВСЕХ COOKIES =========
+        logger.info("Начинаем извлечение cookies...")
+
+        # Получить все cookies как список объектов Cookie
+        all_cookies = await browser.cookies.get_all()
+        logger.info(f"Получено {len(all_cookies)} cookies")
+
+        # ========= ПОИСК КОНКРЕТНЫХ COOKIES =========
+        target_cookies = {}
+        important_keys = ["XSRF-TOKEN", "tikleap_session"]
+
+        # Поиск нужных cookies
+        for cookie in all_cookies:
+            try:
+                # Используем атрибуты объекта Cookie, а не .get()
+                cookie_name = cookie.name if hasattr(cookie, "name") else ""
+                cookie_value = cookie.value if hasattr(cookie, "value") else ""
+
+                if cookie_name in important_keys:
+                    target_cookies[cookie_name] = cookie_value
+                    logger.success(
+                        f"Найден cookie: {cookie_name} = {cookie_value[:20]}..."
+                    )
+
+            except Exception as e:
+                logger.error(f"Ошибка при обработке cookie: {e}")
+                continue
+
+        # Поиск cookies по частичному совпадению имени
+        for cookie in all_cookies:
+            try:
+                cookie_name = (
+                    cookie.name.lower()
+                    if hasattr(cookie, "name") and cookie.name
+                    else ""
+                )
+                cookie_value = cookie.value if hasattr(cookie, "value") else ""
+
+                # Поиск по ключевым словам
+                if any(
+                    keyword in cookie_name
+                    for keyword in ["xsrf", "csrf", "token", "session"]
+                ):
+                    if cookie.name not in target_cookies:
+                        target_cookies[cookie.name] = cookie_value
+                        logger.info(
+                            f"Дополнительный cookie: {cookie.name} = {cookie_value[:20]}..."
+                        )
+
+            except Exception as e:
+                logger.error(f"Ошибка при поиске дополнительных cookies: {e}")
+                continue
+
+        # ========= ПРЕОБРАЗОВАНИЕ В СЛОВАРИ ДЛЯ СОХРАНЕНИЯ =========
+
+        # Преобразуем объекты Cookie в словари для JSON
+        cookies_for_json = []
+        for cookie in all_cookies:
+            try:
+                cookie_dict = {
+                    "name": getattr(cookie, "name", ""),
+                    "value": getattr(cookie, "value", ""),
+                    "domain": getattr(cookie, "domain", ""),
+                    "path": getattr(cookie, "path", "/"),
+                    "secure": getattr(cookie, "secure", False),
+                    "httpOnly": getattr(cookie, "httpOnly", False),
+                    "sameSite": getattr(cookie, "sameSite", "None"),
+                    "expires": getattr(cookie, "expires", None),
+                }
+                cookies_for_json.append(cookie_dict)
+            except Exception as e:
+                logger.error(f"Ошибка преобразования cookie в словарь: {e}")
+
+        # ========= СОХРАНЕНИЕ COOKIES =========
+
+        # Сохранить все cookies в файл
+        cookies_file = data_directory / "cookies_all.json"
+        with open(cookies_file, "w", encoding="utf-8") as f:
+            json.dump(cookies_for_json, f, indent=4, ensure_ascii=False)
+        logger.info(f"Все cookies сохранены в {cookies_file}")
+
+        # Сохранить только важные cookies
+        important_cookies_file = data_directory / "cookies_important.json"
+        with open(important_cookies_file, "w", encoding="utf-8") as f:
+            json.dump(target_cookies, f, indent=4, ensure_ascii=False)
+        logger.info(f"Важные cookies сохранены в {important_cookies_file}")
+
+        # ========= ВЫВОД ИНФОРМАЦИИ =========
+
+        logger.info("🍪 Найденные важные cookies:")
+        for name, value in target_cookies.items():
+            logger.info(f"  {name}: {value[:30]}{'...' if len(value) > 30 else ''}")
+
+        # Вывод всех cookies для отладки
+        logger.debug("📋 Все cookies:")
+        for cookie in all_cookies:
+            try:
+                name = getattr(cookie, "name", "Unknown")
+                value = getattr(cookie, "value", "")
+                domain = getattr(cookie, "domain", "")
+                logger.debug(f"  {name} = {value[:20]}... (domain: {domain})")
+            except:
+                continue
+
+        return target_cookies
+
+    except Exception as e:
+        logger.error(f"Ошибка в функции get_cookies: {e}")
+        logger.exception("Подробности ошибки:")
+        return {}
+
+
 async def main():
     # Загружаем список стран из JSON-файла
     try:
@@ -257,7 +374,6 @@ async def main():
         logger.error(f"Ошибка при загрузке списка стран: {str(e)}")
         return
 
-    browser = None
     try:
         browser_args = []
         # browser_args = ["--headless=new"]
@@ -265,13 +381,23 @@ async def main():
         # Инициализируем браузер с обработкой ошибок
         logger.info("Инициализация браузера...")
         try:
-            browser = await uc.start(headless=False)  # browser_args=browser_args
+            browser = await uc.start()
             if not browser:
-                logger.error("Ошибка: браузер не инициализирован (вернул None)")
+                logger.error("Браузер не инициализирован")
                 return
-            logger.info("Браузер успешно инициализирован")
+
+            # Добавить дополнительную задержку после инициализации
+            # await asyncio.sleep(1)
+
+            # Проверить статус браузера перед использованием
+            login_page = await browser.get("https://www.tikleap.com/login")
+            await asyncio.sleep(1)
+            if not login_page:
+                logger.error("Не удалось загрузить страницу логина")
+                return
+
         except Exception as e:
-            logger.error(f"Ошибка при инициализации браузера: {str(e)}")
+            logger.error(f"Ошибка инициализации браузера: {e}")
             return
 
         # await asyncio.sleep(5)
@@ -369,6 +495,8 @@ async def main():
             current_url = login_page.url
             logger.info(f"Текущий URL после попытки входа: {current_url}")
 
+            await get_cookies(browser)
+
             if "login" in current_url:
                 logger.warning("Все еще на странице логина. Вход мог не сработать.")
 
@@ -403,12 +531,12 @@ async def main():
 
     finally:
         # Закрываем браузер
-        if browser:
+        if browser and hasattr(browser, "stop"):
             try:
                 await browser.stop()
                 logger.info("Браузер закрыт")
             except Exception as e:
-                logger.error(f"Ошибка при закрытии браузера: {str(e)}")
+                logger.error(f"Ошибка при закрытии браузера: {e}")
 
 
 # Функция для обработки всех имеющихся HTML-файлов

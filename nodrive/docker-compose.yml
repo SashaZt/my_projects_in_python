@@ -1,0 +1,18 @@
+services:
+  nodriver-auth:
+    image: selenium/standalone-chrome:4.15.0
+    container_name: nodriver-manual-auth
+    ports:
+      - "4444:4444"    # Selenium Grid порт
+      - "7900:7900"    # noVNC веб-интерфейс
+    volumes:
+      - ./app:/workspace/app
+      - ./cookies:/home/seluser/tikleap_work/cookies
+      - ./data:/workspace/data
+    environment:
+      - SE_SCREEN_WIDTH=1920
+      - SE_SCREEN_HEIGHT=1080
+      - SE_VNC_PASSWORD=secret
+      - SE_START_XVFB=true
+    restart: unless-stopped
+    shm_size: 2gb

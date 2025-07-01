@@ -1,0 +1,7 @@
+1. Ловим с поомщью webHook новый статус из crm 
+2. CodeDelivery и обрабатываем его
+3. подаем запрос в БД GetCityCode который возвращает данные
+4. Code  обрабатывает их 
+5. jsonToXml.js формирует jsonToXm
+6. getCourierexe отправляет их на службу доставки
+7. updateTtnSalesdrive обновляет данные в crm

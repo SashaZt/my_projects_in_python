@@ -28,6 +28,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  client:
+    build: 
+      context: ./client
+      dockerfile: Dockerfile
+    volumes:
+      - ./log:/app/log
+    networks:
+        - app_network
   web:
     build: 
       context: ./web

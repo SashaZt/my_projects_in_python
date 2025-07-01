@@ -13,6 +13,13 @@ function getTextFromOptions(fieldName, value, metaFields) {
     return value;
 }
 
+// Функция для обрезки текста до первой запятой
+function cutToFirstComma(text) {
+    if (!text) return text;
+    const firstCommaIndex = text.indexOf(',');
+    return firstCommaIndex !== -1 ? text.substring(0, firstCommaIndex).trim() : text;
+}
+
 // Проверяем наличие meta и fields
 const metaFields = body.meta && body.meta.fields ? body.meta.fields : {};
 
@@ -26,7 +33,7 @@ const processedProducts = products.map((product, index) => {
     let extraTags = null;
     if (product.uktzed || product.packageCode) {
         const tagsData = {};
-        if (product.ikpu) tagsData.ikpu = product.ikpu;
+        if (product.uktzed) tagsData.ikpu = product.uktzed; // uktzed становится ikpu
         if (product.packageCode) tagsData.packageCode = product.packageCode;
         extraTags = JSON.stringify(tagsData);
     }
@@ -40,18 +47,7 @@ const processedProducts = products.map((product, index) => {
         uktzed: product.uktzed || null,
         sku: product.sku || null,
         totalPrice: (product.price || 0) * (product.amount || 0),
-
-        // Новые фискальные поля
-        ikpu: product.ikpu || null, // ИКПУ код
-        packageCode: product.packageCode || null, // Код единицы измерения
-        asilBelgi: product.asilBelgi || product.governmentCode || null, // Честный знак
         extraTags: extraTags, // JSON строка для ИКПУ и packageCode
-
-        // Дополнительные поля если есть
-        manufacturer: product.manufacturer || null,
-        description: product.description || null,
-        barcode: product.barcode || product.uktzed || null,
-        categoryName: product.categoryName || null
     };
 });
 
@@ -74,11 +70,15 @@ const productDetails = products.map((product, index) =>
     `${index + 1}. ${product.name || 'Неизвестный товар'} (${product.amount || 0} шт., ${product.price || 0} грн./шт., вес: ${product.mass || 0} кг)`
 ).join('\n');
 
+// Получаем название города и обрезаем до первой запятой
+const fullTownName = getTextFromOptions('naselennyjPunkt', data.naselennyjPunkt, metaFields);
+const shortTownName = cutToFirstComma(fullTownName);
+
 // Создаем основной объект результата
 const output = {
     // Основная информация о заказе
     orderId: data.id || null,
-    receiver_town: getTextFromOptions('naselennyjPunkt', data.naselennyjPunkt, metaFields),
+    receiver_town: shortTownName, // Обрезанное название города
     receiver_address: data.shipping_address || null,
     payment_method: getTextFromOptions('payment_method', data.payment_method, metaFields),
     comment: data.comment || null,

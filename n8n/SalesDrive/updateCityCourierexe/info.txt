@@ -1,0 +1,5 @@
+1. Тригер по времени Schedule Trigger
+2. getListCity.js Получаем все населенные пункты
+3. getJsonListCity Формируем json 
+4. getSqlListCity Формируем sql для БД
+5. writeListCity записываем данные в БД {{ $json.sql }}

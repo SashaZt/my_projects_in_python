@@ -26,10 +26,11 @@ async def main():
 
 
 if __name__ == "__main__":
+    print("Привет")
     # if paths.temp.exists():
     #     shutil.rmtree(paths.temp)
     #     paths.create_directories()
     # parse_start_xml()
     # asyncio.run(main())
     # scrap_html_file()
-    export_products_to_xml()
+    # export_products_to_xml()

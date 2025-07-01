@@ -70,7 +70,7 @@ def scrap_html(html_file, output_json_file=None):
         return None
 
 
-def clean_product_name(product_name, max_length=24):
+def clean_product_name(product_name, max_length=100):
     """
     Очищает product_name от спецсимволов, заменяя их на подчеркивание,
     и ограничивает длину строки
@@ -183,7 +183,7 @@ def process_apollo_data(apollo_data):
         cover_data = product.get('cover({"size":300})')
         if cover_data and "src" in cover_data:
             img_url = cover_data["src"]
-        cleaned_name = clean_product_name(product_name)
+        cleaned_name = clean_product_name(product_slug_str)
         product_data = {
             "product_slug": product_slug_str,
             "product_name": product_name,
