@@ -842,7 +842,7 @@ def get_scrapi():
 
 if __name__ == "__main__":
     get_html()
-    # scrap_htmls()
+    scrap_htmls()
     # scrap_html()
     # scrap_json()
     # get_scrapi()

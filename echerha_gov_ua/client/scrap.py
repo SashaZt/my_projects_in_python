@@ -4,6 +4,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
+from main_card import get_all_carriers, get_custom
+from main_check import enrich_transport_data
 
 from config import Config, logger, paths
 
@@ -85,9 +87,7 @@ def collect_transport_data(customs_id: int) -> List[Dict]:
             if data and "data" in data:
                 transport_items = data["data"]
                 all_transport_data.extend(transport_items)
-                # logger.info(
-                #     f"Загружено {len(transport_items)} записей из {file_path.name}"
-                # )
+
         except Exception as e:
             logger.error(f"Ошибка при чтении файла {file_path}: {e}")
 
@@ -190,6 +190,7 @@ def create_excel_from_customs_data(output_file: Path = None) -> bool:
         True если успешно, False если ошибка
     """
     try:
+        all_cars = get_all_carriers()
         # Путь к выходному файлу по умолчанию
         if output_file is None:
             output_file = paths.data / "customs_transport_data.xlsx"
@@ -227,8 +228,8 @@ def create_excel_from_customs_data(output_file: Path = None) -> bool:
 
                 # Собираем данные о транспорте
                 transport_data = collect_transport_data(customs_id)
-
-                if not transport_data:
+                result = enrich_transport_data(transport_data, all_cars, get_custom)
+                if not result:
                     logger.warning(
                         f"Нет данных для таможни {customs_id}, создаем пустой лист с заголовками"
                     )
@@ -236,7 +237,7 @@ def create_excel_from_customs_data(output_file: Path = None) -> bool:
                     df = pd.DataFrame(columns=list(column_mapping.values()))
 
                 # Создаем DataFrame
-                df = pd.DataFrame(transport_data)
+                df = pd.DataFrame(result)
 
                 # Переименовываем колонки согласно маппингу
                 df = df.rename(columns=column_mapping)
@@ -264,9 +265,7 @@ def create_excel_from_customs_data(output_file: Path = None) -> bool:
                     worksheet.column_dimensions[column_letter].width = adjusted_width
 
                 processed_customs += 1
-                logger.info(
-                    f"Записано {len(transport_data)} записей для '{sheet_name}'"
-                )
+                logger.info(f"Записано {len(result)} записей для '{sheet_name}'")
 
         logger.info(f"Excel файл создан: {output_file}")
         logger.info(f"Обработано {processed_customs} таможен")
@@ -289,6 +288,7 @@ def create_excel_for_single_customs(customs_id: int, output_file: Path = None) -
         True если успешно, False если ошибка
     """
     try:
+        all_cars = get_all_carriers()
         # Загружаем информацию о таможне
         customs_data = load_json_file(all_customs)
         if not customs_data or "data" not in customs_data:
@@ -315,8 +315,9 @@ def create_excel_for_single_customs(customs_id: int, output_file: Path = None) -
 
         # Собираем данные о транспорте
         transport_data = collect_transport_data(customs_id)
+        result = enrich_transport_data(transport_data, all_cars, get_custom)
 
-        if not transport_data:
+        if not result:
             logger.warning(f"Нет данных для таможни {customs_id}")
             return False
 
@@ -331,7 +332,7 @@ def create_excel_for_single_customs(customs_id: int, output_file: Path = None) -
         }
 
         # Создаем DataFrame
-        df = pd.DataFrame(transport_data)
+        df = pd.DataFrame(result)
         df = df.rename(columns=column_mapping)
 
         # Очищаем название листа
@@ -358,7 +359,7 @@ def create_excel_for_single_customs(customs_id: int, output_file: Path = None) -
                 worksheet.column_dimensions[column_letter].width = adjusted_width
 
         logger.info(f"Excel файл создан: {output_file}")
-        logger.info(f"Записано {len(transport_data)} записей для '{customs_title}'")
+        logger.info(f"Записано {len(result)} записей для '{customs_title}'")
         return True
 
     except Exception as e:
@@ -383,14 +384,3 @@ def create_excel_files_for_all_customs() -> None:
             success_count += 1
 
     logger.info(f"Создано {success_count} Excel файлов из {len(customs_list)} таможен")
-
-
-if __name__ == "__main__":
-    # Вариант 1: Создать один большой Excel файл со всеми таможнями
-    create_excel_from_customs_data()
-
-    # Вариант 2: Создать Excel файл для конкретной таможни
-    # create_excel_for_single_customs(79)
-
-    # Вариант 3: Создать отдельные Excel файлы для каждой таможни
-    # create_excel_files_for_all_customs()

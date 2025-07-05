@@ -5,9 +5,11 @@ import time
 from pathlib import Path
 
 from config_utils import load_config
+from downloader import downloader
 from logger import logger
 from main_bd import (
     get_product_data,
+    get_product_data_rozetka,
     update_prices_and_images,
     update_rozetka_prices_and_images,
 )
@@ -60,59 +62,117 @@ async def run_playwright_process():
     return True
 
 
-def run_full_cycle():
-    """Выполняет полный цикл обработки для категории"""
-    url = get_path("url")
-    start_page = get_path("start_page")
-    num_pages = get_path("num_pages")
-    delay = get_path("delay")
-    category_name = get_path("category_name")
+async def get_pages():
+    logger.info("Запуск процесса получения данных о товарах через Playwright")
+
     category_id = get_path("category_id")
-    logger.info(
-        f"Запуск полного цикла обработки для категории: {category_name} (ID: {category_id})"
-    )
+    # Получаем данные продуктов из БД для выбранной категории
+    skugs = get_product_data(category_id=category_id)
 
-    # 1. Скачиваем страницы
-
-    logger.info(f"Шаг 1: Скачивание HTML-страниц с {url}")
-    download_pages(url, start_page, num_pages, cookies, headers, delay)
-
-    # 2. Обрабатываем HTML и создаем JSON для базы данных
-    logger.info("Шаг 2: Обработка HTML-страниц и создание JSON для базы данных")
-    all_products = process_html_files()
-
-    if not all_products or len(all_products) == 0:
-        logger.error("Не удалось получить данные товаров из HTML")
+    if not skugs:
+        logger.error(f"Нет данных для обработки в категории {category_id}")
         return False
 
-    # 3. Получаем данные о товарах через Playwright
-    logger.info("Шаг 3: Получение данных о товарах через Playwright")
-    asyncio.run(run_playwright_process())
+    # JSON template для GraphQL запроса (НЕ form_template!)
+    json_template = {
+        "operationName": "WickedNoCache",
+        "variables": {
+            "isAutoRenewActive": False,
+            "isProductVariantSearch": False,
+            "isCheapestAuctionIncluded": True,
+            "currency": "UAH",
+            "context": {
+                "country": "UA",
+                "region": "ukraine",
+                "language": "en",
+            },
+            "slug": "{slug}",  # Здесь будет подставляться каждый slug
+            "language": "en",
+            "utmValues": {
+                "enbCampaign": "Homepage",
+                "enbContent": "Main%20Categories%20Navigation",
+                "enbMedium": "link",
+                "enbSource": "https%3A%2F%2Fwww.eneba.com%2F",
+                "enbTerm": "Games",
+            },
+            "version": 7,
+            "abTests": [
+                "CFD755",
+            ],
+        },
+        "extensions": {
+            "persistedQuery": {
+                "version": 1,
+                "sha256Hash": "87a1e783618b16092767beb84810a3a1a2adcba553d18620e59bf993da0b34f2_1daa7330a8898875b69f4c9119b0bc8f66ef99e8c08106610e49d36c4304c83c723c8d06383387f17ee1fc326ea96f8c95ad2a91d3be11ae5983eb1acf150b05",
+            },
+        },
+    }
 
-    # 4. Обрабатываем JSON и HTML файлы товаров
-    logger.info("Шаг 4: Обработка JSON и HTML файлов товаров")
-    all_data, bd_json_path = parse_json_and_html_files()
+    # Создаем кастомные имена файлов для каждого slug
+    # custom_filenames = {slug: Path(f"json/{category_id}/{slug}.json") for slug in skugs}
 
-    # 5. Обновляем данные в БД
-    logger.info("Шаг 5: Обновление цен и изображений в базе данных")
-    updated_prices, updated_images, errors = update_prices_and_images(
-        bd_json_path, category_id=category_id
+    # Используем json_template, а не data_template для GraphQL
+    results = await downloader.post_skus(
+        base_url="https://www.eneba.com/graphql/",
+        skugs=skugs,
+        json_template=json_template,  # Исправлено: используем json_template
     )
 
-    logger.info(
-        f"Обновление данных в БД: цены - {updated_prices}, изображения - {updated_images}, ошибки - {errors}"
-    )
+    # Анализируем результаты
+    successful = sum(1 for success in results.values() if success)
+    logger.info(f"✅ Успешно обработано: {successful}/{len(skugs)} товаров")
 
-    # 6. Экспортируем в Excel
-    logger.info("Шаг 6: Экспорт данных в Excel")
-    export_data_to_excel(category_id=category_id)
+    failed_slugs = [slug for slug, success in results.items() if not success]
+    if failed_slugs:
+        logger.warning(f"❌ Неудачные запросы для: {failed_slugs}")
 
-    # 7. Обновляем цены по настроенным правилам
-    logger.info("Шаг 7: Обновление цен по настроенным правилам")
-    update_prices_from_config()
+    return results
 
-    logger.info("Полный цикл обработки завершен!")
-    return True
+
+async def get_products():
+    logger.info("Запуск процесса получения данных о товарах через Playwright")
+    html_product = get_path("html_product")
+    category_id = get_path("category_id")
+    # Получаем данные продуктов из БД для выбранной категории
+    skugs = get_product_data(category_id=category_id)
+
+    if not skugs:
+        logger.error(f"Нет данных для обработки в категории {category_id}")
+        return False
+
+    results = await downloader.download_urls(skugs)
+
+    # Анализируем результаты
+    successful = sum(1 for success in results.values() if success)
+    logger.info(f"✅ Успешно обработано: {successful}/{len(skugs)} товаров")
+
+    failed_slugs = [slug for slug, success in results.items() if not success]
+    if failed_slugs:
+        logger.warning(f"❌ Неудачные запросы для: {failed_slugs}")
+
+    return results
+
+
+async def get_products_rozetka():
+    category_id = get_rozetka_path("category_id")
+    # Получаем данные продуктов из БД для выбранной категории
+    skugs = get_product_data_rozetka(category_id=category_id)
+
+    if not skugs:
+        logger.error(f"Нет данных для обработки в категории {category_id}")
+        return False
+
+    await downloader.download_urls(skugs)
+
+    # # Анализируем результаты
+    # successful = sum(1 for success in results.values() if success)
+    # logger.info(f"✅ Успешно обработано: {successful}/{len(skugs)} товаров")
+
+    # failed_slugs = [slug for slug, success in results.items() if not success]
+    # if failed_slugs:
+    #     logger.warning(f"❌ Неудачные запросы для: {failed_slugs}")
+
+    # return results
 
 
 def clean_temp_files():
@@ -147,14 +207,14 @@ def display_menu():
     print("1. Полный цикл (скачать HTML -> обработать товары -> обновить цены)")
     print("2. Только скачать HTML-страницы")
     print("3. Только обработать существующие HTML-страницы")
-    print("4. Скачать данные о товарах")
-    print("5. Только обработать JSON и HTML файлы товаров")
-    print("6. Только обновить цены")
-    print("7. Загрузить уникальные ID товаров из Excel")
-    print("8. Очистить временные файлы для категории")
+    print("4. Обновить цены о товарах")
+    print("5. Обновить ссылки на товары")
+    print("6. Только обработать JSON и HTML файлы товаров")
+    print("7. Только обновить цены")
+    print("8. Загрузить уникальные ID товаров из Excel")
+    print("9. Очистить временные файлы для категории")
     print("0. Выход")
     print("=" * 50)
-    time.sleep(2)
 
 
 def main():
@@ -166,7 +226,7 @@ def main():
             logger.info("Выход из программы")
             break
 
-        if choice in {"2", "3", "4", "5", "6"}:
+        if choice in {"2", "3", "4", "5", "6", "7"}:
             marketpalses = input("Выберите Пром - 1, Розетка - 2: ").strip()
             if marketpalses == "1":
                 if not is_initialized():
@@ -181,7 +241,7 @@ def main():
                     continue
 
         if choice == "1":
-            run_full_cycle()
+            logger.info("ТУТ ничего нету ;)")
 
         elif choice == "2":
             if marketpalses == "1":
@@ -199,11 +259,18 @@ def main():
 
         elif choice == "4":
             if marketpalses == "1":
-                asyncio.run(run_playwright_process())
-            else:
-                logger.info("Playwright для Rozetka в разработке")
+                # asyncio.run(run_playwright_process())
+                asyncio.run(get_pages())
 
+            else:
+                asyncio.run(get_products())
         elif choice == "5":
+            if marketpalses == "1":
+                asyncio.run(get_products())
+            else:
+                asyncio.run(get_products_rozetka())
+
+        elif choice == "6":
             if marketpalses == "1":
                 all_data, bd_json_path = parse_json_and_html_files()
                 if all_data:
@@ -215,7 +282,6 @@ def main():
                 else:
                     logger.error("Нет данных для обновления")
             else:
-                # ИСПРАВЛЕНИЕ: Получаем category_id для Rozetka
                 category_id = get_rozetka_path("category_id")
                 logger.info(f"Обрабатываем данные для категории Rozetka: {category_id}")
 
@@ -231,16 +297,16 @@ def main():
                 else:
                     logger.error("Нет данных для обновления Rozetka")
 
-        elif choice == "6":
+        elif choice == "7":
             if marketpalses == "1":
                 update_prices_from_config()
             else:
                 update_prices_from_config_rozetka()
 
-        elif choice == "7":
+        elif choice == "8":
             extract_ids_from_excel()
 
-        elif choice == "8":
+        elif choice == "9":
             if marketpalses == "1":
                 clean_temp_files()
             else:
@@ -255,9 +321,6 @@ def main():
 
 def clean_rozetka_temp_files():
     """Очищает временные файлы для выбранной категории Rozetka"""
-    import shutil
-
-    from rozetka_path_manager import get_rozetka_path
 
     html_page = get_rozetka_path("html_page")
     html_product = get_rozetka_path("html_product")

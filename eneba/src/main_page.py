@@ -1,5 +1,6 @@
 # src/main_page.py
 
+import asyncio
 import json
 import math
 import os
@@ -15,6 +16,7 @@ import requests
 from bs4 import BeautifulSoup
 from category_manager import category_manager
 from config_utils import load_config
+from downloader import downloader
 from loguru import logger
 from main_bd import load_and_save_data, update_unique_ids_in_db
 from path_manager import get_path, is_initialized, select_category_and_init_paths
@@ -29,32 +31,6 @@ config = load_config()
 cookies = config["cookies"]
 headers = config["headers"]
 # Получаем инициализированные пути
-
-
-# def init_category_paths(category_id=None):
-#     """Инициализирует пути на основе выбранной категории"""
-#     global url, html_page, output_json, output_xlsx, new_output_xlsx, start_page, num_pages, delay, export_xlsx
-
-#     if category_id:
-#         if not category_manager.set_current_category(category_id):
-#             logger.error(f"Не удалось установить категорию {category_id}")
-#             return False
-
-#     url = category_manager.get_category_url()
-#     html_page = category_manager.get_category_page_dir()
-#     category_files = category_manager.get_category_data_files()
-#     output_json = category_files["output_json"]
-#     output_xlsx = category_files["output_xlsx"]
-#     export_xlsx = category_files["export_xlsx"]
-#     new_output_xlsx = category_files["new_output_xlsx"]
-#     start_page = int(category_manager.get_category_start_page())
-#     num_pages = int(category_manager.get_category_url_pages())
-#     delay = int(category_manager.get_category_url_delay())
-
-#     logger.info(
-#         f"Пути инициализированы для категории: {category_manager.current_category}"
-#     )
-#     return True
 
 
 def build_url_for_page(base_url, page_number):
@@ -339,11 +315,8 @@ def download_pages(base_url, cookies, headers):
 
     Args:
         base_url (str): Базовый URL с фильтрами
-        start_page (int): Начальная страница
-        num_pages (int): Количество страниц для скачивания
         cookies (dict): Куки для запроса
         headers (dict): Заголовки для запроса
-        delay (int): Задержка между запросами в секундах
 
     Returns:
         int: Количество успешно скачанных страниц
@@ -379,34 +352,36 @@ def download_pages(base_url, cookies, headers):
         logger.info("Все страницы уже скачаны")
         return len(existing_files)
 
-    # Скачиваем недостающие страницы
-    successful_downloads = 0
+    # ИСПРАВЛЕНО: Подготавливаем ВСЕ URL и файлы сразу
+    urls = []
+    custom_filenames = {}
 
     for page in pages_to_download:
-        logger.info(f"Скачивание страницы {page}...")
+        # Создаем URL для страницы
+        page_url = build_url_for_page(base_url, page)
 
-        # Создаем имя файла для текущей страницы
+        # Создаем имя файла для страницы
         page_html_file = html_page / f"eneba_page_{page}.html"
 
-        # Собираем URL для текущей страницы
-        page_url = build_url_for_page(base_url, page)
-        # logger.info(f"URL: {page_url}")
+        # Добавляем в списки
+        urls.append(page_url)
+        custom_filenames[page_url] = page_html_file
 
-        # Загружаем HTML страницы
-        if get_html(page_url, page_html_file, cookies, headers, delay):
-            successful_downloads += 1
+    async def download_all_pages():
+        results = await downloader.download_urls(urls, custom_filenames)
+        return results
 
-            # Добавляем случайную задержку между страницами
-            if pages_to_download.index(page) < len(pages_to_download) - 1:
-                sleep_time = random.randint(delay, delay + 5)
-                logger.info(f"Случайная задержка между страницами: {sleep_time} секунд")
-                time.sleep(sleep_time)
-        else:
-            logger.error(f"Не удалось загрузить страницу {page}")
+    # Запускаем многопоточную загрузку
+    logger.info(f"🚀 Запуск многопоточной загрузки {len(urls)} страниц")
+    results = asyncio.run(download_all_pages())
 
-    logger.info(
-        f"Скачивание завершено. Успешно скачано страниц: {successful_downloads}"
-    )
+    # Подсчитываем результаты
+    successful_downloads = sum(1 for success in results.values() if success)
+    failed_downloads = len(results) - successful_downloads
+
+    logger.info(f"✅ Успешно скачано страниц: {successful_downloads}")
+    if failed_downloads > 0:
+        logger.warning(f"❌ Ошибок при скачивании: {failed_downloads}")
 
     # Возвращаем общее количество страниц (существующие + новые)
     return len(existing_files) + successful_downloads

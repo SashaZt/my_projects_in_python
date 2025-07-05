@@ -88,7 +88,41 @@ def clean_product_name(product_name, max_length=100):
     return cleaned
 
 
-def process_apollo_data(apollo_data):
+def clean_product_name_country(product_name, max_length=100):
+    """
+    Удаляет всё что идет после слова 'key'
+
+    Примеры:
+    xbox-game-key-europe → xbox_game_key
+    xbox-game-key-united-states → xbox_game_key
+    """
+
+    if not product_name:
+        return ""
+
+    truncated = product_name[:max_length]
+
+    # Удаляем всё после key (и дефис, и подчеркивание)
+    patterns = [
+        r"-key-.*$",  # всё после -key-
+        r"_key_.*$",  # всё после _key_
+        r"-key$",  # только -key в конце
+        r"_key$",  # только _key в конце
+    ]
+
+    for pattern in patterns:
+        truncated = re.sub(pattern, "-key", truncated, flags=re.IGNORECASE)
+
+    # Финальная очистка
+    cleaned = re.sub(r"[^\w\s]", "_", truncated)
+    cleaned = re.sub(r"\s+", "_", cleaned)
+    cleaned = re.sub(r"_+", "_", cleaned)
+    cleaned = cleaned.strip("_")
+
+    return cleaned
+
+
+def process_apollo_data(apollo_data, category):
     """
     Обрабатывает данные Apollo State и формирует список товаров
     в требуемом формате
@@ -178,12 +212,17 @@ def process_apollo_data(apollo_data):
 
         # Получаем slug продукта
         product_slug_str = product.get("slug", "")
+        # if category == "129793815":
+        #     logger.info(product_slug_str.split("-")[-1])
+        #     exit()
         # Получаем URL изображения
         img_url = ""
         cover_data = product.get('cover({"size":300})')
         if cover_data and "src" in cover_data:
             img_url = cover_data["src"]
         cleaned_name = clean_product_name(product_slug_str)
+        if category == "129793815":
+            cleaned_name = clean_product_name_country(product_slug_str)
         product_data = {
             "product_slug": product_slug_str,
             "product_name": product_name,
@@ -319,7 +358,7 @@ def process_rozetka_html_files():
     html_page = get_rozetka_path("html_page")
     output_json = get_rozetka_path("output_json")
     output_xlsx = get_rozetka_path("output_xlsx")
-    category_id = get_rozetka_path("category_id")  # ИСПРАВЛЕНИЕ: Получаем category_id
+    category_id = get_rozetka_path("category_id")
 
     logger.info("Начинаем обработку HTML-файлов Rozetka...")
 
@@ -331,8 +370,9 @@ def process_rozetka_html_files():
         # Извлекаем данные Apollo State
         apollo_data = scrap_html(html_file)
         if apollo_data:
+
             # Обрабатываем данные Apollo State
-            page_products, urls = process_apollo_data(apollo_data)
+            page_products, urls = process_apollo_data(apollo_data, category_id)
 
             # Добавляем продукты к общему списку
             all_products.extend(page_products)
@@ -350,7 +390,6 @@ def process_rozetka_html_files():
 
         save_products_to_excel(data_without_slug, output_xlsx)
 
-        # ИСПРАВЛЕНИЕ: Передаем category_id в функцию загрузки в БД
         load_and_save_rozetka_data(output_json, category_id=category_id)
     else:
         logger.error("Не найдено товаров для сохранения")
@@ -457,17 +496,9 @@ def remove_duplicates_by_price_json(all_products):
         # Сортируем товары по цене (от меньшей к большей)
         sorted_products = sorted(products, key=lambda x: x["price_num"])
 
-        # Если есть дубли, логируем информацию
-        # logger.info(f"Найдены дубли: '{name}'")
-
         # Добавляем товар с минимальной ценой в список уникальных товаров
         min_price_product = sorted_products[0]["product"]
         unique_products.append(min_price_product)
-        # logger.info(f"  - ОСТАВЛЕНА: Цена {min_price_product['Ціна']}")
-
-        # # Логируем информацию об удаленных товарах
-        # for product_info in sorted_products[1:]:
-        #     logger.info(f"  - УДАЛЕНА: Цена {product_info['product']['Ціна']}")
 
     # Выводим итоговую статистику
     removed_count = initial_count - len(unique_products)

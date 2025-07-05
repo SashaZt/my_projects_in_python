@@ -2,8 +2,8 @@
 let isAutoLoginEnabled = true;
 let authCookieString = '';
 let lastAuthTime = 0;
-let cookiesSavedForSession = false; // Флаг - сохранены ли куки для текущей сессии
-let currentSessionId = ''; // ID текущей сессии
+let lastCookieSaveTime = 0;  // Время последнего сохранения куки
+const MIN_SAVE_INTERVAL = 30000;  // Минимальный интервал между сохранениями (30 секунд)
 
 // Функция для ожидания определенного времени
 function delay(ms) {
@@ -140,36 +140,24 @@ async function getAllAllegroCookies() {
     }
 }
 
-// ИСПРАВЛЕННАЯ функция для обработки событий cookies - ТОЛЬКО ОДИН РАЗ ЗА СЕССИЮ
+// Модифицированная функция для обработки событий cookies с предотвращением повторов
 chrome.cookies.onChanged.addListener(async (changeInfo) => {
-    // Проверяем, что это установка QXLSESSID и куки не удалены
-    if (changeInfo.cookie.name === 'QXLSESSID' && !changeInfo.removed) {
-        const sessionId = changeInfo.cookie.value;
+    const now = Date.now();
 
-        // Если это новая сессия и мы еще не сохраняли куки для нее
-        if (sessionId !== currentSessionId) {
-            logBackground(`Обнаружена новая сессия: ${sessionId.substring(0, 10)}...`, 'info');
+    // Проверяем, что это установка QXLSESSID и прошло достаточно времени с последнего сохранения
+    if (changeInfo.cookie.name === 'QXLSESSID' && !changeInfo.removed &&
+        (now - lastCookieSaveTime > MIN_SAVE_INTERVAL)) {
 
-            // Обновляем текущую сессию и сбрасываем флаг
-            currentSessionId = sessionId;
-            cookiesSavedForSession = false;
+        logBackground('Новая сессия установлена, ждем 5 секунд перед сохранением куки', 'info');
 
-            // Ждем 5 секунд для установки всех куки, затем сохраняем ОДИН РАЗ
-            await delay(5000);
+        // Обновляем время последнего сохранения
+        lastCookieSaveTime = now;
 
-            if (!cookiesSavedForSession) {
-                cookiesSavedForSession = true; // Устанавливаем флаг ПЕРЕД сохранением
-                await saveCookiesToFile();
-                logBackground('Куки сохранены для новой сессии. Повторного сохранения не будет.', 'info');
-            }
-        }
-    }
+        // Даем время на установку всех куки + добавляем паузу 5 секунд
+        await delay(5000);
 
-    // Если QXLSESSID удален - значит пользователь вышел
-    if (changeInfo.cookie.name === 'QXLSESSID' && changeInfo.removed) {
-        logBackground('Сессия завершена (QXLSESSID удален)', 'info');
-        currentSessionId = '';
-        cookiesSavedForSession = false;
+        // Сохраняем куки в файл
+        await saveCookiesToFile();
     }
 });
 
@@ -197,8 +185,7 @@ async function saveCookiesToFile() {
             cookieString: cookieString.trim(),
             cookies: cookieObj,
             timestamp: new Date().toISOString(),
-            formattedDate: new Date().toLocaleString(),
-            sessionId: cookieObj.QXLSESSID || 'unknown'
+            formattedDate: new Date().toLocaleString()
         };
 
         // Преобразуем данные в JSON
@@ -293,13 +280,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // Обработчик для сохранения куки в файл (ручное сохранение отключено)
+    // Обработчик для сохранения куки в файл
     if (message.action === "saveCookies") {
-        // Ручное сохранение отключено
-        sendResponse({
-            success: false,
-            error: "Ручное сохранение отключено. Куки сохраняются автоматически один раз за сессию."
-        });
+        // Принудительно обновляем время последнего сохранения куки
+        lastCookieSaveTime = Date.now();
+
+        saveCookiesToFile()
+            .then(result => {
+                sendResponse(result);
+            })
+            .catch(error => {
+                sendResponse({
+                    success: false,
+                    error: error.message
+                });
+            });
         return true;
     }
 

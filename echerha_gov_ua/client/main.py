@@ -1,10 +1,11 @@
 import json
 import random
 import re
+import shutil
 import time
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import requests
 from scrap import create_excel_from_customs_data
@@ -139,7 +140,7 @@ def get_custom(id_checkpoint: int) -> bool:
         file_name = paths.json / f"custom_{id_checkpoint}_01.json"
         with open(file_name, "w", encoding="utf-8") as f:
             json.dump(transformed_data, f, ensure_ascii=False, indent=4)
-        logger.info(f"Сохранил {file_name}")
+        logger.info(f"Сохранил страницу 1")
 
         # Получаем количество страниц и загружаем остальные если есть
         total_pages = count_pages(data)
@@ -383,7 +384,7 @@ def get_custom_pages(total_pages: int, id_checkpoint: int) -> None:
             with open(file_name, "w", encoding="utf-8") as f:
                 json.dump(transformed_data, f, ensure_ascii=False, indent=4)
 
-            logger.info(f"Сохранил страницу {page}/{total_pages}: {file_name}")
+            logger.info(f"Сохранил страницу {page}/{total_pages}")
             random_pause(5, 10)
 
         except requests.RequestException as e:
@@ -470,9 +471,7 @@ def process_all_customs() -> None:
 
 
 if __name__ == "__main__":
-    with timer("Мой блок кода"):
-        # Полный запуск
-        process_all_customs()
-        create_excel_from_customs_data()
-
-    # Вариант 2: Обработать конкретную таможню (раскомментируйте при необходимости)
+    shutil.rmtree(paths.json)
+    paths.json.mkdir(parents=True, exist_ok=True)
+    process_all_customs()
+    create_excel_from_customs_data()

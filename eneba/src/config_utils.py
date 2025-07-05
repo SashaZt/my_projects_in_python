@@ -24,6 +24,6 @@ def load_config(config_file="config/config.json"):
     # Создаём директории
     for dir_path in directories.values():
         dir_path.mkdir(parents=True, exist_ok=True)
-        logger.debug(f"Директория готова: {dir_path}")
+        # logger.debug(f"Директория готова: {dir_path}")
 
     return config

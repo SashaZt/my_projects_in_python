@@ -1,0 +1,15 @@
+./tikleap_manager.sh --full
+
+# Запуск в фоне
+nohup ./tikleap_manager.sh --scheduler 5 > tikleap.log 2>&1 &
+
+# Сохранить PID
+echo $! > tikleap.pid
+
+# Закрыть терминал - процесс продолжит работать
+
+# Потом посмотреть логи
+tail -f tikleap.log
+
+# Остановить когда нужно
+kill $(cat tikleap.pid)

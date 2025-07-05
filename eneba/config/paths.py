@@ -14,7 +14,7 @@ class ProjectPaths:
     temp: Path  # ./temp/
     data: Path  # ./temp/data/
     json: Path  # ./temp/json/
-    db: Path  # ./temp/json/
+    html: Path  # ./temp/html/
 
     @classmethod
     def from_config(cls, config: "Config", base_dir: Path = None) -> "ProjectPaths":
@@ -23,14 +23,13 @@ class ProjectPaths:
             base_dir = Path.cwd()
         # Сначала создаем базовую temp директорию
         temp_base = base_dir / config.client.directories.temp
-        db_dir = base_dir / config.client.directories.db
 
         # Создаем пути из конфигурации - все внутри temp
         paths = cls(
             temp=temp_base,
-            db=db_dir,
             data=temp_base / config.client.directories.data,
             json=temp_base / config.client.directories.json,
+            html=temp_base / config.client.directories.html,
         )
 
         # Создаем все директории

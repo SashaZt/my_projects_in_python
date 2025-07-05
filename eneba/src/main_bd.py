@@ -282,6 +282,37 @@ def get_product_data(category_id=None):
     return data
 
 
+def get_product_data_rozetka(category_id=None):
+    """
+    Возвращает product_slug, product_code и price из базы данных
+
+    Args:
+        category_id (str, optional): ID категории для фильтрации
+
+    Returns:
+        list: Список словарей с product_slug, product_code и price
+    """
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    # Если указан category_id, добавляем условие фильтрации
+    if category_id:
+        query = "SELECT product_slug FROM products_rozetka WHERE category_id = ?"
+        cursor.execute(query, (category_id,))
+    else:
+        # Иначе выбираем все записи
+        cursor.execute("SELECT product_slug FROM products_rozetka")
+
+    result = cursor.fetchall()
+
+    # Преобразуем результат в список словарей
+    data = [{"product_slug": row[0]} for row in result]
+
+    conn.close()
+
+    return data
+
+
 def map_json_to_english(json_data):
     """
     Преобразует JSON с украинскими ключами в JSON с английскими ключами
@@ -763,7 +794,7 @@ def insert_rozetka_data_from_json(json_data, category_id=None):
             # ИСПРАВЛЕНИЕ: Добавляем category_id если он передан
             if category_id:
                 item_eng["category_id"] = category_id
-                logger.debug(f"Устанавливаем category_id = {category_id} для записи")
+                # logger.debug(f"Устанавливаем category_id = {category_id} для записи")
 
             # Добавляем дату загрузки
             item_eng["upload_date"] = current_datetime
@@ -803,7 +834,7 @@ def insert_rozetka_data_from_json(json_data, category_id=None):
 
                 cursor.execute(update_query, update_values)
                 updated_count += 1
-                logger.debug(f"Обновлена запись с product_slug: {product_slug}")
+                # logger.debug(f"Обновлена запись с product_slug: {product_slug}")
             else:
                 # Если записи нет, добавляем новую
                 columns = ", ".join([f'"{k}"' for k in item_eng.keys()])
@@ -815,9 +846,9 @@ def insert_rozetka_data_from_json(json_data, category_id=None):
                 )
                 cursor.execute(insert_query, values)
                 inserted_count += 1
-                logger.debug(
-                    f"Добавлена новая запись Rozetka с product_slug: {product_slug}"
-                )
+                # logger.debug(
+                #     f"Добавлена новая запись Rozetka с product_slug: {product_slug}"
+                # )
 
         except sqlite3.Error as e:
             logger.error(f"Ошибка при обработке записи Rozetka: {e}")
@@ -1158,7 +1189,6 @@ def load_and_save_rozetka_data(json_file_path, category_id=None):
     with open(json_file_path, "r", encoding="utf-8") as file:
         data = json.load(file)
 
-    # ИСПРАВЛЕНИЕ: Передаем category_id в функцию вставки
     insert_rozetka_data_from_json(data, category_id=category_id)
 
     logger.info(f"Данные Rozetka из {json_file_path} успешно загружены в базу данных")

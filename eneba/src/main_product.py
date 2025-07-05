@@ -25,22 +25,21 @@ def process_price_data(data):
     """Обработка данных из файла с ценами"""
     # logger.info("Обработка цен")
     try:
-        # Если данные представлены как список (из файла), берем первый элемент
-        if isinstance(data, list):
-            data = data[0] if data else {}
+        # # Если данные представлены как список (из файла), берем первый элемент
+        # if isinstance(data, list):
+        #     data = data[0] if data else {}
 
         # Получаем объект response из структуры данных
-        response = data.get("response", {})
-        if not response:
+        json_data = data.get("data", {})
+        if not json_data:
             logger.error("В данных отсутствует ключ 'response'")
             return None
 
         # Получаем данные о продукте
-        product_data = response.get("data", {}).get("wickedProductNoCache", {})
+        product_data = json_data.get("wickedProductNoCache", {})
         if not product_data:
             logger.error("Не удалось найти данные о продукте")
             return None
-
         # Получаем список аукционов
         auctions = product_data.get("auctions", {}).get("edges", [])
         if not auctions:
@@ -64,7 +63,6 @@ def process_price_data(data):
                 # Цена в копейках, делим на 100 для получения гривен
                 all_prices.append(price / 100)
                 # logger.debug(f"Найдена цена: {price/100} UAH")
-
         if not all_prices:
             logger.warning("Не найдено ни одной цены в аукционах")
             return None
@@ -76,6 +74,64 @@ def process_price_data(data):
     except Exception as e:
         logger.error(f"Ошибка при обработке цен: {str(e)}")
         return None
+
+
+# Рабочий код
+# def process_price_data(data):
+#     """Обработка данных из файла с ценами"""
+#     # logger.info("Обработка цен")
+#     try:
+#         # Если данные представлены как список (из файла), берем первый элемент
+#         if isinstance(data, list):
+#             data = data[0] if data else {}
+
+#         # Получаем объект response из структуры данных
+#         response = data.get("response", {})
+#         if not response:
+#             logger.error("В данных отсутствует ключ 'response'")
+#             return None
+
+#         # Получаем данные о продукте
+#         product_data = response.get("data", {}).get("wickedProductNoCache", {})
+#         if not product_data:
+#             logger.error("Не удалось найти данные о продукте")
+#             return None
+
+#         # Получаем список аукционов
+#         auctions = product_data.get("auctions", {}).get("edges", [])
+#         if not auctions:
+#             logger.warning("Список аукционов пуст")
+
+#             # Попробуем получить цену из preferredAuction, если он есть
+#             preferred_auction = product_data.get("preferredAuction", {})
+#             if preferred_auction:
+#                 price = preferred_auction.get("price", {}).get("amount")
+#                 if price:
+#                     logger.info(f"Получена цена из preferredAuction: {price/100} UAH")
+#                     return price / 100  # Цена в копейках, делим на 100
+#             return None
+
+#         # Собираем все цены из аукционов
+#         all_prices = []
+#         for edge in auctions:
+#             node = edge.get("node", {})
+#             price = node.get("price", {}).get("amount")
+#             if price:
+#                 # Цена в копейках, делим на 100 для получения гривен
+#                 all_prices.append(price / 100)
+#                 # logger.debug(f"Найдена цена: {price/100} UAH")
+
+#         if not all_prices:
+#             logger.warning("Не найдено ни одной цены в аукционах")
+#             return None
+
+#         min_price = min(all_prices)
+#         # logger.info(f"Минимальная цена: {min_price} UAH")
+#         return min_price
+
+#     except Exception as e:
+#         logger.error(f"Ошибка при обработке цен: {str(e)}")
+#         return None
 
 
 def parse_json_and_html_files():
@@ -182,7 +238,7 @@ def parse_json_and_html_files_rozetka():
     json_dir = get_rozetka_path("json_dir")
     bd_json = get_rozetka_path("bd_json")
     output_path = get_rozetka_path("output_xlsx")
-    category_id = get_rozetka_path("category_id")  # ИСПРАВЛЕНИЕ: Получаем category_id
+    category_id = get_rozetka_path("category_id")
 
     logger.info(f"Обрабатываем данные Rozetka для категории: {category_id}")
 
@@ -218,7 +274,7 @@ def parse_json_and_html_files_rozetka():
         html_file = html_product / f"{slug}.html"
 
         if not html_file.exists():
-            html_file = html_product / f"{slug.replace('/', '_')}.html"
+            html_file = html_product / f"{slug.replace('-', '_')}.html"
             if not html_file.exists():
                 logger.warning(f"HTML-файл для {slug} не найден")
                 result = {"slug": slug, "price": price_uah, "images": []}
