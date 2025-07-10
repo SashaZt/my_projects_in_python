@@ -13,8 +13,7 @@ import requests
 import urllib3
 from bs4 import BeautifulSoup
 from configuration.logger_setup import logger
-from tenacity import (retry, retry_if_exception_type, stop_after_attempt,
-                      wait_fixed)
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 from tqdm import tqdm
 from working_with_files import Working_with_files
 
@@ -67,6 +66,8 @@ class GetResponse:
 
     def _choose_proxy(self):
         proxies = self.working_files.load_proxies()
+        if not proxies:  # Проверяем, есть ли прокси
+            return None
         proxy = random.choice(proxies)
         return {"http": proxy, "https": proxy}
 
@@ -84,8 +85,10 @@ class GetResponse:
                 logger.info(f"Скачали sitemap: {url}")
                 return response.content
             else:
-                logger.error(f"Ошибка при скачивании файла: {
-                             response.status_code} для URL: {url}")
+                logger.error(
+                    f"Ошибка при скачивании файла: {
+                             response.status_code} для URL: {url}"
+                )
                 return None
         except requests.exceptions.RequestException as e:
             logger.error(f"Ошибка при запросе URL {url}: {e}")
@@ -105,8 +108,7 @@ class GetResponse:
         namespace = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
         locations = root.findall(".//ns:loc", namespace)
         pattern = r"https://www\.ua-region\.com\.ua/sitemap/sitemap_\d+\.xml"
-        matching_urls = [
-            loc.text for loc in locations if re.match(pattern, loc.text)]
+        matching_urls = [loc.text for loc in locations if re.match(pattern, loc.text)]
         logger.info("Получили список всех sitemap")
         return matching_urls
 
@@ -139,18 +141,29 @@ class GetResponse:
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = []
             for url in urls_df["url"]:
-                identifier = url.split("/")[-1]
+                url = str(url)
+                url_str = len(url)
+
+                # Исправляем логику: если URL короче 8 символов, дополняем нулями
+                if url_str < 8:
+                    edrpo = url.rjust(8, "0")
+                else:
+                    edrpo = url  # Используем оригинальный URL, если он уже достаточно длинный
+
+                new_url = f"https://www.ua-region.com.ua/{edrpo}"
+                identifier = new_url.split("/")[-1]
                 file_path = self.html_files_directory / f"{identifier}.html"
 
                 if file_path.exists():
-                    logger.info(f"Файл уже существует для URL: {
-                                url}, пропускаем.")
+                    logger.info(f"Файл уже существует для URL: {new_url}, пропускаем.")
                     progress_bar.update(1)
                     continue
 
-                futures.append(executor.submit(
-                    self.fetch_and_save_html, url, file_path, successful_urls))
-
+                futures.append(
+                    executor.submit(
+                        self.fetch_and_save_html, new_url, file_path, successful_urls
+                    )
+                )
             for future in as_completed(futures):
                 try:
                     future.result()
@@ -161,7 +174,11 @@ class GetResponse:
 
         progress_bar.close()
 
-    @retry(stop=stop_after_attempt(10), wait=wait_fixed(30), retry=retry_if_exception_type(requests.RequestException))
+    @retry(
+        stop=stop_after_attempt(2),
+        wait=wait_fixed(2),
+        retry=retry_if_exception_type(requests.RequestException),
+    )
     def fetch_and_save_html(self, url, file_path, successful_urls):
         fetch_lock = threading.Lock()
 
@@ -173,14 +190,14 @@ class GetResponse:
             return
 
         try:
-            proxies_dict = self._choose_proxy()  # Теперь используем _choose_proxy напрямую
+            proxies_dict = self._choose_proxy()
             response = requests.get(
                 url,
                 headers=self.headers,
                 proxies=proxies_dict,
-                timeout=30,
+                timeout=120,
                 cookies=self.cookies,
-                verify=False
+                verify=False,
             )
 
             if response.status_code >= 400:
@@ -195,7 +212,9 @@ class GetResponse:
                 retry_after = int(response.headers.get("Retry-After", 60))
                 sys.exit(1)
 
-            if response.status_code == 200 and "text/html" in response.headers.get("Content-Type", ""):
+            if response.status_code == 200 and "text/html" in response.headers.get(
+                "Content-Type", ""
+            ):
                 file_path.write_text(response.text, encoding="utf-8")
 
                 with fetch_lock:

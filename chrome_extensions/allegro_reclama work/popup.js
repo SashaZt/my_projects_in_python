@@ -7,10 +7,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const toggleAutoScrollButton = document.getElementById('toggleAutoScroll');
     const loadConfigButton = document.getElementById('loadConfigButton');
     const configFileInput = document.getElementById('configFileInput');
-    const saveCookiesButton = document.getElementById('saveCookiesButton');
-
-    // НОВАЯ кнопка для отправки на webhook
-    const sendWebhookButton = document.getElementById('sendWebhookButton');
 
     // Переменные
     let autoScroll = true;
@@ -58,33 +54,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Обработчик кнопки входа (ТЕПЕРЬ ТОЛЬКО ОТКРЫВАЕТ СТРАНИЦУ)
+    // Обработчик кнопки входа
     loginButton.addEventListener('click', function () {
-        addLog('Открываем страницу авторизации...', 'info');
+        addLog('Начинаем процесс авторизации...', 'info');
 
         chrome.tabs.create({
             url: 'https://allegro.com/log-in?origin_url=https%3A%2F%2Fsalescenter.allegro.com'
         }, function (tab) {
-            addLog('Страница авторизации открыта. Авторизуйтесь вручную.', 'info');
+            addLog('Открыта страница авторизации', 'info');
         });
     });
-
-    // НОВЫЙ обработчик для отправки куки на webhook
-    if (sendWebhookButton) {
-        sendWebhookButton.addEventListener('click', function () {
-            addLog('Отправляем куки на webhook...', 'info');
-
-            chrome.runtime.sendMessage({
-                action: "sendToWebhook"
-            }, function (response) {
-                if (response && response.success) {
-                    addLog(`Куки успешно отправлены на webhook! Статус: ${response.status}`, 'success');
-                } else {
-                    addLog('Ошибка отправки на webhook: ' + (response?.error || 'неизвестная ошибка'), 'error');
-                }
-            });
-        });
-    }
 
     // Обработчик загрузки конфигурации
     loadConfigButton.addEventListener('click', function () {
@@ -109,10 +88,12 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Обработчик сохранения куки в файл
+    // Добавляем кнопку сохранения куки
+    const saveCookiesButton = document.getElementById('saveCookiesButton');
+
     if (saveCookiesButton) {
         saveCookiesButton.addEventListener('click', function () {
-            addLog('Запрос на сохранение куки в файл...', 'info');
+            addLog('Запрос на сохранение куки...', 'info');
 
             chrome.runtime.sendMessage({
                 action: "saveCookies"

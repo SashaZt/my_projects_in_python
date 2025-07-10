@@ -33,10 +33,12 @@ class Working_with_files:
 
     def load_proxies(self):
         # Загружаем список прокси-серверов из файла
-        with open(self.file_proxy, "r", encoding="utf-8") as file:
-            proxies = [line.strip() for line in file]
-        logger.info(len(proxies))
-        return proxies
+        try:
+            with open(self.file_proxy, "r", encoding="utf-8") as file:
+                proxies = [line.strip() for line in file if line.strip()]
+            return proxies if proxies else None
+        except FileNotFoundError:
+            return None
 
     def write_to_csv(self, data, filename):
         # Проверяем, существует ли файл
@@ -107,8 +109,7 @@ class Working_with_files:
 
         # Удаляем успешные URL из списка продуктов
         initial_count = len(df_products)
-        df_products = df_products[~df_products["url"].isin(
-            df_successful["url"])]
+        df_products = df_products[~df_products["url"].isin(df_successful["url"])]
         final_count = len(df_products)
 
         # Если были удалены какие-то записи

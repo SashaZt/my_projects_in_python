@@ -1,5 +1,7 @@
 import asyncio
+import base64
 import hashlib
+import json
 import random
 import re
 import sys
@@ -77,28 +79,24 @@ def add_country_to_proxy(base_proxy: str, country: str = None) -> str:
     if country is None:
         country = get_random_european_country()
 
-    # Заменяем scraperapi на scraperapi.country_code=XX
+    ukraine_headers = {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "accept-language": "ru,en;q=0.9,uk;q=0.8",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+        "cookie": "region=ukraine; exchange=UAH; lng=en; scm=d.ukraine.863729e3fa631fa4.158369ef0c4e580bf49c7c670cec466f7907e3870836464ee07890d96912a875",
+    }
+
+    # Кодируем заголовки
+    headers_json = json.dumps(ukraine_headers)
+    headers_encoded = base64.b64encode(headers_json.encode()).decode()
+
+    # Создаем прокси с заголовками
     modified_proxy = base_proxy.replace(
-        "scraperapi:", f"scraperapi.country_code={country}:"
+        "scraperapi:",
+        f"scraperapi.country_code={country}.keep_headers=true.custom_headers={headers_encoded}:",
     )
 
     return modified_proxy
-
-
-headers = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Accept-Encoding": "gzip, deflate, br",
-    "DNT": "1",
-    "Connection": "keep-alive",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Cache-Control": "max-age=0",
-}
 
 
 class Downloader:
@@ -189,10 +187,9 @@ class Downloader:
                     country = proxy_with_country.split("country_code=")[1].split(":")[0]
                     # self.logger.debug(f"🇪🇺 Используем страну: {country}")
                 async with AsyncSession() as session:
-
                     response = await session.get(
                         url,
-                        headers=headers,
+                        # headers=headers,
                         proxies=proxy_config,
                         verify=False,
                         timeout=self.config.timeout,
@@ -221,7 +218,7 @@ class Downloader:
 
                         # Если блокировки нет - возвращаем контент
                         self.session_stats["successful_requests"] += 1
-                        self.logger.debug(f"✅ Успешно загружен: {url}")
+                        # self.logger.debug(f"✅ Успешно загружен: {url}")
                         return content
                     else:
                         self.logger.warning(f"❌ HTTP {response.status_code} для {url}")
@@ -285,37 +282,46 @@ class Downloader:
                 return False
 
     async def download_urls(
-        self, urls: List[str], custom_filenames: Optional[Dict[str, str]] = None
+        self, urls: List, custom_filenames: Optional[Dict[str, str]] = None
     ) -> Dict[str, bool]:
-        """
-        Скачать множество URL'ов
+        """Универсальный метод для строк и словарей"""
 
-        Args:
-            urls: Список URL'ов для скачивания
-            custom_filenames: Словарь {url: filename} для кастомных имен файлов
+        self.logger.info(f"🚀 Начинаем загрузку {len(urls)} элементов")
 
-        Returns:
-            Словарь {url: success_status}
-        """
-        self.logger.info(f"🚀 Начинаем загрузку {len(urls)} URL'ов")
-        self.logger.info(
-            f"⚙️ Настройки: {self.config.max_workers} потоков, прокси: {'Да' if self.proxy else 'Нет'}"
-        )
-        html_product = get_rozetka_path("html_product")
-        # Создаем задачи
+        # Определяем тип данных
+        is_products_mode = urls and isinstance(urls[0], dict)
+        mode = "продукты" if is_products_mode else "URL"
+        self.logger.info(f"📦 Режим: {mode}")
+
         tasks = []
-        for url in urls:
-            product_slug = url.get("product_slug", "")
-            file_name = product_slug.replace("-", "_")
-            html_file = html_product / f"{file_name}.html"
-            if html_file.exists():
-                self.logger.info(f"⏭️ Файл {html_file} уже существует, пропускаем")
-                # return True
-                continue
-            url = f"https://www.eneba.com/{product_slug}"
-            task = self.download_url(url, html_file)
-            tasks.append((url, task))
+        for item in urls:
+            try:
+                if isinstance(item, dict):
+                    # РЕЖИМ ПРОДУКТОВ (rozetka)
+                    product_slug = item.get("product_slug", "")
+                    if not product_slug:
+                        continue
+                    html_product = get_rozetka_path("html_product")
+                    html_file = html_product / f"{product_slug}.html"
 
+                    if html_file.exists():
+                        self.logger.debug(f"⏭️ Файл уже существует: {html_file}")
+                        continue
+
+                    url = f"https://www.eneba.com/{product_slug}"
+                    task = self.download_url(url, html_file)
+                    tasks.append((url, task))
+
+                elif isinstance(item, str):
+                    # РЕЖИМ URL (pages)
+                    url = item
+                    filename = custom_filenames.get(url) if custom_filenames else None
+                    task = self.download_url(url, filename)
+                    tasks.append((url, task))
+
+            except Exception as e:
+                self.logger.error(f"❌ Ошибка при обработке {item}: {e}")
+                continue
         # Выполняем все задачи
         results = {}
         completed_tasks = await asyncio.gather(
@@ -569,7 +575,7 @@ class Downloader:
 
                 # Формируем безопасные имена файлов (заменяем опасные символы)
                 safe_slug = (
-                    product_slug.replace("/", "_").replace("\\", "_").replace(":", "_")
+                    product_slug.replace("-", "_").replace("\\", "_").replace(":", "_")
                 )
 
                 # Создаем полные пути к файлам

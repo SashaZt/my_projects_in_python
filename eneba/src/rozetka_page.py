@@ -145,7 +145,6 @@ def process_apollo_data(apollo_data, category):
             auctions[key] = value
         elif key.startswith("Product::"):
             products[key] = value
-
     # Для каждого продукта находим соответствующий аукцион и формируем запись
     for product_key, product in products.items():
 
@@ -163,26 +162,6 @@ def process_apollo_data(apollo_data, category):
         if not auction:
             continue
 
-        # Получаем цену в UAH и делим на 100
-        price_uah = None
-        price_data = auction.get('price({"currency":"UAH"})')
-        if price_data and "amount" in price_data:
-            price_uah_str = str(
-                price_data["amount"] / 100
-            )  # Получаем строку, например "50.35"
-            if price_uah_str:
-                price_uah_float = float(
-                    price_uah_str
-                )  # Преобразуем строку в число с плавающей точкой
-                price_uah_rounded = math.ceil(
-                    price_uah_float
-                )  # Округляем в большую сторону до целого
-                price_uah = str(price_uah_rounded).replace(
-                    ".", ","
-                )  # Преобразуем обратно в строку и меняем точку на запятую
-            else:
-                price_uah = None
-
         # Получаем имя продукта
         product_name = product.get("name", "")
 
@@ -191,7 +170,7 @@ def process_apollo_data(apollo_data, category):
             product_name = (
                 product_name.replace("XBOX LIVE Key", "")
                 .replace("Xbox Live Key", "")
-                .strip()
+                .replace("(Xbox One)", "")
             )
             # Получаем регионы из продукта
             regions = []
@@ -223,6 +202,37 @@ def process_apollo_data(apollo_data, category):
         cleaned_name = clean_product_name(product_slug_str)
         if category == "129793815":
             cleaned_name = clean_product_name_country(product_slug_str)
+
+        currency_eur = config["currency_eur"]
+        price_uah = None
+
+        # Получаем данные о ценах
+        price_data_eur = auction.get('price({"currency":"EUR"})')
+        price_data_uah = auction.get('price({"currency":"UAH"})')
+        # Логирование для отладки
+
+        if price_data_eur and "amount" in price_data_eur:
+            # Конвертируем EUR в UAH
+            price_amount = price_data_eur["amount"] / 100  # Из копеек в EUR
+            price_uah_float = price_amount * currency_eur  # Конвертируем в UAH
+            price_uah_rounded = math.ceil(price_uah_float)  # Округляем вверх
+            price_uah = str(price_uah_rounded).replace(".", ",")
+
+        elif price_data_uah and "amount" in price_data_uah:
+            # Используем UAH напрямую
+            price_amount = price_data_uah["amount"] / 100  # Из копеек в UAH
+            price_uah_rounded = math.ceil(price_amount)  # Округляем вверх
+            price_uah = str(price_uah_rounded).replace(".", ",")
+        price_uah = int(price_uah)
+
+        # Проверяем цену перед преобразованием в float
+        if price_uah is None:
+            continue
+
+        # Пропускаем товары дороже 1000 UAH
+        if price_uah_float > 1000:
+            logger.debug(f"Товар {product_slug_str} дорогой {price_uah}")
+            continue
         product_data = {
             "product_slug": product_slug_str,
             "product_name": product_name,
@@ -264,7 +274,7 @@ def save_products_to_excel(all_products, output_file):
 
     # Сохраняем в Excel
     df.to_excel(output_file, index=False)
-    logger.info(f"Данные успешно сохранены в {output_file}")
+    # logger.info(f"Данные успешно сохранены в {output_file}")
 
     return df
 
@@ -373,7 +383,6 @@ def process_rozetka_html_files():
 
             # Обрабатываем данные Apollo State
             page_products, urls = process_apollo_data(apollo_data, category_id)
-
             # Добавляем продукты к общему списку
             all_products.extend(page_products)
             all_urls.extend(urls)
@@ -384,8 +393,10 @@ def process_rozetka_html_files():
 
     if all_products:
         all_products = remove_duplicates_by_price_json(all_products)
+
         with open(output_json, "w", encoding="utf-8") as json_file:
             json.dump(all_products, json_file, ensure_ascii=False, indent=4)
+
         data_without_slug = remove_keys_from_dicts_list(all_products, ["product_slug"])
 
         save_products_to_excel(data_without_slug, output_xlsx)
@@ -463,7 +474,6 @@ def remove_duplicates_by_price_json(all_products):
         # Проверяем наличие необходимых ключей
         if "Назва (укр)" not in product or "Ціна" not in product:
             continue
-
         name = product["Назва (укр)"]
         price_str = product["Ціна"]
 
@@ -485,7 +495,6 @@ def remove_duplicates_by_price_json(all_products):
 
     # Создаем список для хранения уникальных товаров
     unique_products = []
-
     # Второй проход: выбираем товары с минимальной ценой
     for name, products in products_by_name.items():
         # Если это не дубль, просто добавляем товар
@@ -495,7 +504,6 @@ def remove_duplicates_by_price_json(all_products):
 
         # Сортируем товары по цене (от меньшей к большей)
         sorted_products = sorted(products, key=lambda x: x["price_num"])
-
         # Добавляем товар с минимальной ценой в список уникальных товаров
         min_price_product = sorted_products[0]["product"]
         unique_products.append(min_price_product)

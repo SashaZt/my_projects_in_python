@@ -2,6 +2,7 @@ from pathlib import Path
 
 from data_verification import DataVerification  # Импортируем новый класс
 from dynamic_postgres import DynamicPostgres
+
 # Ваши модули
 from get_response import GetResponse
 from parsing import Parsing
@@ -21,28 +22,33 @@ csv_file_successful = data_directory / "identifier_successful.csv"
 xlsx_result = data_directory / "result.xlsx"
 file_proxy = configuration_directory / "proxy.txt"
 
-
 cookies = {
-    '_ga': 'GA1.1.971341584.1728630336',
-    'G_ENABLED_IDPS': 'google',
-    'FCCDCF': '%5Bnull%2Cnull%2Cnull%2C%5B%22CQHdjMAQHdjMAEsACBRUBNFoAP_gAEPgACgAINJD7C7FbSFCwH5zaLsAMAhHRsAAQoQAAASBAmABQAKQIAQCgkAQFASgBAACAAAAICRBIQIECAAAAUAAQAAAAAAEAAAAAAAIIAAAgAEAAAAIAAACAIAAEAAIAAAAEAAAmAgAAIIACAAAgAAAAAAAAAAAAAAAAgCAAAAAAAAAAAAAAAAAAQOhSD2F2K2kKFkPCmwXYAYBCujYAAhQgAAAkCBMACgAUgQAgFJIAgCIFAAAAAAAAAQEiCQAAQABAAAIACgAAAAAAIAAAAAAAQQAABAAIAAAAAAAAEAQAAIAAQAAAAIAABEhCAAQQAEAAAAAAAQAAAAAAAAAAABAAA.eAAAAAAAAAA%22%2C%222~70.89.93.108.122.149.196.236.259.311.313.323.358.415.449.486.494.495.540.574.609.864.981.1029.1048.1051.1095.1097.1126.1205.1276.1301.1365.1415.1449.1514.1570.1577.1598.1651.1716.1735.1753.1765.1870.1878.1889.1958.1960.2072.2253.2299.2373.2415.2506.2526.2531.2568.2571.2575.2624.2677.2778~dv.%22%2C%227A726137-665E-4996-AB78-EE34AADC75B3%22%5D%5D',
-    'PHPSESSID': 'costud8pk6aiv1r9tmj59c1bec',
-    'FCNEC': '%5B%5B%22AKsRol-FUSJJKA2PEVCwY3UpPnxFYEkprH-sAgaDRgK9ndnRsKiZvXBasFaXaYMGNTtqlXiD9mjvUMdjI7LFUt1HkgaXcNSW1P05uvuiooNTVP5IS6J5dYzid8v1qrd77ZnK6dvBw8KEqvErBTGmoB99LbbMdfygHw%3D%3D%22%5D%5D',
-    '__gads': 'ID=9dfe76a1628555ac:T=1728630336:RT=1730794898:S=ALNI_MZCbBbzyjdmU8JXuU73XLaryJoAfw',
-    '__gpi': 'UID=00000f39a80dda60:T=1728630336:RT=1730794898:S=ALNI_MYG1tahl8aq2R_Khklg10O-GAqD3Q',
-    '__eoi': 'ID=17f00596f6a8a6a0:T=1728630336:RT=1730794898:S=AA-AfjawPgl9YF1wCuiGASsiL8Ln',
-    '_ga_TDFGJDHCY1': 'GS1.1.1730794897.6.0.1730794900.57.0.0',
+    "G_ENABLED_IDPS": "google",
+    "PHPSESSID": "piq5q77h0nmh57qksd0g49o9qm",
 }
 
 headers = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-    "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "DNT": "1",
+    "Pragma": "no-cache",
+    "Referer": "https://www.ua-region.com.ua/new-enterprises",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+    "sec-ch-ua": '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"macOS"',
+    "sec-gpc": "1",
 }
 
-
 while True:
-    max_workers = 50
+    max_workers = 10
     base_url = "https://www.ua-region.com.ua"
     url_sitemap = "https://www.ua-region.com.ua/sitemap.xml"
 

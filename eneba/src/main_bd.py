@@ -294,7 +294,8 @@ def get_product_data_rozetka(category_id=None):
     """
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-
+    # logger.info(category_id)
+    # exit()
     # Если указан category_id, добавляем условие фильтрации
     if category_id:
         query = "SELECT product_slug FROM products_rozetka WHERE category_id = ?"
@@ -422,13 +423,19 @@ def update_prices_and_images(json_file_path, category_id=None):
 
             # Получаем текущее значение image_url
             current_image_url = result[1] or ""
-
+            # logger.info(price)
             # Обновляем цену, даже если она null - устанавливаем "0"
-            if price is not None:
-                price_str = str(price).replace(".", ",")
+            if price == "нет":
+                price_str = None  # Не обновляем цену в БД
+            # if price is not None:
+            #     price_str = str(price).replace(".", ",")
+            elif price is not None and price != "":
+                price_str = str(price).replace(".", ",")  # Обновляем реальной ценой
             else:
                 price_str = "1"  # Если price = null, устанавливаем "0"
-
+            # logger.info(price_str)
+            # logger.info(slug)
+            # exit()
             # Если цена "0", также обновляем availability на "-"
             if price_str == "1":
                 cursor.execute(
@@ -438,6 +445,9 @@ def update_prices_and_images(json_file_path, category_id=None):
                 logger.debug(
                     f"Обновлена цена для {slug}: {price_str} и availability: '-'"
                 )
+            elif price_str is None:
+                # Если цены нету, обновляем изображение
+                pass
             else:
                 cursor.execute(
                     "UPDATE products SET price = ? WHERE product_slug = ?",
@@ -938,15 +948,7 @@ def update_rozetka_prices_and_images(json_file_path, category_id=None):
             continue
 
         try:
-            # # Проверяем существование записи (с учетом категории, если указана)
-            # if category_id:
-            #     query = "SELECT product_slug, images FROM products_rozetka WHERE product_slug = ? AND category_id = ?"
-            #     cursor.execute(query, (product_slug, category_id))
-            # else:
-            #     cursor.execute(
-            #         "SELECT product_slug, images FROM products_rozetka WHERE product_slug = ?",
-            #         (product_slug,),
-            #     )
+
             cursor.execute(
                 "SELECT product_slug, images FROM products_rozetka WHERE product_slug = ?",
                 (product_slug,),
@@ -962,28 +964,27 @@ def update_rozetka_prices_and_images(json_file_path, category_id=None):
 
             # Получаем текущее значение images
             current_images = result[1] or ""
-
+            # logger.info(f"Приходит такая цена {price}")
             # Обработка цены
-            if price is not None:
-                price_str = str(price).replace(".", ",")
+            if price == "нет":
+                price_str = None  # Не обновляем цену в БД
+            elif price is not None and price != "":
+                price_str = str(price).replace(".", ",")  # Обновляем реальной ценой
             else:
-                price_str = "0"
-
-            # Если цена "0", также обновляем availability на "Відсутній"
+                price_str = "0"  # Ошибки или пустые значения
             if price_str == "0":
                 cursor.execute(
                     "UPDATE products_rozetka SET price = ?, availability = ? WHERE product_slug = ?",
                     (price_str, "немає в наявності", product_slug),
                 )
-                # logger.debug(
-                #     f"Обновлена цена для Rozetka {product_slug}: {price_str} и availability: 'Відсутній'"
-                # )
+            elif price_str is None:
+                # Если цены нету, обновляем изображение
+                pass
             else:
                 cursor.execute(
                     "UPDATE products_rozetka SET price = ? WHERE product_slug = ?",
                     (price_str, product_slug),
                 )
-                # logger.debug(f"Обновлена цена для Rozetka {product_slug}: {price_str}")
 
             updated_prices += 1
 
@@ -1029,9 +1030,7 @@ def update_rozetka_prices_and_images(json_file_path, category_id=None):
                             (combined_urls, product_slug),
                         )
                         updated_images += 1
-                        # logger.debug(
-                        #     f"Добавлены новые изображения для Rozetka {product_slug}: {len(new_urls)} шт."
-                        # )
+
                     else:
                         # Если новых URL нет, но нужно обновить формат разделителя
                         if "," in current_images and ";" not in current_images:

@@ -209,25 +209,21 @@ def process_apollo_data(apollo_data):
         if not auction:
             continue
 
-        # Получаем цену в UAH и делим на 100
-        price_uah = None
-        price_data = auction.get('price({"currency":"UAH"})')
-        if price_data and "amount" in price_data:
-            price_uah_str = str(
-                price_data["amount"] / 100
-            )  # Получаем строку, например "50.35"
-            if price_uah_str:
-                price_uah_float = float(
-                    price_uah_str
-                )  # Преобразуем строку в число с плавающей точкой
-                price_uah_rounded = math.ceil(
-                    price_uah_float
-                )  # Округляем в большую сторону до целого
-                price_uah = str(price_uah_rounded).replace(
-                    ".", ","
-                )  # Преобразуем обратно в строку и меняем точку на запятую
-            else:
-                price_uah = None
+        # # Получаем цену в UAH и делим на 100
+        # price_uah = None
+        # price_data_eur = auction.get('price({"currency":"EUR"})')
+        # price_data_uah = auction.get('price({"currency":"UAH"})')
+
+        # if price_data and "amount" in price_data:
+        #     price_uah_str = str(price_data["amount"] / 100)
+        #     if price_uah_str:
+        #         price_uah_float = float(price_uah_str)
+        #         price_uah_rounded = math.ceil(price_uah_float)
+        #         price_uah = str(price_uah_rounded).replace(
+        #             ".", ","
+        #         )  # Преобразуем обратно в строку и меняем точку на запятую
+        #     else:
+        #         price_uah = None
 
         # Получаем имя продукта
         product_name = product.get("name", "")
@@ -237,7 +233,7 @@ def process_apollo_data(apollo_data):
             product_name = (
                 product_name.replace("XBOX LIVE Key", "")
                 .replace("Xbox Live Key", "")
-                .strip()
+                .replace("(Xbox One)", "")
             )
             # Получаем регионы из продукта
             regions = []
@@ -264,6 +260,37 @@ def process_apollo_data(apollo_data):
         if cover_data and "src" in cover_data:
             img_url = cover_data["src"]
         cleaned_name = clean_product_name(product_name)
+
+        price_uah = None
+        currency_eur = config["currency_eur"]
+        # Получаем данные о ценах
+        price_data_eur = auction.get('price({"currency":"EUR"})')
+        price_data_uah = auction.get('price({"currency":"UAH"})')
+        # Логирование для отладки
+
+        if price_data_eur and "amount" in price_data_eur:
+            # Конвертируем EUR в UAH
+            price_amount = price_data_eur["amount"] / 100  # Из копеек в EUR
+            price_uah_float = price_amount * currency_eur  # Конвертируем в UAH
+            price_uah_rounded = math.ceil(price_uah_float)  # Округляем вверх
+            price_uah = str(price_uah_rounded).replace(".", ",")
+
+        elif price_data_uah and "amount" in price_data_uah:
+            # Используем UAH напрямую
+            price_amount = price_data_uah["amount"] / 100  # Из копеек в UAH
+            price_uah_rounded = math.ceil(price_amount)  # Округляем вверх
+            price_uah = str(price_uah_rounded).replace(".", ",")
+        price_uah = int(price_uah)
+
+        # Проверяем цену перед преобразованием в float
+        if price_uah is None:
+            continue
+
+        # Пропускаем товары дороже 1000 UAH
+        if price_uah_float > 1000:
+            logger.debug(f"Товар {product_slug_str} дорогой {price_uah}")
+            continue
+
         product_data = {
             "product_slug": product_slug_str,
             "product_name": product_name,

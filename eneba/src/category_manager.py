@@ -121,6 +121,19 @@ class CategoryManager:
         json_dir.mkdir(parents=True, exist_ok=True)
         return json_dir
 
+    def get_category_json_page(self):
+        """Возвращает директорию для JSON-файлов текущей категории"""
+        if not self.current_category:
+            logger.error("Текущая категория не установлена")
+            return None
+
+        base_dir = Path.cwd()
+        json_page = (
+            base_dir / self.config["directories"]["json_page"] / self.current_category
+        )
+        json_page.mkdir(parents=True, exist_ok=True)
+        return json_page
+
     def get_category_data_files(self):
         """Возвращает пути к файлам данных для текущей категории"""
         if not self.current_category:

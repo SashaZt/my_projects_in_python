@@ -20,6 +20,7 @@ paths = {
     "html_page": None,
     "html_product": None,
     "json_dir": None,
+    "json_page": None,
     "output_json": None,
     "output_xlsx": None,
     "export_xlsx": None,
@@ -67,6 +68,7 @@ def init_paths(category_id=None):
     paths["html_page"] = category_manager.get_category_page_dir()
     paths["html_product"] = category_manager.get_category_html_dir()
     paths["json_dir"] = category_manager.get_category_json_dir()
+    paths["json_page"] = category_manager.get_category_json_page()
 
     # Получаем пути для файлов
     category_files = category_manager.get_category_data_files()
@@ -95,6 +97,7 @@ def init_paths(category_id=None):
     paths["html_page"].mkdir(parents=True, exist_ok=True)
     paths["html_product"].mkdir(parents=True, exist_ok=True)
     paths["json_dir"].mkdir(parents=True, exist_ok=True)
+    paths["json_page"].mkdir(parents=True, exist_ok=True)
 
     logger.info(
         f"Пути инициализированы для категории: {paths['category_name']} (ID: {paths['category_id']})"
