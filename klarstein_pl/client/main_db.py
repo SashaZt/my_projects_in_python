@@ -1,21 +1,33 @@
 import json
 import re
 from typing import Any, Dict, List, Optional
-
+import os
 import psycopg2
 from config.logger import logger
 from psycopg2.extras import RealDictCursor, execute_values
 
 from config import Config, logger, paths
 
-# Конфигурация подключения к БД
-DB_CONFIG = {
-    "host": "localhost",
-    "database": "klarstein_pl",
-    "user": "klarstein_pl_user",
-    "password": "Pqm36q1kmcAlsVMIp2glEdfwNnj69X",
-    "port": 5431,
-}
+# ИСПРАВЛЕННАЯ конфигурация подключения к БД
+def get_db_config():
+    """Получает конфигурацию БД в зависимости от окружения"""
+    # Проверяем, запущены ли мы в Docker (переменная POSTGRES_HOST из docker-compose)
+    db_host = os.getenv('POSTGRES_HOST', 'db')
+    
+    db_port = int(os.getenv('POSTGRES_PORT', '5432'))
+    db_port = 5431
+    db_host = "localhost"
+
+    return {
+        "host": db_host,
+        "database": os.getenv('POSTGRES_DB', 'klarstein_pl'),
+        "user": os.getenv('POSTGRES_USER', 'klarstein_pl_user'),
+        "password": os.getenv('POSTGRES_PASSWORD', 'Pqm36q1kmcAlsVMIp2glEdfwNnj69X'),
+        "port": db_port,
+    }
+
+# Используем динамическую конфигурацию вместо статической
+DB_CONFIG = get_db_config()
 
 
 class KlarsteinProductLoader:
@@ -285,7 +297,7 @@ class KlarsteinProductLoader:
                     cursor.execute(
                         update_query, (parent_id, name_pl, name, name_ua, category_id)
                     )
-                    logger.info(f"Обновлена категория ID: {category_id}")
+                    # logger.info(f"Обновлена категория ID: {category_id}")
                 else:
                     # Вставляем новую категорию
                     insert_query = """
@@ -295,9 +307,9 @@ class KlarsteinProductLoader:
                     cursor.execute(
                         insert_query, (category_id, parent_id, name_pl, name, name_ua)
                     )
-                    logger.info(f"Добавлена категория ID: {category_id}")
+                    # logger.info(f"Добавлена категория ID: {category_id}")
 
-            logger.info(f"Обработано {len(categories_data)} категорий")
+            # logger.info(f"Обработано {len(categories_data)} категорий")
             return True
 
         except Exception as e:
@@ -329,14 +341,14 @@ class KlarsteinProductLoader:
                 except (ValueError, TypeError):
                     price = 0.0
             price_opt1 = offer_data.get("price_opt1")
-            logger.info(price_opt1)
+            # logger.info(price_opt1)
             if price_opt1:
                 try:
                     price_opt1 = float(str(price_opt1).replace(",", "."))
                 except (ValueError, TypeError):
                     price_opt1 = 0.0
             price_opt2 = offer_data.get("price_opt2")
-            logger.info(price_opt2)
+            # logger.info(price_opt2)
             if price_opt2:
                 try:
                     price_opt2 = float(str(price_opt2).replace(",", "."))
@@ -491,9 +503,9 @@ class KlarsteinProductLoader:
                     VALUES %s
                 """
                 execute_values(cursor, insert_query, images_data)
-                logger.info(
-                    f"Добавлено {len(images_data)} изображений для товара {product_id}"
-                )
+                # logger.info(
+                #     f"Добавлено {len(images_data)} изображений для товара {product_id}"
+                # )
 
             return True
 
@@ -531,7 +543,7 @@ class KlarsteinProductLoader:
                 cursor.execute(
                     insert_query, (product_id, width, height, length, weight)
                 )
-                logger.info(f"Добавлены размеры для товара {product_id}")
+                # logger.info(f"Добавлены размеры для товара {product_id}")
 
             return True
 
@@ -592,7 +604,7 @@ class KlarsteinProductLoader:
 
                     cursor.execute("RELEASE SAVEPOINT offer_savepoint")
                     success_count += 1
-                    logger.info(f"Товар {product_id} успешно обработан")
+                    # logger.info(f"Товар {product_id} успешно обработан")
 
                 except Exception as e:
                     cursor.execute("ROLLBACK TO SAVEPOINT offer_savepoint")

@@ -1,0 +1,12 @@
+services:
+  salesdrive-client:
+    build: .
+    container_name: salesdrive-client
+    volumes:
+      - ./log:/client/log
+      # - ./sajt.json:/client/sajt.json
+      # - ./orders.json:/client/orders.json
+      # - ./matched_orders.json:/client/matched_orders.json
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

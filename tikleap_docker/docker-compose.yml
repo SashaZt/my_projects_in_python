@@ -1,18 +1,24 @@
 services:
   nodriver-auth:
-    image: selenium/standalone-chrome:4.15.0
+    image: dorowu/ubuntu-desktop-lxde-vnc:latest
     container_name: nodriver-manual-auth
     ports:
-      - "4444:4444"    # Selenium Grid порт
-      - "7900:7900"    # noVNC веб-интерфейс
+      - "6080:80"
+      - "5900:5900"
     volumes:
       - ./app:/workspace/app
-      - ./cookies:/home/seluser/tikleap_work/cookies
+      - ./cookies:/home/ubuntu/tikleap_work/cookies
       - ./data:/workspace/data
     environment:
-      - SE_SCREEN_WIDTH=1920
-      - SE_SCREEN_HEIGHT=1080
-      - SE_VNC_PASSWORD=secret
-      - SE_START_XVFB=true
-    restart: unless-stopped
-    shm_size: 2gb
+      - VNC_PASSWORD=secret
+      - RESOLUTION=1366x768
+    
+    mem_limit: 1g
+    cpus: '1.0'
+    shm_size: 512mb
+    restart: "no"
+    
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined

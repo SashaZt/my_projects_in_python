@@ -188,11 +188,21 @@ async def main():
         logger.info("Инициализация браузера...")
         try:
             browser = await uc.start(
-                headless=False,  # GUI режим для Docker VNC
+                headless=False,
+                no_sandbox=True,           # Обязательно для DockerJ
+                user_data_dir="/tmp/chrome_user_data",  # Временная папка
                 browser_args=[
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
-                    "--window-size=1800,1000",
+                    "--window-size=1366,768",
+                    "--disable-gpu",
+                    "--disable-software-rasterizer",
+                    "--remote-debugging-port=9222",
+                    "--disable-web-security",
+                    "--disable-features=VizDisplayCompositor",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-default-apps",
                 ],
             )
             if not browser:

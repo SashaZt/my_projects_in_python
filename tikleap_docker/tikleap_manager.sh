@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 
 # Переменные
 CONTAINER_NAME="nodriver-manual-auth"
-VNC_URL="http://localhost:7900"
+VNC_URL="http://localhost:6080"
 VNC_PASSWORD="secret"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COOKIES_DIR="${SCRIPT_DIR}/cookies"
@@ -77,66 +77,74 @@ create_structure() {
     log_success "Структура создана: ${SCRIPT_DIR}"
 }
 
-# Создание docker-compose.yml
 create_docker_compose() {
     log_step "Создание docker-compose.yml..."
     
     cat > "${SCRIPT_DIR}/docker-compose.yml" << 'EOF'
 services:
   nodriver-auth:
-    image: selenium/standalone-chrome:4.15.0
+    image: dorowu/ubuntu-desktop-lxde-vnc:latest
     container_name: nodriver-manual-auth
     ports:
-      - "4444:4444"
-      - "7900:7900"
+      - "6080:80"
+      - "5900:5900"
     volumes:
       - ./app:/workspace/app
-      - ./cookies:/home/seluser/tikleap_work/cookies
+      - ./cookies:/home/ubuntu/tikleap_work/cookies
       - ./data:/workspace/data
     environment:
-      # Основные настройки
-      - SE_SCREEN_WIDTH=1366
-      - SE_SCREEN_HEIGHT=768
-      - SE_VNC_PASSWORD=secret
-      - SE_START_XVFB=true
-      
-      # УБИРАЕМ SE_OPTS - это причина проблемы!
-      # - SE_OPTS=--disable-dev-shm-usage --no-sandbox --disable-gpu
-      
-      # Правильный способ передачи Chrome опций
-      - SE_NODE_MAX_INSTANCES=1
-      - SE_NODE_MAX_SESSIONS=1
-      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
-      
-      # JVM настройки для экономии памяти
-      - JAVA_OPTS=-Xms128m -Xmx512m -XX:+UseG1GC -XX:+UseContainerSupport
-      
-      # Отключение ненужных функций
-      - SE_ENABLE_TRACING=false
-      - SE_ENABLE_CDP=false
-      - SE_ENABLE_BIDI=false
-      
-    # Ограничения ресурсов
+      - VNC_PASSWORD=secret
+      - RESOLUTION=1366x768
+    
     mem_limit: 1g
-    memswap_limit: 1g
     cpus: '1.0'
     shm_size: 512mb
     restart: "no"
     
-    # Дополнительные ограничения
-    deploy:
-      resources:
-        limits:
-          memory: 1G
-          cpus: '1.0'
-        reservations:
-          memory: 256M
-          cpus: '0.25'
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:unconfined
 EOF
     
     log_success "docker-compose.yml создан"
 }
 
+install_chrome_in_container() {
+    log_step "Установка Chrome и Python зависимостей в контейнер..."
+    
+    # Ждем, пока контейнер полностью запустится
+    sleep 10
+    
+    log_info "Обновление системы..."
+    docker exec "${CONTAINER_NAME}" bash -c "apt-get update"
+    
+    log_info "Установка базовых пакетов..."
+    docker exec "${CONTAINER_NAME}" bash -c "apt-get install -y python3 python3-pip wget curl gnupg"
+    
+    log_info "Добавление ключа Google Chrome (исправленный способ)..."
+    docker exec "${CONTAINER_NAME}" bash -c "
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/google.gpg &&
+        echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' > /etc/apt/sources.list.d/google-chrome.list
+    "
+    
+    log_info "Обновление списка пакетов..."
+    docker exec "${CONTAINER_NAME}" bash -c "apt-get update"
+    
+    log_info "Установка Google Chrome..."
+    docker exec "${CONTAINER_NAME}" bash -c "apt-get install -y google-chrome-stable"
+    
+    log_info "Установка Python зависимостей..."
+    docker exec "${CONTAINER_NAME}" bash -c "pip3 install nodriver loguru"
+    
+    log_info "Создание директорий..."
+    docker exec "${CONTAINER_NAME}" bash -c "
+        mkdir -p /home/ubuntu/tikleap_work/cookies &&
+        chmod 777 /home/ubuntu/tikleap_work/cookies
+    "
+    
+    log_success "Все зависимости установлены"
+}
 # Проверка статуса контейнера
 check_container_status() {
     if docker ps -a --format "table {{.Names}}" | grep -q "^${CONTAINER_NAME}$"; then
@@ -336,47 +344,47 @@ auto_setup_and_install() {
     
     # Детальная установка с правами root
     log_info "🔄 Обновление системных пакетов..."
-    if docker exec --user root "${CONTAINER_NAME}" bash -c "apt-get update"; then
-        log_success "Пакеты обновлены"
-    else
-        log_error "Ошибка обновления пакетов"
-        set -e
-        return 1
-    fi
+    # if docker exec --user root "${CONTAINER_NAME}" bash -c "apt-get update"; then
+    #     log_success "Пакеты обновлены"
+    # else
+    #     log_error "Ошибка обновления пакетов"
+    #     set -e
+    #     return 1
+    # fi
+    # install_chrome_in_container
+    # log_info "📦 Установка системных зависимостей..."
+    # if docker exec --user root "${CONTAINER_NAME}" bash -c "apt-get install -y python3-pip wget curl"; then
+    #     log_success "Системные пакеты установлены"
+    # else
+    #     log_error "Ошибка установки системных пакетов"
+    #     set -e
+    #     return 1
+    # fi
     
-    log_info "📦 Установка системных зависимостей..."
-    if docker exec --user root "${CONTAINER_NAME}" bash -c "apt-get install -y python3-pip wget curl"; then
-        log_success "Системные пакеты установлены"
-    else
-        log_error "Ошибка установки системных пакетов"
-        set -e
-        return 1
-    fi
+    # log_info "🐍 Проверка Python и pip..."
+    # docker exec "${CONTAINER_NAME}" python3 --version
+    # docker exec "${CONTAINER_NAME}" pip3 --version
     
-    log_info "🐍 Проверка Python и pip..."
-    docker exec "${CONTAINER_NAME}" python3 --version
-    docker exec "${CONTAINER_NAME}" pip3 --version
+    # log_info "📚 Установка Python зависимостей..."
+    # # Сначала обновляем pip
+    # docker exec "${CONTAINER_NAME}" python3 -m pip install --upgrade pip --user
     
-    log_info "📚 Установка Python зависимостей..."
-    # Сначала обновляем pip
-    docker exec "${CONTAINER_NAME}" python3 -m pip install --upgrade pip --user
+    # # Устанавливаем пакеты по одному
+    # log_info "Установка loguru..."
+    # if docker exec "${CONTAINER_NAME}" python3 -m pip install --user loguru; then
+    #     log_success "loguru установлен"
+    # else
+    #     log_warning "Ошибка установки loguru"
+    # fi
     
-    # Устанавливаем пакеты по одному
-    log_info "Установка loguru..."
-    if docker exec "${CONTAINER_NAME}" python3 -m pip install --user loguru; then
-        log_success "loguru установлен"
-    else
-        log_warning "Ошибка установки loguru"
-    fi
-    
-    log_info "Установка nodriver..."
-    if docker exec "${CONTAINER_NAME}" python3 -m pip install --user nodriver; then
-        log_success "nodriver установлен"
-    else
-        log_warning "Ошибка установки nodriver, пробуем альтернативный способ..."
-        docker exec "${CONTAINER_NAME}" python3 -m pip install --user --no-deps nodriver
-    fi
-    
+    # log_info "Установка nodriver..."
+    # if docker exec "${CONTAINER_NAME}" python3 -m pip install --user nodriver; then
+    #     log_success "nodriver установлен"
+    # else
+    #     log_warning "Ошибка установки nodriver, пробуем альтернативный способ..."
+    #     docker exec "${CONTAINER_NAME}" python3 -m pip install --user --no-deps nodriver
+    # fi
+    install_chrome_in_container
     # 6. Установка зависимостей для сбора данных на хосте
     log_step "Установка зависимостей для сбора данных..."
     check_data_collection_deps
@@ -424,12 +432,12 @@ auto_setup_and_install() {
 fix_permissions() {
     log_step "Исправление прав доступа..."
     
-    # Исправляем права на папку cookies в контейнере
+    # Исправляем права на папку cookies в контейнере (ИЗМЕНЕНО: ubuntu вместо seluser)
     log_info "Исправление прав на папку cookies в контейнере..."
     docker exec --user root "${CONTAINER_NAME}" bash -c "
-        mkdir -p /home/seluser/tikleap_work/cookies &&
-        chown -R seluser:seluser /home/seluser/tikleap_work &&
-        chmod -R 755 /home/seluser/tikleap_work
+        mkdir -p /home/ubuntu/tikleap_work/cookies &&
+        chown -R ubuntu:ubuntu /home/ubuntu/tikleap_work &&
+        chmod -R 755 /home/ubuntu/tikleap_work
     "
     
     # Также исправляем права на хост-системе

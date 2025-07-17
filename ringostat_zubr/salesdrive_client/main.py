@@ -7,17 +7,21 @@ from urllib.parse import urlparse
 
 import requests
 from config.logger import logger
-
-SALESDRIVE_API = "3m7xasIXKX7ME3TmEiN_CU2tajKMEtilHQ-smKeXnSFTKReKV2jEFn8J3TUoYC_aZa-dGQvC-c_NhV9Akl-gCTd-LfGT7v_dZlpe"
-CRM_FORM_ID = (
-    "_gidicYgNu5sO16suNI6gukV8Fi_YtNYglV0I1GWcQ9N5nGr7eW9ALUNkAeelRGLuTAMRCAPfhL"
+from config import Config
+from get_domain import (
+    create_sajt_text_to_value_mapping,
+    extract_domain_from_utm_page,
+    find_sajt_value_by_domain,
 )
+config = Config.load()
+SALESDRIVE_API = config.client.salesdrive_api
+CRM_FORM_ID = config.client.crm_form_id
+TIMEOUT = config.client.timeout
+INTERVAL_MINUTES = config.client.parser_interval_minutes
 
 current_directory = Path.cwd()
-json_directory = current_directory / "json"
 file_sajt = current_directory / "sajt.json"
 file_orders = current_directory / "orders.json"
-
 
 def get_random_pause(min_seconds, max_seconds):
     """
@@ -83,7 +87,7 @@ def extract_and_save_sajt_options():
             "limit": 1,  # Нужен только один результат для получения мета-данных
         }
 
-        response = requests.get(url, headers=headers, params=params, timeout=(10, 30))
+        response = requests.get(url, headers=headers, params=params, timeout=TIMEOUT)
 
         if response.status_code == 200:
             data = response.json()
@@ -137,65 +141,6 @@ def load_sajt_options():
         return None
 
 
-def create_sajt_text_to_value_mapping():
-    """
-    Создает словарь для поиска value по text (домену)
-    """
-    sajt_options = load_sajt_options()
-    if sajt_options:
-        return {option["text"]: option["value"] for option in sajt_options}
-    return {}
-
-
-def extract_domain_from_utm_page(utm_page):
-    """
-    Извлекает домен из utmPage
-    """
-    if not utm_page:
-        return None
-
-    try:
-        # Если URL не содержит схему, добавляем её
-        if not utm_page.startswith(("http://", "https://")):
-            utm_page = "https://" + utm_page
-
-        parsed_url = urlparse(utm_page)
-        domain = parsed_url.netloc
-
-        # Убираем www. если есть
-        if domain.startswith("www."):
-            domain = domain[4:]
-
-        return domain
-    except Exception as e:
-        logger.error(f"Ошибка при извлечении домена из {utm_page}: {e}")
-        return None
-
-
-def find_sajt_value_by_domain(domain, sajt_mapping):
-    """
-    Ищет value в sajt.json по домену
-    """
-    if not domain or not sajt_mapping:
-        return None
-
-    # Ищем точное совпадение
-    if domain in sajt_mapping:
-        return sajt_mapping[domain]
-
-    # Ищем среди вариантов с https://
-    https_domain = f"https://{domain}"
-    if https_domain in sajt_mapping:
-        return sajt_mapping[https_domain]
-
-    # Ищем среди вариантов с www
-    www_domain = f"www.{domain}"
-    if www_domain in sajt_mapping:
-        return sajt_mapping[www_domain]
-
-    return None
-
-
 def get_salesdrive_orders(date_from=None, date_to=None):
     try:
         # Если даты не указаны, используем последние 24 часа
@@ -218,7 +163,7 @@ def get_salesdrive_orders(date_from=None, date_to=None):
             "limit": 100,
         }
 
-        response = requests.get(url, headers=headers, params=params, timeout=(10, 30))
+        response = requests.get(url, headers=headers, params=params, timeout=TIMEOUT)
 
         if response.status_code == 200:
             data = response.json()
@@ -320,7 +265,7 @@ def update_order_sajt(orders_data):
                     url,
                     headers=headers,
                     json=payload,
-                    timeout=(10, 30),
+                    timeout=TIMEOUT,
                 )
 
                 if response.status_code == 200:
@@ -373,14 +318,13 @@ def update_order_sajt(orders_data):
         raise
 
     return results
-
+def main():
+    matched_orders = get_salesdrive_orders()
+    update_order_sajt(matched_orders)
 
 if __name__ == "__main__":
-    # Сначала извлекаем опции sajt
-    # extract_and_save_sajt_options()
+    while True:
+        main()
+        logger.info("Пауза на 1 час!!!")
+        time.sleep(60 * INTERVAL_MINUTES )
 
-    # Получаем заявки с sajt=null и найденными доменами
-    matched_orders = get_salesdrive_orders()
-    # logger.info(matched_orders)
-    # Если нужно обновить заявки, раскомментируй следующую строку
-    update_results = update_order_sajt(matched_orders)

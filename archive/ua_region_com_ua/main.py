@@ -48,7 +48,7 @@ headers = {
 }
 
 while True:
-    max_workers = 10
+    max_workers = 50
     base_url = "https://www.ua-region.com.ua"
     url_sitemap = "https://www.ua-region.com.ua/sitemap.xml"
 

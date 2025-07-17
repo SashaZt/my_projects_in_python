@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 from config.logger import logger
 from scrap import process_all_xml_files
+
 current_directory = Path.cwd()
 temp_directory = current_directory / "temp"
 output_csv_file = temp_directory / "output.csv"
@@ -20,72 +21,67 @@ def get_html():
     и сохранения их в папку temp/html.
     """
     cookies = {
-    'JSESSIONID': 'ijuKNdAt3BMJwSM5QFPL30sAy8mhx3YmVIgyCawu.msc01-popp01:main-popp',
-}
-
+        "JSESSIONID": "KtifH7bKcFDar64HQTaUTMyBkreSUB0CF1SZhChC.zakupki-aogp",
+    }
 
     headers = {
-    'Accept': 'application/xml, text/xml, */*; q=0.01',
-    'Accept-Language': 'ru,en;q=0.9,uk;q=0.8',
-    'Connection': 'keep-alive',
-    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-    'DNT': '1',
-    'Faces-Request': 'partial/ajax',
-    'Origin': 'http://zakupki.gov.kg',
-    'Referer': 'http://zakupki.gov.kg/popp/view/order/single_source_procurement.xhtml?cid=2',
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-    'X-Requested-With': 'XMLHttpRequest',
-        # 'Cookie': 'JSESSIONID=ijuKNdAt3BMJwSM5QFPL30sAy8mhx3YmVIgyCawu.msc01-popp01:main-popp',
+        "Accept": "application/xml, text/xml, */*; q=0.01",
+        "Accept-Language": "ru,en;q=0.9,uk;q=0.8",
+        "Connection": "keep-alive",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "DNT": "1",
+        "Faces-Request": "partial/ajax",
+        "Origin": "https://zakupki.okmot.kg",
+        "Referer": "https://zakupki.okmot.kg/popp/view/services/registry/procurementEntities.xhtml",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+        "X-Requested-With": "XMLHttpRequest",
+        "sec-ch-ua": '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"macOS"',
     }
 
-    params = {
-        'cid': '2',
-    }
-
-    
-
-    
-    for i in range(0, 5000):
+    for i in range(0, 15):
         table_first = str(i * 50)
         output_html_file = html_directory / f"data_{table_first}.html"
 
         data = {
-        'javax.faces.partial.ajax': 'true',
-        'javax.faces.source': 'form:table',
-        'javax.faces.partial.execute': 'form:table',
-        'javax.faces.partial.render': 'form:table',
-        'javax.faces.behavior.event': 'page',
-        'javax.faces.partial.event': 'page',
-        'form:table_pagination': 'true',
-        'form:table_first': table_first,
-        'form:table_rows': '50',
-        'form:table_skipChildren': 'true',
-        'form:table_encodeFeature': 'true',
-        'form': 'form',
-        'form:j_idt75': '',
-        'form:supplier_input': '',
-        'form:supplier_hinput': '',
-        'form:dateFrom_input': '',
-        'form:dateTo_input': '',
-        'form:table_rppDD': '50',
-        'form:table_selection': '',
-        'javax.faces.ViewState': '3818524033408927344:-8645504847618338535',
-    }
-
-
+            "javax.faces.partial.ajax": "true",
+            "javax.faces.source": "table",
+            "javax.faces.partial.execute": "table",
+            "javax.faces.partial.render": "table",
+            "javax.faces.behavior.event": "page",
+            "javax.faces.partial.event": "page",
+            "table_pagination": "true",
+            "table_first": table_first,
+            "table_rows": "50",
+            "table_skipChildren": "true",
+            "table_encodeFeature": "true",
+            "form": "form",
+            "j_idt31": "",
+            "j_idt34": "",
+            "ownershipType_focus": "",
+            "ownershipType_input": "",
+            "status_focus": "",
+            "status_input": "",
+            "table_rppDD": "50",
+            "table_selection": "",
+            "javax.faces.ViewState": "-1845043498698486249:-2085788632273726909",
+        }
 
         if output_html_file.exists():
             logger.info(f"File {output_html_file} already exists. Skipping download.")
             continue
         response = requests.post(
-        'http://zakupki.gov.kg/popp/view/order/single_source_procurement.xhtml',
-        params=params,
-        cookies=cookies,
-        headers=headers,
-        data=data,
-        verify=False,)
-
-        
+            "https://zakupki.okmot.kg/popp/view/services/registry/procurementEntities.xhtml",
+            cookies=cookies,
+            headers=headers,
+            data=data,
+            verify=False,
+            timeout=30,
+        )
 
         # Проверка кода ответа
         if response.status_code == 200:
@@ -97,6 +93,7 @@ def get_html():
         else:
             logger.error(f"Failed to get HTML. Status code: {response.status_code}")
 
+
 if __name__ == "__main__":
-    # get_html()
-    process_all_xml_files(html_directory)
+    get_html()
+    # process_all_xml_files(html_directory)

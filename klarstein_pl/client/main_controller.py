@@ -1,13 +1,19 @@
 import asyncio
 import shutil
-
+import signal
+import time
 import pandas as pd
 from create_xml import export_products_to_xml
 from downloader import downloader
 from get_xml import parse_start_xml
-from scrap import scrap_html_file
+from scrap import scrap_html_file, scrap_html_file_multithreaded
 
 from config import Config, logger, paths
+
+def signal_handler(signum, frame):
+    """Обработчик сигналов для корректного завершения"""
+    logger.info(f"Получен сигнал {signum}, завершение работы...")
+    sys.exit(0)
 
 
 async def main():
@@ -26,11 +32,17 @@ async def main():
 
 
 if __name__ == "__main__":
-    print("Привет")
-    # if paths.temp.exists():
-    #     shutil.rmtree(paths.temp)
-    #     paths.create_directories()
-    # parse_start_xml()
-    # asyncio.run(main())
-    # scrap_html_file()
-    # export_products_to_xml()
+    # Регистрируем обработчики сигналов
+    # signal.signal(signal.SIGTERM, signal_handler)
+    # signal.signal(signal.SIGINT, signal_handler)
+    #  # Явное завершение
+    if paths.temp.exists():
+        shutil.rmtree(paths.temp)
+        paths.create_directories()
+    parse_start_xml()
+    asyncio.run(main())
+    
+    scrap_html_file_multithreaded()
+    
+    export_products_to_xml()
+

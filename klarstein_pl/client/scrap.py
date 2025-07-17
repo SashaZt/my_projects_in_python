@@ -1,3 +1,4 @@
+#client/scrap.py
 import json
 import math
 import random
@@ -11,6 +12,29 @@ from main_db import loader
 from translation import translate_text
 
 from config import Config, logger, paths
+import json
+import math
+import random
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+from xml.etree import ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
+import time
+
+from bs4 import BeautifulSoup
+from main_db import loader
+from translation import translate_text
+from config import Config, logger, paths
+
+# Глобальные переменные для многопоточности
+categories_lock = Lock()
+processing_stats = {
+    'processed_files': 0,
+    'total_files': 0,
+    'start_time': None
+}
 
 
 class CategoriesManager:
@@ -51,14 +75,14 @@ class CategoriesManager:
                 category_id = self.path_to_id[category_path]
                 last_category_id = category_id
                 current_parent_id = category_id
-                logger.debug(
-                    f"Найдена существующая категория: {category_path} (ID: {category_id})"
-                )
+                # logger.debug(
+                #     f"Найдена существующая категория: {category_path} (ID: {category_id})"
+                # )
             else:
                 # Создаем новую категорию
-                logger.info(
-                    f"Создаем новую категорию: {category_name_pl} (путь: {category_path})"
-                )
+                # logger.info(
+                #     f"Создаем новую категорию: {category_name_pl} (путь: {category_path})"
+                # )
 
                 # Переводим название
                 russian, ukrainian = translate_text(category_name_pl)
@@ -87,9 +111,9 @@ class CategoriesManager:
                 current_parent_id = self.next_id
                 self.next_id += 1
 
-                logger.info(
-                    f"Категория создана: {category_name_pl} -> ID: {current_parent_id}"
-                )
+                # logger.info(
+                #     f"Категория создана: {category_name_pl} -> ID: {current_parent_id}"
+                # )
 
         return last_category_id
 
@@ -107,7 +131,7 @@ class CategoriesManager:
             ),
         )
 
-        logger.info(f"Возвращаем {len(categories_sorted)} уникальных категорий")
+        # logger.info(f"Возвращаем {len(categories_sorted)} уникальных категорий")
         return categories_sorted
 
     def get_category_id_by_name_pl(self, name_pl):
@@ -135,175 +159,14 @@ class CategoriesManager:
             )
             logger.info(f"ID {category['id']}: {category['name_pl']}{parent_info}")
 
-        logger.info("=== ПУТИ КАТЕГОРИЙ ===")
-        for path, cat_id in self.path_to_id.items():
-            logger.info(f"'{path}' -> ID: {cat_id}")
+        # logger.info("=== ПУТИ КАТЕГОРИЙ ===")
+        # for path, cat_id in self.path_to_id.items():
+        #     logger.info(f"'{path}' -> ID: {cat_id}")
 
 
 categories_manager = CategoriesManager()
 config = Config.load()
 
-# def scrap_html_file():
-#     all_data = []
-#     html_files = list(html_directory.glob("*.html"))
-#     for html_file in html_files:
-#         with open(f"{file_name}.html", "r", encoding="utf-8") as file:
-#             content = file.read()
-#         soup = BeautifulSoup(content, "lxml")
-#         script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
-
-#         # Проходим по всем тегам
-#         breadcrumb_script = None
-#         product_script = None
-#         for script in script_tags:
-#             try:
-#                 # Парсим содержимое тега как JSON
-#                 json_data = json.loads(script.string)
-
-#                 # Проверяем @type
-#                 if json_data.get("@type") == "BreadcrumbList" and not breadcrumb_script:
-#                     breadcrumb_script = json_data
-#                 elif json_data.get("@type") == "Product" and not product_script:
-#                     product_script = json_data
-
-#                 # Если оба найдены, можно прервать цикл
-#                 if breadcrumb_script and product_script:
-#                     break
-#             except (json.JSONDecodeError, TypeError):
-#                 # Пропускаем, если содержимое не является валидным JSON
-#                 continue
-
-#         # Получаем данные продукта
-#         product_data = scrap_json_product(product_script, breadcrumb_script)
-#         product_data_description = scrap_html_product(soup)
-
-#         # Объединяем данные
-#         product_data.update(product_data_description)
-#         all_data.append(product_data)
-#         # Преобразуем в структуру для YML
-#         yml_structure = transform_to_yml_structure(product_data)
-
-#     # Сохраняем в JSON с правильной структурой
-#     with open("result.json", "w", encoding="utf-8") as f:
-#         json.dump(yml_structure, f, ensure_ascii=False, indent=4)
-
-#     success = loader.load_data_to_db(yml_structure)
-
-#     if success:
-#         logger.info(f"Товар {file_name} успешно загружен в БД")
-#     else:
-#         logger.error(f"Ошибка загрузки товара {file_name} в БД")
-
-
-# #     return success
-# def scrap_html_file():
-#     """ИСПРАВЛЕННАЯ версия - обрабатывает множество HTML файлов"""
-#     global categories_manager
-
-#     all_products = []
-#     html_files = list(html_directory.glob("*.html"))
-
-#     logger.info(f"Найдено {len(html_files)} HTML файлов для обработки")
-
-#     for html_file in html_files:
-#         logger.info(f"Обрабатываем файл: {html_file.name}")
-
-#         try:
-#             with open(html_file, "r", encoding="utf-8") as file:
-#                 content = file.read()
-
-#             soup = BeautifulSoup(content, "lxml")
-#             script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
-
-#             # Проходим по всем тегам
-#             breadcrumb_script = None
-#             product_script = None
-#             for script in script_tags:
-#                 try:
-#                     # Парсим содержимое тега как JSON
-#                     json_data = json.loads(script.string)
-
-#                     # Проверяем @type
-#                     if (
-#                         json_data.get("@type") == "BreadcrumbList"
-#                         and not breadcrumb_script
-#                     ):
-#                         breadcrumb_script = json_data
-#                     elif json_data.get("@type") == "Product" and not product_script:
-#                         product_script = json_data
-
-#                     # Если оба найдены, можно прервать цикл
-#                     if breadcrumb_script and product_script:
-#                         break
-#                 except (json.JSONDecodeError, TypeError):
-#                     # Пропускаем, если содержимое не является валидным JSON
-#                     continue
-
-#             if not product_script or not breadcrumb_script:
-#                 logger.warning(
-#                     f"Не найдены необходимые данные в файле {html_file.name}"
-#                 )
-#                 continue
-
-#             # Получаем данные продукта
-#             product_data = scrap_json_product(product_script, breadcrumb_script)
-#             product_data_description = scrap_html_product(soup)
-
-#             # Объединяем данные
-#             product_data.update(product_data_description)
-
-#             # ВАЖНО: Регистрируем категории из этого товара
-#             breadcrumbs_pl = product_data.get("breadcrumbs_pl", [])
-#             category_id = categories_manager.add_breadcrumbs(breadcrumbs_pl)
-
-#             # Добавляем ID категории к данным товара
-#             product_data["category_id"] = category_id
-#             logger.info(product_data)
-#             exit()
-#             all_products.append(product_data)
-
-#         except Exception as e:
-#             logger.error(f"Ошибка обработки файла {html_file.name}: {e}")
-#             continue
-
-#     if not all_products:
-#         logger.error("Не удалось обработать ни одного товара")
-#         return False
-
-#     # Формируем финальную YML структуру со всеми товарами
-#     yml_structure = {
-#         "shop_info": {
-#             "name": "Klarstein Ukraine",
-#             "company": "Klarstein UA",
-#             "url": "https://klarstein.ua",
-#         },
-#         "categories": categories_manager.get_all_categories(),  # Все уникальные категории
-#         "offers": [],
-#     }
-
-#     # Генерируем offers для всех товаров
-#     for product_data in all_products:
-#         offer = generate_offer_with_category_id(product_data)
-#         yml_structure["offers"].append(offer)
-
-#     # Сохраняем результат
-#     with open("result_all_products.json", "w", encoding="utf-8") as f:
-#         json.dump(yml_structure, f, ensure_ascii=False, indent=4)
-
-# with open("result_all_products.json", "r", encoding="utf-8") as f:
-#     yml_structure = json.load(f)
-#     # Загружаем в БД
-#     success = loader.load_data_to_db(yml_structure)
-
-#     if success:
-#         logger.info(
-#             f"Успешно загружено {len(all_products)} товаров и {len(yml_structure['categories'])} уникальных категорий в БД"
-#         )
-#     else:
-#         logger.error("Ошибка загрузки данных в БД")
-
-
-#     # return success
 def scrap_html_file():
     """ИСПРАВЛЕННАЯ версия - корректное управление категориями"""
     global categories_manager
@@ -313,7 +176,7 @@ def scrap_html_file():
 
     logger.info(f"Найдено {len(html_files)} HTML файлов для обработки")
 
-    # ЭТАП 1: Сначала собираем ВСЕ категории из всех файлов
+    # # ЭТАП 1: Сначала собираем ВСЕ категории из всех файлов
     logger.info("=== ЭТАП 1: Сбор всех категорий ===")
 
     for html_file in html_files:
@@ -356,8 +219,8 @@ def scrap_html_file():
             logger.error(f"Ошибка сканирования категорий в файле {html_file.name}: {e}")
             continue
 
-    # Выводим отладочную информацию о собранных категориях
-    categories_manager.print_debug_info()
+    # # Выводим отладочную информацию о собранных категориях
+    # categories_manager.print_debug_info()
 
     # ЭТАП 2: Теперь обрабатываем товары с уже готовыми категориями
     logger.info("=== ЭТАП 2: Обработка товаров ===")
@@ -466,82 +329,6 @@ def scrap_html_file():
     # Загружаем в БД
     success = loader.load_data_to_db(yml_structure)
 
-    # if success:
-    #     logger.info(
-    #         f"Успешно загружено {len(all_products)} товаров и {len(yml_structure['categories'])} уникальных категорий в БД"
-    #     )
-    # else:
-    #     logger.error("Ошибка загрузки данных в БД")
-
-    # return success
-
-
-# def generate_offer_with_category_id(raw_data):
-#     """
-#     ИСПРАВЛЕННАЯ версия - использует уже определенный category_id
-#     """
-#     product = raw_data.get("product", {})
-#     description_pl = raw_data.get("description_pl", [])
-#     images = product.get("images", [])
-
-#     # Извлекаем размеры и вес
-#     dimensions = extract_dimensions_and_weight(description_pl)
-
-#     # Определяем категорию товара (последняя в breadcrumbs)
-#     categories = raw_data.get("breadcrumbs_pl", [])
-
-#     keywords_pl = ", ".join(categories)
-
-#     category_id = len(categories) if categories else 1
-
-#     # Формируем готовое HTML описание из польских данных
-#     description, description_ua, description_pl = generate_complete_description_html(
-#         description_pl, images
-#     )
-
-#     name_pl = product.get("name_pl", "")
-#     name_russian, name_ukrainian = translate_text(name_pl)
-
-#     keywords, keywords_ua = translate_text(keywords_pl)
-
-#     # Основная структура offer
-#     offer = {
-#         # Обязательные атрибуты
-#         "id": product.get("sku", ""),
-#         "available": "true",
-#         "selling_type": "u",
-#         # Обязательные элементы
-#         "price": product.get("price", "0"),
-#         "price_opt1": "",
-#         "price_opt2": "",
-#         "quantity1": "",
-#         "quantity2": "",
-#         "discount": "",
-#         "currencyId": "UAH",
-#         "categoryId": str(category_id),
-#         # Название товара
-#         "name": name_russian,  # русский - пока копируем, потом переведем
-#         "name_pl": name_pl,  # польский - исходный
-#         "name_ua": name_ukrainian,  # украинский - заполнится после перевода
-#         # Дополнительные поля
-#         "vendor": "Klarstein",
-#         "vendorCode": generate_10_digit_number(),
-#         "country_of_origin": "Германия",
-#         "keywords_pl": keywords_pl,
-#         "keywords": keywords,
-#         "keywords_ua": keywords_ua,
-#         "model": "",
-#         # Изображения
-#         "pictures": product.get("images", []),
-#         # Готовые HTML описания для всех языков
-#         "description": description,  # русский - пока польский HTML, потом переведем
-#         "description_pl": description_pl,  # польский - готовый HTML
-#         "description_ua": description_ua,  # украинский - заполнится после перевода
-#         # Размеры и вес
-#         "dimensions": dimensions,
-#     }
-
-#     return offer
 
 
 def generate_offer_with_category_id(raw_data):
@@ -749,6 +536,12 @@ def calculate_prices(
     """
     # Правила расчета наценки markup_rules берется из config.json
     markup_rules = config.client.price_rules.markup_rules
+    # ОТЛАДКА: проверяем что загрузилось
+    # logger.info(f"DEBUG: markup_rules type: {type(markup_rules)}")
+    # logger.info(f"DEBUG: markup_rules length: {len(markup_rules) if markup_rules else 'None'}")
+    # if markup_rules:
+    #     logger.info(f"DEBUG: first rule: {markup_rules[0]}")
+    #     logger.info(f"DEBUG: last rule: {markup_rules[-1]}")
 
     # Округление rounding_precision берется из config.json
     rounding_precision = config.client.price_rules.rounding_precision
@@ -777,13 +570,13 @@ def calculate_prices(
     opt1_price = round((base_price_uah * opt1) + shipping_cost, rounding_precision)
     opt2_price = round((base_price_uah * opt2) + shipping_cost, rounding_precision)
 
-    logger.info(f"Стоимость доставки за 1кг {cost_per_kg_uah}")
-    logger.info(f"Курс Злотых {pln_to_uah}")
-    logger.info(f"Цена поставщика {supplier_price}")
-    logger.info(f"Цена в гривнах {base_price_uah}")
-    logger.info(f"Цена retail_price {retail_price}")
-    logger.info(f"Цена opt1_price {opt1_price}")
-    logger.info(f"Цена opt2_price {opt2_price}")
+    # logger.info(f"Стоимость доставки за 1кг {cost_per_kg_uah}")
+    # logger.info(f"Курс Злотых {pln_to_uah}")
+    # logger.info(f"Цена поставщика {supplier_price}")
+    # logger.info(f"Цена в гривнах {base_price_uah}")
+    # logger.info(f"Цена retail_price {retail_price}")
+    # logger.info(f"Цена opt1_price {opt1_price}")
+    # logger.info(f"Цена opt2_price {opt2_price}")
 
     all_data = {
         # Рассчитанные цены
@@ -794,7 +587,7 @@ def calculate_prices(
         "quantity1": markup_rule["quantity1"],
         "quantity2": markup_rule["quantity2"],
     }
-    logger.info(all_data)
+    # logger.info(all_data)
     return all_data
 
 
@@ -811,47 +604,35 @@ def find_markup_rule(
     Returns:
         Подходящее правило или None
     """
-    for rule in markup_rules:
-        if rule["min"] <= price < rule["max"]:
-            return rule
+    # logger.info(f"Поиск правила для цены: {price}")
+    
+    # Сортируем правила по min для безопасности
+    sorted_rules = sorted(markup_rules, key=lambda x: x["min"])
+    
+    # Проходим по всем правилам
+    for i, rule in enumerate(sorted_rules):
+        # logger.info(f"Проверяем правило {i+1}: {rule['min']} <= {price} < {rule['max']}")
+        
+        # Для последнего правила используем >= вместо <
+        if i == len(sorted_rules) - 1:
+            if price >= rule["min"]:
+                # logger.info(f"Выбрано последнее правило: {rule}")
+                return rule
+        else:
+            # Для остальных правил используем строгое сравнение
+            if rule["min"] <= price < rule["max"]:
+                # logger.info(f"Выбрано правило {i+1}: {rule}")
+                return rule
+    
+    # Если цена меньше минимального диапазона, берем первое правило
+    if price < sorted_rules[0]["min"]:
+        logger.warning(f"Цена {price} меньше минимального диапазона, используем первое правило")
+        return sorted_rules[0]
+    
+    # Если ничего не найдено, берем последнее правило как fallback
+    logger.warning(f"Не найдено правило для цены {price}, используем последнее правило")
+    return sorted_rules[-1]
 
-    # Если цена больше максимального диапазона, берем последнее правило
-    if price >= markup_rules[-1]["min"]:
-        return markup_rules[-1]
-
-    return None
-
-
-# def extract_dimensions_and_weight(descriptions):
-#     """
-#     Извлекает размеры и вес из технических характеристик
-#     """
-#     dimensions = {}
-
-#     for desc in descriptions:
-#         if (
-#             "wymiary" in desc.get("title_pl", "").lower()
-#             or "techniczne" in desc.get("title_pl", "").lower()
-#         ):
-#             tech_desc = desc.get("description_pl", "")
-
-#             # Поиск размеров (ширина x высота x глубина)
-#             dimensions_match = re.search(
-#                 r"wymiary: ok\. (\d+) x (\d+) x (\d+) cm", tech_desc, re.IGNORECASE
-#             )
-#             if dimensions_match:
-#                 dimensions["width"] = dimensions_match.group(1)
-#                 dimensions["height"] = dimensions_match.group(2)
-#                 dimensions["length"] = dimensions_match.group(3)
-
-#             # Поиск веса
-#             weight_match = re.search(
-#                 r"waga: ok\. ([\d,]+) kg", tech_desc, re.IGNORECASE
-#             )
-#             if weight_match:
-#                 dimensions["weight"] = weight_match.group(1).replace(",", ".")
-
-#             break
 
 
 #     return dimensions
@@ -1041,9 +822,409 @@ def add_translations(yml_data, translations):
                     ]
 
     return yml_data
+def process_single_html_file_for_categories(html_file):
+    """
+    Обрабатывает один HTML файл для извлечения категорий
+    Возвращает список breadcrumbs для последующей регистрации
+    """
+    try:
+        with open(html_file, "r", encoding="utf-8") as file:
+            content = file.read()
+
+        soup = BeautifulSoup(content, "lxml")
+        script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
+
+        # Ищем breadcrumbs
+        breadcrumb_script = None
+        for script in script_tags:
+            try:
+                json_data = json.loads(script.string)
+                if json_data.get("@type") == "BreadcrumbList":
+                    breadcrumb_script = json_data
+                    break
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        if breadcrumb_script:
+            # Извлекаем breadcrumbs
+            itemListElement = breadcrumb_script.get("itemListElement", [])
+            breadcrumbs_pl = []
+            for item in itemListElement[:-1]:
+                if isinstance(item, dict):
+                    breadcrumbs_pl.append(item.get("name"))
+
+            if breadcrumbs_pl:
+                return {
+                    'file': html_file.name,
+                    'breadcrumbs': breadcrumbs_pl,
+                    'success': True
+                }
+
+        return {
+            'file': html_file.name,
+            'breadcrumbs': [],
+            'success': False,
+            'error': 'No breadcrumbs found'
+        }
+
+    except Exception as e:
+        return {
+            'file': html_file.name,
+            'breadcrumbs': [],
+            'success': False,
+            'error': str(e)
+        }
 
 
-if __name__ == "__main__":
-    scrap_html_file()
+def process_single_html_file_for_product(html_file):
+    """
+    Обрабатывает один HTML файл для извлечения данных товара
+    """
+    try:
+        with open(html_file, "r", encoding="utf-8") as file:
+            content = file.read()
 
-    # calculate_prices(1511.94, 23.5)
+        soup = BeautifulSoup(content, "lxml")
+        script_tags = soup.find_all("script", attrs={"type": "application/ld+json"})
+
+        # Ищем данные товара и breadcrumbs
+        breadcrumb_script = None
+        product_script = None
+        for script in script_tags:
+            try:
+                json_data = json.loads(script.string)
+                if json_data.get("@type") == "BreadcrumbList" and not breadcrumb_script:
+                    breadcrumb_script = json_data
+                elif json_data.get("@type") == "Product" and not product_script:
+                    product_script = json_data
+
+                if breadcrumb_script and product_script:
+                    break
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        if not product_script or not breadcrumb_script:
+            return {
+                'file': html_file.name,
+                'success': False,
+                'error': 'Missing product or breadcrumb data'
+            }
+
+        # Получаем данные продукта
+        product_data = scrap_json_product(product_script, breadcrumb_script)
+        product_data_description = scrap_html_product(soup)
+
+        # Объединяем данные
+        product_data.update(product_data_description)
+
+        return {
+            'file': html_file.name,
+            'product_data': product_data,
+            'success': True
+        }
+
+    except Exception as e:
+        return {
+            'file': html_file.name,
+            'success': False,
+            'error': str(e)
+        }
+
+
+def update_progress(file_name, stage):
+    """Обновляет прогресс обработки"""
+    with categories_lock:
+        processing_stats['processed_files'] += 1
+        elapsed = time.time() - processing_stats['start_time']
+        progress = (processing_stats['processed_files'] / processing_stats['total_files']) * 100
+        
+        logger.info(f"[{stage}] Обработан файл: {file_name} "
+                   f"({processing_stats['processed_files']}/{processing_stats['total_files']}) "
+                   f"- {progress:.1f}% за {elapsed:.1f}с")
+
+
+def scrap_html_file_multithreaded(max_workers=None):
+    """
+    МНОГОПОТОЧНАЯ версия функции scrap_html_file()
+    
+    Args:
+        max_workers: Максимальное количество потоков. По умолчанию: количество CPU * 2
+    """
+    global categories_manager, processing_stats
+    
+    # Определяем количество потоков
+    if max_workers is None:
+        import os
+        max_workers = min(32, (os.cpu_count() or 1) * 2)
+    
+    logger.info(f"Запуск многопоточной обработки с {max_workers} потоками")
+    
+    html_files = list(paths.html.glob("*.html"))
+    processing_stats['total_files'] = len(html_files)
+    processing_stats['start_time'] = time.time()
+    processing_stats['processed_files'] = 0
+    
+    logger.info(f"Найдено {len(html_files)} HTML файлов для обработки")
+
+    # ЭТАП 1: Многопоточный сбор категорий
+    logger.info("=== ЭТАП 1: Многопоточный сбор категорий ===")
+    
+    all_breadcrumbs = []
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Запускаем задачи для всех файлов
+        future_to_file = {
+            executor.submit(process_single_html_file_for_categories, html_file): html_file
+            for html_file in html_files
+        }
+        
+        # Собираем результаты
+        for future in as_completed(future_to_file):
+            result = future.result()
+            
+            if result['success'] and result['breadcrumbs']:
+                all_breadcrumbs.append(result['breadcrumbs'])
+                # logger.debug(f"Найдены категории в {result['file']}: {' > '.join(result['breadcrumbs'])}")
+            elif not result['success']:
+                logger.warning(f"Ошибка обработки категорий в {result['file']}: {result['error']}")
+            
+            update_progress(result['file'], "КАТЕГОРИИ")
+
+    # Регистрируем все найденные категории
+    # logger.info(f"Регистрация {len(all_breadcrumbs)} наборов категорий...")
+    for breadcrumbs in all_breadcrumbs:
+        categories_manager.add_breadcrumbs(breadcrumbs)
+
+    # # Выводим отладочную информацию о категориях
+    # categories_manager.print_debug_info()
+
+    # ЭТАП 2: Многопоточная обработка товаров
+    logger.info("=== ЭТАП 2: Многопоточная обработка товаров ===")
+    
+    processing_stats['processed_files'] = 0  # Сбрасываем счетчик для второго этапа
+    all_products = []
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Запускаем задачи для всех файлов
+        future_to_file = {
+            executor.submit(process_single_html_file_for_product, html_file): html_file
+            for html_file in html_files
+        }
+        
+        # Собираем результаты
+        for future in as_completed(future_to_file):
+            result = future.result()
+            
+            if result['success']:
+                product_data = result['product_data']
+                
+                # Определяем category_id по полному пути breadcrumbs
+                breadcrumbs_pl = product_data.get("breadcrumbs_pl", [])
+                if breadcrumbs_pl:
+                    category_id = categories_manager.get_category_id_by_path(breadcrumbs_pl)
+                else:
+                    category_id = 1
+
+                # Добавляем ID категории к данным товара
+                product_data["category_id"] = category_id
+                
+                all_products.append(product_data)
+                product_sku = product_data.get('product', {}).get('sku', 'unknown')
+                if product_sku == "unknown":
+                    continue
+                # logger.debug(f"Обработан товар: {product_sku} "
+                #            f"в категории {category_id}")
+                
+            else:
+                logger.warning(f"Ошибка обработки товара в {result['file']}: {result['error']}")
+            
+            update_progress(result['file'], "ТОВАРЫ")
+
+    if not all_products:
+        logger.error("Не удалось обработать ни одного товара")
+        return False
+
+    # ЭТАП 3: Многопоточная генерация предложений
+    logger.info("=== ЭТАП 3: Многопоточная генерация предложений ===")
+    
+    yml_structure = {
+        "shop_info": {
+            "name": "Klarstein Ukraine",
+            "company": "Klarstein UA",
+            "url": "https://klarstein.ua",
+        },
+        "categories": categories_manager.get_all_categories(),
+        "offers": [],
+    }
+
+    # Многопоточная генерация offers
+    # logger.info(f"Генерация {len(all_products)} предложений товаров...")
+    
+    offers = [None] * len(all_products)  # Предварительно выделяем память
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Создаем задачи с индексами для сохранения порядка
+        future_to_index = {
+            executor.submit(generate_offer_with_category_id, product_data): i
+            for i, product_data in enumerate(all_products)
+        }
+        
+        completed_offers = 0
+        for future in as_completed(future_to_index):
+            index = future_to_index[future]
+            try:
+                offer = future.result()
+                offers[index] = offer
+                completed_offers += 1
+                
+                if completed_offers % 50 == 0:  # Прогресс каждые 50 товаров
+                    progress = (completed_offers / len(all_products)) * 100
+                    logger.info(f"Сгенерировано предложений: {completed_offers}/{len(all_products)} ({progress:.1f}%)")
+                    
+            except Exception as e:
+                logger.error(f"Ошибка генерации предложения для товара {index}: {e}")
+                offers[index] = None  # Пропускаем проблемный товар
+    
+    # Фильтруем None значения
+    yml_structure["offers"] = [offer for offer in offers if offer is not None]
+    logger.info(f"Успешно сгенерировано {len(yml_structure['offers'])} предложений из {len(all_products)} товаров")
+
+    # Сохраняем результат
+    logger.info("Сохранение результата в файл...")
+    with open("result_all_products.json", "w", encoding="utf-8") as f:
+        json.dump(yml_structure, f, ensure_ascii=False, indent=4)
+
+    # # Финальная статистика
+    # total_time = time.time() - processing_stats['start_time']
+    # logger.info("=== ФИНАЛЬНАЯ СТАТИСТИКА ===")
+    # logger.info(f"Обработано товаров: {len(all_products)}")
+    # logger.info(f"Уникальных категорий: {len(yml_structure['categories'])}")
+    # logger.info(f"Время обработки: {total_time:.2f} секунд")
+    # logger.info(f"Скорость: {len(html_files)/total_time:.2f} файлов/сек")
+    # logger.info(f"Использовано потоков: {max_workers}")
+
+    # Загружаем в БД
+    logger.info("Загрузка данных в базу данных...")
+    with open("result_all_products.json", "r", encoding="utf-8") as f:
+        yml_structure = json.load(f)
+    
+    success = loader.load_data_to_db(yml_structure)
+    
+    if success:
+        logger.info("Данные успешно загружены в базу данных")
+    else:
+        logger.error("Ошибка загрузки данных в базу данных")
+    
+    return success
+
+
+def scrap_html_file_batch_optimized(batch_size=50, max_workers=None):
+    """
+    ОПТИМИЗИРОВАННАЯ версия с пакетной обработкой для очень больших объемов данных
+    
+    Args:
+        batch_size: Размер пакета для обработки
+        max_workers: Максимальное количество потоков
+    """
+    global categories_manager, processing_stats
+    
+    if max_workers is None:
+        import os
+        max_workers = min(32, (os.cpu_count() or 1) * 2)
+    
+    html_files = list(paths.html.glob("*.html"))
+    total_files = len(html_files)
+    processing_stats['total_files'] = total_files * 2  # Два этапа обработки
+    processing_stats['start_time'] = time.time()
+    processing_stats['processed_files'] = 0
+    
+    logger.info(f"Запуск пакетной обработки {total_files} файлов "
+               f"с пакетами по {batch_size} файлов и {max_workers} потоками")
+
+    # ЭТАП 1: Пакетная обработка категорий
+    logger.info("=== ЭТАП 1: Пакетная обработка категорий ===")
+    
+    all_breadcrumbs = []
+    
+    for i in range(0, total_files, batch_size):
+        batch_files = html_files[i:i + batch_size]
+        logger.info(f"Обработка пакета категорий {i//batch_size + 1}/{math.ceil(total_files/batch_size)} "
+                   f"({len(batch_files)} файлов)")
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_file = {
+                executor.submit(process_single_html_file_for_categories, html_file): html_file
+                for html_file in batch_files
+            }
+            
+            for future in as_completed(future_to_file):
+                result = future.result()
+                
+                if result['success'] and result['breadcrumbs']:
+                    all_breadcrumbs.append(result['breadcrumbs'])
+                
+                update_progress(result['file'], "КАТЕГОРИИ")
+
+    # Регистрируем все категории
+    logger.info(f"Регистрация {len(all_breadcrumbs)} наборов категорий...")
+    for breadcrumbs in all_breadcrumbs:
+        categories_manager.add_breadcrumbs(breadcrumbs)
+
+    # ЭТАП 2: Пакетная обработка товаров
+    logger.info("=== ЭТАП 2: Пакетная обработка товаров ===")
+    
+    all_products = []
+    
+    for i in range(0, total_files, batch_size):
+        batch_files = html_files[i:i + batch_size]
+        logger.info(f"Обработка пакета товаров {i//batch_size + 1}/{math.ceil(total_files/batch_size)} "
+                   f"({len(batch_files)} файлов)")
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_file = {
+                executor.submit(process_single_html_file_for_product, html_file): html_file
+                for html_file in batch_files
+            }
+            
+            for future in as_completed(future_to_file):
+                result = future.result()
+                
+                if result['success']:
+                    product_data = result['product_data']
+                    
+                    # Определяем category_id
+                    breadcrumbs_pl = product_data.get("breadcrumbs_pl", [])
+                    category_id = categories_manager.get_category_id_by_path(breadcrumbs_pl) if breadcrumbs_pl else 1
+                    product_data["category_id"] = category_id
+                    
+                    all_products.append(product_data)
+                
+                update_progress(result['file'], "ТОВАРЫ")
+
+    # Генерация и сохранение результата
+    logger.info("=== ФИНАЛИЗАЦИЯ ===")
+    
+    yml_structure = {
+        "shop_info": {
+            "name": "Klarstein Ukraine",
+            "company": "Klarstein UA", 
+            "url": "https://klarstein.ua",
+        },
+        "categories": categories_manager.get_all_categories(),
+        "offers": [generate_offer_with_category_id(product_data) for product_data in all_products],
+    }
+
+    with open("result_all_products.json", "w", encoding="utf-8") as f:
+        json.dump(yml_structure, f, ensure_ascii=False, indent=4)
+
+    total_time = time.time() - processing_stats['start_time']
+    logger.info(f"Пакетная обработка завершена за {total_time:.2f} секунд")
+    logger.info(f"Обработано товаров: {len(all_products)}")
+    logger.info(f"Скорость: {total_files/total_time:.2f} файлов/сек")
+
+    # Загрузка в БД
+    with open("result_all_products.json", "r", encoding="utf-8") as f:
+        yml_structure = json.load(f)
+    
+    return loader.load_data_to_db(yml_structure)
+

@@ -151,6 +151,7 @@ def save_contracts_to_json(contracts, filename="contracts_data.json"):
 def scrap_company():
     all_data = []
     files = list(html_directory.glob("*.html"))
+
     # Пройтись по каждому HTML файлу в папке
     for html_file in files:
         with html_file.open(encoding="utf-8") as file:
@@ -392,12 +393,12 @@ def process_single_contract(data):
 
 
 def main():
-    json_to_excel("file_name.json")
+    # json_to_excel("file_name.json")
 
-    # # Получаем данные из HTML
-    # scraped_data = scrap_company()
-
-    # # Объединяем с contracts_data.json
+    # Получаем данные из HTML
+    scraped_data = scrap_company()
+    logger.info(json.dumps(scraped_data))
+    # Объединяем с contracts_data.json
     # merged_data = merge_contracts(scraped_data, "contracts_data.json")
     # with open("file_name.json", "w", encoding="utf-8") as f:
     #     json.dump(merged_data, f, ensure_ascii=False, indent=4)
